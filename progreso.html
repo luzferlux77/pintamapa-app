@@ -178,7 +178,7 @@
       const tiles = [
         [PM.fmtDist(st.paintedM || 0), 'calles pintadas'], [PM.fmtDist(st.walkedM || 0), 'caminados'],
         [walks.length, 'paseos'], [fmtTime(walks.reduce((a, w) => a + w.elapsed, 0)), 'tiempo en la calle'],
-        [Object.keys(s.landmarks || {}).length, 'monumentos'], [Object.keys(s.conquered || {}).length, 'barrios 🚩'],
+        [Object.keys(s.landmarks || {}).length, 'monumentos'], [Object.keys(s.conqueredB || {}).length, 'barrios 🚩'],
         ['x' + (st.bestCombo || 0), 'mejor combo'], ['🔥 ' + (st.streak || 0), 'días de racha'],
       ];
       $('#tiles').innerHTML = tiles.map(([b, t]) => `<div class="tile"><b>${b}</b><small>${t}</small></div>`).join('');

@@ -150,6 +150,7 @@ PM.world = (function () {
       const tk = tileKeyOf(mid[0], mid[1]);
       if (acceptTiles.has(tk) && !pieces[id] && len > 0.5) {
         const p = { id, tile: tk, pts: cur, len, mid, wide: !!wide };
+        graphAdd(p);
         pieces[id] = p;
         tiles[tk].pieces.push(p);
         tiles[tk].total += len;
@@ -269,6 +270,63 @@ PM.world = (function () {
       if (c.lat != null) out.add(tileKeyOf(c.lat, c.lon));
     }
     return out;
+  }
+
+  // ---------------- Red de calles para rellenar huecos del GPS ----------------
+  // Con la pantalla apagada (móvil en el bolsillo) el GPS a veces se salta lecturas. Entre dos lecturas
+  // separadas se busca el camino más corto POR LAS CALLES y se pinta ese recorrido (no una línea recta).
+  const gnodes = new Map();   // "lat,lon" -> { p:[lat,lon], e:[{ to, len, piece }] }
+  const gkey = (q) => q[0].toFixed(6) + ',' + q[1].toFixed(6);
+  function gnode(q) {
+    const k = gkey(q);
+    let n = gnodes.get(k);
+    if (!n) { n = { k, p: q, e: [] }; gnodes.set(k, n); }
+    return n;
+  }
+  function graphAdd(piece) {
+    for (let i = 0; i < piece.pts.length - 1; i++) {
+      const a = gnode(piece.pts[i]), b = gnode(piece.pts[i + 1]);
+      if (a === b) continue;
+      const len = PM.geo.dist(a.p, b.p);
+      a.e.push({ to: b, len, piece: piece.id });
+      b.e.push({ to: a, len, piece: piece.id });
+    }
+  }
+  // vértice de la red más cercano a un punto (a menos de maxM)
+  function nearestNode(p, maxM) {
+    let best = null, bd = maxM;
+    for (const pc of piecesNear(p, maxM)) for (const q of pc.pts) {
+      const d = PM.geo.dist(p, q);
+      if (d < bd) { bd = d; best = gnodes.get(gkey(q)); }
+    }
+    return best;
+  }
+  // Dijkstra acotado: devuelve { len, pieces:[ids] } o null si no hay camino razonable
+  function route(a, b, maxLen) {
+    if (!a || !b) return null;
+    const s = nearestNode(a, 35), t = nearestNode(b, 35);
+    if (!s || !t) return null;
+    if (s === t) return { len: 0, pieces: [] };
+    const dist = new Map([[s, 0]]), prev = new Map(), done = new Set();
+    const heap = [[0, s]];
+    const push = (x) => { heap.push(x); let i = heap.length - 1; while (i > 0) { const j = (i - 1) >> 1; if (heap[j][0] <= heap[i][0]) break; [heap[i], heap[j]] = [heap[j], heap[i]]; i = j; } };
+    const pop = () => { const top = heap[0], last = heap.pop(); if (heap.length) { heap[0] = last; let i = 0; for (;;) { const l = 2 * i + 1, r = l + 1; let m = i; if (l < heap.length && heap[l][0] < heap[m][0]) m = l; if (r < heap.length && heap[r][0] < heap[m][0]) m = r; if (m === i) break; [heap[i], heap[m]] = [heap[m], heap[i]]; i = m; } } return top; };
+    let iter = 0;
+    while (heap.length && iter++ < 60000) {
+      const [d, n] = pop();
+      if (done.has(n)) continue;
+      done.add(n);
+      if (n === t) break;
+      if (d > maxLen) return null;
+      for (const ed of n.e) {
+        const nd = d + ed.len;
+        if (nd < (dist.has(ed.to) ? dist.get(ed.to) : Infinity)) { dist.set(ed.to, nd); prev.set(ed.to, [n, ed.piece]); push([nd, ed.to]); }
+      }
+    }
+    if (!done.has(t)) return null;
+    const ids = new Set();
+    for (let n = t; prev.has(n); n = prev.get(n)[0]) ids.add(prev.get(n)[1]);
+    return { len: dist.get(t), pieces: [...ids] };
   }
 
   // ---------------- Barrios reales ----------------
@@ -453,6 +511,7 @@ PM.world = (function () {
       clearTimeout(to);
       if (!r.ok) { cdnMissing.add(k); return null; }
       const j = await r.json();
+      if (j.v !== 2) { cdnMissing.add(k); return null; }   // formato antiguo (sin barrios): mejor de OpenStreetMap
       cache.put(k, { v: CACHE_V, t: Date.now(), els: j.els });
       if (j.name || j.city) {
         const t = ensureTile(k);
@@ -707,7 +766,7 @@ PM.world = (function () {
   return {
     TILE, RARITY, tiles, pieces, landmarks, cans,
     tileKeyOf, tileBounds, ensureAround, piecesNear, onChange,
-    barrios, barrioAt: barrioOf, barrioComplete,
+    barrios, barrioAt: barrioOf, barrioComplete, route,
     // carga las celdas que faltan para tener entero el barrio (hasta 12)
     ensureBarrio(id) {
       const B = barrios[id];

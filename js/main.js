@@ -32,7 +32,8 @@
   // ---------------- Mapa ----------------
   const start = S().lastPos || HOME;
   const map = L.map('map', { zoomControl: false, attributionControl: true, preferCanvas: true,
-    rotate: true, bearing: 0, rotateControl: false, touchRotate: false, shiftKeyRotate: false, compassBearing: false })
+    rotate: true, bearing: 0, rotateControl: false, touchRotate: false, shiftKeyRotate: false, compassBearing: false,
+    touchZoom: 'center', scrollWheelZoom: 'center', doubleClickZoom: 'center' })
     .setView(start, 17);
   // Teselas estándar de OSM oscurecidas por CSS (prototipo; para la Play Store usar un proveedor con clave)
   L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -41,7 +42,7 @@
   }).addTo(map);
   const renderer = L.canvas({ padding: 0.5 });
 
-  const layers = { tiles: L.layerGroup().addTo(map), lm: L.layerGroup().addTo(map), cans: L.layerGroup().addTo(map) };
+  const layers = { barrios: L.layerGroup().addTo(map), tiles: L.layerGroup().addTo(map), lm: L.layerGroup().addTo(map), cans: L.layerGroup().addTo(map) };
   const tileLayers = {};  // key -> {base, glow, core, rect, flag, paintedPts}
 
   function paintColor() { return S().color; }
@@ -66,10 +67,6 @@
     const all = t.pieces.map((p) => p.pts);
     const paintedPts = t.pieces.filter((p) => S().painted[p.id]).map((p) => p.pts);
     const tl = { paintedPts };
-    tl.rect = L.rectangle(W.tileBounds(key), {
-      renderer, color: '#7a8399', weight: 1, opacity: 0.35, dashArray: '4 8', fill: true,
-      fillColor: paintColor(), fillOpacity: S().conquered[key] ? 0.1 : 0, interactive: false,
-    }).addTo(layers.tiles);
     if (all.length) {
       tl.base = L.polyline(all, { renderer, color: '#6b7690', weight: 4, opacity: 0.8, interactive: false }).addTo(layers.tiles);
       tl.glow = L.polyline(paintedPts, { renderer, color: paintColor(), weight: 14, opacity: 0.22, lineCap: 'round', interactive: false }).addTo(layers.tiles);
@@ -79,16 +76,21 @@
     refreshFlag(key);
   }
 
-  function refreshFlag(key) {
-    const tl = tileLayers[key];
-    if (!tl) return;
-    tl.rect.setStyle({ fillColor: paintColor(), fillOpacity: S().conquered[key] ? 0.1 : 0 });
-    if (S().conquered[key] && !tl.flag) {
-      const b = W.tileBounds(key);
-      tl.flag = L.marker([(b[0][0] + b[1][0]) / 2, (b[0][1] + b[1][1]) / 2], {
-        icon: L.divIcon({ className: '', html: '<div class="flag">🚩</div>', iconSize: [30, 30], iconAnchor: [6, 28] }),
-        interactive: false,
-      }).addTo(layers.tiles);
+  // ---------- Barrios reales: contorno del barrio donde estás y de los conquistados, con bandera ----------
+  let curBarrio = null;
+  function refreshFlag() { renderBarrios(); }
+  function renderBarrios() {
+    layers.barrios.clearLayers();
+    for (const B of Object.values(W.barrios)) {
+      const conq = !!S().conqueredB[B.id], cur = B.id === curBarrio;
+      if (B.segs && (cur || conq)) {
+        L.polyline(B.segs, { renderer, color: conq ? paintColor() : '#5b6478', weight: cur ? 3 : 2, opacity: cur ? 0.85 : 0.6,
+          dashArray: conq ? null : '6 8', interactive: false }).addTo(layers.barrios);
+      }
+      if (conq && B.pos) {
+        L.marker(B.pos, { icon: L.divIcon({ className: '', html: `<div class="flag">🚩</div>`, iconSize: [30, 30], iconAnchor: [6, 28] }), interactive: false })
+          .addTo(layers.barrios);
+      }
     }
   }
 
@@ -105,8 +107,8 @@
     for (const k in tileLayers) {
       const tl = tileLayers[k];
       if (tl.core) { tl.core.setStyle({ color: paintColor() }); tl.glow.setStyle({ color: paintColor() }); }
-      refreshFlag(k);
     }
+    renderBarrios();
     for (const id in lmHalos) lmHalos[id].setStyle({ color: paintColor(), fillColor: paintColor() });
     document.documentElement.style.setProperty('--paint', paintColor());
   }
@@ -175,22 +177,52 @@
   let walkAnchor = null;
   let turbo = false;
 
+  // ---------------- Cámara: tú siempre en el centro, lo que se mueve es el mapa ----------------
+  // El centro es el de la zona visible (entre el panel de arriba y el de abajo). Entre lecturas del GPS
+  // el punto se desliza suave. Si arrastras el mapa para mirar, vuelve solo a los 8 s.
+  let disp = null, anim = null, recenterTimer = null;
+  function viewCenterPx() {
+    const r = map.getContainer().getBoundingClientRect();
+    const top = Math.max(0, $('#hud').getBoundingClientRect().bottom - r.top);
+    const sb = $('#session').getBoundingClientRect(), nb = $('#nav').getBoundingClientRect();
+    const bottom = Math.min(sb.height ? sb.top : r.bottom, nb.height ? nb.top : r.bottom) - r.top;
+    return L.point(r.width / 2, bottom > top + 100 ? (top + bottom) / 2 : r.height / 2);
+  }
+  function camera() {
+    if (!follow || !disp || document.hidden) return;
+    const want = viewCenterPx(), pt = map.latLngToContainerPoint(disp);
+    const dx = pt.x - want.x, dy = pt.y - want.y;
+    if (Math.abs(dx) > 0.5 || Math.abs(dy) > 0.5) map.panBy([dx, dy], { animate: false });
+  }
+  function drawPlayer() { player.setLatLng(disp); paintCircle.setLatLng(disp); auraCircle.setLatLng(disp); camera(); }
+  function showAt(p, smooth) {
+    if (!disp || !smooth || PM.geo.dist(disp, p) > 300) { disp = p.slice(); anim = null; drawPlayer(); return; }
+    anim = { from: disp.slice(), to: p.slice(), start: performance.now(), dur: 900 };
+  }
+  function stepDisplay(now) {
+    if (!anim) return;
+    const t = Math.min(1, (now - anim.start) / anim.dur);
+    disp = PM.geo.lerp(anim.from, anim.to, t);
+    if (t >= 1) anim = null;
+    drawPlayer();
+  }
+  function recenter() { clearTimeout(recenterTimer); follow = true; $('#btn-center').classList.remove('show'); camera(); }
+
   function teleport(p) {
     pos = p.slice(); lastP = null; walkAnchor = null;
-    player.setLatLng(pos); paintCircle.setLatLng(pos); auraCircle.setLatLng(pos);
     map.setView(pos, 17); follow = true;
+    showAt(pos, false);
     onMove(pos, true);
   }
 
   // fixTime: hora real de la lectura GPS. Con la pantalla bloqueada Android entrega las posiciones
   // en lotes; medir la velocidad por la hora de llegada daría velocidades absurdas (falso "vas en coche").
-  function onMove(p, isTeleport, fixTime, fixSpeed) {
+  function onMove(p, isTeleport, fixTime, fixSpeed, fixBearing) {
     const now = fixTime || Date.now();
     const visible = !document.hidden;
-    if (visible) {
-      player.setLatLng(p); paintCircle.setLatLng(p);
-      if (follow) map.panTo(p, { animate: false });
-    }
+    if (visible) showAt(p, mode === 'gps' && !isTeleport);
+    // rumbo que da el propio GPS (fiable al caminar): manda sobre el calculado
+    if (fixBearing != null && !isNaN(fixBearing) && (fixSpeed || 0) > 0.6) { setHeadingTarget(fixBearing); lastCourseT = Date.now(); }
     const painting = session && !session.paused;
 
     if (!painting) {
@@ -208,7 +240,22 @@
       } else if (implied != null) speed = speed * 0.6 + implied * 0.4;
       else if (fixSpeed != null && fixSpeed > 0) speed = speed * 0.5 + fixSpeed * 0.5;
       tooFast = mode === 'gps' && speed > MAX_SPEED;
-      if (!jump && d > 0.01 && d < 400) {
+      // Hueco entre lecturas (GPS en el bolsillo): se pinta el camino más corto POR LAS CALLES
+      let routed = false;
+      if (!jump && !tooFast && mode === 'gps' && d > 25 && d < 2500) {
+        const maxLen = Math.max(d * 1.8, d + 150);
+        const r = W.route(lastP, p, maxLen);
+        if (r && r.len <= maxLen && (dt <= 0 || r.len / dt <= MAX_SPEED * 1.3)) {
+          routed = true;
+          const aura = nearestLandmark(p).d <= AURA_RADIUS;
+          for (const id of r.pieces) { const pc = W.pieces[id]; if (pc && !S().painted[pc.id]) G.paintPiece(pc, aura); }
+          paintAround(p, [p[0] - lastP[0], (p[1] - lastP[1]) * Math.cos(p[0] * Math.PI / 180)]);
+          G.addWalk(r.len); session.st.walked += r.len; walkAnchor = p.slice();
+          const tr = session.track || (session.track = []);
+          tr.push([+p[0].toFixed(6), +p[1].toFixed(6)]);
+        }
+      }
+      if (!routed && !jump && d > 0.01 && d < 400) {
         if (!tooFast) {
           const steps = Math.ceil(d / 4);
           const heading = [p[0] - lastP[0], (p[1] - lastP[1]) * Math.cos(p[0] * Math.PI / 180)];
@@ -371,7 +418,7 @@
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
     keys[e.key.toLowerCase()] = true;
     if (e.key.toLowerCase() === 'g') { turbo = !turbo; toast(turbo ? '🚀 TURBO DEV activado (25 m/s)' : '🚶 Turbo desactivado', 'info'); }
-    if (e.key.toLowerCase() === 'c') { follow = true; map.panTo(pos); }
+    if (e.key.toLowerCase() === 'c') recenter();
     const pi = PACES.findIndex((p) => p.key === e.key);
     if (pi >= 0) { pace = pi; turbo = false; toast(`${PACES[pi].icon} Ritmo: ${PACES[pi].name} (${(PACES[pi].v * 3.6).toFixed(1)} km/h)`, 'info', 1800); }
     if (['arrowup', 'arrowdown', 'arrowleft', 'arrowright', ' '].includes(e.key.toLowerCase())) e.preventDefault();
@@ -386,7 +433,10 @@
     target = p;
     follow = true;
   });
-  map.on('dragstart', () => { follow = false; $('#btn-center').classList.add('show'); });
+  map.on('dragstart', () => { follow = false; $('#btn-center').classList.add('show'); clearTimeout(recenterTimer); });
+  map.on('dragend', () => { clearTimeout(recenterTimer); recenterTimer = setTimeout(recenter, 8000); });
+  map.on('zoomend', () => camera());
+  window.addEventListener('resize', () => camera());
 
   // Joystick táctil (modo simulación en el móvil)
   (function joystick() {
@@ -415,20 +465,47 @@
   // ---------------- Orientación del mapa: norte fijo o girar hacia donde andas ----------------
   let orient = 'north';
   try { orient = localStorage.getItem('pintamapa_orient') || 'north'; } catch (e) {}
-  let heading = 0;            // grados, 0 = norte, sentido horario
+  let heading = 0;            // grados, 0 = norte, sentido horario (lo que se muestra, suavizado)
+  let headingTarget = 0;      // hacia donde hay que girar
   let simTurned = false;      // en el simulador, el giro con A/D manda sobre el rumbo calculado
-  let lastBearingT = 0;
+  let lastBearingT = 0, lastCourseT = 0;
+  let compass = null;         // brújula del móvil (para cuando estás parado)
+  const angDiff = (a, b) => ((b - a + 540) % 360) - 180;
+  function setHeadingTarget(h) { headingTarget = (h + 360) % 360; }
+  function onCompass(e) {
+    let h = null;
+    if (e.webkitCompassHeading != null) h = e.webkitCompassHeading;
+    else if (e.absolute && e.alpha != null) h = (360 - e.alpha) % 360;
+    if (h == null) return;
+    compass = compass == null ? h : (compass + angDiff(compass, h) * 0.15 + 360) % 360;
+  }
+  window.addEventListener('deviceorientationabsolute', onCompass);
+  window.addEventListener('deviceorientation', (e) => { if (e.webkitCompassHeading != null) onCompass(e); });
+  // cada fotograma: girar poco a poco hacia el rumbo (sin saltos)
+  function stepHeading(dt) {
+    if (mode === 'gps' && compass != null && (speed < 0.6 || Date.now() - lastCourseT > 5000) && Date.now() - lastMoveT > 3000) setHeadingTarget(compass);
+    const d = angDiff(heading, headingTarget);
+    if (Math.abs(d) < 0.3) return;
+    heading = (heading + d * Math.min(1, dt * 4) + 360) % 360;
+    applyBearing();
+  }
 
-  function updateHeading(a, b) {
+  let lastMoveT = 0, headAnchor = null;
+  // El rumbo se mide desde un punto de referencia que queda unos metros atrás (entre fotogramas o
+  // lecturas seguidas apenas te mueves y el ángulo saldría con ruido o no se actualizaría nunca).
+  function updateHeading(_a, b) {
+    if (!headAnchor) { headAnchor = b.slice(); return; }
+    const a = headAnchor;
     const d = PM.geo.dist(a, b);
-    if (d < 1.5) return;      // parado o ruido del GPS: no cambiamos el rumbo
+    if (d > 60) { headAnchor = b.slice(); return; }       // salto (teletransporte, hueco): se reinicia
+    if (d < (mode === 'gps' ? 6 : 4)) return;             // aún poco recorrido: se espera
+    headAnchor = b.slice();
     if (simTurned && mode === 'sim' && orient === 'heading' && !target) return;
     const dx = (b[1] - a[1]) * PM.geo.mPerDegLon(a[0]), dy = (b[0] - a[0]) * PM.geo.mPerDegLat;
     const h = (Math.atan2(dx, dy) * 180 / Math.PI + 360) % 360;
-    let diff = ((h - heading + 540) % 360) - 180;          // camino angular más corto
-    const k = mode === 'gps' ? 0.6 : 0.25;                 // suavizado
-    heading = (heading + diff * k + 360) % 360;
-    applyBearing();
+    if (mode === 'gps' && Date.now() - lastCourseT < 3000) return;   // ya hay rumbo del GPS, más fiable
+    lastMoveT = Date.now();
+    setHeadingTarget(h);
   }
 
   function applyBearing(force) {
@@ -437,7 +514,7 @@
     const cur = map.getBearing();
     const diff = Math.abs((((want - cur) % 360) + 540) % 360 - 180);
     // girar el mapa redibuja todas las calles: se limita a cambios de >3° y como mucho ~7 veces/seg
-    if (force || (diff > 3 && now - lastBearingT > 140)) { map.setBearing(want); lastBearingT = now; }
+    if (force || (diff > 1.5 && now - lastBearingT > 90)) { map.setBearing(want); lastBearingT = now; camera(); }
     const el = document.querySelector('.player .arrow');
     if (el) el.style.transform = `rotate(${heading + map.getBearing()}deg)`;
   }
@@ -446,8 +523,9 @@
     orient = o;
     try { localStorage.setItem('pintamapa_orient', o); } catch (e) {}
     simTurned = false;
+    headingTarget = heading;
     applyBearing(true);
-    if (follow) map.panTo(pos, { animate: false });
+    camera();
     $('#btn-orient').innerHTML = o === 'heading' ? '<span>➤</span><small>rumbo</small>' : '<span>N</span><small>norte</small>';
     $('#btn-orient').classList.toggle('on', o === 'heading');
   }
@@ -457,10 +535,13 @@
   });
 
   // Gancho de pruebas (consola del navegador): PM.debug.walkTo([lat, lon]), PM.debug.setPace(0..4)
-  PM.debug = { walkTo(p) { target = p; follow = true; }, setPace(i) { pace = i; turbo = false; }, get pos() { return pos.slice(); } };
+  PM.debug = { walkTo(p) { target = p; follow = true; }, setPace(i) { pace = i; turbo = false; }, get pos() { return pos.slice(); },
+    get bearing() { return map.getBearing(); }, get heading() { return heading; },
+    // avanza el juego n fotogramas a mano (pruebas con la pestaña oculta, donde el navegador congela la animación)
+    frames(n, ms = 50) { let t = lastFrame; for (let i = 0; i < n; i++) { t += ms; loop(t, true); } } };
 
   let lastFrame = performance.now();
-  function loop(now) {
+  function loop(now, manual) {
     const dt = Math.min(0.1, (now - lastFrame) / 1000);
     lastFrame = now;
     if (mode === 'sim') {
@@ -468,7 +549,7 @@
       const fwd = (keys['arrowup'] || keys['w'] ? 1 : 0) - (keys['arrowdown'] || keys['s'] ? 1 : 0);
       const side = (keys['arrowright'] || keys['d'] ? 1 : 0) - (keys['arrowleft'] || keys['a'] ? 1 : 0);
       if (orient === 'heading') {
-        if (side) { heading = (heading + side * 90 * dt + 360) % 360; simTurned = true; applyBearing(); }
+        if (side) { heading = (heading + side * 90 * dt + 360) % 360; headingTarget = heading; simTurned = true; applyBearing(); }
         const hr = heading * Math.PI / 180;
         dx = Math.sin(hr) * fwd; dy = Math.cos(hr) * fwd;
         // joystick: relativo a la pantalla (arriba = hacia delante)
@@ -495,9 +576,11 @@
         onMove(pos);
       } else if (speed > 0) { speed = 0; updateSpeedBadge(); }
     }
+    stepDisplay(now);
+    stepHeading(dt);
     G.tickCombo(Date.now());
     flushPaint();
-    requestAnimationFrame(loop);
+    if (!manual) requestAnimationFrame(loop);
   }
 
   // --- GPS real (con servicio en segundo plano en Android) ---
@@ -510,11 +593,11 @@
   function onFix(c, t) {
     if (mode !== 'gps' || !c) return;
     const acc = c.accuracy || 0;
-    $('#gps').textContent = acc > 30 ? `📡 GPS impreciso (±${Math.round(acc)} m)` : `📡 GPS ±${Math.round(acc)} m`;
-    $('#gps').classList.toggle('bad', acc > 30);
-    if (acc > 30) return;   // con mucho error podríamos pintar la calle de al lado: se descarta
+    $('#gps').textContent = acc > 35 ? `📡 GPS impreciso (±${Math.round(acc)} m)` : `📡 GPS ±${Math.round(acc)} m`;
+    $('#gps').classList.toggle('bad', acc > 35);
+    if (acc > 35) return;   // con mucho error podríamos pintar la calle de al lado: se descarta (el hueco se rellena por las calles)
     pos = [c.latitude, c.longitude];
-    onMove(pos, false, t || c.time || Date.now(), c.speed);
+    onMove(pos, false, t || c.time || Date.now(), c.speed, c.bearing != null ? c.bearing : c.heading);
   }
 
   async function startGPS() {
@@ -596,6 +679,20 @@
     persistSession(); syncGPS(); renderSession();
     PM.update.hold();
     PM.sound.pickup(); PM.vibrate(60);
+    // la primera vez en el móvil: cómo evitar que Android frene el GPS con la pantalla apagada
+    try {
+      if (isNative && mode === 'gps' && !localStorage.getItem('pintamapa_bathint')) {
+        localStorage.setItem('pintamapa_bathint', '1');
+        openSheet('🔋 Para pintar con el móvil en el bolsillo', `
+          <p>Algunos móviles frenan el GPS de las apps con la pantalla apagada para ahorrar batería, y entonces quedan tramos sin pintar. Revísalo una vez:</p>
+          <ol class="keys" style="color:var(--text)">
+            <li><b>Ajustes → Aplicaciones → PintaMapa → Batería</b> → <b>Sin restricciones</b> (o "No optimizar").</li>
+            <li><b>Ubicación</b> → <b>Permitir siempre</b> y "Usar ubicación precisa".</li>
+            <li>En Xiaomi/Huawei/Samsung: activa también <b>Inicio automático</b> y no la cierres desde "apps recientes".</li>
+          </ol>
+          <p class="muted">PintaMapa solo usa el GPS mientras hay un paseo activo: en pausa o al finalizar se apaga del todo.</p>`);
+      }
+    } catch (e) {}
     toast(mode === 'gps' ? '🖌️ ¡A pintar! Puedes bloquear el móvil: sigo pintando en segundo plano' : '🖌️ ¡A pintar! Muévete con WASD o haz clic en el mapa', 'info', 4500);
   }
   function pauseSession() {
@@ -680,8 +777,7 @@
   // Al volver de segundo plano: recolocar cámara y redibujar lo pintado mientras estaba oculta
   document.addEventListener('visibilitychange', () => {
     if (!document.hidden) {
-      player.setLatLng(pos); paintCircle.setLatLng(pos);
-      if (follow) map.panTo(pos, { animate: false });
+      showAt(pos, false);
       flushPaint(); updateSessionInfo();
     }
   });
@@ -707,10 +803,14 @@
     $('#xpbar i').style.width = (lp.pct * 100).toFixed(1) + '%';
     $('#xptext').textContent = `${PM.fmtNum(S().xp)} pts`;
     const t = W.tiles[curTile];
+    const bq = t && (t.loaded || t.partial) ? W.barrioAt(pos) : null;
+    const B = bq && W.barrios[bq.id];
     if (t && (t.loaded || t.partial)) {
-      const pr = t.loaded ? G.tileProgress(curTile) : 0;
-      $('#barrio-name').textContent = (S().conquered[curTile] ? '🚩 ' : '') + (t.name || 'Barrio sin explorar');
-      $('#barrio-pct').textContent = !t.loaded ? 'calculando…' : t.total ? (pr * 100).toFixed(1) + ' %' : 'sin calles';
+      if (bq && bq.id !== curBarrio) { curBarrio = bq.id; W.ensureBarrio(bq.id); renderBarrios(); }
+      const done = B && W.barrioComplete(bq.id);
+      const pr = B ? G.barrioProgress(bq.id) : 0;
+      $('#barrio-name').textContent = (bq && S().conqueredB[bq.id] ? '🚩 ' : '') + ((B && B.name) || (bq && bq.name) || t.name || 'Barrio sin explorar');
+      $('#barrio-pct').textContent = !B ? '' : !done ? 'calculando…' : B.total ? (pr * 100).toFixed(1) + ' %' : 'sin calles';
       $('#barrio-bar i').style.width = (pr * 100).toFixed(1) + '%';
       if (t.city) {
         const cp = G.cityProgress(t.city);
@@ -867,6 +967,7 @@
   });
 
   W.onChange((ev, d) => {
+    if (ev === 'barrios') { renderBarrios(); return; }
     if (ev === 'loaded' || ev === 'partial') {
       d.tiles.forEach((k) => renderTile(k, true));
       renderLandmarks(); renderCans();
@@ -969,7 +1070,7 @@
       <div class="stats">
         <div><b>${PM.fmtDist(st.paintedM)}</b><small>pintados</small></div>
         <div><b>${PM.fmtDist(st.walkedM)}</b><small>caminados</small></div>
-        <div><b>${Object.keys(s.conquered).length}</b><small>barrios 🚩</small></div>
+        <div><b>${Object.keys(s.conqueredB || {}).length}</b><small>barrios 🚩</small></div>
         <div><b>${st.captures}</b><small>monumentos</small></div>
         <div><b>x${st.bestCombo}</b><small>mejor combo</small></div>
         <div><b>${st.cans}</b><small>botes</small></div>
@@ -1103,7 +1204,7 @@
   $('#nav-ach').addEventListener('click', panelAchievements);
   $('#nav-profile').addEventListener('click', panelProfile);
   $('#modebtn').addEventListener('click', panelSim);
-  $('#btn-center').addEventListener('click', () => { follow = true; map.setView(pos, Math.max(map.getZoom(), 16)); $('#btn-center').classList.remove('show'); });
+  $('#btn-center').addEventListener('click', () => { if (map.getZoom() < 16) map.setZoom(16); recenter(); });
 
   // ---------------- Inicio ----------------
   // ---------------- ¿Quién pinta hoy? Botones de pintores + crear otro ----------------
