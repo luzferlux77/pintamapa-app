@@ -1,8 +1,8 @@
 {
-  "version": "0.2.4",
-  "notes": "Zonas a evitar (botón 🚫): marca un barrio entero o una zona y sus calles quedan fuera del % del barrio y la ciudad. Allí no salen botes ni te lleva el radar. Son privadas, solo tuyas.",
+  "version": "0.2.5",
+  "notes": "Aviso para conectar la nube si juegas en Real sin token, y ayuda paso a paso en «Mi progreso» cuando el móvil aún no ha guardado nada.",
   "native": 2,
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.2.4/pintamapa-web-0.2.4.zip",
-  "checksum": "bf612f86e764f345816f37e5318308e6b0321a9119e88982721a81b499fe62f2",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.2.4/PintaMapa-v0.2.4.apk"
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.2.5/pintamapa-web-0.2.5.zip",
+  "checksum": "aeba3a1617162fa91fd9dd608f6d004c41e999cf47a43d93098bef46e0805bcb",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.2.5/PintaMapa-v0.2.5.apk"
 }
