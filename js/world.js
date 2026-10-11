@@ -209,7 +209,7 @@ PM.world = (function () {
   // ---------------- Caché local de barrios (IndexedDB) ----------------
   // Cada barrio se descarga una vez y se guarda 30 días: menos datos móviles, menos batería y arranque instantáneo.
   const CACHE_DAYS = 90;
-  const CACHE_V = 2;   // súbelo si cambia lo que se descarga (p. ej. nuevos tipos de puntos): fuerza a renovar la caché
+  const CACHE_V = 3;   // súbelo si cambia lo que se descarga (p. ej. nuevos tipos de puntos): fuerza a renovar la caché
   const cache = (function () {
     let dbp = null;
     function db() {
@@ -236,7 +236,7 @@ PM.world = (function () {
 
   // Solo guardamos lo que el juego usa de cada elemento (ocupa mucho menos)
   const KEEP_TAGS = ['highway', 'oneway', 'lanes', 'width', 'dual_carriageway', 'name', 'amenity', 'historic', 'tourism', 'building', 'memorial',
-    'wikipedia', 'wikidata', 'leisure', 'sport', 'place', 'man_made', 'railway', 'religion'];
+    'wikipedia', 'wikidata', 'leisure', 'sport', 'place', 'man_made', 'railway', 'religion', 'admin_level', 'boundary'];
   function slim(el) {
     const tags = {};
     for (const k of KEEP_TAGS) if (el.tags && el.tags[k] != null) tags[k] = el.tags[k];
@@ -244,6 +244,7 @@ PM.world = (function () {
     if (el.geometry) o.geometry = el.geometry.map((g) => ({ lat: +g.lat.toFixed(7), lon: +g.lon.toFixed(7) }));
     if (el.lat != null) { o.lat = el.lat; o.lon = el.lon; }
     if (el.center) o.center = el.center;
+    if (el.bounds) o.bounds = el.bounds;
     return o;
   }
   // Barrios que toca un elemento (muestreando la calle cada ~10 m)
@@ -259,11 +260,153 @@ PM.world = (function () {
           for (let k = 1; k < n; k++) { const q = PM.geo.lerp(a, b, k / n); out.add(tileKeyOf(q[0], q[1])); }
         }
       }
+    } else if (el.bounds) {   // contorno de barrio: todas las celdas que abarca
+      const b = el.bounds;
+      const [i0, j0] = tileIJ(tileKeyOf(b.minlat, b.minlon)), [i1, j1] = tileIJ(tileKeyOf(b.maxlat, b.maxlon));
+      if ((i1 - i0 + 1) * (j1 - j0 + 1) <= 400) for (let i = i0; i <= i1; i++) for (let j = j0; j <= j1; j++) out.add(i + '_' + j);
     } else {
       const c = el.center || el;
       if (c.lat != null) out.add(tileKeyOf(c.lat, c.lon));
     }
     return out;
+  }
+
+  // ---------------- Barrios reales ----------------
+  // Cada calle pertenece a un barrio de verdad, según lo que tenga OpenStreetMap en esa ciudad:
+  //  1) contorno oficial (admin_level 10 = barrio; 9 = distrito): la calle es del barrio que la contiene;
+  //  2) solo el punto con el nombre del barrio (place=neighbourhood/quarter/suburb): del punto más cercano
+  //     (dentro de su distrito, si se conoce);
+  //  3) nada: la cuadrícula de siempre.
+  const NODE_LVL = { suburb: 1, quarter: 2, neighbourhood: 3 };
+  const barrioNodes = {};     // id -> { id, name, pos, lvl }
+  const barrioRels = {};      // id -> { id, name, lvl, bounds:[s,w,n,e], segs, loading, failed }
+  const barrios = {};         // 'r123' | 'n456' | 't4135_207' -> { id, name, kind, pos, pieces:[], total, bbox }
+  const REL_CDN = 'https://luzferlux77.github.io/pintamapa-app/calles/barrios/';
+
+  function noteBarrio(el) {
+    const t = el.tags || {};
+    if (el.type === 'node' && NODE_LVL[t.place] && t.name) {
+      if (!barrioNodes[el.id]) { barrioNodes[el.id] = { id: el.id, name: t.name, pos: [el.lat, el.lon], lvl: NODE_LVL[t.place] }; scheduleReassign(); }
+      return true;
+    }
+    if (el.type === 'relation' && t.boundary === 'administrative' && /^(9|10)$/.test(t.admin_level || '') && t.name && el.bounds) {
+      if (!barrioRels[el.id]) {
+        const b = el.bounds;
+        barrioRels[el.id] = { id: el.id, name: t.name, lvl: +t.admin_level, bounds: [b.minlat, b.minlon, b.maxlat, b.maxlon], segs: null };
+        loadRel(barrioRels[el.id]);
+      }
+      return true;
+    }
+    return false;
+  }
+
+  // Contorno del barrio: caché del móvil → GitHub → OpenStreetMap
+  async function loadRel(r) {
+    if (r.segs || r.loading || demoMode) return;
+    r.loading = true;
+    try {
+      const key = 'rel' + r.id;
+      let segs = null;
+      const c = await cache.get(key);
+      if (c && c.segs) segs = c.segs;
+      if (!segs) {
+        try {
+          const res = await fetch(REL_CDN + 'r' + r.id + '.json');
+          if (res.ok) segs = (await res.json()).segs;
+        } catch (e) { /* sin GitHub: se pide a OpenStreetMap */ }
+      }
+      if (!segs) {
+        const data = await overpass(`[out:json][timeout:60];rel(${r.id});out geom;`, 60000);
+        const rel = data.elements.find((e) => e.type === 'relation');
+        segs = relSegs(rel);
+      }
+      if (segs && segs.length) {
+        r.segs = segs;
+        cache.put(key, { t: Date.now(), segs });
+        scheduleReassign();
+      }
+    } catch (e) {
+      r.failed = (r.failed || 0) + 1;
+      if (r.failed < 4) setTimeout(() => loadRel(r), 30000 * r.failed);   // servidor saturado: se reintenta
+    } finally { r.loading = false; }
+  }
+  function relSegs(rel) {
+    if (!rel || !rel.members) return null;
+    return rel.members.filter((m) => m.type === 'way' && m.geometry && /^(outer|inner|)$/.test(m.role || ''))
+      .map((m) => m.geometry.map((g) => [+g.lat.toFixed(6), +g.lon.toFixed(6)]));
+  }
+  const inBox = (p, b) => p[0] >= b[0] && p[0] <= b[2] && p[1] >= b[1] && p[1] <= b[3];
+  // punto dentro del contorno (par-impar sobre todos los tramos: sirve aunque no estén ordenados)
+  function pip(p, segs) {
+    let inside = false;
+    const y = p[0], x = p[1];
+    for (const s of segs) for (let i = 0; i < s.length - 1; i++) {
+      const a = s[i], b = s[i + 1];
+      if ((a[0] > y) !== (b[0] > y) && x < ((b[1] - a[1]) * (y - a[0])) / (b[0] - a[0]) + a[1]) inside = !inside;
+    }
+    return inside;
+  }
+
+  function barrioOf(p) {
+    let poly10 = null, poly9 = null;
+    for (const r of Object.values(barrioRels)) {
+      if (!r.segs || !inBox(p, r.bounds) || !pip(p, r.segs)) continue;
+      if (r.lvl === 10) poly10 = r; else if (r.lvl === 9) poly9 = r;
+    }
+    if (poly10) return { id: 'r' + poly10.id, name: poly10.name, kind: 'poly', rel: poly10 };
+    // punto de barrio más cercano (del nivel más fino que haya cerca), dentro del distrito si se conoce
+    let best = null, bd = 1500, lvl = 0;
+    const near = [];
+    for (const n of Object.values(barrioNodes)) {
+      const d = PM.geo.dist(p, n.pos);
+      if (d > 1500) continue;
+      if (poly9 && !pip(n.pos, poly9.segs)) continue;
+      near.push([n, d]); if (n.lvl > lvl) lvl = n.lvl;
+    }
+    for (const [n, d] of near) if (n.lvl === lvl && d < bd) { bd = d; best = n; }
+    if (best) return { id: 'n' + best.id, name: best.name, kind: 'node', node: best };
+    if (poly9) return { id: 'r' + poly9.id, name: poly9.name, kind: 'poly', rel: poly9 };
+    const k = tileKeyOf(p[0], p[1]);
+    return { id: 't' + k, name: (tiles[k] && tiles[k].name) || 'Zona ' + k.replace('_', '·'), kind: 'tile', tile: k };
+  }
+
+  // Reparte todas las calles cargadas entre sus barrios (tras cada carga o cuando llega un contorno)
+  let reassignTimer = null;
+  function scheduleReassign() { clearTimeout(reassignTimer); reassignTimer = setTimeout(reassignAll, 250); }
+  function reassignAll() {
+    for (const k in barrios) delete barrios[k];
+    for (const id in pieces) {
+      const pc = pieces[id];
+      const b = barrioOf(pc.mid);
+      pc.barrio = b.id;
+      let B = barrios[b.id];
+      if (!B) {
+        B = barrios[b.id] = { id: b.id, name: b.name, kind: b.kind, pieces: [], total: 0,
+          pos: b.node ? b.node.pos : b.rel ? [(b.rel.bounds[0] + b.rel.bounds[2]) / 2, (b.rel.bounds[1] + b.rel.bounds[3]) / 2] : null,
+          bbox: b.rel ? b.rel.bounds.slice() : null, segs: b.rel ? b.rel.segs : null, tile: b.tile };
+      }
+      B.pieces.push(pc); B.total += pc.len;
+    }
+    for (const B of Object.values(barrios)) {
+      if (!B.bbox) {   // sin contorno: caja de sus calles + 300 m de margen
+        let s = 90, w = 180, n = -90, e = -180;
+        for (const pc of B.pieces) { s = Math.min(s, pc.mid[0]); n = Math.max(n, pc.mid[0]); w = Math.min(w, pc.mid[1]); e = Math.max(e, pc.mid[1]); }
+        const m = 300 / PM.geo.mPerDegLat, mw = 300 / PM.geo.mPerDegLon(s);
+        B.bbox = [s - m, w - mw, n + m, e + mw];
+      }
+      if (!B.pos) B.pos = B.pieces.length ? B.pieces[Math.floor(B.pieces.length / 2)].mid : [(B.bbox[0] + B.bbox[2]) / 2, (B.bbox[1] + B.bbox[3]) / 2];
+      if (PM.state) PM.state.data.barrioNames[B.id] = B.name;
+    }
+    emit('barrios', {});
+  }
+  // ¿Están cargadas todas las calles del barrio? (para dar por bueno su %)
+  function barrioComplete(id) {
+    const B = barrios[id];
+    if (!B) return false;
+    const [i0, j0] = tileIJ(tileKeyOf(B.bbox[0], B.bbox[1])), [i1, j1] = tileIJ(tileKeyOf(B.bbox[2], B.bbox[3]));
+    if ((i1 - i0 + 1) * (j1 - j0 + 1) > 30) return false;     // barrio enorme (distrito): demasiado para cargarlo entero
+    for (let i = i0; i <= i1; i++) for (let j = j0; j <= j1; j++) { const t = tiles[i + '_' + j]; if (!t || !t.loaded) return false; }
+    return true;
   }
 
   // ---------------- Carga progresiva ----------------
@@ -284,7 +427,11 @@ PM.world = (function () {
         nwr["man_made"="lighthouse"]["name"](${bb});
         nwr["railway"="station"]["name"](${bb});
       );
-      out center tags;`;
+      out center tags;
+      node["place"~"^(suburb|quarter|neighbourhood)$"]["name"](${bb});
+      out;
+      rel["boundary"="administrative"]["admin_level"~"^(9|10)$"](${bb});
+      out tags bb;`;
   const bboxOf = (keys) => {
     const ij = keys.map(tileIJ);
     const s = Math.min(...ij.map((x) => x[0])) * TILE, w = Math.min(...ij.map((x) => x[1])) * TILE;
@@ -343,9 +490,10 @@ PM.world = (function () {
       seen.add(el.type + el.id);
       if (el.type === 'way' && el.geometry && el.tags && el.tags.highway && HW_RE.test(el.tags.highway)) {
         addWay('w' + el.id, el.geometry.map((g) => [g.lat, g.lon]), accept, isWide(el.tags));
-      } else if (el.tags) addLandmark(el);
+      } else if (el.tags && !noteBarrio(el)) addLandmark(el);
     }
     commitLandmarks(lmBatch); lmBatch = null;
+    scheduleReassign();
   }
 
   // Carga completa de unos barrios (caché o red). Lanza error si no hay red.
@@ -559,6 +707,16 @@ PM.world = (function () {
   return {
     TILE, RARITY, tiles, pieces, landmarks, cans,
     tileKeyOf, tileBounds, ensureAround, piecesNear, onChange,
+    barrios, barrioAt: barrioOf, barrioComplete,
+    // carga las celdas que faltan para tener entero el barrio (hasta 12)
+    ensureBarrio(id) {
+      const B = barrios[id];
+      if (!B || barrioComplete(id)) return;
+      const [i0, j0] = tileIJ(tileKeyOf(B.bbox[0], B.bbox[1])), [i1, j1] = tileIJ(tileKeyOf(B.bbox[2], B.bbox[3]));
+      const need = [];
+      for (let i = i0; i <= i1; i++) for (let j = j0; j <= j1; j++) if (!ensureTile(i + '_' + j).loaded) need.push(i + '_' + j);
+      if (need.length && need.length <= 12) loadTiles(need).catch(() => {});
+    },
     isDemo: () => demoMode,
     setDemo: (v) => { demoMode = v; },
   };

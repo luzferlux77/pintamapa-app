@@ -10,8 +10,8 @@
       out[k] = Object.assign({}, a[k] || {});
       for (const [id, v] of Object.entries(b[k] || {})) out[k][id] = out[k][id] ? Math.min(out[k][id], v) : v;
     };
-    ['painted', 'cansTaken', 'tileNames', 'cities'].forEach(union);
-    ['conquered', 'perfect', 'citiesWon', 'achievements'].forEach(unionMin);
+    ['painted', 'cansTaken', 'tileNames', 'cities', 'barrioNames'].forEach(union);
+    ['conquered', 'perfect', 'conqueredB', 'perfectB', 'citiesWon', 'achievements'].forEach(unionMin);
     out.paintedByTile = Object.assign({}, a.paintedByTile);
     for (const [k, v] of Object.entries(b.paintedByTile || {})) out.paintedByTile[k] = Math.max(out.paintedByTile[k] || 0, v);
     out.landmarks = Object.assign({}, a.landmarks);

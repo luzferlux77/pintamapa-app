@@ -55,7 +55,10 @@ PM.state = (function () {
     painted: {},        // pieceId -> 1
     paintedByTile: {},  // tileKey -> metros pintados
     landmarks: {},      // id -> {t, name, kind, emoji, rarity, visits, last}
-    conquered: {},      // tileKey -> fecha
+    conquered: {},      // (antiguo, por cuadrícula)
+    conqueredB: {},     // barrio real -> fecha de conquista
+    perfectB: {},       // barrio real -> fecha (100 %)
+    barrioNames: {},    // barrio real -> nombre
     perfect: {},        // tileKey -> fecha (100 %)
     citiesWon: {},      // ciudad -> fecha
     cities: {},         // ciudad -> {total}
@@ -160,6 +163,7 @@ PM.game = (function () {
     if (hour >= 22) unlock('noctambulo');
     emit('painted', { piece, pts, combo, mult: comboMult(), aura: !!nearLandmark, golden: now < goldenUntil });
     checkTile(piece.tile);
+    if (piece.barrio) checkBarrio(piece.barrio);
     checkPaintAchievements();
     return pts;
   }
@@ -170,26 +174,41 @@ PM.game = (function () {
     return Math.min(1, (S().paintedByTile[key] || 0) / t.total);
   }
 
+  // la cuadrícula ya solo sirve para la ciudad; las conquistas son por barrio real
   function checkTile(key) {
     const t = PM.world.tiles[key];
-    if (!t || !t.loaded || t.total < 150) return;   // barrio incompleto o sin apenas calles: no cuenta
-    const p = tileProgress(key);
+    if (t && t.city) checkCity(t.city);
+  }
+
+  // ---------------- Barrios reales ----------------
+  function barrioProgress(id) {
+    const B = PM.world.barrios[id];
+    if (!B || !B.total) return 0;
     const s = S();
-    if (p >= 0.8 && !s.conquered[key]) {
-      s.conquered[key] = Date.now();
+    let m = 0;
+    for (const pc of B.pieces) if (s.painted[pc.id]) m += pc.len;
+    return Math.min(1, m / B.total);
+  }
+  function checkBarrio(id) {
+    const B = PM.world.barrios[id];
+    if (!B || B.total < 150 || !PM.world.barrioComplete(id)) return;   // incompleto o sin apenas calles: no cuenta
+    const p = barrioProgress(id);
+    const s = S();
+    if (p >= 0.8 && !s.conqueredB[id]) {
+      s.conqueredB[id] = Date.now();
+      s.barrioNames[id] = B.name;
       addXP(2000, 'conquest');
       progressMission('conquer', 1);
       unlock('conquistador');
-      if (Object.keys(s.conquered).length >= 5) unlock('senor_barrios');
-      emit('conquered', { key, name: t.name });
+      if (Object.keys(s.conqueredB).length >= 5) unlock('senor_barrios');
+      emit('conquered', { key: id, name: B.name });
     }
-    if (p >= 0.995 && !s.perfect[key]) {
-      s.perfect[key] = Date.now();
+    if (p >= 0.995 && !s.perfectB[id]) {
+      s.perfectB[id] = Date.now();
       addXP(1000, 'perfect');
       unlock('perfeccionista');
-      emit('perfect', { key, name: t.name });
+      emit('perfect', { key: id, name: B.name });
     }
-    if (t.city) checkCity(t.city);
   }
 
   // ---------------- Ciudad ----------------
@@ -368,7 +387,7 @@ PM.game = (function () {
   return {
     on: (fn) => listeners.push(fn),
     level, levelProgress, COLORS, ACHIEVEMENTS,
-    paintPiece, tileProgress, cityProgress, visitLandmark, takeCan, ensureDaily, addWalk, tickCombo,
+    paintPiece, tileProgress, cityProgress, barrioProgress, checkBarrio, visitLandmark, takeCan, ensureDaily, addWalk, tickCombo,
     get combo() { return combo; },
     comboMult,
     goldenLeft: () => Math.max(0, goldenUntil - Date.now()),
