@@ -1,8 +1,8 @@
 {
-  "version": "0.1.1",
-  "notes": "«Mi progreso» muestra siempre la dirección para sincronizar el móvil.",
+  "version": "0.1.2",
+  "notes": "Las actualizaciones esperan a que termines el paseo para no cortarlo.",
   "native": 1,
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.1.1/pintamapa-web-0.1.1.zip",
-  "checksum": "c08925a904d1015805fc3072afe8304d0fb46253b45fc265eb21cf765ab14bd9",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.1.1/PintaMapa-v0.1.1.apk"
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.1.2/pintamapa-web-0.1.2.zip",
+  "checksum": "79a6e087a35a8acb4ce3b2e457b28973a0f9003dfffaaded8bc3052095fe31eb",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.1.2/PintaMapa-v0.1.2.apk"
 }
