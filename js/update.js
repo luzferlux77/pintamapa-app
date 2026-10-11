@@ -66,7 +66,7 @@ PM.update = (function () {
     try {
       if (await prepared(remote.version)) {
         setStatus(`La ${remote.version} está descargada: se aplica al volver a abrir la app`);
-        if (manual) await applyVersion(remote.version);
+        if (manual) await applyVersion(remote.version); else showReadyBanner(remote);
         return;
       }
       setStatus(`Descargando la ${remote.version}…`);
@@ -74,7 +74,7 @@ PM.update = (function () {
       await U().next({ id: b.id });
       setStatus(`La ${remote.version} está descargada: se aplica al volver a abrir la app`);
       if (manual) await U().set({ id: b.id });                 // «Actualizar ahora»: se recarga ya
-      else if (toast) toast(`⬇️ PintaMapa ${remote.version} descargada. Se aplicará la próxima vez que abras la app.${remote.notes ? '<br><small>' + remote.notes + '</small>' : ''}`, 'info', 6000);
+      else showReadyBanner(remote);
     } catch (e) {
       setStatus(`No se pudo descargar la ${remote.version}: ${(e && e.message) || e}. Se reintentará.`);
     } finally { busy = false; }
@@ -84,6 +84,22 @@ PM.update = (function () {
     const list = await U().list().catch(() => ({ bundles: [] }));
     const b = list.bundles.find((x) => x.version === version && x.status !== 'error');
     if (b) await U().set({ id: b.id });
+  }
+
+  // Versión nueva ya descargada: aviso visible (también encima de la pantalla de inicio) para aplicarla al momento
+  function showReadyBanner(remote) {
+    if (document.getElementById('apk-banner')) return;
+    const el = document.createElement('div');
+    el.id = 'apk-banner';
+    el.innerHTML = `<span>🆕 <b>PintaMapa ${remote.version}</b> lista${remote.notes ? '<br><small>' + remote.notes + '</small>' : ''}</span>
+      <button class="btn on">Actualizar ahora</button><button class="x">✕</button>`;
+    el.querySelector('.btn').addEventListener('click', async () => {
+      if (PM.walking && PM.walking()) { el.querySelector('span').innerHTML = 'Termina el paseo y la aplico 😉'; return; }
+      el.querySelector('.btn').textContent = '⏳';
+      await applyVersion(remote.version);
+    });
+    el.querySelector('.x').addEventListener('click', () => el.remove());   // si no, se aplica sola al volver a abrir
+    document.body.appendChild(el);
   }
 
   function showApkBanner(remote) {
@@ -97,8 +113,11 @@ PM.update = (function () {
   }
 
   // Comprobaciones: al abrir, al volver a la app y cada cierto tiempo (Android puede tenerla días abierta)
+  let watching = false;
   function watch(toast) {
-    setTimeout(() => check(false, toast), 4000);
+    if (watching) return;
+    watching = true;
+    setTimeout(() => check(false, toast), 1500);
     const maybe = () => { if (!document.hidden && Date.now() - lastCheck > 30 * 60000) check(false, toast); };
     document.addEventListener('visibilitychange', maybe);
     setInterval(maybe, 15 * 60000);
@@ -106,3 +125,5 @@ PM.update = (function () {
 
   return { check, watch, status, newer, hold };
 })();
+// se comprueba nada más abrir la app (también en la pantalla de inicio, antes de elegir pintor)
+PM.update.watch();
