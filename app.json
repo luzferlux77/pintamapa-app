@@ -1,1 +1,8 @@
-{ "version": "0.0.0" }
+{
+  "version": "0.1.0",
+  "notes": "Primer prototipo publicado: pinta las calles reales andando, conquista barrios y ciudades, monumentos, paseos en segundo plano y sincronización con el PC.",
+  "native": 1,
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.1.0/pintamapa-web-0.1.0.zip",
+  "checksum": "5e892e387a11372d36a8e733e02dccc60b7793d383426c58f65d223a3dadf18d",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.1.0/PintaMapa-v0.1.0.apk"
+}
