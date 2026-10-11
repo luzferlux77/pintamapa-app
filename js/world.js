@@ -53,7 +53,7 @@ PM.world = (function () {
     if (b === 'cathedral' || /catedral|cathedral|cathédrale|cattedrale|duomo|dom\b|kathedrale|domkirke/i.test(n)) return { kind: 'Catedral', emoji: '⛪', rarity: 'legendario', prio: 95 };
     if (h === 'castle' || h === 'fort') return { kind: 'Castillo', emoji: '🏰', rarity: 'legendario', prio: 90 };
     if (l === 'stadium') return { kind: 'Estadio', emoji: '🏟️', rarity: 'epico', prio: 85 };
-    if (b === 'basilica' || /bas[ií]lica/i.test(n)) return { kind: 'Basílica', emoji: '⛪', rarity: 'epico', prio: 80 };
+    if (b === 'basilica' || /bas[ií]lica|co-?catedral|concatedral/i.test(n)) return { kind: 'Basílica', emoji: '⛪', rarity: 'epico', prio: 80 };
     if (a === 'place_of_worship') return { kind: /christian/.test(tags.religion || 'christian') ? 'Iglesia' : 'Templo', emoji: '⛪', rarity: 'epico', prio: 75 };
     if (t === 'museum') return { kind: 'Museo', emoji: '🖼️', rarity: 'epico', prio: 70 };
     if (h === 'monument') return { kind: 'Monumento', emoji: '🗽', rarity: 'epico', prio: 70 };
@@ -100,8 +100,12 @@ PM.world = (function () {
     const wiki = !!(tags.wikipedia || tags.wikidata);
     let rarity = c.rarity;
     if (wiki && rarity !== 'legendario') rarity = Object.keys(RANK)[RANK[rarity] + 1];
+    const church = /^(Iglesia|Basílica|Catedral)$/.test(c.kind);
     const lm = { id, name: tags.name, kind: c.kind, emoji: c.emoji, rarity, pos, prio: c.prio + (wiki ? 6 : 0),
-      townhall: c.kind === 'Ayuntamiento', points: 100 * RARITY[rarity].mult };
+      townhall: c.kind === 'Ayuntamiento', church, points: 100 * RARITY[rarity].mult,
+      // principales: siempre visibles y conquistables aunque estén pegados a otro punto: ayuntamiento, catedral,
+      // basílica, castillo e iglesias importantes (con artículo en Wikipedia o protegidas como patrimonio)
+      principal: c.kind === 'Ayuntamiento' || /^(Catedral|Basílica|Castillo)$/.test(c.kind) || (church && (wiki || !!tags.heritage)) };
     if (lmBatch) lmBatch.push(lm); else commitLandmarks([lm]);
   }
 
@@ -110,18 +114,43 @@ PM.world = (function () {
     for (let di = -1; di <= 1; di++) for (let dj = -1; dj <= 1; dj++) out.push(...(lmGrid[(ci + di) + ':' + (cj + dj)] || []));
     return out;
   }
+  // Respaldo: si en un pueblo ninguna iglesia es "importante" (Wikipedia, patrimonio, catedral…), se toma
+  // como principal la más cercana a su ayuntamiento (a menos de 800 m). Se recuerdan las iglesias descartadas
+  // por si su ayuntamiento llega en una carga posterior.
+  const MAIN_CHURCH_M = 800;
+  const churchPool = [];
+  function markMainChurches(list) {
+    for (const lm of list) if (lm.church && !churchPool.some((c) => c.id === lm.id)) churchPool.push(lm);
+    const halls = [...list, ...Object.values(landmarks)].filter((x) => x.townhall);
+    const promoted = [];
+    for (const th of halls) {
+      // ¿ya hay una iglesia principal en este pueblo? (a menos de 1,5 km de su ayuntamiento)
+      if (churchPool.some((c) => c.principal && PM.geo.dist(th.pos, c.pos) < 1500)) continue;
+      let best = null, bd = MAIN_CHURCH_M;
+      for (const c of churchPool) { const d = PM.geo.dist(th.pos, c.pos); if (d < bd) { bd = d; best = c; } }
+      if (best && !best.principal) { best.principal = true; best.mainChurch = true; best.kind = 'Iglesia principal';
+        if (RANK[best.rarity] < RANK.epico) best.rarity = 'epico'; best.points = 100 * RARITY[best.rarity].mult; promoted.push(best); }
+    }
+    return promoted;
+  }
+  function accept(lm) {
+    landmarks[lm.id] = lm;
+    const cell = Math.floor(lm.pos[0] / GRID) + ':' + Math.floor(lm.pos[1] / GRID);
+    (lmGrid[cell] = lmGrid[cell] || []).push(lm);
+  }
   function commitLandmarks(list) {
-    // de más importante a menos: cada uno entra solo si no tiene otro aceptado demasiado cerca
-    list.sort((x, y) => y.prio - x.prio);
+    // iglesias principales que ya estaban descartadas de antes y ahora tienen su ayuntamiento: entran
+    for (const c of markMainChurches(list)) if (!landmarks[c.id] && !list.includes(c)) accept(c);
+    // de más importante a menos: cada uno entra solo si no tiene otro aceptado demasiado cerca.
+    // Los principales entran siempre (y no se tapan entre ellos).
+    list.sort((x, y) => (y.principal - x.principal) || (y.prio - x.prio));
     for (const lm of list) {
-      const clash = nearbyAccepted(lm.pos).some((o) => {
-        const d = PM.geo.dist(o.pos, lm.pos);
-        return d < (o.townhall || lm.townhall ? TOWNHALL_GAP : MIN_GAP);
-      });
-      if (clash && !lm.townhall) continue;
-      landmarks[lm.id] = lm;
-      const cell = Math.floor(lm.pos[0] / GRID) + ':' + Math.floor(lm.pos[1] / GRID);
-      (lmGrid[cell] = lmGrid[cell] || []).push(lm);
+      if (landmarks[lm.id]) continue;
+      if (!lm.principal) {
+        const clash = nearbyAccepted(lm.pos).some((o) => PM.geo.dist(o.pos, lm.pos) < (o.townhall ? TOWNHALL_GAP : MIN_GAP));
+        if (clash) continue;
+      }
+      accept(lm);
     }
   }
 
@@ -237,7 +266,7 @@ PM.world = (function () {
 
   // Solo guardamos lo que el juego usa de cada elemento (ocupa mucho menos)
   const KEEP_TAGS = ['highway', 'oneway', 'lanes', 'width', 'dual_carriageway', 'name', 'amenity', 'historic', 'tourism', 'building', 'memorial',
-    'wikipedia', 'wikidata', 'leisure', 'sport', 'place', 'man_made', 'railway', 'religion', 'admin_level', 'boundary'];
+    'wikipedia', 'wikidata', 'leisure', 'sport', 'place', 'man_made', 'railway', 'religion', 'admin_level', 'boundary', 'heritage'];
   function slim(el) {
     const tags = {};
     for (const k of KEEP_TAGS) if (el.tags && el.tags[k] != null) tags[k] = el.tags[k];
