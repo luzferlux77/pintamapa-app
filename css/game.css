@@ -237,7 +237,7 @@ kbd { background: var(--btn); border-radius: 5px; padding: 1px 6px; color: var(-
   border-left: 9px solid transparent; border-right: 9px solid transparent; border-bottom: 14px solid var(--paint);
   filter: drop-shadow(0 0 3px rgba(0,0,0,.5)); }
 
-#apk-banner { position: fixed; z-index: 1200; left: 10px; right: 10px; top: calc(10px + var(--safe-top)); background: var(--panel); border: 2px solid var(--paint); border-radius: 14px; padding: 10px 12px; display: flex; gap: 8px; align-items: center; box-shadow: var(--shadow); font-size: 13.5px; }
+#apk-banner, #cloud-banner { position: fixed; z-index: 1200; left: 10px; right: 10px; top: calc(10px + var(--safe-top)); background: var(--panel); border: 2px solid var(--paint); border-radius: 14px; padding: 10px 12px; display: flex; gap: 8px; align-items: center; box-shadow: var(--shadow); font-size: 13.5px; }
 #apk-banner span { flex: 1; }
 #apk-banner .x { background: none; border: none; font-size: 16px; }
 
@@ -283,3 +283,8 @@ details.howto ol { padding-left: 18px; line-height: 1.6; }
 .fab.avoidbtn.on { border-color: #6b7280; background: #e5e7eb; box-shadow: 0 0 0 3px #6b7280; }
 #combo { top: calc(330px + var(--safe-top)); }
 .avoidlbl { white-space: nowrap; background: rgba(75, 85, 99, .85); color: #fff; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 99px; transform: translate(-50%, -50%); display: inline-block; }
+
+#cloud-banner { top: auto; bottom: calc(150px + var(--safe-bottom)); display: flex; gap: 8px; align-items: center; background: var(--panel); border: 2px solid #2563eb; border-radius: 14px; padding: 10px 12px; box-shadow: var(--shadow); font-size: 13.5px; left: 10px; right: 10px; z-index: 900; }
+#cloud-banner span { flex: 1; } #cloud-banner .x { background: none; border: none; font-size: 16px; }
+.howto-card { text-align: left; background: var(--card); border-radius: 12px; padding: 12px 14px; font-size: 13.5px; line-height: 1.5; }
+.howto-card ol { padding-left: 18px; margin: 8px 0; }

@@ -134,7 +134,16 @@
         if (!creds.player) {
           const ps = await players();
           localStorage.setItem(KEY, JSON.stringify(creds));
-          if (!ps.length) throw new Error('Todavía no hay ninguna partida guardada: en la app, Perfil → Mi cuenta en la nube → Guardar.');
+          if (!ps.length) {
+            $('#who').innerHTML = `<div class="howto-card"><b>Tu token funciona ✅, pero tu móvil aún no ha guardado nada.</b>
+              <ol><li>Abre PintaMapa en el móvil (versión 0.2 o superior) y toca tu nombre.</li>
+              <li>Arriba debe poner <b>📡 Real</b> (no «Prueba»).</li>
+              <li>Toca <b>🎨 Perfil</b> → <b>☁️ Mi cuenta en la nube</b>.</li>
+              <li>Pega <b>el mismo token</b> que aquí y pulsa <b>Conectar y guardar</b>.</li>
+              <li>Vuelve aquí y pulsa <b>Ver mi progreso</b>.</li></ol>
+              <small>Desde entonces se guarda solo al terminar cada paseo y al abrir la app.</small></div>`;
+            return;
+          }
           if (ps.length > 1) {
             $('#who').innerHTML = '<b>¿Quién eres?</b>' + ps.map((p) => `<button class="pcard" data-p="${p}"><span class="pav">${p[0].toUpperCase()}</span><span class="pinfo"><b>${p}</b></span><span class="pgo">▶</span></button>`).join('');
             document.querySelectorAll('#who .pcard').forEach((b) => b.addEventListener('click', () => { creds.player = b.dataset.p; load(); }));

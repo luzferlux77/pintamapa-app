@@ -1360,6 +1360,17 @@
     requestAnimationFrame(loop);
     PM.sync.auto();
     PM.update.watch(toast);
+    // perfil real sin nube conectada: aviso claro (sin el token en el móvil, el PC no puede ver tu progreso)
+    if (PM.isNative && PM.profile === 'real' && !PM.cloud.token()) {
+      setTimeout(() => {
+        const el = document.createElement('div');
+        el.id = 'cloud-banner';
+        el.innerHTML = `<span>☁️ <b>Conecta tu nube</b> para guardar tu progreso y verlo en el PC</span><button class="btn on">Conectar ahora</button><button class="x">✕</button>`;
+        el.querySelector('.btn').addEventListener('click', () => { el.remove(); panelProfile(); setTimeout(() => { const t = $('#cl-token'); if (t) { t.scrollIntoView({ block: 'center' }); t.focus(); } }, 350); });
+        el.querySelector('.x').addEventListener('click', () => el.remove());
+        document.body.appendChild(el);
+      }, 2500);
+    }
     setTimeout(() => toast(session ? '⏸ Tienes un paseo en pausa: pulsa ▶ para reanudar' :
       isNative ? '📡 Pulsa «Empezar a pintar» y sal a la calle' : '🕹️ Pulsa «Empezar a pintar» y muévete con WASD o clic', 'info', 4500), 600);
   }
