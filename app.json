@@ -1,8 +1,8 @@
 {
-  "version": "0.2.2",
-  "notes": "Las actualizaciones se buscan nada más abrir la app y, cuando hay una nueva, aparece un aviso visible con «Actualizar ahora».",
+  "version": "0.2.3",
+  "notes": "El aviso de actualización ya no sale si tienes esa misma versión.",
   "native": 2,
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.2.2/pintamapa-web-0.2.2.zip",
-  "checksum": "f26ed84373575e8293ae9feba3ca64d60fc7238de2b6ee10ae4b348efa144a07",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.2.2/PintaMapa-v0.2.2.apk"
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.2.3/pintamapa-web-0.2.3.zip",
+  "checksum": "390181acefb79cf2d3c4d6961fb45602f5eb782f09859a5dc155054fd032f4ae",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.2.3/PintaMapa-v0.2.3.apk"
 }
