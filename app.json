@@ -1,8 +1,8 @@
 {
-  "version": "0.1.5",
-  "notes": "Funciona en cualquier ciudad al momento: al abrir la app se cargan primero las calles de tu alrededor (puedes pintar en segundos) y el resto del barrio se completa solo mientras andas.",
+  "version": "0.1.6",
+  "notes": "Monumentos: para capturarlos hay que quedarse 10 segundos a menos de 30 m (con cuenta atrás en pantalla), y los conquistados quedan para siempre en el mapa con tu color, bandera y halo, también en «Mi progreso».",
   "native": 1,
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.1.5/pintamapa-web-0.1.5.zip",
-  "checksum": "3390507b819eb3418e5aed3798cade709018bb26c2cd1228cce538cbad6eafa6",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.1.5/PintaMapa-v0.1.5.apk"
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.1.6/pintamapa-web-0.1.6.zip",
+  "checksum": "fa69ef38a10c2b95e2f56e9e77ee82c0a3b34090139fd2e1c6ac66ba1c56524f",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.1.6/PintaMapa-v0.1.6.apk"
 }
