@@ -64,6 +64,8 @@ PM.update = (function () {
     if (busy) return;
     busy = true;
     try {
+      const cur = await U().current().catch(() => null);
+      if (cur && cur.bundle && cur.bundle.version === remote.version) { setStatus(`Al día: tienes la última versión (${remote.version})`); return; }
       if (await prepared(remote.version)) {
         setStatus(`La ${remote.version} está descargada: se aplica al volver a abrir la app`);
         if (manual) await applyVersion(remote.version); else showReadyBanner(remote);
