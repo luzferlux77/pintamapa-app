@@ -42,7 +42,7 @@
   }).addTo(map);
   const renderer = L.canvas({ padding: 0.5 });
 
-  const layers = { barrios: L.layerGroup().addTo(map), tiles: L.layerGroup().addTo(map), lm: L.layerGroup().addTo(map), cans: L.layerGroup().addTo(map) };
+  const layers = { avoid: L.layerGroup().addTo(map), barrios: L.layerGroup().addTo(map), tiles: L.layerGroup().addTo(map), lm: L.layerGroup().addTo(map), cans: L.layerGroup().addTo(map) };
   const tileLayers = {};  // key -> {base, glow, core, rect, flag, paintedPts}
 
   function paintColor() { return S().color; }
@@ -79,7 +79,72 @@
   // ---------- Barrios reales: contorno del barrio donde estás y de los conquistados, con bandera ----------
   let curBarrio = null;
   function refreshFlag() { renderBarrios(); }
+  // ---------- Zonas a evitar (personales, privadas): fuera del % de barrio y ciudad ----------
+  let avoidEdit = false;
+  function setAvoidEdit(on) {
+    avoidEdit = on;
+    $('#btn-avoid').classList.toggle('on', on);
+    if (on) toast('🚫 Toca en el mapa la zona o el barrio que prefieras evitar', 'info', 4000);
+  }
+  $('#btn-avoid').addEventListener('click', () => setAvoidEdit(!avoidEdit));
+  function avoidChanged() {
+    PM.state.save();
+    W.setAvoid(S().avoid);
+    for (const id in canMarkers) { canMarkers[id].remove(); delete canMarkers[id]; }
+    renderCans();
+    setTimeout(renderBarrios, 400);   // tras recalcular los barrios
+  }
+  function addAvoid(z) {
+    z.id = 'z' + Date.now().toString(36); z.t = Date.now();
+    S().avoid.push(z);
+    avoidChanged(); setAvoidEdit(false);
+    $('#sheet').classList.remove('show');
+    toast(`🚫 ${z.type === 'barrio' ? 'Barrio «' + z.name + '»' : 'Zona'} excluida: sus calles no cuentan para el %`, 'info', 4000);
+  }
+  function removeAvoid(id) {
+    S().avoid = S().avoid.filter((z) => z.id !== id);
+    S().avoidRemoved[id] = Date.now();
+    avoidChanged();
+    $('#sheet').classList.remove('show');
+    toast('✅ Zona quitada: sus calles vuelven a contar', 'info');
+  }
+  function askAvoid(p) {
+    const b = W.barrioAt(p);
+    const already = S().avoid.find((z) => (z.type === 'barrio' && z.id === b.id) || (z.type === 'circle' && PM.geo.dist(p, z.c) <= z.r));
+    if (already) { askRemoveAvoid(already); return; }
+    openSheet('🚫 Zona a evitar', `
+      <p class="muted">Sus calles quedan <b>fuera del porcentaje</b> del barrio y de la ciudad: puedes llegar al 80 % sin pasar por ahí. Allí no salen botes y el radar no te lleva. Solo lo ves tú.</p>
+      <h4>Alrededor de este punto</h4>
+      <div class="seg"><button class="btn" data-r="100">100 m</button><button class="btn" data-r="200">200 m</button><button class="btn" data-r="400">400 m</button></div>
+      <h4>O el barrio entero</h4>
+      <button class="btn" id="av-barrio" style="width:100%">🚫 Evitar todo «${b.name}»</button>`);
+    document.querySelectorAll('#sheet [data-r]').forEach((bt) => bt.addEventListener('click', () => addAvoid({ type: 'circle', c: [+p[0].toFixed(6), +p[1].toFixed(6)], r: +bt.dataset.r })));
+    $('#av-barrio').addEventListener('click', () => addAvoid({ type: 'barrio', id: b.id, name: b.name }));
+  }
+  function askRemoveAvoid(z) {
+    openSheet('🚫 Zona evitada', `<p>${z.type === 'barrio' ? 'Barrio <b>' + z.name + '</b>' : 'Zona de ' + z.r + ' m'} · desde el ${new Date(z.t).toLocaleDateString('es-ES')}</p>
+      <button class="btn on" id="av-del" style="width:100%">Quitar: que vuelva a contar</button>`);
+    $('#av-del').addEventListener('click', () => removeAvoid(z.id));
+  }
+  function renderAvoid() {
+    layers.avoid.clearLayers();
+    const label = (p, txt, z) => L.marker(p, { icon: L.divIcon({ className: '', html: `<div class="avoidlbl">🚫 ${txt}</div>`, iconSize: [10, 10], iconAnchor: [5, 5] }) })
+      .on('click', () => askRemoveAvoid(z)).addTo(layers.avoid);
+    for (const z of S().avoid) {
+      if (z.type === 'circle') {
+        L.circle(z.c, { renderer, radius: z.r, color: '#6b7280', weight: 2, dashArray: '6 6', fillColor: '#6b7280', fillOpacity: 0.2 })
+          .on('click', (e) => { L.DomEvent.stopPropagation(e); askRemoveAvoid(z); }).addTo(layers.avoid);
+        label(z.c, '', z);
+      } else {
+        const B = W.barrios[z.id];
+        if (B && B.segs) L.polyline(B.segs, { renderer, color: '#6b7280', weight: 5, opacity: 0.6, dashArray: '2 8', interactive: false }).addTo(layers.avoid);
+        if (B && B.pos) label(B.pos, z.name, z);
+      }
+    }
+  }
+
   function renderBarrios() {
+    renderAvoid();
     layers.barrios.clearLayers();
     for (const B of Object.values(W.barrios)) {
       const conq = !!S().conqueredB[B.id], cur = B.id === curBarrio;
@@ -153,6 +218,7 @@
     for (const id in W.cans) {
       if (canMarkers[id] || S().cansTaken[id]) continue;
       const c = W.cans[id];
+      if (W.isAvoided(c.pos)) continue;   // en tus zonas a evitar no salen botes
       canMarkers[id] = L.marker(c.pos, {
         icon: L.divIcon({ className: '', html: `<div class="can ${c.kind}">🪣</div>`, iconSize: [30, 30], iconAnchor: [15, 15] }),
         interactive: false,
@@ -328,7 +394,7 @@
     if (document.hidden || !session) { $('#radar').classList.remove('show'); return; }
     let lm = null, lmD = Infinity, can = null, canD = Infinity;
     for (const id in W.landmarks) {
-      if (S().landmarks[id]) continue;
+      if (S().landmarks[id] || W.isAvoided(W.landmarks[id].pos)) continue;
       const d = PM.geo.dist(pos, W.landmarks[id].pos);
       if (d < lmD) { lmD = d; lm = W.landmarks[id]; }
     }
@@ -427,6 +493,7 @@
   window.addEventListener('keyup', (e) => { keys[e.key.toLowerCase()] = false; });
 
   map.on('click', (e) => {
+    if (avoidEdit) { askAvoid([e.latlng.lat, e.latlng.lng]); return; }
     if (mode !== 'sim') return;
     const p = [e.latlng.lat, e.latlng.lng];
     if (e.originalEvent.ctrlKey || e.originalEvent.metaKey) { teleport(p); return; }
@@ -833,7 +900,8 @@
       const done = B && W.barrioComplete(bq.id);
       const pr = B ? G.barrioProgress(bq.id) : 0;
       $('#barrio-name').textContent = (bq && S().conqueredB[bq.id] ? '🚩 ' : '') + ((B && B.name) || (bq && bq.name) || t.name || 'Barrio sin explorar');
-      $('#barrio-pct').textContent = !B ? '' : !done ? 'calculando…' : B.total ? (pr * 100).toFixed(1) + ' %' : 'sin calles';
+      const avoidedB = bq && S().avoid.some((z) => z.type === 'barrio' && z.id === bq.id);
+      $('#barrio-pct').textContent = avoidedB ? '🚫 evitado' : !B ? '' : !done ? 'calculando…' : B.total ? (pr * 100).toFixed(1) + ' %' : 'sin calles';
       $('#barrio-bar i').style.width = (pr * 100).toFixed(1) + '%';
       if (t.city) {
         const cp = G.cityProgress(t.city);
@@ -1131,6 +1199,10 @@
       html += `<h4>📊 Tu progreso real</h4><p class="muted">Lo que pintas con el móvil por la calle (separado de esta partida de prueba). Se lee de la nube: no hace falta tener nada encendido.</p>
         <a class="btn on" href="progreso.html" target="_blank" style="display:inline-block;text-decoration:none">📊 Abrir «Mi progreso»</a>`;
     }
+    if (s.avoid && s.avoid.length) {
+      html += `<h4>🚫 Mis zonas a evitar</h4><p class="muted">Sus calles no cuentan para el %. Solo las ves tú.</p>` +
+        s.avoid.map((z) => `<div class="mission"><div class="mt">🚫 ${z.type === 'barrio' ? z.name : 'Zona de ' + z.r + ' m'}<span><button class="btn av-rm" data-id="${z.id}">Quitar</button></span></div></div>`).join('');
+    }
     html += `<p class="muted" style="margin-top:14px">Perfil actual: <b>${PM.profile === 'real' ? '📡 Real' : '🕹️ Prueba'}</b></p>`;
     html += `<h4>Ajustes</h4>
       <label class="row"><input type="checkbox" style="width:auto" id="opt-sound" ${PM.sound.enabled ? 'checked' : ''}> Sonido</label>
@@ -1152,6 +1224,7 @@
       try { await PM.cloud.now(); $('#cl-msg').textContent = '✅ ¡Guardado! Ya lo puedes ver en «Mi progreso».'; recolorAll(); }
       catch (e) { $('#cl-msg').textContent = '❌ ' + (e.message || e); }
     });
+    document.querySelectorAll('.av-rm').forEach((b) => b.addEventListener('click', () => { removeAvoid(b.dataset.id); }));
     if ($('#opt-upd')) $('#opt-upd').addEventListener('click', async () => {
       $('#opt-upd').textContent = '⏳ Buscando…';
       await PM.update.check(true, toast);
@@ -1279,6 +1352,7 @@
     PM.sound._ctx();
     G.ensureDaily();
     recolorAll();
+    W.setAvoid(S().avoid);
     teleport(pos);
     setMode(mode);
     setOrient(orient);

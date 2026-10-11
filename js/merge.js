@@ -27,6 +27,10 @@
     [...(a.walks || []), ...(b.walks || [])].forEach((w) => { walks[w.id] = w; });
     out.walks = Object.values(walks).sort((x, y) => x.start - y.start);
     if (a.daily && b.daily && a.daily.date > b.daily.date) out.daily = a.daily;
+    out.avoidRemoved = Object.assign({}, a.avoidRemoved || {}, b.avoidRemoved || {});
+    const av = {};
+    [...(a.avoid || []), ...(b.avoid || [])].forEach((z) => { if (!out.avoidRemoved[z.id]) av[z.id] = z; });
+    out.avoid = Object.values(av);
     return out;
   }
   if (typeof module !== 'undefined' && module.exports) module.exports = merge;

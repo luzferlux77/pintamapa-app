@@ -180,6 +180,7 @@ PM.world = (function () {
       if (acceptTiles.has(tk) && !pieces[id] && len > 0.5) {
         const p = { id, tile: tk, pts: cur, len, mid, wide: !!wide };
         graphAdd(p);
+        p.avoid = inAvoidCircle(mid);
         pieces[id] = p;
         tiles[tk].pieces.push(p);
         tiles[tk].total += len;
@@ -358,6 +359,19 @@ PM.world = (function () {
     return { len: dist.get(t), pieces: [...ids] };
   }
 
+  // ---------------- Zonas a evitar (personales) ----------------
+  // Cada pintor puede marcar barrios enteros o zonas (círculos) por donde prefiere no pasar.
+  // Sus calles quedan FUERA del porcentaje del barrio y de la ciudad: se puede llegar al 80 % sin pisarlas.
+  let avoidCircles = [], avoidBarrios = new Set();
+  function inAvoidCircle(p) { return avoidCircles.some((z) => PM.geo.dist(p, z.c) <= z.r); }
+  function setAvoid(list) {
+    avoidCircles = (list || []).filter((z) => z.type === 'circle');
+    avoidBarrios = new Set((list || []).filter((z) => z.type === 'barrio').map((z) => z.id));
+    for (const id in pieces) pieces[id].avoid = inAvoidCircle(pieces[id].mid);
+    scheduleReassign();
+  }
+  const isAvoided = (p) => inAvoidCircle(p) || avoidBarrios.has(barrioOf(p).id);
+
   // ---------------- Barrios reales ----------------
   // Cada calle pertenece a un barrio de verdad, según lo que tenga OpenStreetMap en esa ciudad:
   //  1) contorno oficial (admin_level 10 = barrio; 9 = distrito): la calle es del barrio que la contiene;
@@ -472,7 +486,9 @@ PM.world = (function () {
           pos: b.node ? b.node.pos : b.rel ? [(b.rel.bounds[0] + b.rel.bounds[2]) / 2, (b.rel.bounds[1] + b.rel.bounds[3]) / 2] : null,
           bbox: b.rel ? b.rel.bounds.slice() : null, segs: b.rel ? b.rel.segs : null, tile: b.tile };
       }
-      B.pieces.push(pc); B.total += pc.len;
+      if (avoidBarrios.has(b.id)) pc.avoid = true; else if (!inAvoidCircle(pc.mid)) pc.avoid = false;
+      B.pieces.push(pc);
+      if (pc.avoid) B.avoidLen = (B.avoidLen || 0) + pc.len; else B.total += pc.len;
     }
     for (const B of Object.values(barrios)) {
       if (!B.bbox) {   // sin contorno: caja de sus calles + 300 m de margen
@@ -795,7 +811,7 @@ PM.world = (function () {
   return {
     TILE, RARITY, tiles, pieces, landmarks, cans,
     tileKeyOf, tileBounds, ensureAround, piecesNear, onChange,
-    barrios, barrioAt: barrioOf, barrioComplete, route,
+    barrios, barrioAt: barrioOf, barrioComplete, route, setAvoid, isAvoided,
     // carga las celdas que faltan para tener entero el barrio (hasta 12)
     ensureBarrio(id) {
       const B = barrios[id];

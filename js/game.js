@@ -65,6 +65,8 @@ PM.state = (function () {
     tileNames: {},
     cansTaken: {},      // id -> 1 (ids incluyen la fecha)
     achievements: {},
+    avoid: [],          // zonas a evitar: { id, type:'barrio', name } | { id, type:'circle', c:[lat,lon], r }
+    avoidRemoved: {},   // zonas quitadas (para que la nube no las devuelva)
     stats: { paintedM: 0, walkedM: 0, bestCombo: 0, captures: 0, cans: 0, days: 0, streak: 0, lastDay: null, churches: 0 },
     daily: null,
     lastPos: null,
@@ -186,7 +188,7 @@ PM.game = (function () {
     if (!B || !B.total) return 0;
     const s = S();
     let m = 0;
-    for (const pc of B.pieces) if (s.painted[pc.id]) m += pc.len;
+    for (const pc of B.pieces) if (!pc.avoid && s.painted[pc.id]) m += pc.len;
     return Math.min(1, m / B.total);
   }
   function checkBarrio(id) {
@@ -223,9 +225,20 @@ PM.game = (function () {
     }
     // si no hay barrios cargados en esta sesión, usamos lo guardado
     if (!loadedTotal) for (const k in s.tileNames) if (s.tileNames[k].city === city) painted += s.paintedByTile[k] || 0;
+    // calles en tus zonas a evitar: fuera del total y de lo pintado
+    let avoidLen = 0, avoidPainted = 0;
+    for (const id in PM.world.pieces) {
+      const pc = PM.world.pieces[id];
+      if (!pc.avoid) continue;
+      const t = PM.world.tiles[pc.tile];
+      if (!t || t.city !== city) continue;
+      avoidLen += pc.len;
+      if (s.painted[pc.id]) avoidPainted += pc.len;
+    }
+    painted = Math.max(0, painted - avoidPainted);
     const real = s.cities[city] && s.cities[city].total;
-    const total = real || loadedTotal;
-    return { painted, total, real: !!real, pct: total ? Math.min(1, painted / total) : 0 };
+    const total = Math.max(0, (real || loadedTotal) - avoidLen);
+    return { painted, total, real: !!real, avoidLen, pct: total ? Math.min(1, painted / total) : 0 };
   }
 
   function checkCity(city) {

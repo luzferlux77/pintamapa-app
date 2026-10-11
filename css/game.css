@@ -277,3 +277,9 @@ details.howto ol { padding-left: 18px; line-height: 1.6; }
 .ver { position: absolute; z-index: 500; left: 14px; top: calc(58px + var(--safe-top)); font-size: 10px; font-weight: 700; color: var(--muted); pointer-events: none; }
 
 #apk-banner small { color: var(--muted); font-size: 11.5px; }
+
+.fab.avoidbtn { display: flex; flex-direction: column; align-items: center; justify-content: center; bottom: auto; top: calc(270px + var(--safe-top)); line-height: 1; box-shadow: var(--shadow); }
+.fab.avoidbtn span { font-size: 18px; } .fab.avoidbtn small { font-size: 9px; color: var(--muted); margin-top: 1px; }
+.fab.avoidbtn.on { border-color: #6b7280; background: #e5e7eb; box-shadow: 0 0 0 3px #6b7280; }
+#combo { top: calc(330px + var(--safe-top)); }
+.avoidlbl { white-space: nowrap; background: rgba(75, 85, 99, .85); color: #fff; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 99px; transform: translate(-50%, -50%); display: inline-block; }
