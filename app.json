@@ -1,8 +1,8 @@
 {
-  "version": "0.1.2",
-  "notes": "Las actualizaciones esperan a que termines el paseo para no cortarlo.",
+  "version": "0.1.3",
+  "notes": "Mejoras del paseo de prueba: velocidad correcta en todos los móviles, se ignoran los saltos del GPS, los cruces ya no pintan trozos de calles laterales, distancia caminada sin el ruido del GPS, radar de monumentos y botes cercanos, más botes de pintura, y descarga de calles más fiable en Android.",
   "native": 1,
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.1.2/pintamapa-web-0.1.2.zip",
-  "checksum": "79a6e087a35a8acb4ce3b2e457b28973a0f9003dfffaaded8bc3052095fe31eb",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.1.2/PintaMapa-v0.1.2.apk"
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.1.3/pintamapa-web-0.1.3.zip",
+  "checksum": "470a3ba5ee58acfd8b331cbe1933a0d9793a9b4d3eca249df6c1a3af76fde4a5",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.1.3/PintaMapa-v0.1.3.apk"
 }
