@@ -1,8 +1,8 @@
 {
-  "version": "0.1.8",
-  "notes": "Tú siempre en el centro y el mapa se mueve; el mapa gira bien hacia donde andas (rumbo del GPS y brújula); barrios reales (Sant Ildefons, la Vila de Gràcia…) en vez de cuadrados; con la pantalla apagada los huecos del GPS se rellenan siguiendo las calles.",
-  "native": 1,
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.1.8/pintamapa-web-0.1.8.zip",
-  "checksum": "3bc83a3b515b9cc541e34f3af4a0e2a5c64f50d00a35b1cf3fcb0a420ec68bf1",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.1.8/PintaMapa-v0.1.8.apk"
+  "version": "0.2.0",
+  "notes": "Brújula: con el mapa en modo rumbo (➤), el mapa gira cuando giras el móvil y hacia la calle por la que andas. La versión se ve en el inicio y junto a tus puntos.",
+  "native": 2,
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.2.0/pintamapa-web-0.2.0.zip",
+  "checksum": "ae13537893af613d619f4541822e5b25005bd0725fb0237cef7ae84d7b2c0369",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.2.0/PintaMapa-v0.2.0.apk"
 }
