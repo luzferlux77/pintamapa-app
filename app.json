@@ -1,8 +1,8 @@
 {
-  "version": "0.2.0",
-  "notes": "Brújula: con el mapa en modo rumbo (➤), el mapa gira cuando giras el móvil y hacia la calle por la que andas. La versión se ve en el inicio y junto a tus puntos.",
+  "version": "0.2.1",
+  "notes": "La iglesia principal, las catedrales, basílicas, castillos y el ayuntamiento siempre se ven y se pueden conquistar, aunque estén pegados a otro punto.",
   "native": 2,
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.2.0/pintamapa-web-0.2.0.zip",
-  "checksum": "ae13537893af613d619f4541822e5b25005bd0725fb0237cef7ae84d7b2c0369",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.2.0/PintaMapa-v0.2.0.apk"
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.2.1/pintamapa-web-0.2.1.zip",
+  "checksum": "454c09f930df3896c34e2a3353d10b23ee0f4d4b725eeec9c54ea9e78647163d",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.2.1/PintaMapa-v0.2.1.apk"
 }
