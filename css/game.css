@@ -271,3 +271,7 @@ kbd { background: var(--btn); border-radius: 5px; padding: 1px 6px; color: var(-
 details.howto { background: var(--card); border-radius: 12px; padding: 8px 12px; margin: 6px 0; font-size: 13px; }
 details.howto summary { cursor: pointer; font-weight: 700; }
 details.howto ol { padding-left: 18px; line-height: 1.6; }
+
+.verbadge { display: inline-block; margin: -8px 0 16px; padding: 4px 12px; border-radius: 99px; background: var(--panel); border: 1px solid var(--line); font-size: 13px; box-shadow: var(--shadow); }
+.verbadge b { color: var(--paint); }
+.ver { position: absolute; z-index: 500; left: 14px; top: calc(58px + var(--safe-top)); font-size: 10px; font-weight: 700; color: var(--muted); pointer-events: none; }

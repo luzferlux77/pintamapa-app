@@ -478,12 +478,34 @@
     else if (e.absolute && e.alpha != null) h = (360 - e.alpha) % 360;
     if (h == null) return;
     compass = compass == null ? h : (compass + angDiff(compass, h) * 0.15 + 360) % 360;
+    compassT = Date.now();
   }
   window.addEventListener('deviceorientationabsolute', onCompass);
+  // En Android la web no recibe el norte: brújula nativa (sensor de rotación), solo en modo rumbo y con la app a la vista
+  const CompassN = PM.isNative && window.Capacitor.registerPlugin ? window.Capacitor.registerPlugin('Compass') : null;
+  let compassT = 0, compassOn = false, compassListen = false;
+  function compassSync() {
+    if (!CompassN) return;
+    const want = orient === 'heading' && !document.hidden;
+    if (want && !compassOn) {
+      compassOn = true;
+      if (!compassListen) {
+        compassListen = true;
+        CompassN.addListener('heading', (d) => {
+          const h = d.heading;
+          compass = compass == null ? h : (compass + angDiff(compass, h) * 0.35 + 360) % 360;
+          compassT = Date.now();
+        });
+      }
+      CompassN.start().catch(() => { compassOn = false; });
+    } else if (!want && compassOn) { compassOn = false; CompassN.stop().catch(() => {}); }
+  }
+  document.addEventListener('visibilitychange', compassSync);
   window.addEventListener('deviceorientation', (e) => { if (e.webkitCompassHeading != null) onCompass(e); });
   // cada fotograma: girar poco a poco hacia el rumbo (sin saltos)
   function stepHeading(dt) {
-    if (mode === 'gps' && compass != null && (speed < 0.6 || Date.now() - lastCourseT > 5000) && Date.now() - lastMoveT > 3000) setHeadingTarget(compass);
+    // brújula (hacia donde apunta el móvil) si la hay; si no, el rumbo del GPS / de la marcha
+    if (orient === 'heading' && compass != null && Date.now() - compassT < 1500 && !(mode === 'sim' && (simTurned || target))) setHeadingTarget(compass);
     const d = angDiff(heading, headingTarget);
     if (Math.abs(d) < 0.3) return;
     heading = (heading + d * Math.min(1, dt * 4) + 360) % 360;
@@ -524,6 +546,7 @@
     try { localStorage.setItem('pintamapa_orient', o); } catch (e) {}
     simTurned = false;
     headingTarget = heading;
+    compassSync();
     applyBearing(true);
     camera();
     $('#btn-orient').innerHTML = o === 'heading' ? '<span>➤</span><small>rumbo</small>' : '<span>N</span><small>norte</small>';
@@ -801,7 +824,7 @@
     const lp = G.levelProgress();
     $('#lvl').textContent = lp.level;
     $('#xpbar i').style.width = (lp.pct * 100).toFixed(1) + '%';
-    $('#xptext').textContent = `${PM.fmtNum(S().xp)} pts`;
+    $('#xptext').textContent = `${PM.fmtNum(S().xp)} pts · v${PM.VERSION.app}`;
     const t = W.tiles[curTile];
     const bq = t && (t.loaded || t.partial) ? W.barrioAt(pos) : null;
     const B = bq && W.barrios[bq.id];
@@ -1268,6 +1291,9 @@
   }
   $('#start').addEventListener('click', () => begin(true));
   $('#intro-ver').textContent = `v${PM.VERSION.app} · datos © OpenStreetMap`;
+  // versión bien visible (inicio y esquina del juego) para saber qué versión tienes instalada
+  $('#intro-badge').innerHTML = `Versión <b>${PM.VERSION.app}</b> · ${new Date(PM.VERSION.date).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' })}` +
+    (PM.isNative ? '' : ' · <i>web</i>');
   document.documentElement.style.setProperty('--paint', paintColor());
   $('#start').textContent = 'Crear y jugar';
   // recién elegido el nombre: se entra directamente sin volver a pulsar
