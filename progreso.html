@@ -1,0 +1,269 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Mi progreso · PintaMapa</title>
+  <link rel="stylesheet" href="lib/leaflet/leaflet.css">
+  <link rel="stylesheet" href="css/game.css">
+  <style>
+    html, body { position: static; overflow: auto; height: auto; min-height: 100%; user-select: text; }
+    body { background: var(--bg); }
+    .wrap { max-width: 1180px; margin: 0 auto; padding: 18px 16px 40px; }
+    .top { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+    .top .logo { font-size: 30px; letter-spacing: -1px; }
+    .top .grow { flex: 1; }
+    .card { background: var(--panel); border: 1px solid var(--line); border-radius: 18px; padding: 16px; box-shadow: var(--shadow); }
+    .login { max-width: 380px; margin: 10vh auto; text-align: center; }
+    .login input { margin: 6px 0; }
+    .login .btn { width: 100%; margin-top: 8px; }
+    .err { color: #dc2626; font-size: 13px; min-height: 18px; }
+    .hero { display: flex; align-items: center; gap: 16px; margin: 18px 0; }
+    .hero .avatar { width: 72px; height: 72px; font-size: 34px; }
+    .hero h1 { margin: 0; font-size: 26px; }
+    .hero .bar { width: min(340px, 60vw); margin-top: 6px; }
+    .tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+    .tile { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 14px; box-shadow: var(--shadow); }
+    .tile b { display: block; font-size: 24px; font-variant-numeric: tabular-nums; }
+    .tile small { color: var(--muted); }
+    .cols { display: grid; grid-template-columns: 1.6fr 1fr; gap: 14px; margin-top: 14px; }
+    @media (max-width: 860px) { .cols { grid-template-columns: 1fr; } }
+    #bigmap { height: 520px; border-radius: 18px; border: 1px solid var(--line); }
+    h3 { margin: 22px 0 10px; font-size: 15px; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); }
+    .walks { max-height: 520px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; }
+    .walk { background: var(--card); border-radius: 14px; padding: 10px 12px; cursor: pointer; border: 2px solid transparent; }
+    .walk:hover, .walk.sel { border-color: var(--paint); }
+    .walk .d { display: flex; justify-content: space-between; font-weight: 700; }
+    .walk small { color: var(--muted); }
+    .activity { display: flex; align-items: flex-end; gap: 3px; height: 90px; padding-top: 8px; }
+    .activity div { flex: 1; background: var(--paint); border-radius: 4px 4px 0 0; min-height: 2px; opacity: .85; position: relative; }
+    .activity div.zero { background: var(--track); }
+    .actlabels { display: flex; justify-content: space-between; color: var(--muted); font-size: 11px; margin-top: 4px; }
+    .muted a { color: var(--paint); }
+    .empty { text-align: center; padding: 30px; color: var(--muted); }
+    .addr { font-family: ui-monospace, Consolas, monospace; background: var(--card); padding: 2px 8px; border-radius: 6px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="top">
+      <div class="logo"><span class="p">Pinta</span><span class="m">Mapa</span></div>
+      <div class="grow"></div>
+      <a class="btn" href="index.html" style="text-decoration:none;color:var(--text)">🕹️ Jugar (prueba)</a>
+      <button class="btn" id="reload" hidden>🔄 Actualizar</button>
+      <button class="btn" id="logout" hidden>Salir</button>
+    </div>
+
+    <div id="login" class="card login">
+      <h2 style="margin-top:0">📊 Mi progreso real</h2>
+      <p class="muted">Todo lo que pintas con el móvil por la calle, guardado en tu GitHub privado. Funciona desde cualquier navegador, sin nada encendido en casa.</p>
+      <input id="token" type="password" placeholder="Token de GitHub (el mismo que pusiste en la app)" autocomplete="off">
+      <button class="btn primary" id="go">Ver mi progreso</button>
+      <div id="who" class="players" style="margin-top:12px"></div>
+      <p class="err" id="err"></p>
+    </div>
+
+    <div id="dash" hidden>
+      <div class="hero">
+        <div class="avatar" id="avatar">🖌️</div>
+        <div>
+          <h1 id="name"></h1>
+          <div class="muted" id="lvltext"></div>
+          <div class="bar"><i id="lvlbar"></i></div>
+        </div>
+      </div>
+      <div class="tiles" id="tiles"></div>
+
+      <div class="cols">
+        <div>
+          <h3>🗺️ Tus calles pintadas y paseos</h3>
+          <div id="bigmap"></div>
+        </div>
+        <div>
+          <h3>🚶 Paseos</h3>
+          <div class="walks" id="walks"></div>
+        </div>
+      </div>
+
+      <h3>📈 Actividad (últimos 30 días, metros pintados)</h3>
+      <div class="card"><div class="activity" id="activity"></div><div class="actlabels"><span id="act-from"></span><span>hoy</span></div></div>
+
+      <h3>🏙️ Ciudades (objetivo: 80 %)</h3>
+      <div id="cities"></div>
+
+      <h3>🏆 Logros</h3>
+      <div class="grid" id="ach"></div>
+
+      <h3>📖 Álbum de monumentos</h3>
+      <div class="grid" id="album"></div>
+      <p class="muted" id="footer" style="margin-top:24px"></p>
+    </div>
+  </div>
+
+  <script src="lib/leaflet/leaflet.js"></script>
+  <script src="js/version.js"></script>
+  <script src="js/util.js"></script>
+  <script src="js/world.js"></script>
+  <script src="js/game.js"></script>
+  <script>
+  (function () {
+    const $ = (s) => document.querySelector(s);
+    const KEY = 'pintamapa_dash';
+    const REPO = 'luzferlux77/pintamapa-progreso';
+    let creds = {}; try { creds = JSON.parse(localStorage.getItem(KEY) || '{}'); } catch (e) {}
+    let map, walkLayer, selLayer, data;
+    const serverAddr = '';
+
+    // ---- lectura del repositorio privado de GitHub ----
+    async function gh(path, raw) {
+      const r = await fetch('https://api.github.com/repos/' + REPO + '/contents/' + path + '?t=' + Date.now(), { cache: 'no-store',
+        headers: { Authorization: 'Bearer ' + creds.token, 'X-GitHub-Api-Version': '2022-11-28', Accept: raw ? 'application/vnd.github.raw+json' : 'application/vnd.github+json' } });
+      if (r.status === 404) return null;
+      if (r.status === 401) throw new Error('Token no válido o caducado');
+      if (!r.ok) throw new Error('GitHub respondió ' + r.status);
+      return raw ? r.json() : r.json();
+    }
+    async function players() {
+      const list = await gh('jugadores');
+      return (list || []).filter((x) => x.type === 'dir').map((x) => x.name);
+    }
+    async function load() {
+      $('#err').textContent = '';
+      try {
+        if (!creds.token) throw new Error('Pega tu token de GitHub');
+        if (!creds.player) {
+          const ps = await players();
+          localStorage.setItem(KEY, JSON.stringify(creds));
+          if (!ps.length) throw new Error('Todavía no hay ninguna partida guardada: en la app, Perfil → Mi cuenta en la nube → Guardar.');
+          if (ps.length > 1) {
+            $('#who').innerHTML = '<b>¿Quién eres?</b>' + ps.map((p) => `<button class="pcard" data-p="${p}"><span class="pav">${p[0].toUpperCase()}</span><span class="pinfo"><b>${p}</b></span><span class="pgo">▶</span></button>`).join('');
+            document.querySelectorAll('#who .pcard').forEach((b) => b.addEventListener('click', () => { creds.player = b.dataset.p; load(); }));
+            return;
+          }
+          creds.player = ps[0];
+        }
+        const base = 'jugadores/' + creds.player + '/';
+        const save = await gh(base + 'partida.json', true);
+        if (!save) throw new Error('No encuentro la partida de ' + creds.player);
+        const geo = {};
+        for (const f of (await gh(base + 'calles')) || []) if (f.name.endsWith('.json')) Object.assign(geo, await gh(base + 'calles/' + f.name, true));
+        localStorage.setItem(KEY, JSON.stringify(creds));
+        data = { name: save.player || creds.player, updated: save.syncedAt, save, geo };
+        render();
+      } catch (e) {
+        $('#err').textContent = e.message === 'Failed to fetch' ? 'Sin conexión con GitHub' : e.message;
+        $('#login').hidden = false; $('#dash').hidden = true;
+      }
+    }
+    $('#go').addEventListener('click', () => { creds = { token: $('#token').value.trim() || creds.token }; load(); });
+    $('#token').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('#go').click(); });
+    $('#logout').addEventListener('click', () => { localStorage.removeItem(KEY); location.reload(); });
+    $('#reload').addEventListener('click', load);
+    if (creds.token) load();
+
+    const xpFor = (l) => Math.round(400 * Math.pow(l - 1, 1.6));
+    function fmtTime(ms) { const m = Math.round(ms / 60000); return m >= 60 ? Math.floor(m / 60) + ' h ' + (m % 60) + ' min' : m + ' min'; }
+
+    function render() {
+      const s = data.save || {}, st = s.stats || {};
+      const color = s.color || '#ff2e88';
+      document.documentElement.style.setProperty('--paint', color);
+      $('#login').hidden = true; $('#dash').hidden = false; $('#logout').hidden = false; $('#reload').hidden = false;
+      let lvl = 1; while ((s.xp || 0) >= xpFor(lvl + 1)) lvl++;
+      $('#name').textContent = data.name;
+      $('#avatar').style.background = color;
+      $('#lvltext').textContent = `Nivel ${lvl} · ${PM.fmtNum(s.xp || 0)} pts · faltan ${PM.fmtNum(xpFor(lvl + 1) - (s.xp || 0))} para el ${lvl + 1}`;
+      $('#lvlbar').style.width = ((s.xp - xpFor(lvl)) / (xpFor(lvl + 1) - xpFor(lvl)) * 100).toFixed(1) + '%';
+      const walks = (s.walks || []).slice().sort((a, b) => b.start - a.start);
+      const tiles = [
+        [PM.fmtDist(st.paintedM || 0), 'calles pintadas'], [PM.fmtDist(st.walkedM || 0), 'caminados'],
+        [walks.length, 'paseos'], [fmtTime(walks.reduce((a, w) => a + w.elapsed, 0)), 'tiempo en la calle'],
+        [Object.keys(s.landmarks || {}).length, 'monumentos'], [Object.keys(s.conquered || {}).length, 'barrios 🚩'],
+        ['x' + (st.bestCombo || 0), 'mejor combo'], ['🔥 ' + (st.streak || 0), 'días de racha'],
+      ];
+      $('#tiles').innerHTML = tiles.map(([b, t]) => `<div class="tile"><b>${b}</b><small>${t}</small></div>`).join('');
+
+      // Mapa: calles pintadas (geometría real enviada por el móvil) + recorridos
+      if (!map) {
+        map = L.map('bigmap', { preferCanvas: true });
+        L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap' }).addTo(map);
+      }
+      map.eachLayer((l) => { if (!(l instanceof L.TileLayer)) map.removeLayer(l); });
+      const geo = Object.values(data.geo || {});
+      const bounds = L.latLngBounds([]);
+      if (geo.length) {
+        L.polyline(geo, { color, weight: 12, opacity: 0.2 }).addTo(map);
+        const core = L.polyline(geo, { color, weight: 5, opacity: 1 }).addTo(map);
+        bounds.extend(core.getBounds());
+      }
+      Object.values(s.landmarks || {}).filter((v) => v.pos).forEach((v) => {
+        L.circle(v.pos, { radius: 45, color, weight: 2, fillColor: color, fillOpacity: 0.18 }).addTo(map);
+        L.marker(v.pos, { icon: L.divIcon({ className: '', iconSize: [40, 40], iconAnchor: [20, 20],
+          html: `<div class="lm conq r-${v.rarity}"><span>${v.emoji}</span><i class="lmflag">🚩</i></div>` }) })
+          .bindTooltip(`${v.name} · ${v.kind} · conquistado el ${new Date(v.t).toLocaleDateString('es-ES')}`).addTo(map);
+        bounds.extend(v.pos);
+      });
+      walkLayer = L.layerGroup().addTo(map);
+      walks.forEach((w) => {
+        const segs = splitTrack(w.track);
+        if (segs.length) bounds.extend(L.polyline(segs, { color: '#2563eb', weight: 2, opacity: 0.5, dashArray: '4 6' }).addTo(walkLayer).getBounds());
+      });
+      if (bounds.isValid()) map.fitBounds(bounds, { padding: [20, 20] }); else map.setView([41.35763, 2.07386], 15);
+      setTimeout(() => map.invalidateSize(), 50);
+
+      // Paseos
+      $('#walks').innerHTML = walks.length ? walks.map((w, i) => `<div class="walk" data-i="${i}">
+          <div class="d"><span>${new Date(w.start).toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric', month: 'short' })} · ${new Date(w.start).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}</span><span style="color:var(--paint)">+${PM.fmtNum(w.st.pts)}</span></div>
+          <small>⏱ ${fmtTime(w.elapsed)} · 🚶 ${PM.fmtDist(w.st.walked)} · 🖌️ ${PM.fmtDist(w.st.painted)} nuevos · 📸 ${w.st.captures} · 🪣 ${w.st.cans}${w.st.conquests ? ' · 🚩 ' + w.st.conquests : ''}</small></div>`).join('')
+        : '<div class="empty">Aún no hay paseos. ¡Sal a la calle con el móvil y pulsa «Empezar a pintar»!</div>';
+      document.querySelectorAll('.walk').forEach((el) => el.addEventListener('click', () => {
+        document.querySelectorAll('.walk').forEach((x) => x.classList.remove('sel'));
+        el.classList.add('sel');
+        const segs = splitTrack(walks[+el.dataset.i].track);
+        if (selLayer) map.removeLayer(selLayer);
+        if (segs.length) { selLayer = L.polyline(segs, { color: '#2563eb', weight: 3, opacity: 0.9, dashArray: '6 6' }).addTo(map); map.fitBounds(selLayer.getBounds(), { padding: [30, 30] }); }
+      }));
+
+      // Actividad 30 días
+      const days = [];
+      for (let i = 29; i >= 0; i--) { const d = new Date(Date.now() - i * 86400000); days.push(d.toDateString()); }
+      const per = {}; walks.forEach((w) => { const k = new Date(w.start).toDateString(); per[k] = (per[k] || 0) + w.st.painted; });
+      const max = Math.max(1, ...days.map((d) => per[d] || 0));
+      $('#activity').innerHTML = days.map((d) => `<div class="${per[d] ? '' : 'zero'}" style="height:${Math.max(2, (per[d] || 0) / max * 100)}%" title="${d}: ${PM.fmtDist(per[d] || 0)}"></div>`).join('');
+      $('#act-from').textContent = new Date(Date.now() - 29 * 86400000).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' });
+
+      // Ciudades
+      const byCity = {};
+      for (const [k, v] of Object.entries(s.tileNames || {})) if (v.city) byCity[v.city] = (byCity[v.city] || 0) + ((s.paintedByTile || {})[k] || 0);
+      const cityList = Object.entries(byCity).filter(([, m]) => m > 0).sort((a, b) => b[1] - a[1]);
+      $('#cities').innerHTML = cityList.length ? cityList.map(([c, m]) => {
+        const tot = s.cities && s.cities[c] && s.cities[c].total;
+        const pct = tot ? m / tot : 0;
+        return `<div class="mission"><div class="mt">${s.citiesWon && s.citiesWon[c] ? '👑' : '🏙️'} ${c}<span>${tot ? (pct * 100).toFixed(2) + ' %' : PM.fmtDist(m)}</span></div>
+          <div class="bar"><i style="width:${Math.min(100, pct / 0.8 * 100)}%"></i></div>
+          <small>${PM.fmtDist(m)} pintados${tot ? ' de ' + PM.fmtDist(tot) + ' · te faltan ' + PM.fmtDist(Math.max(0, tot * 0.8 - m)) + ' para conquistarla' : ''}</small></div>`;
+      }).join('') : '<div class="empty">Todavía ninguna ciudad.</div>';
+
+      // Logros
+      const A = PM.game.ACHIEVEMENTS, got = s.achievements || {};
+      $('#ach').innerHTML = Object.entries(A).map(([id, a]) => `<div class="stamp ach ${got[id] ? '' : 'locked'}"><div>${got[id] ? a.icon : '🔒'}</div><b>${a.name}</b><small>${got[id] ? new Date(got[id]).toLocaleDateString('es-ES') : a.desc}</small></div>`).join('');
+
+      // Álbum
+      const lms = Object.values(s.landmarks || {}).sort((a, b) => b.t - a.t);
+      $('#album').innerHTML = lms.length ? lms.map((v) => `<div class="stamp r-${v.rarity}"><div>${v.emoji}</div><b>${v.name}</b><small>${v.kind} · ${PM.world.RARITY[v.rarity].label}</small></div>`).join('')
+        : '<div class="empty">Ningún monumento capturado aún.</div>';
+
+      $('#footer').innerHTML = 'Último guardado desde el móvil: ' + (data.updated ? new Date(data.updated).toLocaleString('es-ES') : '—') +
+        ' · Datos en tu GitHub privado (' + REPO + ')';
+    }
+
+    function splitTrack(t) {
+      const segs = []; let cur = [];
+      (t || []).forEach((p) => { if (!p) { if (cur.length > 1) segs.push(cur); cur = []; } else cur.push(p); });
+      if (cur.length > 1) segs.push(cur);
+      return segs;
+    }
+  })();
+  </script>
+</body>
+</html>

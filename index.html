@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#f4f6fb">
+  <title>PintaMapa</title>
+  <link rel="stylesheet" href="lib/leaflet/leaflet.css">
+  <link rel="stylesheet" href="css/game.css">
+</head>
+<body class="sim">
+  <div id="map"></div>
+  <div id="fx"></div>
+  <canvas id="confetti"></canvas>
+
+  <!-- HUD superior -->
+  <header id="hud">
+    <div class="top">
+      <div class="lvl"><span id="lvl">1</span></div>
+      <div class="xp"><div id="xpbar" class="bar"><i></i></div><small id="xptext">0 pts</small></div>
+      <button id="modebtn" class="chip">🕹️ Simulación</button>
+    </div>
+    <div class="barrio">
+      <div class="bl"><b id="barrio-name">Cargando…</b><span id="barrio-pct"></span></div>
+      <div id="barrio-bar" class="bar big"><i></i><em title="Objetivo de conquista: 80 %"></em></div>
+      <small id="city">🏙️ Localizando ciudad…</small>
+    </div>
+  </header>
+
+  <div id="badges">
+    <div id="speed" class="badge">🧍 0.0 km/h</div>
+    <div id="gps" class="badge">📡 Buscando GPS…</div>
+    <div id="aura" class="badge aura"></div>
+    <div id="radar" class="badge"></div>
+    <div id="capture" class="badge capture"></div>
+    <div id="golden" class="badge gold"></div>
+    <div id="loading" class="badge">🗺️ Descargando calles del barrio…</div>
+  </div>
+  <div id="combo"></div>
+  <div id="toasts"></div>
+
+  <button id="btn-center" class="fab">🎯</button>
+  <button id="btn-orient" class="fab orient"><span>N</span><small>norte</small></button>
+  <div id="joy"><div class="knob"></div></div>
+  <div id="session" class="idle"></div>
+
+  <!-- Navegación inferior -->
+  <nav id="nav">
+    <button id="nav-album"><span>📖</span>Álbum</button>
+    <button id="nav-missions"><span>🎯</span>Misiones</button>
+    <button id="nav-ach"><span>🏆</span>Logros</button>
+    <button id="nav-profile"><span>🎨</span>Perfil</button>
+  </nav>
+
+  <section id="sheet"><div class="head"><h3></h3><button class="close">✕</button></div><div class="body"></div></section>
+  <div id="card"></div>
+  <div id="celebrate"><div class="in"><div class="emoji">🚩</div><h2></h2><p></p><small>toca para continuar</small></div></div>
+
+  <!-- Pantalla de inicio -->
+  <div id="intro" class="show">
+    <div class="in">
+      <div class="logo"><span class="p">Pinta</span><span class="m">Mapa</span></div>
+      <p class="tag">Sal a la calle. Pinta tu ciudad. Conquístala.</p>
+      <ul>
+        <li>🖌️ Cada calle que recorres andando se pinta con tu color.</li>
+        <li>🚩 Pinta el <b>80 %</b> de un barrio para conquistarlo… y el 80 % de la ciudad para ser su rey.</li>
+        <li>⛪ Ayuntamientos, iglesias, museos y monumentos son <b>sellos coleccionables</b>. Pintar cerca de ellos vale x2.</li>
+        <li>🪣 Recoge botes de pintura. Los dorados dan pintura x3.</li>
+        <li>🔥 Encadena calles nuevas para subir el combo.</li>
+      </ul>
+      <div class="who">
+        <label id="who-title">¿Quién pinta hoy?</label>
+        <div id="players" class="players"></div>
+        <button id="new-player" class="btn newp">➕ Otro pintor</button>
+        <div id="new-box" hidden>
+          <input id="player-name" maxlength="24" placeholder="Nombre del nuevo pintor" autocomplete="nickname">
+          <small id="player-hint">Tu nombre identifica tu partida (y tu cuenta al sincronizar con el PC).</small>
+          <button id="start" class="btn primary" disabled>¡A pintar!</button>
+        </div>
+      </div>
+      <small id="intro-ver">v0.1 prototipo · datos © OpenStreetMap</small>
+    </div>
+  </div>
+
+  <script src="lib/leaflet/leaflet.js"></script>
+  <script src="lib/leaflet/leaflet-rotate.js"></script>
+  <script src="js/version.js"></script>
+  <script src="js/util.js"></script>
+  <script src="js/world.js"></script>
+  <script src="js/game.js"></script>
+  <script src="js/merge.js"></script>
+  <script src="js/sync.js"></script>
+  <script src="js/update.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>
