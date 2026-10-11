@@ -1,8 +1,8 @@
 {
-  "version": "0.1.7",
-  "notes": "Tu progreso se guarda en la nube (GitHub privado) por Wi-Fi o datos, sin depender del PC; «Mi progreso» funciona online. Más conquistas: estadios, campos de fútbol, plazas, parques, teatros, estaciones, mercados… con el ayuntamiento siempre como principal y sin amontonarse. Calles de tu zona instantáneas desde GitHub.",
+  "version": "0.1.8",
+  "notes": "Tú siempre en el centro y el mapa se mueve; el mapa gira bien hacia donde andas (rumbo del GPS y brújula); barrios reales (Sant Ildefons, la Vila de Gràcia…) en vez de cuadrados; con la pantalla apagada los huecos del GPS se rellenan siguiendo las calles.",
   "native": 1,
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.1.7/pintamapa-web-0.1.7.zip",
-  "checksum": "3bafd7fce3a9279eecceda19f5f425dddc2002e93a78412901a677fef55a86bc",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.1.7/PintaMapa-v0.1.7.apk"
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.1.8/pintamapa-web-0.1.8.zip",
+  "checksum": "3bc83a3b515b9cc541e34f3af4a0e2a5c64f50d00a35b1cf3fcb0a420ec68bf1",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.1.8/PintaMapa-v0.1.8.apk"
 }
