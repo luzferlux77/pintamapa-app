@@ -209,6 +209,7 @@ PM.world = (function () {
   // ---------------- Caché local de barrios (IndexedDB) ----------------
   // Cada barrio se descarga una vez y se guarda 30 días: menos datos móviles, menos batería y arranque instantáneo.
   const CACHE_DAYS = 90;
+  const CACHE_V = 2;   // súbelo si cambia lo que se descarga (p. ej. nuevos tipos de puntos): fuerza a renovar la caché
   const cache = (function () {
     let dbp = null;
     function db() {
@@ -305,7 +306,7 @@ PM.world = (function () {
       clearTimeout(to);
       if (!r.ok) { cdnMissing.add(k); return null; }
       const j = await r.json();
-      cache.put(k, { t: Date.now(), els: j.els });
+      cache.put(k, { v: CACHE_V, t: Date.now(), els: j.els });
       if (j.name || j.city) {
         const t = ensureTile(k);
         t.name = t.name || j.name; t.city = t.city || j.city;
@@ -318,7 +319,7 @@ PM.world = (function () {
   async function cachedTile(k) {
     if (demoMode) return null;
     const c = await cache.get(k);
-    return c && Date.now() - c.t < CACHE_DAYS * 86400000 ? c.els : null;
+    return c && c.v === CACHE_V && Date.now() - c.t < CACHE_DAYS * 86400000 ? c.els : null;
   }
 
   // Descarga barrios de Overpass (una consulta) y los guarda en caché; devuelve {barrio: elementos}
@@ -329,7 +330,7 @@ PM.world = (function () {
       const el = slim(raw);
       for (const k of tilesOf(el)) if (per[k]) per[k].push(el);
     }
-    for (const k of keys) cache.put(k, { t: Date.now(), els: per[k] });
+    for (const k of keys) cache.put(k, { v: CACHE_V, t: Date.now(), els: per[k] });
     return per;
   }
 
