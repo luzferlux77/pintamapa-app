@@ -1,8 +1,8 @@
 {
-  "version": "0.1.4",
-  "notes": "Pantalla de inicio con pintores: toca tu nombre para jugar con tu partida o crea otro pintor. Cada pintor tiene su progreso por separado.",
+  "version": "0.1.5",
+  "notes": "Funciona en cualquier ciudad al momento: al abrir la app se cargan primero las calles de tu alrededor (puedes pintar en segundos) y el resto del barrio se completa solo mientras andas.",
   "native": 1,
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.1.4/pintamapa-web-0.1.4.zip",
-  "checksum": "a7c9f3b90e3fbab251c0fb1a1a55918d0011e636ea12f733458aff1d5a3de00b",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.1.4/PintaMapa-v0.1.4.apk"
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.1.5/pintamapa-web-0.1.5.zip",
+  "checksum": "3390507b819eb3418e5aed3798cade709018bb26c2cd1228cce538cbad6eafa6",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.1.5/PintaMapa-v0.1.5.apk"
 }
