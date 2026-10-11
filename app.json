@@ -1,8 +1,8 @@
 {
-  "version": "0.2.3",
-  "notes": "El aviso de actualización ya no sale si tienes esa misma versión.",
+  "version": "0.2.4",
+  "notes": "Zonas a evitar (botón 🚫): marca un barrio entero o una zona y sus calles quedan fuera del % del barrio y la ciudad. Allí no salen botes ni te lleva el radar. Son privadas, solo tuyas.",
   "native": 2,
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.2.3/pintamapa-web-0.2.3.zip",
-  "checksum": "390181acefb79cf2d3c4d6961fb45602f5eb782f09859a5dc155054fd032f4ae",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.2.3/PintaMapa-v0.2.3.apk"
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.2.4/pintamapa-web-0.2.4.zip",
+  "checksum": "bf612f86e764f345816f37e5318308e6b0321a9119e88982721a81b499fe62f2",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.2.4/PintaMapa-v0.2.4.apk"
 }
