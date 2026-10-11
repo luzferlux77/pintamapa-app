@@ -1,8 +1,8 @@
 {
-  "version": "0.2.1",
-  "notes": "La iglesia principal, las catedrales, basílicas, castillos y el ayuntamiento siempre se ven y se pueden conquistar, aunque estén pegados a otro punto.",
+  "version": "0.2.2",
+  "notes": "Las actualizaciones se buscan nada más abrir la app y, cuando hay una nueva, aparece un aviso visible con «Actualizar ahora».",
   "native": 2,
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.2.1/pintamapa-web-0.2.1.zip",
-  "checksum": "454c09f930df3896c34e2a3353d10b23ee0f4d4b725eeec9c54ea9e78647163d",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.2.1/PintaMapa-v0.2.1.apk"
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.2.2/pintamapa-web-0.2.2.zip",
+  "checksum": "f26ed84373575e8293ae9feba3ca64d60fc7238de2b6ee10ae4b348efa144a07",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.2.2/PintaMapa-v0.2.2.apk"
 }
