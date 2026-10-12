@@ -1,8 +1,8 @@
 {
-  "version": "0.2.5",
-  "notes": "Aviso para conectar la nube si juegas en Real sin token, y ayuda paso a paso en «Mi progreso» cuando el móvil aún no ha guardado nada.",
-  "native": 2,
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.2.5/pintamapa-web-0.2.5.zip",
-  "checksum": "aeba3a1617162fa91fd9dd608f6d004c41e999cf47a43d93098bef46e0805bcb",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.2.5/PintaMapa-v0.2.5.apk"
+  "version": "0.3.0",
+  "notes": "Cromos: cada conquista es un cromo con foto real e historia (Wikipedia), marco por rareza con brillo holográfico, se gira para ver la historia. Hazle tu propia foto con filtros (Holo, Neón, Retro, Cómic) para puntos extra. Álbum con colecciones por ciudad y temáticas (bronce/plata/oro), cromos de barrio y de ciudad. Comparte tus cromos por WhatsApp.",
+  "native": 3,
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.3.0/pintamapa-web-0.3.0.zip",
+  "checksum": "86b59fbfd88792cacc32c99dee7d96389ecac4f8d147d933468b29a911f66333",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.3.0/PintaMapa-v0.3.0.apk"
 }
