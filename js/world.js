@@ -79,7 +79,7 @@ PM.world = (function () {
 
   // Que no se amontonen: entre dos puntos conquistables al menos MIN_GAP m (se queda el más importante).
   // El ayuntamiento manda: se muestra siempre y deja libre a su alrededor TOWNHALL_GAP m.
-  const MIN_GAP = 90, TOWNHALL_GAP = 160;
+  const MIN_GAP = 60, TOWNHALL_GAP = 100;
   const GRID = 0.0015;                 // celda del índice de separación (~160 m)
   const RANK = { comun: 0, raro: 1, epico: 2, legendario: 3 };
   const lmGrid = {};                   // celda -> [landmarks aceptados]
@@ -103,9 +103,9 @@ PM.world = (function () {
     const church = /^(Iglesia|Basílica|Catedral)$/.test(c.kind);
     const lm = { id, name: tags.name, kind: c.kind, emoji: c.emoji, rarity, pos, prio: c.prio + (wiki ? 6 : 0), wiki: tags.wikipedia, wd: tags.wikidata,
       townhall: c.kind === 'Ayuntamiento', church, points: 100 * RARITY[rarity].mult,
-      // principales: siempre visibles y conquistables aunque estén pegados a otro punto: ayuntamiento, catedral,
-      // basílica, castillo e iglesias importantes (con artículo en Wikipedia o protegidas como patrimonio)
-      principal: c.kind === 'Ayuntamiento' || /^(Catedral|Basílica|Castillo)$/.test(c.kind) || (church && (wiki || !!tags.heritage)) };
+      // importantes: SIEMPRE visibles y conquistables, sin restricción de cercanía con otros puntos:
+      // ayuntamiento, catedral, basílica, castillo y cualquier lugar con artículo en Wikipedia o protegido como patrimonio
+      principal: c.kind === 'Ayuntamiento' || /^(Catedral|Basílica|Castillo)$/.test(c.kind) || wiki || !!tags.heritage };
     if (lmBatch) lmBatch.push(lm); else commitLandmarks([lm]);
   }
 

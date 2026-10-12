@@ -20,20 +20,28 @@ PM.tcg = (function () {
   const RES = [['☔', 'Lluvia', '−20'], ['🌙', 'Noche', '−20'], ['🥶', 'Frío', '−20'], ['🔥', 'Calor', '−20']];
   const hash = (s) => { let h = 0; for (const c of String(s)) h = (h * 31 + c.charCodeAt(0)) | 0; return Math.abs(h); };
 
-  // Texto de la carta: la historia del sitio y, si es corta, sus datos de conquista (mínimo ~4 líneas)
-  function flavorText(d, typeName, rarName) {
-    const date = d.t ? new Date(d.t).toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' }) : '';
+  // Descripción del sitio: IGUAL PARA TODOS (sin datos personales). La historia de Wikipedia y, si es corta,
+  // una descripción según su tipo, su barrio y su ciudad, hasta llegar a unas 4-6 líneas.
+  const ABOUT = {
+    ayto: (d) => `Es la sede del gobierno municipal${d.city ? ' de ' + d.city : ''}: aquí se decide el día a día de sus calles, plazas y servicios. Corazón institucional de la ciudad y punto de encuentro de fiestas, celebraciones y protestas vecinales.`,
+    templo: (d) => `Templo y lugar de reunión del vecindario durante generaciones${d.barrio ? ' en ' + d.barrio : ''}. Su arquitectura y su campanario forman parte del paisaje de la zona y de la memoria de quienes viven en ella.`,
+    historia: (d) => `Uno de los lugares con más historia${d.city ? ' de ' + d.city : ''}. Sus piedras han visto pasar siglos de cambios y hoy recuerdan el origen de la ciudad a quien se detiene a mirarlas.`,
+    cultura: (d) => `Espacio de cultura${d.city ? ' de ' + d.city : ''}: un lugar para aprender, descubrir y compartir. Exposiciones, libros, funciones y encuentros lo convierten en un punto vivo del barrio.`,
+    deporte: (d) => `Aquí late el deporte${d.city ? ' de ' + d.city : ''}. Partidos, entrenamientos y aficiones llenan este lugar de energía casi cada día de la semana.`,
+    verde: (d) => `Un respiro verde${d.city ? ' en ' + d.city : ''}: árboles, bancos y espacio para pasear, jugar o simplemente parar un momento y mirar la ciudad desde otro ritmo.`,
+    ciudad: (d) => `Un rincón con carácter${d.barrio ? ' de ' + d.barrio : ''}${d.city ? (d.barrio ? ', en ' : ' de ') + d.city : ''}. De esos lugares que hacen barrio y que todo vecino reconoce al pasar.`,
+  };
+  function descText(d) {
+    const [tk] = typeOf(d.kind);
     let t = (d.text || '').trim();
-    const extra = [
-      date ? `Conquistado el ${date}${d.player ? ' por ' + d.player : ''}.` : '',
-      d.barrio || d.city ? `Se encuentra en ${[d.barrio, d.city].filter(Boolean).join(', ')}.` : '',
-      `Carta ${rarName.toLowerCase()} de tipo ${typeName.toLowerCase()}: ${d.points || 100} puntos al conquistarla.`,
-      d.visits > 1 ? `La has visitado ${d.visits} veces.` : 'Vuelve cada día a visitarla para sumar más puntos.',
-    ].filter(Boolean);
-    if (!t) t = `${d.name}: ${(d.kind || 'lugar').toLowerCase()} descubierto paseando por la ciudad.`;
-    for (const e of extra) { if (t.length >= 300) break; t += ' ' + e; }
+    const where = [d.barrio, d.city].filter(Boolean).join(', ');
+    const intro = `${d.name} es ${/^[AEIOUÁÉÍÓÚ]/i.test(d.kind || '') ? 'un' : 'un'} ${(d.kind || 'lugar').toLowerCase()}${where ? ' situado en ' + where : ''}.`;
+    if (t.length < 300) t = (t ? t + ' ' : intro + ' ') + (ABOUT[tk] || ABOUT.ciudad)(d);
+    if (t.length < 260) t += ' Un sitio que merece la pena descubrir caminando, con calma y con los ojos bien abiertos.';
     return t;
   }
+  const code = (d) => ((d.city || 'PM').normalize('NFD').replace(/[^A-Za-z]/g, '').slice(0, 4).toUpperCase() || 'PM') + '·' + String(hash(d.id) % 10000).padStart(4, '0');
+
   // historia más larga desde Wikipedia (introducción completa del artículo)
   async function longText(d) {
     let lang = null, title = null;
@@ -75,6 +83,7 @@ PM.tcg = (function () {
     const tp = 'tp' + seed;
     const corner = `<svg viewBox="0 0 40 40"><path d="M2,38 L2,10 Q2,2 10,2 L38,2" /><path d="M8,38 L8,14 Q8,8 14,8 L38,8" class="thin"/><circle cx="8" cy="8" r="3.2"/></svg>`;
     const date = d.t ? new Date(d.t).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' }) : '';
+    const base = d.points || 100, earned = base + Math.max(0, (d.visits || 1) - 1) * Math.round(base * 0.2);
     return `<div class="tcg-face tcg-back">
       <div class="tcg-back-in">
         <svg class="tcg-map" viewBox="0 0 100 140" preserveAspectRatio="xMidYMid slice">${streets}</svg>
@@ -95,8 +104,16 @@ PM.tcg = (function () {
           <div class="tcg-pin-ico">🖌️</div>
         </div>
         <div class="tcg-word"><span class="p">Pinta</span><span class="m">Mapa</span></div>
-        <div class="tcg-ribbon"><span>CARTA DE CONQUISTA · Nº ${d.number || 1}/${d.total || 1}</span></div>
-        <div class="tcg-back-txt">${d.player ? 'Conquistado por <b>' + esc(d.player) + '</b>' : ''}${date ? ' · ' + date : ''}</div>
+        <div class="tcg-me">
+          <div class="tcg-me-h">🏆 Mi conquista</div>
+          <div class="tcg-me-row"><span>Pintor</span><b>${esc(d.player || '—')}</b></div>
+          <div class="tcg-me-row"><span>Conquistado</span><b>${date || '—'}</b></div>
+          <div class="tcg-me-row"><span>Visitas</span><b>${d.visits || 1}</b></div>
+          <div class="tcg-me-row"><span>Puntos ganados</span><b>${earned}</b></div>
+          <div class="tcg-me-row"><span>En mi colección</span><b>Nº ${d.number || 1} de ${d.total || 1}</b></div>
+          ${d.own ? '<div class="tcg-me-row"><span>Foto</span><b>📸 propia</b></div>' : ''}
+        </div>
+        <div class="tcg-ribbon"><span>CARTA DE CONQUISTA</span></div>
         <div class="tcg-corner tl">${corner}</div><div class="tcg-corner tr">${corner}</div><div class="tcg-corner bl">${corner}</div><div class="tcg-corner br">${corner}</div>
       </div>
       <div class="tcg-shine back"></div><div class="tcg-glitter back"></div><div class="tcg-glare"></div>
@@ -109,36 +126,40 @@ PM.tcg = (function () {
     const [tk, T] = typeOf(d.kind);
     const R = RAR[d.rarity] || RAR.comun;
     const w = WEAK[hash(d.id) % WEAK.length], r = RES[hash(d.id + 'r') % RES.length];
-    const date = d.t ? new Date(d.t).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' }) : '';
+    const pts = d.points || 100, revisit = Math.round(pts * 0.2);
     const energy = (n) => `<span class="tcg-en">${('<i style="background:' + T.orb + '"></i>').repeat(n)}</span>`;
     return `<div class="tcg r-${d.rarity || 'comun'} t-${tk} ${opts.mini ? 'mini' : ''}" style="--orb:${T.orb};--c1:${T.c1};--c2:${T.c2};--holo:${R.holo}" data-id="${esc(d.id)}">
       <div class="tcg-rot">
         <div class="tcg-face tcg-front">
           <div class="tcg-inner">
             <div class="tcg-top">
-              <div class="tcg-stage">${esc(T.name)} · ${esc(R.name)}</div>
-              <div class="tcg-title"><b>${esc(d.name)}</b><span class="tcg-hp"><small>PTS</small>${d.points || 100}<i class="tcg-orb">${d.emoji || '📍'}</i></span></div>
+              <div class="tcg-stage"><span>${esc(T.name)} · ${esc(R.name)}</span><span class="tcg-code">${code(d)}</span></div>
+              <div class="tcg-title"><b>${esc(d.name)}</b><span class="tcg-hp"><small>PTS</small>${pts}<i class="tcg-orb">${d.emoji || '📍'}</i></span></div>
             </div>
             <div class="tcg-art">
               <div class="tcg-photo" ${d.img ? `style="background-image:url('${esc(d.img)}')"` : ''}>${d.img ? '' : `<span>${d.emoji || '📍'}</span>`}</div>
               <div class="tcg-shine"></div><div class="tcg-glitter"></div>
-              ${d.own ? '<div class="tcg-own">📸 Foto propia</div>' : ''}
             </div>
-            <div class="tcg-band">${esc(d.kind || '')}${d.city ? ' · ' + esc(d.city) : ''}${d.visits ? ' · Visitas: ' + d.visits : ''}</div>
+            <div class="tcg-band">${esc(d.kind || '')}${d.city ? ' · ' + esc(d.city) : ''}</div>
+            <div class="tcg-stats">
+              <div><i>⏱</i><b>10 s</b><small>captura</small></div>
+              <div><i>📍</i><b>30 m</b><small>radio</small></div>
+              <div><i>✨</i><b>×2</b><small>aura 80 m</small></div>
+              <div><i>💎</i><b>${R.sym}</b><small>${esc(R.name.toLowerCase())}</small></div>
+            </div>
             <div class="tcg-moves">
-              <div class="tcg-move">${energy(2)}<b>Conquista</b><span>+${d.points || 100}</span></div>
-              <p>Quédate 10 s a menos de 30 m y este lugar será tuyo para siempre.</p>
-              <div class="tcg-move">${energy(1)}<b>Aura de pintura</b><span>×2</span></div>
-              <p>Las calles que pintes a menos de 80 m valen el doble.</p>
+              <div class="tcg-move">${energy(2)}<b>Conquista</b><span>+${pts}</span></div>
+              <div class="tcg-move">${energy(1)}<b>Revisita</b><span>+${revisit}</span></div>
             </div>
+            <div class="tcg-flavor">${esc(descText(d))}</div>
+            <div class="tcg-rule"><b>REGLA</b> 🔁 Vuelve cada día y suma +${revisit} pts por visita · ✨ las calles que pintes a menos de 80 m valen el doble.</div>
             <div class="tcg-wrr">
               <div><small>debilidad</small>${w[0]} ${w[2]}</div>
               <div><small>resistencia</small>${r[0]} ${r[2]}</div>
               <div><small>retirada</small>👟👟</div>
             </div>
-            <div class="tcg-flavor">${esc(flavorText(d, T.name, R.name))}</div>
-            <div class="tcg-foot"><span>${esc(d.credit || (d.own ? 'Foto: ' + (d.player || 'tuya') : 'Foto: Wikimedia Commons'))}</span>
-              <span class="tcg-set">🖌️ ${d.number || 1}/${d.total || 1} <b>${R.sym}</b></span></div>
+            <div class="tcg-foot"><span>${esc(d.own ? 'Foto: propia del pintor' : (d.credit || 'Foto: Wikimedia Commons'))}</span>
+              <span class="tcg-set">🖌️ PintaMapa <b>${R.sym}</b></span></div>
           </div>
           <div class="tcg-glare"></div>
         </div>
@@ -203,7 +224,7 @@ PM.tcg = (function () {
         d.text = t;
         const f = ov.querySelector(`.tcg[data-id="${d.id}"] .tcg-flavor`);
         const [, T] = typeOf(d.kind);
-        if (f) f.textContent = flavorText(d, T.name, (RAR[d.rarity] || RAR.comun).name);
+        if (f) f.textContent = descText(d);
         if (opts.onText) opts.onText(t);
       }).catch(() => {});
     }
@@ -245,13 +266,20 @@ PM.tcg = (function () {
   .tcg-front { background: linear-gradient(135deg, #fff1a8, var(--y) 30%, #e8b923 60%, #fff3b0); padding: 3.6%; }
   .r-legendario .tcg-front { background: linear-gradient(135deg, #fff6cf, #e6c25a 20%, #fffbe8 40%, #d4a52c 60%, #fff2b8 80%, #c99a24); }
   .tcg-inner { position: relative; height: 100%; border-radius: 2.4% / 1.7%; background: linear-gradient(170deg, var(--c1), var(--c2)); padding: 2.6% 4%; display: flex; flex-direction: column; gap: .35em; box-shadow: inset 0 0 0 .18em rgba(0,0,0,.18); }
-  .tcg-stage { font-size: .62em; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; color: rgba(0,0,0,.55); }
+  .tcg-stage { display: flex; justify-content: space-between; font-size: .58em; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; color: rgba(0,0,0,.55); }
+  .tcg-code { font-family: ui-monospace, Consolas, monospace; letter-spacing: .02em; color: rgba(0,0,0,.45); }
+  .tcg-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: .3em; }
+  .tcg-stats div { text-align: center; background: linear-gradient(180deg, rgba(255,255,255,.75), rgba(255,255,255,.35)); border: .08em solid rgba(0,0,0,.12); border-radius: .5em; padding: .15em 0 .2em; line-height: 1.05; }
+  .tcg-stats i { font-style: normal; font-size: .7em; display: block; } .tcg-stats b { display: block; font-size: .78em; font-weight: 900; color: #1b1b1b; }
+  .tcg-stats small { display: block; font-size: .46em; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: rgba(0,0,0,.5); }
+  .tcg-rule { font-size: .52em; line-height: 1.35; color: #3a2500; background: linear-gradient(90deg, #ffe9a8, #f6d36b); border-radius: .45em; padding: .35em .6em; box-shadow: inset 0 0 0 .1em rgba(160,110,10,.45); }
+  .tcg-rule b { background: #b45309; color: #fff; padding: .05em .45em; border-radius: .3em; margin-right: .3em; letter-spacing: .05em; }
   .tcg-title { display: flex; align-items: center; justify-content: space-between; gap: .5em; }
   .tcg-title b { font-size: 1.3em; font-weight: 900; color: #1b1b1b; line-height: 1.05; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; letter-spacing: -.01em; }
   .tcg-hp { display: flex; align-items: center; gap: .25em; font-weight: 900; font-size: 1.25em; color: #c81e1e; white-space: nowrap; }
   .tcg-hp small { font-size: .5em; color: #c81e1e; }
   .tcg-orb { display: grid; place-items: center; width: 1.6em; height: 1.6em; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #fff8, transparent 45%), var(--orb); font-style: normal; font-size: .85em; box-shadow: 0 .1em .25em rgba(0,0,0,.4), inset 0 -.15em .3em rgba(0,0,0,.25); }
-  .tcg-art { position: relative; height: 38%; flex: none; border-radius: .3em; overflow: hidden; border: .32em solid; border-image: linear-gradient(135deg, #f4f4f4, #9a9a9a, #fafafa, #8a8a8a) 1; box-shadow: 0 .2em .5em rgba(0,0,0,.35); background: #ddd; }
+  .tcg-art { position: relative; height: 33%; flex: none; border-radius: .3em; overflow: hidden; border: .32em solid; border-image: linear-gradient(135deg, #f4f4f4, #9a9a9a, #fafafa, #8a8a8a) 1; box-shadow: 0 .2em .5em rgba(0,0,0,.35); background: #ddd; }
   .tcg-photo { position: absolute; inset: 0; background: center / cover no-repeat; display: grid; place-items: center; background-color: #e9e2d4; }
   .tcg-photo span { font-size: 4.5em; filter: drop-shadow(0 .1em .2em rgba(0,0,0,.3)); }
   .tcg-own { position: absolute; right: .4em; bottom: .4em; background: #ff2e88; color: #fff; font-size: .62em; font-weight: 800; padding: .2em .6em; border-radius: 99px; transform: rotate(-4deg); z-index: 3; }
@@ -259,6 +287,7 @@ PM.tcg = (function () {
   .tcg-moves { display: flex; flex-direction: column; justify-content: center; gap: .05em; margin-top: .2em; }
   .tcg-move { display: flex; align-items: center; gap: .45em; } .tcg-move b { flex: 1; font-size: .95em; font-weight: 900; color: #1b1b1b; } .tcg-move span { font-size: 1.05em; font-weight: 900; color: #1b1b1b; }
   .tcg-moves p { margin: 0 0 .25em 3.2em; font-size: .62em; line-height: 1.3; color: #2c2c2c; }
+  .tcg-moves { gap: .15em !important; }
   .tcg-en { display: inline-flex; gap: .15em; min-width: 2.6em; } .tcg-en i { width: .95em; height: .95em; border-radius: 50%; box-shadow: inset 0 -.1em .15em rgba(0,0,0,.35), 0 0 0 .08em rgba(255,255,255,.7); }
   .tcg-wrr { display: flex; justify-content: space-between; border-top: .1em solid rgba(0,0,0,.25); padding-top: .2em; font-size: .7em; font-weight: 700; color: #222; }
   .tcg-wrr small { display: block; font-size: .7em; font-weight: 600; color: rgba(0,0,0,.55); text-transform: lowercase; }
@@ -289,11 +318,11 @@ PM.tcg = (function () {
   .tcg-map path.on { stroke: #ff2e88; stroke-width: 1.5; filter: drop-shadow(0 0 1.4px #ff2e88); opacity: .85; }
   .tcg-map path.on.c { stroke: #22d3ee; filter: drop-shadow(0 0 1.4px #22d3ee); }
   .tcg-map path.big { stroke-width: 2.6; opacity: .7; }
-  .tcg-rays { position: absolute; left: 50%; top: 40%; width: 170%; aspect-ratio: 1; transform: translate(-50%, -50%); border-radius: 50%;
+  .tcg-rays { position: absolute; left: 50%; top: 27%; width: 170%; aspect-ratio: 1; transform: translate(-50%, -50%); border-radius: 50%;
     background: repeating-conic-gradient(from 0deg, rgba(255,46,136,.16) 0deg 6deg, transparent 6deg 15deg, rgba(34,211,238,.13) 15deg 21deg, transparent 21deg 30deg);
     -webkit-mask: radial-gradient(circle, #000 18%, transparent 62%); mask: radial-gradient(circle, #000 18%, transparent 62%); animation: tcgspin 60s linear infinite; }
   @keyframes tcgspin { to { transform: translate(-50%, -50%) rotate(360deg); } }
-  .tcg-crest { position: absolute; left: 50%; top: 40%; width: 76%; aspect-ratio: 1; transform: translate(-50%, -50%); }
+  .tcg-crest { position: absolute; left: 50%; top: 27%; width: 60%; aspect-ratio: 1; transform: translate(-50%, -50%); }
   .tcg-ring { position: absolute; inset: 0; width: 100%; height: 100%; animation: tcgring 40s linear infinite; filter: drop-shadow(0 0 .5em rgba(255,46,136,.6)); }
   @keyframes tcgring { to { transform: rotate(-360deg); } }
   .tcg-ring .r1 { fill: rgba(10,12,42,.55); stroke: #ffd166; stroke-width: 1.4; }
@@ -303,13 +332,18 @@ PM.tcg = (function () {
   @keyframes tcgbob { 50% { transform: translate(-50%, -56%); } }
   .tcg-pin-ico { position: absolute; left: 50%; top: 41%; transform: translate(-50%, -50%) rotate(-12deg); font-size: 2.6em; animation: tcgbob2 3.5s ease-in-out infinite; }
   @keyframes tcgbob2 { 50% { transform: translate(-50%, -62%) rotate(-12deg); } }
-  .tcg-word { position: absolute; left: 0; right: 0; top: 71%; text-align: center; font-weight: 900; font-style: italic; letter-spacing: -.04em; font-size: 2.15em; line-height: 1; }
+  .tcg-word { position: absolute; left: 0; right: 0; top: 47.5%; text-align: center; font-weight: 900; font-style: italic; letter-spacing: -.04em; font-size: 2.15em; line-height: 1; }
   .tcg-word .p { color: #ff2e88; text-shadow: 0 0 .35em #ff2e88, 0 .06em 0 #6d0b3c; } .tcg-word .m { color: #22d3ee; text-shadow: 0 0 .35em #22d3ee, 0 .06em 0 #064e5c; }
   .tcg-stars { position: absolute; top: 4.5%; left: 0; right: 0; text-align: center; letter-spacing: .3em; }
   .tcg-stars i { font-style: normal; color: #ffd166; font-size: 1em; text-shadow: 0 0 .5em #ffb700; }
-  .tcg-ribbon { position: absolute; left: 50%; top: 81.5%; transform: translateX(-50%); white-space: nowrap; }
+  .tcg-ribbon { position: absolute; left: 50%; top: 89.5%; transform: translateX(-50%); white-space: nowrap; }
   .tcg-ribbon span { display: inline-block; font-size: .58em; font-weight: 900; letter-spacing: .14em; color: #3a2500; padding: .45em 1.6em; background: linear-gradient(180deg, #ffe7a3, #f2c14e 55%, #c99525);
     clip-path: polygon(0 0, 100% 0, 94% 50%, 100% 100%, 0 100%, 6% 50%); box-shadow: 0 .2em .4em rgba(0,0,0,.4); }
+  .tcg-me { position: absolute; left: 9%; right: 9%; top: 56.5%; bottom: 13%; padding: .55em .8em; border-radius: .7em; background: rgba(10,12,42,.72); backdrop-filter: blur(3px);
+    border: .1em solid rgba(255,209,102,.55); box-shadow: 0 0 1.2em rgba(255,46,136,.25), inset 0 0 1em rgba(34,211,238,.12); display: flex; flex-direction: column; justify-content: space-evenly; }
+  .tcg-me-h { text-align: center; font-size: .66em; font-weight: 900; letter-spacing: .12em; text-transform: uppercase; color: #ffd166; }
+  .tcg-me-row { display: flex; justify-content: space-between; gap: .6em; font-size: .62em; color: #c9d1ff; border-bottom: .06em dashed rgba(255,255,255,.12); padding: .12em 0; }
+  .tcg-me-row:last-child { border-bottom: 0; } .tcg-me-row b { color: #fff; font-weight: 800; text-align: right; }
   .tcg-back-txt { position: absolute; bottom: 5.5%; left: 0; right: 0; text-align: center; color: #c9d1ff; font-size: .56em; }
   .tcg-back-txt b { color: #fff; }
   .tcg-corner { position: absolute; width: 15%; aspect-ratio: 1; } .tcg-corner svg { width: 100%; height: 100%; }
