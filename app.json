@@ -1,8 +1,8 @@
 {
-  "version": "0.3.1",
-  "notes": "Nube para todos: cada jugador guarda su progreso cifrado con su nombre de pintor y una contraseña (Perfil → Mi cuenta en la nube), y lo ve en «Mi progreso» desde cualquier navegador.",
+  "version": "0.3.2",
+  "notes": "«Mi progreso» rediseñado: pantalla completa con mapa grande y capas, panel con resumen, análisis y proyección, actividad (30 días, calendario, horas, días), paseos y conquistas. Los paseos de menos de 2 minutos ya no se guardan.",
   "native": 3,
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.3.1/pintamapa-web-0.3.1.zip",
-  "checksum": "f12a37b1683c100a84c6c3e41a3784d303c710cbc517122a8e0d2bed46d5d15d",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.3.1/PintaMapa-v0.3.1.apk"
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.3.2/pintamapa-web-0.3.2.zip",
+  "checksum": "8675b2f7eb886d67adcd4deef55ec38150870ccd047e12ddf99a3a19121a41f1",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.3.2/PintaMapa-v0.3.2.apk"
 }
