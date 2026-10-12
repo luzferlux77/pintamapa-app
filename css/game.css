@@ -341,3 +341,8 @@ details.howto ol { padding-left: 18px; line-height: 1.6; }
 .fe-prev canvas { width: 100%; height: 100%; display: block; }
 .fe-filters { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; max-width: 360px; }
 .fe-filters .btn { background: rgba(255,255,255,.12); color: #fff; border-color: rgba(255,255,255,.3); font-size: 13px; } .fe-filters .btn.on { background: var(--paint); border-color: var(--paint); }
+
+/* álbum con cartas TCG en miniatura */
+.cromos .tcg-cell { --w: 150px; }
+.cromos .tcg.mini { font-size: calc(var(--w) / 26); }
+.cromos .tcg .tcg-face { box-shadow: 0 6px 14px rgba(0,0,0,.18); }

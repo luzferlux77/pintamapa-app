@@ -92,6 +92,8 @@
     .ach div { text-align: center; font-size: 10.5px; color: var(--muted); }
     .ach div span { display: grid; place-items: center; width: 44px; height: 44px; margin: 0 auto 4px; border-radius: 12px; background: #f3f4f7; font-size: 22px; }
     .ach div.off span { filter: grayscale(1); opacity: .35; }
+    .tcggrid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+    .tcggrid .tcg-cell { --w: 128px; } .tcggrid .tcg.mini { font-size: calc(var(--w) / 26); }
     .lmlist { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 10px; }
     .lmc { border-radius: 12px; overflow: hidden; background: #f3f4f7; cursor: pointer; border: 2px solid var(--c, #e5e7eb); }
     .lmc .ph { height: 80px; background: #e9ebf0 center / cover; display: grid; place-items: center; font-size: 30px; }
@@ -153,6 +155,8 @@
   <script src="js/game.js"></script>
   <script src="js/merge.js"></script>
   <script src="js/sync.js"></script>
+  <script src="lib/html-to-image.js"></script>
+  <script src="js/tcg.js"></script>
   <script>
   (function () {
     const $ = (s) => document.querySelector(s);
@@ -282,7 +286,8 @@
         const info = (s.cardInfo || {})[v.id];
         L.circle(v.pos, { radius: 45, color, weight: 1.5, fillColor: color, fillOpacity: 0.12 }).addTo(m);
         L.marker(v.pos, { icon: L.divIcon({ className: '', iconSize: [34, 34], iconAnchor: [17, 17], html: `<div class="lmk" style="--c:${RAR_C[v.rarity]}">${v.emoji}</div>` }) })
-          .bindPopup(`<div class="pop">${info && info.img ? `<img src="${info.img}" alt="">` : ''}<b>${esc(v.name)}</b><small>${esc(v.kind)} · ${RAR[v.rarity] ? RAR[v.rarity].label : ''}${v.city ? ' · ' + esc(v.city) : ''}</small><small>Conquistado el ${new Date(v.t).toLocaleDateString('es-ES')} · ${v.visits || 1} visita(s)</small></div>`)
+          .bindTooltip(esc(v.name), { direction: 'top', offset: [0, -16] })
+          .on('click', () => openCard(v.id))
           .addTo(m);
         bounds.extend(v.pos);
       });
@@ -304,6 +309,19 @@
       $('#mapstats').innerHTML = [[dist(st.paintedM), 'pintados'], [lms.length, 'monumentos'], [Object.keys(s.conqueredB || {}).length, 'barrios 🚩']]
         .map(([b, t]) => `<div class="mapstat"><b>${b}</b><small>${t}</small></div>`).join('');
     }
+    // ---------------- carta coleccionable (estilo TCG) ----------------
+    function cardData(id) {
+      const s = A.s, v = s.landmarks[id], info = (s.cardInfo || {})[id] || {};
+      const order = Object.keys(s.landmarks).sort((a, b) => s.landmarks[a].t - s.landmarks[b].t);
+      return { id, name: v.name, kind: v.kind, emoji: v.emoji, rarity: v.rarity, city: v.city, barrio: v.barrio, t: v.t, visits: v.visits,
+        img: info.img, text: info.text, credit: info.credit, points: 100 * ((RAR[v.rarity] || {}).mult || 1),
+        number: order.indexOf(id) + 1, total: order.length, player: s.player || creds.user };
+    }
+    function openCard(id) {
+      const v = A.s.landmarks[id];
+      PM.tcg.open(cardData(id), { actions: [{ label: '📍 Ver en el mapa', on: () => { PM.tcg.close(); if (v.pos) map.setView(v.pos, 18); } }] });
+    }
+
     function fit() { if (fitBounds) map.fitBounds(fitBounds, { padding: [60, 60], maxZoom: 17 }); else map.setView([41.35763, 2.07386], 15); }
     $('#fit').addEventListener('click', () => { if (selLayer) { map.removeLayer(selLayer); selLayer = null; document.querySelectorAll('.walk').forEach((x) => x.classList.remove('sel')); } fit(); });
     function splitTrack(t) {
@@ -429,10 +447,8 @@
           <div style="display:flex;gap:16px;align-items:center">${donut(byR.map((x) => ({ v: x.v, c: x.c })))}
           <div style="flex:1">${byR.map((x) => `<div class="row"><span><i style="display:inline-block;width:9px;height:9px;border-radius:3px;background:${x.c};margin-right:6px"></i>${RAR[x.r].label}</span><b>${x.v}</b></div>`).join('')}</div></div></div>`;
         h += `<div class="card"><h3>Por tipo</h3>${Object.keys(byK).length ? Object.entries(byK).sort((a, b) => b[1] - a[1]).map(([k, v]) => `<div class="row"><span>${esc(k)}</span><b>${v}</b></div>`).join('') : '<div class="empty">Quédate 10 s junto a un monumento para conquistarlo.</div>'}</div>`;
-        h += `<div class="card"><h3>Cromos</h3>${lms.length ? '<div class="lmlist">' + lms.sort((a, b) => b.t - a.t).map((l) => {
-          const inf = (s.cardInfo || {})[l.id];
-          return `<div class="lmc" style="--c:${RAR_C[l.rarity]}" data-lm="${l.id}"><div class="ph" ${inf && inf.img ? `style="background-image:url('${inf.img}')"` : ''}>${inf && inf.img ? '' : l.emoji}</div><div class="t">${esc(l.name)}</div></div>`;
-        }).join('') + '</div>' : '<div class="empty">Sin cromos aún.</div>'}</div>`;
+        h += `<div class="card"><h3>Cartas <span>toca una para verla</span></h3>${lms.length ? '<div class="tcggrid">' + lms.sort((a, b) => b.t - a.t).map((l) =>
+          `<div class="tcg-cell" data-lm="${l.id}">${PM.tcg.html(cardData(l.id), { mini: true })}</div>`).join('') + '</div>' : '<div class="empty">Sin cartas aún.</div>'}</div>`;
         const ach = PM.game.ACHIEVEMENTS, got = s.achievements || {};
         h += `<div class="card"><h3>Logros <span>${Object.keys(got).filter((k) => ach[k]).length}/${Object.keys(ach).length}</span></h3><div class="ach">${Object.entries(ach).map(([id, a]) =>
           `<div class="${got[id] ? '' : 'off'}" title="${esc(a.desc)}"><span>${a.icon}</span>${esc(a.name)}</div>`).join('')}</div></div>`;
@@ -441,7 +457,7 @@
       }
       P.innerHTML = h;
       P.querySelectorAll('.walk').forEach((el) => el.addEventListener('click', () => showWalk(walks[+el.dataset.i], el)));
-      P.querySelectorAll('[data-lm]').forEach((el) => el.addEventListener('click', () => { const l = lms.find((x) => x.id === el.dataset.lm); if (l && l.pos) map.setView(l.pos, 18); }));
+      P.querySelectorAll('[data-lm]').forEach((el) => el.addEventListener('click', () => openCard(el.dataset.lm)));
     }
 
     function insights() {

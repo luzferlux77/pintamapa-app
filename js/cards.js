@@ -202,41 +202,36 @@ PM.cards = (function () {
     el.style.setProperty('--hx', (50 + ry * 2.5) + '%'); el.style.setProperty('--hy', (50 + rx * 2.5) + '%');
   }
 
+  // datos de la carta (anverso estilo TCG) para un monumento conquistado
+  async function dataFor(id) {
+    const rec = recOf(id), info = S().cardInfo[id] || {};
+    const img = await imageFor(id);
+    const all = Object.keys(S().landmarks);
+    return { id, name: rec.name, kind: rec.kind, emoji: rec.emoji, rarity: rec.rarity, city: rec.city, barrio: rec.barrio, t: rec.t, visits: rec.visits,
+      img: img && img.src, own: !!(img && img.own), text: info.text, credit: img && img.own ? 'Foto: ' + (PM.player ? PM.player.name : 'tuya') : info.credit,
+      points: 100 * ((PM.world.RARITY[rec.rarity] || {}).mult || 1), number: number(id), total: all.length, player: PM.player && PM.player.name };
+  }
+
   async function open(id, opts = {}) {
-    const rec = recOf(id);
-    if (!rec) return;
-    let ov = $('#cromo-view');
-    if (!ov) { ov = document.createElement('div'); ov.id = 'cromo-view'; document.body.appendChild(ov); }
-    const render = async () => {
-      const info = S().cardInfo[id];
-      const img = await imageFor(id);
-      ov.innerHTML = `<div class="cv-in">
-        ${opts.isNew ? `<div class="cv-new">¡Nuevo cromo! ${opts.pts ? '+' + opts.pts + ' pts' : ''}</div>` : ''}
-        ${cardHTML(id, rec, img, info, true)}
-        <div class="cv-actions">
-          <button class="btn" id="cv-flip">↻ Girar</button>
-          <button class="btn ${img ? '' : 'on'}" id="cv-photo">📸 ${img && img.own ? 'Cambiar foto' : img ? 'Tu foto' : 'Hazle la foto'}</button>
-          <button class="btn" id="cv-share">📤 Compartir</button>
-          <button class="btn" id="cv-close">✕</button>
-        </div>
-        ${!img ? '<p class="cv-hint">Este cromo no tiene foto: hazle una tú y elige un filtro de cromo. ¡Da puntos extra!</p>' : ''}
-      </div>`;
-      const card = ov.querySelector('.cromo');
-      card.addEventListener('click', () => card.classList.toggle('flip'));
-      $('#cv-flip').addEventListener('click', () => card.classList.toggle('flip'));
-      $('#cv-close').addEventListener('click', close);
-      $('#cv-photo').addEventListener('click', () => editPhoto(id, render));
-      $('#cv-share').addEventListener('click', () => share(id));
+    if (!recOf(id)) return;
+    const show = async () => {
+      const d = await dataFor(id);
+      PM.tcg.open(d, {
+        badge: opts.isNew ? `¡Nueva carta! ${opts.pts ? '+' + opts.pts + ' pts' : ''}` : '',
+        actions: [{ label: d.own ? '📸 Cambiar foto' : d.img ? '📸 Tu foto' : '📸 Hazle la foto', primary: !d.img, on: () => editPhoto(id, show) }],
+      });
     };
-    ov.classList.add('show');
-    await render();
-    if (!tiltOn) { tiltOn = true; window.addEventListener('deviceorientation', tilt); }
-    if (!S().cardInfo[id] || (S().cardInfo[id].none && Date.now() - S().cardInfo[id].t > 7 * 86400000)) {
-      const lm = PM.world.landmarks[id] || Object.assign({ id, pos: rec.pos }, rec);
-      fetchInfo(id, lm).then(() => { if (ov.classList.contains('show') && ov.querySelector(`.cromo[data-id="${id}"]`)) render(); });
+    await show();
+    const cache = S().cardInfo[id];
+    if (!cache || (cache.none && Date.now() - cache.t > 7 * 86400000)) {
+      const rec = recOf(id);
+      fetchInfo(id, PM.world.landmarks[id] || Object.assign({ id, pos: rec.pos }, rec)).then((inf) => {
+        const ov = document.getElementById('tcg-view');
+        if (inf && !inf.none && ov && ov.classList.contains('show') && ov.querySelector(`.tcg[data-id="${id}"]`)) show();
+      });
     }
   }
-  function close() { const ov = $('#cromo-view'); if (ov) ov.classList.remove('show'); }
+  function close() { PM.tcg.close(); }
 
   // ---------------- Editor de foto con filtros ----------------
   async function editPhoto(id, after) {
@@ -356,7 +351,7 @@ PM.cards = (function () {
       if (tab === 'cromos') {
         if (!ids.length) html += '<p class="muted">Aún no tienes cromos. Quédate 10 s junto a un monumento, iglesia, plaza… para conquistarlo.</p>';
         html += '<div class="cromos">';
-        for (const id of ids) html += cardHTML(id, s.landmarks[id], await imageFor(id), s.cardInfo[id], false);
+        for (const id of ids) html += `<div class="tcg-cell">${PM.tcg.html(await dataFor(id), { mini: true })}</div>`;
         html += '</div>';
       } else if (tab === 'col') {
         // por ciudad: conquistados / descubiertos
@@ -383,7 +378,7 @@ PM.cards = (function () {
       }
       container.innerHTML = html;
       container.querySelectorAll('[data-t]').forEach((b) => b.addEventListener('click', () => { tab = b.dataset.t; draw(); }));
-      container.querySelectorAll('.cromo[data-id]').forEach((el) => el.addEventListener('click', () => open(el.dataset.id)));
+      container.querySelectorAll('.cromo[data-id], .tcg[data-id]').forEach((el) => el.addEventListener('click', () => open(el.dataset.id)));
     };
     draw();
     // completar info de los cromos que aún no la tienen (poco a poco)
@@ -406,5 +401,5 @@ PM.cards = (function () {
       <div class="pie"><b>${esc(b.name)}</b><small>${b.city ? esc(b.city) + ' · ' : ''}${new Date(b.t).toLocaleDateString('es-ES')}</small></div></div></div></div>`;
   }
 
-  return { open, close, album, fetchInfo, SETS, setCount, getPhoto, FILTERS, _img: { loadImg, cropCard, applyFilter } };
+  return { open, close, album, fetchInfo, dataFor, SETS, setCount, getPhoto, FILTERS, _img: { loadImg, cropCard, applyFilter } };
 })();
