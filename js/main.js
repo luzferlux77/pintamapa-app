@@ -805,7 +805,7 @@
     if (!session) return;
     if (!session.paused) session.elapsed += Date.now() - session.resumedAt;
     const s = session; session = null;
-    if (s.st.walked > 5 || s.st.painted > 0) {
+    if (s.elapsed >= 120000) {   // los paseos de menos de 2 minutos no se guardan en el historial (lo pintado sí cuenta)
       S().walks.push({ id: String(s.start), start: s.start, elapsed: s.elapsed, st: s.st, track: s.track || [] });
     }
     persistSession(); syncGPS(); renderSession();

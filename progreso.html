@@ -4,101 +4,146 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Mi progreso · PintaMapa</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="lib/leaflet/leaflet.css">
-  <link rel="stylesheet" href="css/game.css">
   <style>
-    html, body { position: static; overflow: auto; height: auto; min-height: 100%; user-select: text; }
-    body { background: var(--bg); }
-    .wrap { max-width: 1180px; margin: 0 auto; padding: 18px 16px 40px; }
-    .top { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
-    .top .logo { font-size: 30px; letter-spacing: -1px; }
-    .top .grow { flex: 1; }
-    .card { background: var(--panel); border: 1px solid var(--line); border-radius: 18px; padding: 16px; box-shadow: var(--shadow); }
-    .login { max-width: 380px; margin: 10vh auto; text-align: center; }
-    .login input { margin: 6px 0; }
-    .login .btn { width: 100%; margin-top: 8px; }
-    .err { color: #dc2626; font-size: 13px; min-height: 18px; }
-    .hero { display: flex; align-items: center; gap: 16px; margin: 18px 0; }
-    .hero .avatar { width: 72px; height: 72px; font-size: 34px; }
-    .hero h1 { margin: 0; font-size: 26px; }
-    .hero .bar { width: min(340px, 60vw); margin-top: 6px; }
-    .tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
-    .tile { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 14px; box-shadow: var(--shadow); }
-    .tile b { display: block; font-size: 24px; font-variant-numeric: tabular-nums; }
-    .tile small { color: var(--muted); }
-    .cols { display: grid; grid-template-columns: 1.6fr 1fr; gap: 14px; margin-top: 14px; }
-    @media (max-width: 860px) { .cols { grid-template-columns: 1fr; } }
-    #bigmap { height: 520px; border-radius: 18px; border: 1px solid var(--line); }
-    h3 { margin: 22px 0 10px; font-size: 15px; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); }
-    .walks { max-height: 520px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; }
-    .walk { background: var(--card); border-radius: 14px; padding: 10px 12px; cursor: pointer; border: 2px solid transparent; }
-    .walk:hover, .walk.sel { border-color: var(--paint); }
-    .walk .d { display: flex; justify-content: space-between; font-weight: 700; }
-    .walk small { color: var(--muted); }
-    .activity { display: flex; align-items: flex-end; gap: 3px; height: 90px; padding-top: 8px; }
-    .activity div { flex: 1; background: var(--paint); border-radius: 4px 4px 0 0; min-height: 2px; opacity: .85; position: relative; }
-    .activity div.zero { background: var(--track); }
-    .actlabels { display: flex; justify-content: space-between; color: var(--muted); font-size: 11px; margin-top: 4px; }
-    .muted a { color: var(--paint); }
-    .empty { text-align: center; padding: 30px; color: var(--muted); }
-    .addr { font-family: ui-monospace, Consolas, monospace; background: var(--card); padding: 2px 8px; border-radius: 6px; }
+    :root {
+      --bg: #f5f6fa; --card: #ffffff; --line: #eceef3; --text: #111827; --muted: #6b7280; --soft: #9ca3af;
+      --paint: #ff2e88; --cyan: #06b6d4; --violet: #8b5cf6; --amber: #f59e0b; --green: #10b981;
+      --r: 16px; --shadow: 0 1px 2px rgba(16,24,40,.04), 0 1px 3px rgba(16,24,40,.06);
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); font-family: Inter, system-ui, -apple-system, "Segoe UI", sans-serif; -webkit-font-smoothing: antialiased; }
+    button { font: inherit; cursor: pointer; }
+    .muted { color: var(--muted); }
+    /* ----- login ----- */
+    #login { min-height: 100%; display: grid; place-items: center; padding: 24px; }
+    .login-card { width: min(400px, 100%); background: var(--card); border-radius: 22px; padding: 32px 28px; box-shadow: 0 10px 40px rgba(16,24,40,.08); text-align: center; }
+    .logo { font-weight: 900; font-style: italic; letter-spacing: -1px; font-size: 30px; }
+    .logo .p { color: var(--paint); } .logo .m { color: var(--cyan); }
+    .login-card h1 { font-size: 20px; margin: 18px 0 6px; } .login-card p { font-size: 14px; line-height: 1.5; margin: 0 0 18px; }
+    .login-card input { width: 100%; padding: 13px 14px; border-radius: 12px; border: 1px solid var(--line); background: #fafbfc; font: inherit; margin-bottom: 10px; outline: none; }
+    .login-card input:focus { border-color: var(--paint); background: #fff; }
+    .btn-main { width: 100%; padding: 13px; border: 0; border-radius: 12px; background: var(--paint); color: #fff; font-weight: 700; font-size: 15px; }
+    .err { color: #dc2626; font-size: 13px; min-height: 18px; margin-top: 10px; }
+    .howto { text-align: left; background: #f8f9fc; border-radius: 12px; padding: 12px 14px; font-size: 13px; line-height: 1.55; margin-top: 12px; }
+    .howto ol { padding-left: 18px; margin: 6px 0; }
+    /* ----- app ----- */
+    #app { display: none; height: 100vh; grid-template-columns: minmax(0, 1fr) 460px; grid-template-rows: 64px minmax(0, 1fr); }
+    #app.show { display: grid; }
+    header { grid-column: 1 / -1; display: flex; align-items: center; gap: 16px; padding: 0 20px; background: var(--card); border-bottom: 1px solid var(--line); }
+    .who { display: flex; align-items: center; gap: 12px; margin-left: 8px; }
+    .ring { --p: 0; width: 42px; height: 42px; border-radius: 50%; display: grid; place-items: center; font-weight: 800; font-size: 15px;
+      background: conic-gradient(var(--paint) calc(var(--p) * 1%), #f0f1f5 0); position: relative; }
+    .ring::before { content: ''; position: absolute; inset: 4px; border-radius: 50%; background: #fff; }
+    .ring b { position: relative; }
+    .who-txt b { display: block; font-size: 15px; } .who-txt small { color: var(--muted); font-size: 12px; }
+    .grow { flex: 1; }
+    .hbtn { border: 1px solid var(--line); background: #fff; border-radius: 10px; padding: 8px 12px; font-size: 13px; font-weight: 600; color: var(--text); text-decoration: none; }
+    .hbtn:hover { border-color: #d6d9e0; }
+    /* mapa */
+    .mapwrap { position: relative; min-height: 0; }
+    #bigmap { position: absolute; inset: 0; background: #e9ebf0; }
+    .gray-tiles { filter: grayscale(1) contrast(.92) brightness(1.06); }
+    .layers { position: absolute; z-index: 500; top: 14px; left: 14px; display: flex; flex-wrap: wrap; gap: 6px; max-width: calc(100% - 28px); }
+    .chip { border: 1px solid var(--line); background: rgba(255,255,255,.95); backdrop-filter: blur(6px); border-radius: 99px; padding: 7px 12px; font-size: 12.5px; font-weight: 600; color: var(--muted); box-shadow: var(--shadow); }
+    .chip.on { color: var(--text); border-color: var(--text); }
+    .chip i { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; vertical-align: 0; }
+    .mapstats { position: absolute; z-index: 500; left: 14px; bottom: 14px; display: flex; gap: 8px; flex-wrap: wrap; }
+    .mapstat { background: rgba(255,255,255,.95); backdrop-filter: blur(6px); border-radius: 12px; padding: 8px 12px; box-shadow: var(--shadow); }
+    .mapstat b { display: block; font-size: 16px; } .mapstat small { color: var(--muted); font-size: 11px; }
+    .fitbtn { position: absolute; z-index: 500; right: 14px; top: 14px; }
+    .lmk { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; font-size: 17px; background: #fff; border: 3px solid var(--c, #9aa4b2); box-shadow: 0 2px 6px rgba(0,0,0,.2); }
+    .leaflet-popup-content-wrapper { border-radius: 14px; } .leaflet-popup-content { margin: 10px 12px; font-family: Inter, sans-serif; }
+    .pop img { width: 220px; height: 130px; object-fit: cover; border-radius: 10px; display: block; margin-bottom: 8px; }
+    .pop b { font-size: 14px; } .pop small { color: var(--muted); display: block; margin-top: 2px; }
+    /* panel */
+    aside { overflow-y: auto; border-left: 1px solid var(--line); background: var(--bg); padding: 16px; display: flex; flex-direction: column; gap: 14px; }
+    .tabs { display: flex; gap: 4px; background: #eceef3; padding: 4px; border-radius: 12px; position: sticky; top: -16px; z-index: 5; }
+    .tabs button { flex: 1; border: 0; background: transparent; padding: 8px 6px; border-radius: 9px; font-size: 13px; font-weight: 600; color: var(--muted); }
+    .tabs button.on { background: #fff; color: var(--text); box-shadow: var(--shadow); }
+    .card { background: var(--card); border-radius: var(--r); padding: 16px; box-shadow: var(--shadow); }
+    .card h3 { margin: 0 0 12px; font-size: 13px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .6px; display: flex; justify-content: space-between; align-items: baseline; }
+    .card h3 span { text-transform: none; letter-spacing: 0; font-weight: 500; color: var(--soft); }
+    .kpis { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+    .kpi { background: var(--card); border-radius: 14px; padding: 12px; box-shadow: var(--shadow); }
+    .kpi b { display: block; font-size: 20px; font-weight: 800; letter-spacing: -.3px; font-variant-numeric: tabular-nums; }
+    .kpi small { color: var(--muted); font-size: 11.5px; }
+    .kpi em { font-style: normal; font-size: 11px; font-weight: 600; color: var(--green); }
+    .kpi.hl b { color: var(--paint); }
+    .row { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--line); font-size: 13.5px; }
+    .row:last-child { border-bottom: 0; } .row span { color: var(--muted); } .row b { font-variant-numeric: tabular-nums; }
+    .pbar { height: 8px; border-radius: 99px; background: #f0f1f5; overflow: hidden; position: relative; margin: 6px 0 4px; }
+    .pbar i { display: block; height: 100%; border-radius: 99px; background: linear-gradient(90deg, var(--paint), #ff6fb0); }
+    .pbar em { position: absolute; left: 80%; top: -2px; bottom: -2px; width: 2px; background: var(--text); opacity: .5; }
+    .insight { display: flex; gap: 10px; align-items: flex-start; padding: 10px 0; border-bottom: 1px solid var(--line); font-size: 13.5px; line-height: 1.45; }
+    .insight:last-child { border-bottom: 0; } .insight .ic { font-size: 18px; width: 26px; text-align: center; flex: none; }
+    .walk { display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; padding: 11px 12px; border-radius: 12px; cursor: pointer; border: 1px solid transparent; }
+    .walk:hover { background: #f8f9fc; } .walk.sel { border-color: var(--paint); background: #fff5fa; }
+    .walk b { font-size: 13.5px; } .walk .pts { color: var(--paint); font-weight: 700; font-size: 13px; text-align: right; }
+    .walk small { color: var(--muted); font-size: 12px; grid-column: 1 / -1; }
+    .cal { display: grid; grid-auto-flow: column; grid-template-rows: repeat(7, 11px); gap: 3px; overflow-x: auto; padding-bottom: 4px; }
+    .cal i { width: 11px; height: 11px; border-radius: 3px; background: #eef0f4; }
+    .legend { display: flex; gap: 12px; font-size: 11.5px; color: var(--muted); margin-top: 8px; }
+    .legend i { display: inline-block; width: 9px; height: 9px; border-radius: 3px; margin-right: 5px; }
+    .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .ach { display: grid; grid-template-columns: repeat(auto-fill, minmax(64px, 1fr)); gap: 8px; }
+    .ach div { text-align: center; font-size: 10.5px; color: var(--muted); }
+    .ach div span { display: grid; place-items: center; width: 44px; height: 44px; margin: 0 auto 4px; border-radius: 12px; background: #f3f4f7; font-size: 22px; }
+    .ach div.off span { filter: grayscale(1); opacity: .35; }
+    .lmlist { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 10px; }
+    .lmc { border-radius: 12px; overflow: hidden; background: #f3f4f7; cursor: pointer; border: 2px solid var(--c, #e5e7eb); }
+    .lmc .ph { height: 80px; background: #e9ebf0 center / cover; display: grid; place-items: center; font-size: 30px; }
+    .lmc div.t { padding: 6px 8px; font-size: 12px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; background: #fff; }
+    svg text { font-family: Inter, sans-serif; }
+    .empty { color: var(--muted); font-size: 13.5px; text-align: center; padding: 18px 8px; }
+    @media (max-width: 980px) {
+      #app { grid-template-columns: 1fr; grid-template-rows: 64px 55vh auto; height: auto; }
+      aside { border-left: 0; overflow: visible; }
+      .who-txt small { display: none; }
+    }
   </style>
 </head>
 <body>
-  <div class="wrap">
-    <div class="top">
+  <div id="login">
+    <div class="login-card">
       <div class="logo"><span class="p">Pinta</span><span class="m">Mapa</span></div>
-      <div class="grow"></div>
-      <a class="btn" href="index.html" style="text-decoration:none;color:var(--text)">🕹️ Jugar (prueba)</a>
-      <button class="btn" id="reload" hidden>🔄 Actualizar</button>
-      <button class="btn" id="logout" hidden>Salir</button>
-    </div>
-
-    <div id="login" class="card login">
-      <h2 style="margin-top:0">📊 Mi progreso real</h2>
-      <p class="muted">Todo lo que pintas con el móvil por la calle, guardado cifrado en la nube. Entra con tu <b>nombre de pintor</b> y la <b>contraseña</b> que pusiste en la app (Perfil → Mi cuenta en la nube).</p>
+      <h1>Mi progreso</h1>
+      <p class="muted">Todo lo que pintas por la calle, cifrado en la nube. Entra con tu <b>nombre de pintor</b> y la <b>contraseña</b> de la app (Perfil → Mi cuenta en la nube).</p>
       <input id="user" placeholder="Nombre de pintor" autocomplete="username">
-      <input id="pass" type="password" placeholder="Contraseña de pintor" autocomplete="current-password">
-      <button class="btn primary" id="go">Ver mi progreso</button>
-      <div id="who" class="players" style="margin-top:12px"></div>
-      <p class="err" id="err"></p>
+      <input id="pass" type="password" placeholder="Contraseña" autocomplete="current-password">
+      <button class="btn-main" id="go">Ver mi progreso</button>
+      <div id="who"></div>
+      <div class="err" id="err"></div>
     </div>
+  </div>
 
-    <div id="dash" hidden>
-      <div class="hero">
-        <div class="avatar" id="avatar">🖌️</div>
-        <div>
-          <h1 id="name"></h1>
-          <div class="muted" id="lvltext"></div>
-          <div class="bar"><i id="lvlbar"></i></div>
-        </div>
-      </div>
-      <div class="tiles" id="tiles"></div>
-
-      <div class="cols">
-        <div>
-          <h3>🗺️ Tus calles pintadas y paseos</h3>
-          <div id="bigmap"></div>
-        </div>
-        <div>
-          <h3>🚶 Paseos</h3>
-          <div class="walks" id="walks"></div>
-        </div>
-      </div>
-
-      <h3>📈 Actividad (últimos 30 días, metros pintados)</h3>
-      <div class="card"><div class="activity" id="activity"></div><div class="actlabels"><span id="act-from"></span><span>hoy</span></div></div>
-
-      <h3>🏙️ Ciudades (objetivo: 80 %)</h3>
-      <div id="cities"></div>
-
-      <h3>🏆 Logros</h3>
-      <div class="grid" id="ach"></div>
-
-      <h3>📖 Álbum de monumentos</h3>
-      <div class="grid" id="album"></div>
-      <p class="muted" id="footer" style="margin-top:24px"></p>
+  <div id="app">
+    <header>
+      <div class="logo" style="font-size:24px"><span class="p">Pinta</span><span class="m">Mapa</span></div>
+      <div class="who"><div class="ring" id="ring"><b id="lvl">1</b></div><div class="who-txt"><b id="name"></b><small id="lvltext"></small></div></div>
+      <div class="grow"></div>
+      <small class="muted" id="synced" style="font-size:12px"></small>
+      <button class="hbtn" id="reload">↻ Actualizar</button>
+      <a class="hbtn" href="index.html">🕹️ Jugar</a>
+      <button class="hbtn" id="logout">Salir</button>
+    </header>
+    <div class="mapwrap">
+      <div id="bigmap"></div>
+      <div class="layers" id="layers"></div>
+      <button class="chip fitbtn" id="fit">⤢ Ver todo</button>
+      <div class="mapstats" id="mapstats"></div>
     </div>
+    <aside>
+      <div class="tabs" id="tabs">
+        <button data-t="res" class="on">Resumen</button>
+        <button data-t="act">Actividad</button>
+        <button data-t="pas">Paseos</button>
+        <button data-t="con">Conquistas</button>
+      </div>
+      <div id="panel" style="display:flex;flex-direction:column;gap:14px"></div>
+    </aside>
   </div>
 
   <script src="lib/leaflet/leaflet.js"></script>
@@ -112,32 +157,39 @@
   (function () {
     const $ = (s) => document.querySelector(s);
     const KEY = 'pintamapa_dash';
+    const MIN_WALK = 120000;   // los paseos de menos de 2 minutos no cuentan
     let creds = {}; try { creds = JSON.parse(localStorage.getItem(KEY) || '{}'); } catch (e) {}
-    let map, walkLayer, selLayer, data;
-    const REPO = PM.cloud.REPO;
+    let data, map, layers = {}, selLayer = null, tab = 'res', fitBounds = null;
+    const esc = (t) => String(t == null ? '' : t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+    const km = (m) => (m / 1000).toFixed(m >= 10000 ? 1 : 2);
+    const dist = (m) => PM.fmtDist(m || 0);
+    const dur = (ms) => { const m = Math.round(ms / 60000); return m >= 60 ? Math.floor(m / 60) + ' h ' + (m % 60) + ' min' : m + ' min'; };
+    const pace = (ms, m) => { if (!m || m < 50) return '—'; const s = ms / 1000 / (m / 1000); return Math.floor(s / 60) + ':' + String(Math.round(s % 60)).padStart(2, '0') + ' /km'; };
+    const dayKey = (t) => { const d = new Date(t); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
+    const RAR = PM.world.RARITY;
+    const RAR_C = { comun: '#9aa4b2', raro: '#3fa9ff', epico: '#b65cff', legendario: '#ffb700' };
 
+    // ---------------- acceso ----------------
     async function load() {
-      $('#err').textContent = '';
-      $('#who').innerHTML = '';
+      $('#err').textContent = ''; $('#who').innerHTML = '';
       try {
         if (!creds.user || !creds.pass) throw new Error('Pon tu nombre de pintor y tu contraseña');
-        $('#go').textContent = '⏳ Descifrando…';
+        $('#go').textContent = 'Descifrando…';
         let r;
         try { r = await PM.cloud.load(creds.user, creds.pass); }
         catch (e) { throw new Error(e.name === 'OperationError' ? 'Contraseña incorrecta' : (e.message || 'Error')); }
         if (!r) {
-          $('#who').innerHTML = `<div class="howto-card"><b>No encuentro la partida de «${creds.user}» con esa contraseña.</b>
-            <ol><li>Revisa el nombre y la contraseña (las mayúsculas cuentan en la contraseña).</li>
-            <li>En el móvil: toca tu nombre → arriba debe poner <b>📡 Real</b> → <b>🎨 Perfil → ☁️ Mi cuenta en la nube</b> → pon la contraseña y pulsa <b>Activar y guardar</b>.</li>
-            <li>Vuelve aquí y pulsa <b>Ver mi progreso</b>.</li></ol></div>`;
+          $('#who').innerHTML = `<div class="howto"><b>No encuentro la partida de «${esc(creds.user)}» con esa contraseña.</b><ol>
+            <li>Revisa nombre y contraseña (las mayúsculas cuentan).</li>
+            <li>En el móvil: tu nombre → arriba <b>📡 Real</b> → <b>🎨 Perfil → ☁️ Mi cuenta en la nube</b> → contraseña → <b>Activar y guardar</b>.</li></ol></div>`;
           return;
         }
         localStorage.setItem(KEY, JSON.stringify(creds));
-        data = { name: r.save.player || creds.user, updated: r.save.syncedAt, save: r.save, geo: r.geo };
-        render();
+        data = { save: r.save, geo: r.geo };
+        $('#login').style.display = 'none'; $('#app').classList.add('show');
+        analyze(); header(); drawMap(); drawPanel();
       } catch (e) {
         $('#err').textContent = e.message === 'Failed to fetch' ? 'Sin conexión' : e.message;
-        $('#login').hidden = false; $('#dash').hidden = true;
       } finally { $('#go').textContent = 'Ver mi progreso'; }
     }
     $('#go').addEventListener('click', () => { creds = { user: $('#user').value.trim(), pass: $('#pass').value }; load(); });
@@ -146,107 +198,270 @@
     $('#reload').addEventListener('click', load);
     if (creds.user && creds.pass) { $('#user').value = creds.user; load(); }
 
+    // ---------------- análisis ----------------
+    let A = {};
     const xpFor = (l) => Math.round(400 * Math.pow(l - 1, 1.6));
-    function fmtTime(ms) { const m = Math.round(ms / 60000); return m >= 60 ? Math.floor(m / 60) + ' h ' + (m % 60) + ' min' : m + ' min'; }
-
-    function render() {
-      const s = data.save || {}, st = s.stats || {};
-      const color = s.color || '#ff2e88';
-      document.documentElement.style.setProperty('--paint', color);
-      $('#login').hidden = true; $('#dash').hidden = false; $('#logout').hidden = false; $('#reload').hidden = false;
-      let lvl = 1; while ((s.xp || 0) >= xpFor(lvl + 1)) lvl++;
-      $('#name').textContent = data.name;
-      $('#avatar').style.background = color;
-      $('#lvltext').textContent = `Nivel ${lvl} · ${PM.fmtNum(s.xp || 0)} pts · faltan ${PM.fmtNum(xpFor(lvl + 1) - (s.xp || 0))} para el ${lvl + 1}`;
-      $('#lvlbar').style.width = ((s.xp - xpFor(lvl)) / (xpFor(lvl + 1) - xpFor(lvl)) * 100).toFixed(1) + '%';
-      const walks = (s.walks || []).slice().sort((a, b) => b.start - a.start);
-      const tiles = [
-        [PM.fmtDist(st.paintedM || 0), 'calles pintadas'], [PM.fmtDist(st.walkedM || 0), 'caminados'],
-        [walks.length, 'paseos'], [fmtTime(walks.reduce((a, w) => a + w.elapsed, 0)), 'tiempo en la calle'],
-        [Object.keys(s.landmarks || {}).length, 'monumentos'], [Object.keys(s.conqueredB || {}).length, 'barrios 🚩'],
-        ['x' + (st.bestCombo || 0), 'mejor combo'], ['🔥 ' + (st.streak || 0), 'días de racha'],
-      ];
-      $('#tiles').innerHTML = tiles.map(([b, t]) => `<div class="tile"><b>${b}</b><small>${t}</small></div>`).join('');
-
-      // Mapa: calles pintadas (geometría real enviada por el móvil) + recorridos
-      if (!map) {
-        map = L.map('bigmap', { preferCanvas: true });
-        L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap' }).addTo(map);
-      }
-      map.eachLayer((l) => { if (!(l instanceof L.TileLayer)) map.removeLayer(l); });
-      const geo = Object.values(data.geo || {});
-      const bounds = L.latLngBounds([]);
-      if (geo.length) {
-        L.polyline(geo, { color, weight: 12, opacity: 0.2 }).addTo(map);
-        const core = L.polyline(geo, { color, weight: 5, opacity: 1 }).addTo(map);
-        bounds.extend(core.getBounds());
-      }
-      Object.values(s.landmarks || {}).filter((v) => v.pos).forEach((v) => {
-        L.circle(v.pos, { radius: 45, color, weight: 2, fillColor: color, fillOpacity: 0.18 }).addTo(map);
-        L.marker(v.pos, { icon: L.divIcon({ className: '', iconSize: [40, 40], iconAnchor: [20, 20],
-          html: `<div class="lm conq r-${v.rarity}"><span>${v.emoji}</span><i class="lmflag">🚩</i></div>` }) })
-          .bindTooltip(`${v.name} · ${v.kind} · conquistado el ${new Date(v.t).toLocaleDateString('es-ES')}`).addTo(map);
-        bounds.extend(v.pos);
-      });
-      walkLayer = L.layerGroup().addTo(map);
-      walks.forEach((w) => {
-        const segs = splitTrack(w.track);
-        if (segs.length) bounds.extend(L.polyline(segs, { color: '#2563eb', weight: 2, opacity: 0.5, dashArray: '4 6' }).addTo(walkLayer).getBounds());
-      });
-      if (bounds.isValid()) map.fitBounds(bounds, { padding: [20, 20] }); else map.setView([41.35763, 2.07386], 15);
-      setTimeout(() => map.invalidateSize(), 50);
-
-      // Paseos
-      $('#walks').innerHTML = walks.length ? walks.map((w, i) => `<div class="walk" data-i="${i}">
-          <div class="d"><span>${new Date(w.start).toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric', month: 'short' })} · ${new Date(w.start).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}</span><span style="color:var(--paint)">+${PM.fmtNum(w.st.pts)}</span></div>
-          <small>⏱ ${fmtTime(w.elapsed)} · 🚶 ${PM.fmtDist(w.st.walked)} · 🖌️ ${PM.fmtDist(w.st.painted)} nuevos · 📸 ${w.st.captures} · 🪣 ${w.st.cans}${w.st.conquests ? ' · 🚩 ' + w.st.conquests : ''}</small></div>`).join('')
-        : '<div class="empty">Aún no hay paseos. ¡Sal a la calle con el móvil y pulsa «Empezar a pintar»!</div>';
-      document.querySelectorAll('.walk').forEach((el) => el.addEventListener('click', () => {
-        document.querySelectorAll('.walk').forEach((x) => x.classList.remove('sel'));
-        el.classList.add('sel');
-        const segs = splitTrack(walks[+el.dataset.i].track);
-        if (selLayer) map.removeLayer(selLayer);
-        if (segs.length) { selLayer = L.polyline(segs, { color: '#2563eb', weight: 3, opacity: 0.9, dashArray: '6 6' }).addTo(map); map.fitBounds(selLayer.getBounds(), { padding: [30, 30] }); }
-      }));
-
-      // Actividad 30 días
-      const days = [];
-      for (let i = 29; i >= 0; i--) { const d = new Date(Date.now() - i * 86400000); days.push(d.toDateString()); }
-      const per = {}; walks.forEach((w) => { const k = new Date(w.start).toDateString(); per[k] = (per[k] || 0) + w.st.painted; });
-      const max = Math.max(1, ...days.map((d) => per[d] || 0));
-      $('#activity').innerHTML = days.map((d) => `<div class="${per[d] ? '' : 'zero'}" style="height:${Math.max(2, (per[d] || 0) / max * 100)}%" title="${d}: ${PM.fmtDist(per[d] || 0)}"></div>`).join('');
-      $('#act-from').textContent = new Date(Date.now() - 29 * 86400000).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' });
-
-      // Ciudades
+    function analyze() {
+      const s = data.save, st = s.stats || {};
+      const walks = (s.walks || []).filter((w) => (w.elapsed || 0) >= MIN_WALK).sort((a, b) => b.start - a.start);
+      const totMs = walks.reduce((a, w) => a + w.elapsed, 0);
+      const wWalked = walks.reduce((a, w) => a + (w.st.walked || 0), 0);
+      const wPainted = walks.reduce((a, w) => a + (w.st.painted || 0), 0);
+      const days = {};
+      walks.forEach((w) => { const k = dayKey(w.start); const d = days[k] || (days[k] = { walked: 0, painted: 0, pts: 0, ms: 0, n: 0 }); d.walked += w.st.walked || 0; d.painted += w.st.painted || 0; d.pts += w.st.pts || 0; d.ms += w.elapsed; d.n++; });
+      // rachas
+      const dk = Object.keys(days).sort();
+      let maxStreak = 0, cur = 0, prev = null;
+      for (const k of dk) { const t = new Date(k).getTime(); cur = prev != null && Math.round((t - prev) / 86400000) === 1 ? cur + 1 : 1; maxStreak = Math.max(maxStreak, cur); prev = t; }
+      const hours = new Array(24).fill(0), wdays = new Array(7).fill(0);
+      walks.forEach((w) => { const d = new Date(w.start); hours[d.getHours()] += (w.st.walked || 0) / 1000; wdays[(d.getDay() + 6) % 7] += (w.st.walked || 0) / 1000; });
+      const rec = (f) => walks.slice().sort((a, b) => f(b) - f(a))[0];
+      const fastest = walks.filter((w) => (w.st.walked || 0) > 300).sort((a, b) => (a.elapsed / a.st.walked) - (b.elapsed / b.st.walked))[0];
+      const bestDay = Object.entries(days).sort((a, b) => b[1].painted - a[1].painted)[0];
+      // ciudades
       const byCity = {};
       for (const [k, v] of Object.entries(s.tileNames || {})) if (v.city) byCity[v.city] = (byCity[v.city] || 0) + ((s.paintedByTile || {})[k] || 0);
-      const cityList = Object.entries(byCity).filter(([, m]) => m > 0).sort((a, b) => b[1] - a[1]);
-      $('#cities').innerHTML = cityList.length ? cityList.map(([c, m]) => {
+      const cities = Object.entries(byCity).filter(([, m]) => m > 0).map(([c, m]) => {
         const tot = s.cities && s.cities[c] && s.cities[c].total;
-        const pct = tot ? m / tot : 0;
-        return `<div class="mission"><div class="mt">${s.citiesWon && s.citiesWon[c] ? '👑' : '🏙️'} ${c}<span>${tot ? (pct * 100).toFixed(2) + ' %' : PM.fmtDist(m)}</span></div>
-          <div class="bar"><i style="width:${Math.min(100, pct / 0.8 * 100)}%"></i></div>
-          <small>${PM.fmtDist(m)} pintados${tot ? ' de ' + PM.fmtDist(tot) + ' · te faltan ' + PM.fmtDist(Math.max(0, tot * 0.8 - m)) + ' para conquistarla' : ''}</small></div>`;
-      }).join('') : '<div class="empty">Todavía ninguna ciudad.</div>';
-
-      // Logros
-      const A = PM.game.ACHIEVEMENTS, got = s.achievements || {};
-      $('#ach').innerHTML = Object.entries(A).map(([id, a]) => `<div class="stamp ach ${got[id] ? '' : 'locked'}"><div>${got[id] ? a.icon : '🔒'}</div><b>${a.name}</b><small>${got[id] ? new Date(got[id]).toLocaleDateString('es-ES') : a.desc}</small></div>`).join('');
-
-      // Álbum
-      const lms = Object.values(s.landmarks || {}).sort((a, b) => b.t - a.t);
-      $('#album').innerHTML = lms.length ? lms.map((v) => `<div class="stamp r-${v.rarity}"><div>${v.emoji}</div><b>${v.name}</b><small>${v.kind} · ${PM.world.RARITY[v.rarity].label}</small></div>`).join('')
-        : '<div class="empty">Ningún monumento capturado aún.</div>';
-
-      $('#footer').innerHTML = 'Último guardado desde el móvil: ' + (data.updated ? new Date(data.updated).toLocaleString('es-ES') : '—') +
-        ' · Guardado cifrado con tu contraseña';
+        return { c, m, tot, pct: tot ? m / tot : 0, won: !!(s.citiesWon || {})[c] };
+      }).sort((a, b) => b.m - a.m);
+      // ritmo de pintura reciente (últimos 30 días) → proyección
+      const since = Date.now() - 30 * 86400000;
+      const rec30 = walks.filter((w) => w.start >= since);
+      const activeDays30 = new Set(rec30.map((w) => dayKey(w.start))).size;
+      const painted30 = rec30.reduce((a, w) => a + (w.st.painted || 0), 0);
+      const perDay = painted30 / 30;
+      const lms = Object.entries(s.landmarks || {}).map(([id, v]) => Object.assign({ id }, v));
+      let lvl = 1; while ((s.xp || 0) >= xpFor(lvl + 1)) lvl++;
+      A = { s, st, walks, totMs, wWalked, wPainted, days, maxStreak, hours, wdays, cities, perDay, activeDays30, painted30, lms, lvl,
+        longest: rec((w) => w.st.walked || 0), topPts: rec((w) => w.st.pts || 0), fastest, bestDay,
+        eff: (st.walkedM || 0) > 0 ? (st.paintedM || 0) / st.walkedM : 0 };
     }
 
+    function header() {
+      const { s, lvl } = A;
+      const p = ((s.xp - xpFor(lvl)) / (xpFor(lvl + 1) - xpFor(lvl))) * 100;
+      $('#ring').style.setProperty('--p', p.toFixed(1)); $('#lvl').textContent = lvl;
+      $('#name').textContent = s.player || creds.user;
+      $('#lvltext').textContent = `Nivel ${lvl} · ${PM.fmtNum(s.xp || 0)} pts · faltan ${PM.fmtNum(xpFor(lvl + 1) - (s.xp || 0))} para el ${lvl + 1}`;
+      $('#synced').textContent = s.syncedAt ? 'Actualizado ' + new Date(s.syncedAt).toLocaleString('es-ES', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
+      document.documentElement.style.setProperty('--paint', s.color || '#ff2e88');
+    }
+
+    // ---------------- mapa ----------------
+    function drawMap() {
+      const { s, walks, lms } = A;
+      const color = s.color || '#ff2e88';
+      if (!map) {
+        map = L.map('bigmap', { preferCanvas: true, zoomControl: false });
+        L.control.zoom({ position: 'bottomright' }).addTo(map);
+        L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, className: 'gray-tiles', attribution: '© OpenStreetMap' }).addTo(map);
+      }
+      Object.values(layers).forEach((l) => map.removeLayer(l.layer));
+      layers = {};
+      const bounds = L.latLngBounds([]);
+      // calles pintadas
+      const geo = Object.values(data.geo || {});
+      const g = L.layerGroup();
+      if (geo.length) {
+        L.polyline(geo, { color, weight: 14, opacity: 0.16 }).addTo(g);
+        const core = L.polyline(geo, { color, weight: 4.5, opacity: 1, lineCap: 'round' }).addTo(g);
+        bounds.extend(core.getBounds());
+      }
+      layers.calles = { layer: g, name: 'Calles pintadas', dot: color, on: true };
+      // recorridos (más recientes, más intensos)
+      const t = L.layerGroup();
+      walks.forEach((w, i) => {
+        const segs = splitTrack(w.track);
+        if (segs.length) bounds.extend(L.polyline(segs, { color: '#2563eb', weight: 2, opacity: Math.max(0.15, 0.55 - i * 0.04), dashArray: '3 5' }).addTo(t).getBounds());
+      });
+      layers.rutas = { layer: t, name: 'Recorridos', dot: '#2563eb', on: true };
+      // monumentos
+      const m = L.layerGroup();
+      lms.filter((v) => v.pos).forEach((v) => {
+        const info = (s.cardInfo || {})[v.id];
+        L.circle(v.pos, { radius: 45, color, weight: 1.5, fillColor: color, fillOpacity: 0.12 }).addTo(m);
+        L.marker(v.pos, { icon: L.divIcon({ className: '', iconSize: [34, 34], iconAnchor: [17, 17], html: `<div class="lmk" style="--c:${RAR_C[v.rarity]}">${v.emoji}</div>` }) })
+          .bindPopup(`<div class="pop">${info && info.img ? `<img src="${info.img}" alt="">` : ''}<b>${esc(v.name)}</b><small>${esc(v.kind)} · ${RAR[v.rarity] ? RAR[v.rarity].label : ''}${v.city ? ' · ' + esc(v.city) : ''}</small><small>Conquistado el ${new Date(v.t).toLocaleDateString('es-ES')} · ${v.visits || 1} visita(s)</small></div>`)
+          .addTo(m);
+        bounds.extend(v.pos);
+      });
+      layers.monumentos = { layer: m, name: 'Monumentos', dot: '#ffb700', on: true };
+      // barrios conquistados (silueta)
+      const b = L.layerGroup();
+      Object.values(s.barrioCards || {}).forEach((bc) => { if (bc.lines && bc.lines.length) L.polyline(bc.lines, { color: '#8b5cf6', weight: 3, opacity: 0.6 }).bindTooltip('🚩 ' + bc.name).addTo(b); });
+      layers.barrios = { layer: b, name: 'Barrios 🚩', dot: '#8b5cf6', on: true };
+      Object.values(layers).forEach((l) => l.on && l.layer.addTo(map));
+      $('#layers').innerHTML = Object.entries(layers).map(([k, l]) => `<button class="chip on" data-l="${k}"><i style="background:${l.dot}"></i>${l.name}</button>`).join('');
+      document.querySelectorAll('[data-l]').forEach((el) => el.addEventListener('click', () => {
+        const l = layers[el.dataset.l]; l.on = !l.on; el.classList.toggle('on', l.on);
+        if (l.on) l.layer.addTo(map); else map.removeLayer(l.layer);
+      }));
+      fitBounds = bounds.isValid() ? bounds : null;
+      fit();
+      setTimeout(() => map.invalidateSize(), 60);
+      const st = A.st;
+      $('#mapstats').innerHTML = [[dist(st.paintedM), 'pintados'], [lms.length, 'monumentos'], [Object.keys(s.conqueredB || {}).length, 'barrios 🚩']]
+        .map(([b, t]) => `<div class="mapstat"><b>${b}</b><small>${t}</small></div>`).join('');
+    }
+    function fit() { if (fitBounds) map.fitBounds(fitBounds, { padding: [60, 60], maxZoom: 17 }); else map.setView([41.35763, 2.07386], 15); }
+    $('#fit').addEventListener('click', () => { if (selLayer) { map.removeLayer(selLayer); selLayer = null; document.querySelectorAll('.walk').forEach((x) => x.classList.remove('sel')); } fit(); });
     function splitTrack(t) {
       const segs = []; let cur = [];
       (t || []).forEach((p) => { if (!p) { if (cur.length > 1) segs.push(cur); cur = []; } else cur.push(p); });
       if (cur.length > 1) segs.push(cur);
       return segs;
+    }
+    function showWalk(w, el) {
+      document.querySelectorAll('.walk').forEach((x) => x.classList.remove('sel'));
+      if (el) el.classList.add('sel');
+      if (selLayer) map.removeLayer(selLayer);
+      const segs = splitTrack(w.track);
+      if (!segs.length) return;
+      selLayer = L.layerGroup([L.polyline(segs, { color: '#fff', weight: 9, opacity: 0.9 }), L.polyline(segs, { color: '#2563eb', weight: 5, opacity: 1 })]).addTo(map);
+      map.fitBounds(L.polyline(segs).getBounds(), { padding: [80, 80], maxZoom: 18 });
+    }
+
+    // ---------------- gráficos (SVG) ----------------
+    function bars(values, labels, opts = {}) {
+      const W = 400, H = opts.h || 120, pad = 18, n = values.length, max = Math.max(1e-9, ...values.map((v) => (Array.isArray(v) ? Math.max(...v) : v)));
+      const bw = (W - pad) / n;
+      let svg = `<svg viewBox="0 0 ${W} ${H + 18}" width="100%" style="display:block">`;
+      for (let i = 0; i < n; i++) {
+        const vs = Array.isArray(values[i]) ? values[i] : [values[i]];
+        vs.forEach((v, j) => {
+          const h = Math.max(v > 0 ? 2 : 0, (v / max) * (H - 6));
+          const w = (bw - 3) / vs.length;
+          svg += `<rect x="${(pad / 2 + i * bw + j * w).toFixed(1)}" y="${(H - h).toFixed(1)}" width="${Math.max(1, w - 1).toFixed(1)}" height="${h.toFixed(1)}" rx="2" fill="${(opts.colors || ['var(--paint)'])[j]}"><title>${labels[i]}: ${opts.fmt ? opts.fmt(v) : v}</title></rect>`;
+        });
+        if (labels[i] && (!opts.every || i % opts.every === 0)) svg += `<text x="${(pad / 2 + i * bw + bw / 2).toFixed(1)}" y="${H + 14}" font-size="10" fill="#9ca3af" text-anchor="middle">${labels[i]}</text>`;
+      }
+      return svg + '</svg>';
+    }
+    function donut(parts) {
+      const tot = parts.reduce((a, p) => a + p.v, 0) || 1;
+      let a0 = -Math.PI / 2, svg = '<svg viewBox="0 0 120 120" width="120" height="120">';
+      parts.forEach((p) => {
+        if (!p.v) return;
+        const a1 = a0 + (p.v / tot) * Math.PI * 2, large = a1 - a0 > Math.PI ? 1 : 0;
+        const P = (a, r) => [60 + r * Math.cos(a), 60 + r * Math.sin(a)];
+        const [x0, y0] = P(a0, 52), [x1, y1] = P(a1, 52), [x2, y2] = P(a1, 34), [x3, y3] = P(a0, 34);
+        svg += p.v === tot ? `<circle cx="60" cy="60" r="43" fill="none" stroke="${p.c}" stroke-width="18"/>`
+          : `<path d="M${x0},${y0} A52,52 0 ${large} 1 ${x1},${y1} L${x2},${y2} A34,34 0 ${large} 0 ${x3},${y3} Z" fill="${p.c}"/>`;
+        a0 = a1;
+      });
+      return svg + `<text x="60" y="64" text-anchor="middle" font-size="18" font-weight="800" fill="#111827">${tot === 1 && !parts.some((p) => p.v) ? 0 : tot}</text></svg>`;
+    }
+    function calendar() {
+      const days = A.days, max = Math.max(1, ...Object.values(days).map((d) => d.painted));
+      const end = new Date(); end.setHours(0, 0, 0, 0);
+      const start = new Date(end.getTime() - 25 * 7 * 86400000); start.setDate(start.getDate() - ((start.getDay() + 6) % 7));
+      let html = '<div class="cal">';
+      for (let t = start.getTime(); t <= end.getTime(); t += 86400000) {
+        const d = days[dayKey(t)], v = d ? d.painted / max : 0;
+        const bg = d ? `rgba(255,46,136,${(0.25 + v * 0.75).toFixed(2)})` : '';
+        html += `<i title="${new Date(t).toLocaleDateString('es-ES')}${d ? ': ' + dist(d.painted) + ' pintados' : ''}" ${bg ? `style="background:${bg}"` : ''}></i>`;
+      }
+      return html + '</div>';
+    }
+
+    // ---------------- panel ----------------
+    document.querySelectorAll('#tabs button').forEach((b) => b.addEventListener('click', () => {
+      tab = b.dataset.t; document.querySelectorAll('#tabs button').forEach((x) => x.classList.toggle('on', x === b)); drawPanel();
+    }));
+    function kpi(v, l, extra, hl) { return `<div class="kpi ${hl ? 'hl' : ''}"><b>${v}</b><small>${l}</small>${extra ? `<div><em>${extra}</em></div>` : ''}</div>`; }
+
+    function drawPanel() {
+      const P = $('#panel');
+      const { s, st, walks, totMs, wWalked, days, cities, lms } = A;
+      let h = '';
+      if (tab === 'res') {
+        h += `<div class="kpis">
+          ${kpi(km(st.paintedM || 0) + ' km', 'calles pintadas', '', true)}
+          ${kpi(km(st.walkedM || 0) + ' km', 'caminados')}
+          ${kpi(Math.round(A.eff * 100) + ' %', 'calle nueva por km', A.eff > 0.7 ? 'explorador' : '')}
+          ${kpi(walks.length, 'paseos (≥ 2 min)')}
+          ${kpi(dur(totMs), 'en la calle')}
+          ${kpi(pace(totMs, wWalked), 'ritmo medio')}
+          ${kpi(totMs ? ((wWalked / 1000) / (totMs / 3600000)).toFixed(1) + ' km/h' : '—', 'velocidad media')}
+          ${kpi(PM.fmtNum(s.xp || 0), 'puntos')}
+          ${kpi((st.walkedM ? Math.round((s.xp || 0) / (st.walkedM / 1000)) : 0), 'puntos por km')}
+          ${kpi('🔥 ' + (st.streak || 0), 'racha actual', 'máx. ' + A.maxStreak + ' días')}
+          ${kpi('x' + (st.bestCombo || 0), 'mejor combo')}
+          ${kpi(Object.keys(days).length, 'días activos')}
+        </div>`;
+        // proyección y análisis
+        h += `<div class="card"><h3>Análisis <span>últimos 30 días</span></h3>${insights()}</div>`;
+        h += `<div class="card"><h3>Ciudades <span>objetivo 80 %</span></h3>${cities.length ? cities.map((c) => `
+          <div style="margin-bottom:12px"><div class="row" style="border:0;padding:0"><b>${c.won ? '👑 ' : ''}${esc(c.c)}</b><b>${c.tot ? (c.pct * 100).toFixed(2) + ' %' : dist(c.m)}</b></div>
+          <div class="pbar"><i style="width:${Math.min(100, c.pct * 100)}%"></i><em></em></div>
+          <small class="muted">${dist(c.m)} de ${c.tot ? dist(c.tot) : '?'}${c.tot ? ' · faltan ' + dist(Math.max(0, c.tot * 0.8 - c.m)) + ' para conquistarla' : ''}</small></div>`).join('') : '<div class="empty">Aún sin ciudades.</div>'}</div>`;
+        h += `<div class="card"><h3>Récords</h3>
+          <div class="row"><span>🏃 Paseo más largo</span><b>${A.longest ? dist(A.longest.st.walked) : '—'}</b></div>
+          <div class="row"><span>⚡ Paseo más rápido</span><b>${A.fastest ? pace(A.fastest.elapsed, A.fastest.st.walked) : '—'}</b></div>
+          <div class="row"><span>⭐ Más puntos en un paseo</span><b>${A.topPts ? '+' + PM.fmtNum(A.topPts.st.pts) : '—'}</b></div>
+          <div class="row"><span>📅 Mejor día</span><b>${A.bestDay ? dist(A.bestDay[1].painted) + ' · ' + new Date(A.bestDay[0]).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' }) : '—'}</b></div>
+          <div class="row"><span>🔥 Racha más larga</span><b>${A.maxStreak} días</b></div></div>`;
+      }
+      if (tab === 'act') {
+        const N = 30, vals = [], labs = [];
+        for (let i = N - 1; i >= 0; i--) { const t = Date.now() - i * 86400000, d = days[dayKey(t)]; vals.push([d ? d.walked / 1000 : 0, d ? d.painted / 1000 : 0]); labs.push(new Date(t).getDate()); }
+        h += `<div class="card"><h3>Últimos 30 días <span>km</span></h3>${bars(vals, labs, { colors: ['#c7d2fe', 'var(--paint)'], every: 5, fmt: (v) => v.toFixed(2) + ' km' })}
+          <div class="legend"><span><i style="background:#c7d2fe"></i>caminado</span><span><i style="background:var(--paint)"></i>pintado</span></div></div>`;
+        h += `<div class="card"><h3>Calendario <span>6 meses</span></h3>${calendar()}</div>`;
+        h += `<div class="grid2">
+          <div class="card"><h3>Hora del día</h3>${bars(A.hours, A.hours.map((_, i) => i), { every: 6, h: 90, fmt: (v) => v.toFixed(2) + ' km' })}</div>
+          <div class="card"><h3>Día de la semana</h3>${bars(A.wdays, ['L', 'M', 'X', 'J', 'V', 'S', 'D'], { h: 90, colors: ['var(--cyan)'], fmt: (v) => v.toFixed(2) + ' km' })}</div></div>`;
+        const lastW = walks.slice(0, 20).reverse();
+        h += `<div class="card"><h3>Evolución por paseo <span>últimos ${lastW.length}</span></h3>${lastW.length ? bars(lastW.map((w) => (w.st.painted || 0) / 1000), lastW.map((w) => new Date(w.start).getDate() + '/' + (new Date(w.start).getMonth() + 1)), { every: Math.ceil(lastW.length / 6), fmt: (v) => v.toFixed(2) + ' km pintados' }) : '<div class="empty">Sin paseos aún.</div>'}</div>`;
+      }
+      if (tab === 'pas') {
+        h += `<div class="card" style="padding:8px"><h3 style="padding:8px 8px 0">Paseos <span>${walks.length} · toca uno para verlo en el mapa</span></h3>` + (walks.length ? walks.map((w, i) => `
+          <div class="walk" data-i="${i}"><b>${new Date(w.start).toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric', month: 'short' })} · ${new Date(w.start).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}</b>
+          <div class="pts">+${PM.fmtNum(w.st.pts || 0)}</div>
+          <small>⏱ ${dur(w.elapsed)} · 🚶 ${dist(w.st.walked)} · 🖌️ ${dist(w.st.painted)} nuevos · ⚡ ${pace(w.elapsed, w.st.walked)} · 📸 ${w.st.captures || 0} · 🪣 ${w.st.cans || 0}${w.st.conquests ? ' · 🚩 ' + w.st.conquests : ''}</small></div>`).join('')
+          : '<div class="empty">Aún no hay paseos de más de 2 minutos.</div>') + '</div>';
+      }
+      if (tab === 'con') {
+        const byR = ['legendario', 'epico', 'raro', 'comun'].map((r) => ({ r, v: lms.filter((l) => l.rarity === r).length, c: RAR_C[r] }));
+        const byK = {}; lms.forEach((l) => { byK[l.kind] = (byK[l.kind] || 0) + 1; });
+        h += `<div class="card"><h3>Monumentos <span>${lms.length} conquistados · ${Object.keys(s.cardPhotos || {}).length} con foto propia</span></h3>
+          <div style="display:flex;gap:16px;align-items:center">${donut(byR.map((x) => ({ v: x.v, c: x.c })))}
+          <div style="flex:1">${byR.map((x) => `<div class="row"><span><i style="display:inline-block;width:9px;height:9px;border-radius:3px;background:${x.c};margin-right:6px"></i>${RAR[x.r].label}</span><b>${x.v}</b></div>`).join('')}</div></div></div>`;
+        h += `<div class="card"><h3>Por tipo</h3>${Object.keys(byK).length ? Object.entries(byK).sort((a, b) => b[1] - a[1]).map(([k, v]) => `<div class="row"><span>${esc(k)}</span><b>${v}</b></div>`).join('') : '<div class="empty">Quédate 10 s junto a un monumento para conquistarlo.</div>'}</div>`;
+        h += `<div class="card"><h3>Cromos</h3>${lms.length ? '<div class="lmlist">' + lms.sort((a, b) => b.t - a.t).map((l) => {
+          const inf = (s.cardInfo || {})[l.id];
+          return `<div class="lmc" style="--c:${RAR_C[l.rarity]}" data-lm="${l.id}"><div class="ph" ${inf && inf.img ? `style="background-image:url('${inf.img}')"` : ''}>${inf && inf.img ? '' : l.emoji}</div><div class="t">${esc(l.name)}</div></div>`;
+        }).join('') + '</div>' : '<div class="empty">Sin cromos aún.</div>'}</div>`;
+        const ach = PM.game.ACHIEVEMENTS, got = s.achievements || {};
+        h += `<div class="card"><h3>Logros <span>${Object.keys(got).filter((k) => ach[k]).length}/${Object.keys(ach).length}</span></h3><div class="ach">${Object.entries(ach).map(([id, a]) =>
+          `<div class="${got[id] ? '' : 'off'}" title="${esc(a.desc)}"><span>${a.icon}</span>${esc(a.name)}</div>`).join('')}</div></div>`;
+        const bc = Object.values(s.barrioCards || {});
+        h += `<div class="card"><h3>Barrios conquistados <span>${bc.length}</span></h3>${bc.length ? bc.map((b) => `<div class="row"><span>🚩 ${esc(b.name)}</span><b>${new Date(b.t).toLocaleDateString('es-ES')}</b></div>`).join('') : '<div class="empty">Pinta el 80 % de un barrio para conquistarlo.</div>'}</div>`;
+      }
+      P.innerHTML = h;
+      P.querySelectorAll('.walk').forEach((el) => el.addEventListener('click', () => showWalk(walks[+el.dataset.i], el)));
+      P.querySelectorAll('[data-lm]').forEach((el) => el.addEventListener('click', () => { const l = lms.find((x) => x.id === el.dataset.lm); if (l && l.pos) map.setView(l.pos, 18); }));
+    }
+
+    function insights() {
+      const { st, walks, cities, perDay, activeDays30, painted30, eff, hours, wdays } = A;
+      const out = [];
+      if (!walks.length) return '<div class="empty">Sal a dar tu primer paseo y aquí verás tu análisis.</div>';
+      out.push(['📆', `Has salido <b>${activeDays30} de los últimos 30 días</b> y has pintado <b>${dist(painted30)}</b> de calles nuevas.`]);
+      const city = cities.find((c) => c.tot && !c.won);
+      if (city) {
+        const left = Math.max(0, city.tot * 0.8 - city.m);
+        out.push(['🎯', perDay > 0 ? `A tu ritmo (${dist(perDay)} al día), conquistarás <b>${esc(city.c)}</b> en unos <b>${Math.ceil(left / perDay)} días</b>.`
+          : `Te faltan <b>${dist(left)}</b> para conquistar <b>${esc(city.c)}</b>.`]);
+      }
+      out.push(['🧭', eff >= 0.7 ? `El <b>${Math.round(eff * 100)} %</b> de lo que andas es calle nueva: ¡explorador nato!` :
+        `Solo el <b>${Math.round(eff * 100)} %</b> de lo que andas es calle nueva. Prueba rutas distintas para pintar más rápido.`]);
+      const hBest = hours.indexOf(Math.max(...hours)), dBest = wdays.indexOf(Math.max(...wdays));
+      out.push(['⏰', `Sueles salir sobre las <b>${hBest}:00</b>, y tu mejor día es el <b>${['lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado', 'domingo'][dBest]}</b>.`]);
+      const kcal = Math.round((st.walkedM || 0) / 1000 * 55);
+      out.push(['❤️', `Unos <b>${PM.fmtNum(Math.round((st.walkedM || 0) / 0.75))} pasos</b> y <b>${PM.fmtNum(kcal)} kcal</b> estimadas desde que juegas.`]);
+      return out.map(([i, t]) => `<div class="insight"><div class="ic">${i}</div><div>${t}</div></div>`).join('');
     }
   })();
   </script>

@@ -85,6 +85,7 @@ PM.state = (function () {
   try { data = Object.assign(fresh(), JSON.parse(localStorage.getItem(KEY) || '{}')); }
   catch (e) { data = fresh(); }
   data.stats = Object.assign(fresh().stats, data.stats);
+  data.walks = (data.walks || []).filter((w) => (w.elapsed || 0) >= 120000);   // paseos de < 2 min: fuera del historial
 
   let dirty = false;
   function save() { dirty = true; }

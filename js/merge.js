@@ -2,8 +2,8 @@
 // Lo pintado/capturado se une; los contadores se quedan con el máximo; los paseos se juntan por id.
 (function (root) {
   function merge(a, b) {
-    if (!a) return b;
-    if (!b) return a;
+    if (!a && !b) return a;
+    a = a || {}; b = b || {};   // también con una sola partida: así se aplican los filtros (p. ej. paseos < 2 min)
     const out = Object.assign({}, a, b);
     const union = (k) => { out[k] = Object.assign({}, a[k] || {}, b[k] || {}); };
     const unionMin = (k) => {
@@ -27,7 +27,7 @@
     for (const [k, v] of Object.entries(b.stats || {})) out.stats[k] = typeof v === 'number' ? Math.max(out.stats[k] || 0, v) : v;
     const walks = {};
     [...(a.walks || []), ...(b.walks || [])].forEach((w) => { walks[w.id] = w; });
-    out.walks = Object.values(walks).sort((x, y) => x.start - y.start);
+    out.walks = Object.values(walks).filter((w) => (w.elapsed || 0) >= 120000).sort((x, y) => x.start - y.start);   // < 2 min: no cuentan
     if (a.daily && b.daily && a.daily.date > b.daily.date) out.daily = a.daily;
     out.avoidRemoved = Object.assign({}, a.avoidRemoved || {}, b.avoidRemoved || {});
     const av = {};
