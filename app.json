@@ -1,8 +1,8 @@
 {
-  "version": "0.3.2",
-  "notes": "«Mi progreso» rediseñado: pantalla completa con mapa grande y capas, panel con resumen, análisis y proyección, actividad (30 días, calendario, horas, días), paseos y conquistas. Los paseos de menos de 2 minutos ya no se guardan.",
+  "version": "0.3.3",
+  "notes": "Cartas estilo Pokémon: tipo, PTS, ataques, debilidad/resistencia, historia y número de colección; brillo holográfico que sigue al ratón o la inclinación del móvil; reverso con emblema PintaMapa; se voltean al tocarlas y se exportan como imagen. En «Mi progreso», pincha un monumento del mapa para ver su carta.",
   "native": 3,
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.3.2/pintamapa-web-0.3.2.zip",
-  "checksum": "8675b2f7eb886d67adcd4deef55ec38150870ccd047e12ddf99a3a19121a41f1",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.3.2/PintaMapa-v0.3.2.apk"
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.3.3/pintamapa-web-0.3.3.zip",
+  "checksum": "7525b8aa88c8af8c5c9668528171f0e2f27aa9f232ed5c69908c936523a68e80",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.3.3/PintaMapa-v0.3.3.apk"
 }
