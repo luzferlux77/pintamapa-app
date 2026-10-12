@@ -1,8 +1,8 @@
 {
-  "version": "0.3.6",
-  "notes": "Estadios de fútbol: siempre visibles y conquistables, legendarios si tienen artículo en Wikipedia (equipos de primera y segunda de todo el mundo), y se capturan desde 120 m de su centro (su contorno). Incluye estadios etiquetados como edificio (p. ej. RCDE Stadium). Brillo de las cartas mejorado: franja holográfica suave y destellos finos solo junto a la luz, sin puntitos.",
+  "version": "0.3.7",
+  "notes": "Cartas más grandes y legibles, reverso sin parpadeos y nueva barra de botones",
   "native": 3,
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.3.6/pintamapa-web-0.3.6.zip",
-  "checksum": "b1b5741bca73fd3c0e3ebcae2927f33635171fd7ef9589c3c2ebbc96b36ed7a3",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.3.6/PintaMapa-v0.3.6.apk"
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.3.7/pintamapa-web-0.3.7.zip",
+  "checksum": "3c338f80a409931edbc746b3997f93989f94497dc30b35d7d8bfe2ba8c824eab",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.3.7/PintaMapa-v0.3.7.apk"
 }
