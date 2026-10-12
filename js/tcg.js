@@ -143,7 +143,7 @@ PM.tcg = (function () {
             <div class="tcg-band">${esc(d.kind || '')}${d.city ? ' · ' + esc(d.city) : ''}</div>
             <div class="tcg-stats">
               <div><i>⏱</i><b>10 s</b><small>captura</small></div>
-              <div><i>📍</i><b>30 m</b><small>radio</small></div>
+              <div><i>📍</i><b>${PM.capRadius ? PM.capRadius(d.kind) : 30} m</b><small>radio</small></div>
               <div><i>✨</i><b>×2</b><small>aura 80 m</small></div>
               <div><i>💎</i><b>${R.sym}</b><small>${esc(R.name.toLowerCase())}</small></div>
             </div>
@@ -297,15 +297,17 @@ PM.tcg = (function () {
   .tcg-set b { color: #111; margin-left: .3em; }
   /* --- brillo holográfico --- */
   .tcg-shine, .tcg-glitter, .tcg-glare { position: absolute; inset: 0; pointer-events: none; z-index: 2; }
-  .tcg-shine { opacity: calc(var(--holo) * (.2 + var(--hyp) * .6)); mix-blend-mode: color-dodge; filter: brightness(.85) contrast(1.4) saturate(1.3);
-    background: repeating-linear-gradient(110deg, #ff0080 0%, #ffd000 7%, #00ff9d 14%, #00c3ff 21%, #b400ff 28%, #ff0080 35%), linear-gradient(var(--mx), transparent 30%, #000 50%, transparent 70%);
-    background-size: 300% 300%, 100% 100%; background-position: var(--mx) var(--my), center; background-blend-mode: hue; }
-  .r-legendario .tcg-front > .tcg-glare + * { }
-  .r-legendario .tcg-inner::after { content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; mix-blend-mode: color-dodge; opacity: calc(.04 + var(--hyp) * .2);
-    background: repeating-linear-gradient(115deg, #ff0080 0%, #ffd000 6%, #00ff9d 12%, #00c3ff 18%, #b400ff 24%, #ff0080 30%); background-size: 400% 400%; background-position: var(--mx) var(--my); }
-  .tcg-glitter { opacity: calc(var(--holo) * var(--hyp) * .9); mix-blend-mode: color-dodge;
-    background-image: radial-gradient(circle at 20% 30%, #fff 0 .06em, transparent .1em), radial-gradient(circle at 70% 60%, #fff 0 .05em, transparent .09em), radial-gradient(circle at 40% 80%, #fff 0 .05em, transparent .09em), radial-gradient(circle at 85% 20%, #fff 0 .06em, transparent .1em);
-    background-size: 2.3em 2.1em, 1.9em 2.6em, 2.7em 1.7em, 3.1em 2.9em; background-position: calc(var(--mx) * .3) calc(var(--my) * .3); }
+  /* franja holográfica suave que barre la carta al moverla */
+  .tcg-shine { opacity: calc(var(--holo) * (.12 + var(--hyp) * .55)); mix-blend-mode: color-dodge;
+    background: linear-gradient(115deg, transparent 18%, rgba(255,0,128,.65) 30%, rgba(255,200,0,.6) 38%, rgba(0,255,160,.55) 46%, rgba(0,190,255,.6) 54%, rgba(170,0,255,.6) 62%, transparent 75%);
+    background-size: 260% 260%; background-position: var(--mx) var(--my); filter: saturate(1.2); }
+  .r-legendario .tcg-inner::after { content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; mix-blend-mode: color-dodge; opacity: calc(.03 + var(--hyp) * .18);
+    background: linear-gradient(115deg, transparent 20%, rgba(255,0,128,.6) 34%, rgba(255,210,0,.55) 44%, rgba(0,200,255,.55) 54%, rgba(170,0,255,.5) 64%, transparent 78%); background-size: 280% 280%; background-position: var(--mx) var(--my); }
+  /* destellos finos y aleatorios (textura de ruido, como el foil real) solo alrededor del punto de luz */
+  .tcg-glitter { opacity: calc(var(--holo) * var(--hyp)); mix-blend-mode: color-dodge;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='1.25' numOctaves='1' seed='7' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 16 -12.4'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    background-size: 11em 11em; background-position: calc(var(--mx) * -.15) calc(var(--my) * -.15);
+    -webkit-mask-image: radial-gradient(circle at var(--mx) var(--my), #000 0%, rgba(0,0,0,.55) 16%, transparent 38%); mask-image: radial-gradient(circle at var(--mx) var(--my), #000 0%, rgba(0,0,0,.55) 16%, transparent 38%); }
   .tcg-glare { z-index: 4; mix-blend-mode: soft-light; opacity: calc(.25 + var(--hyp) * .6); background: radial-gradient(circle at var(--mx) var(--my), rgba(255,255,255,.95) 0%, rgba(255,255,255,.35) 12%, rgba(255,255,255,0) 32%, rgba(0,0,0,.18) 100%); }
   .tcg:not(.active) .tcg-glare { opacity: .15; }
   /* --- reverso --- */
@@ -350,8 +352,8 @@ PM.tcg = (function () {
   .tcg-corner path { fill: none; stroke: #ffd166; stroke-width: 2.2; } .tcg-corner path.thin { stroke-width: 1; opacity: .7; } .tcg-corner circle { fill: #ffd166; filter: drop-shadow(0 0 2px #ffb700); }
   .tcg-corner.tl { top: 2.5%; left: 2.5%; } .tcg-corner.tr { top: 2.5%; right: 2.5%; transform: scaleX(-1); }
   .tcg-corner.bl { bottom: 2.5%; left: 2.5%; transform: scaleY(-1); } .tcg-corner.br { bottom: 2.5%; right: 2.5%; transform: scale(-1); }
-  .tcg-shine.back { opacity: calc(.3 + var(--hyp) * .5); }
-  .tcg-glitter.back { opacity: calc(.35 + var(--hyp) * .65); }
+  .tcg-shine.back { opacity: calc(.08 + var(--hyp) * .45); }
+  .tcg-glitter.back { opacity: calc(var(--hyp) * .9); }
   .tcg.flat .tcg-rot { transform: none; } .tcg.flat .tcg-face { box-shadow: none; }
   /* --- vista grande --- */
   #tcg-view { position: fixed; inset: 0; z-index: 3000; display: none; place-items: center; background: radial-gradient(circle at 50% 40%, rgba(40,20,80,.75), rgba(5,5,20,.92)); backdrop-filter: blur(6px); }

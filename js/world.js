@@ -1,4 +1,7 @@
 // PintaMapa — el mundo: barrios (celdas), calles troceadas en tramos, monumentos, botes de pintura
+// Radio de captura según el sitio: los estadios son enormes (su centro está dentro del campo, donde no se puede entrar)
+PM.capRadius = (kind) => ({ Estadio: 120, 'Campo de fútbol': 50, Parque: 45 })[kind] || 30;
+
 PM.world = (function () {
   const TILE = 0.01;          // tamaño de barrio en grados (~1.1 km x 0.8 km en España)
   const PIECE_LEN = 12;       // cada calle se trocea en tramos de ~12 m pintables (fiel al trazado)
@@ -52,7 +55,7 @@ PM.world = (function () {
     if (a === 'townhall') return { kind: 'Ayuntamiento', emoji: '🏛️', rarity: 'legendario', prio: 100 };
     if (b === 'cathedral' || /catedral|cathedral|cathédrale|cattedrale|duomo|dom\b|kathedrale|domkirke/i.test(n)) return { kind: 'Catedral', emoji: '⛪', rarity: 'legendario', prio: 95 };
     if (h === 'castle' || h === 'fort') return { kind: 'Castillo', emoji: '🏰', rarity: 'legendario', prio: 90 };
-    if (l === 'stadium') return { kind: 'Estadio', emoji: '🏟️', rarity: 'epico', prio: 85 };
+    if (l === 'stadium' || b === 'stadium') return { kind: 'Estadio', emoji: '🏟️', rarity: 'epico', prio: 85 };
     if (b === 'basilica' || /bas[ií]lica|co-?catedral|concatedral/i.test(n)) return { kind: 'Basílica', emoji: '⛪', rarity: 'epico', prio: 80 };
     if (a === 'place_of_worship') return { kind: /christian/.test(tags.religion || 'christian') ? 'Iglesia' : 'Templo', emoji: '⛪', rarity: 'epico', prio: 75 };
     if (t === 'museum') return { kind: 'Museo', emoji: '🖼️', rarity: 'epico', prio: 70 };
@@ -100,12 +103,15 @@ PM.world = (function () {
     const wiki = !!(tags.wikipedia || tags.wikidata);
     let rarity = c.rarity;
     if (wiki && rarity !== 'legendario') rarity = Object.keys(RANK)[RANK[rarity] + 1];
+    // estadios con artículo en Wikipedia (los de equipos profesionales, de primera y segunda): legendarios
+    if (c.kind === 'Estadio' && wiki) rarity = 'legendario';
     const church = /^(Iglesia|Basílica|Catedral)$/.test(c.kind);
     const lm = { id, name: tags.name, kind: c.kind, emoji: c.emoji, rarity, pos, prio: c.prio + (wiki ? 6 : 0), wiki: tags.wikipedia, wd: tags.wikidata,
       townhall: c.kind === 'Ayuntamiento', church, points: 100 * RARITY[rarity].mult,
       // importantes: SIEMPRE visibles y conquistables, sin restricción de cercanía con otros puntos:
       // ayuntamiento, catedral, basílica, castillo y cualquier lugar con artículo en Wikipedia o protegido como patrimonio
-      principal: c.kind === 'Ayuntamiento' || /^(Catedral|Basílica|Castillo)$/.test(c.kind) || wiki || !!tags.heritage };
+      principal: c.kind === 'Ayuntamiento' || /^(Catedral|Basílica|Castillo|Estadio)$/.test(c.kind) || wiki || !!tags.heritage,
+      capR: PM.capRadius(c.kind) };
     if (lmBatch) lmBatch.push(lm); else commitLandmarks([lm]);
   }
 
@@ -240,7 +246,7 @@ PM.world = (function () {
   // ---------------- Caché local de barrios (IndexedDB) ----------------
   // Cada barrio se descarga una vez y se guarda 30 días: menos datos móviles, menos batería y arranque instantáneo.
   const CACHE_DAYS = 90;
-  const CACHE_V = 3;   // súbelo si cambia lo que se descarga (p. ej. nuevos tipos de puntos): fuerza a renovar la caché
+  const CACHE_V = 4;   // súbelo si cambia lo que se descarga (p. ej. nuevos tipos de puntos): fuerza a renovar la caché
   const cache = (function () {
     let dbp = null;
     function db() {
@@ -525,6 +531,7 @@ PM.world = (function () {
         nwr["historic"]["name"](${bb});
         nwr["tourism"~"^(museum|attraction|viewpoint|artwork)$"]["name"](${bb});
         nwr["leisure"~"^(stadium|park)$"]["name"](${bb});
+        nwr["building"="stadium"]["name"](${bb});
         nwr["leisure"="pitch"]["sport"="soccer"]["name"](${bb});
         nwr["place"="square"]["name"](${bb});
         nwr["man_made"="lighthouse"]["name"](${bb});
@@ -556,7 +563,7 @@ PM.world = (function () {
       clearTimeout(to);
       if (!r.ok) { cdnMissing.add(k); return null; }
       const j = await r.json();
-      if (j.v !== 2) { cdnMissing.add(k); return null; }   // formato antiguo (sin barrios): mejor de OpenStreetMap
+      if (j.v !== 3) { cdnMissing.add(k); return null; }   // formato antiguo (sin barrios): mejor de OpenStreetMap
       cache.put(k, { v: CACHE_V, t: Date.now(), els: j.els });
       if (j.name || j.city) {
         const t = ensureTile(k);

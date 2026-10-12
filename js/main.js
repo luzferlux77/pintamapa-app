@@ -195,7 +195,7 @@
     else lmMarkers[lm.id] = L.marker(lm.pos, { icon: lmIcon(lm), zIndexOffset: got ? 500 : 0 })
       .on('click', () => showLandmarkInfo(lm)).addTo(layers.lm);
     if (got && !lmHalos[lm.id]) {
-      lmHalos[lm.id] = L.circle(lm.pos, { renderer, radius: CAPTURE_RADIUS + 10, color: paintColor(), weight: 2, opacity: 0.7,
+      lmHalos[lm.id] = L.circle(lm.pos, { renderer, radius: (lm.capR || PM.capRadius(lm.kind)) + 10, color: paintColor(), weight: 2, opacity: 0.7,
         fillColor: paintColor(), fillOpacity: 0.18, interactive: false }).addTo(layers.lm);
     }
   }
@@ -420,7 +420,7 @@
   function checkDwell(p, t, visible) {
     if (!session || session.paused) { dwell = null; showDwell(); return; }
     if (dwell) {
-      if (PM.geo.dist(p, dwell.lm.pos) > CAPTURE_EXIT || !canCapture(dwell.lm)) {
+      if (PM.geo.dist(p, dwell.lm.pos) > (dwell.lm.capR || CAPTURE_RADIUS) + (CAPTURE_EXIT - CAPTURE_RADIUS) || !canCapture(dwell.lm)) {
         if (visible && canCapture(dwell.lm)) toast(`📸 Te has alejado de ${dwell.lm.emoji} ${dwell.lm.name}: captura cancelada`, 'warn', 2500);
         dwell = null;
       } else if (t - dwell.since >= CAPTURE_SECONDS * 1000) {
@@ -429,9 +429,9 @@
       }
     }
     if (!dwell) {
-      let best = null, bd = CAPTURE_RADIUS;
+      let best = null, bd = 1;   // distancia relativa a su radio de captura (los estadios tienen más)
       for (const id in W.landmarks) {
-        const lm = W.landmarks[id], d = PM.geo.dist(p, lm.pos);
+        const lm = W.landmarks[id], d = PM.geo.dist(p, lm.pos) / (lm.capR || CAPTURE_RADIUS);
         if (d <= bd && canCapture(lm)) { bd = d; best = lm; }
       }
       if (best) {
@@ -1113,7 +1113,7 @@
     openSheet(lm.emoji + ' ' + (got ? lm.name : '???'), `
       <p><span class="pill" style="background:${r.color}">${r.label}</span> ${lm.kind} · ${lm.points} pts</p>
       <p>${got ? `Capturado el ${new Date(got.t).toLocaleDateString('es-ES')} · ${got.visits} visita(s)` :
-        `Está a <b>${PM.fmtDist(d)}</b>. Acércate a menos de ${CAPTURE_RADIUS} m y quédate ${CAPTURE_SECONDS} s para capturarlo.`}</p>
+        `Está a <b>${PM.fmtDist(d)}</b>. Acércate a menos de ${lm.capR || CAPTURE_RADIUS} m y quédate ${CAPTURE_SECONDS} s para capturarlo.`}</p>
       ${!got ? '<p class="muted">Pista: ' + lm.name.replace(/[^\s]/g, (ch, i) => (i % 3 === 0 ? ch : '•')) + '</p>' : ''}`);
   }
 
