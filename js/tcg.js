@@ -366,7 +366,9 @@ PM.tcg = (function () {
   #tcg-view { position: fixed; inset: 0; z-index: 3000; display: none; place-items: center; padding-bottom: calc(92px + env(safe-area-inset-bottom)); background: radial-gradient(circle at 50% 40%, rgba(40,20,80,.75), rgba(5,5,20,.92)); backdrop-filter: blur(6px); }
   #tcg-view.show { display: grid; animation: tcgfade .25s ease-out; }
   @keyframes tcgfade { from { opacity: 0; } }
-  .tcg-stage-wrap { --w: min(94vw, 460px, calc((100vh - 150px) * .7)); width: var(--w); display: flex; flex-direction: column; align-items: center; gap: 10px; animation: tcgpop .6s cubic-bezier(.2,1.5,.4,1); }
+  .tcg-stage-wrap { --w: min(94vw, 460px, calc((100vh - 150px) * .63)); width: var(--w); display: flex; flex-direction: column; align-items: center; gap: 10px; animation: tcgpop .6s cubic-bezier(.2,1.5,.4,1); }
+  .tcg-stage-wrap .tcg { aspect-ratio: 63 / 98; }
+  .tcg-stage-wrap .tcg-flavor { -webkit-line-clamp: 11; }
   @keyframes tcgpop { from { transform: scale(.4) rotate(-12deg); opacity: 0; } }
   .tcg-badge { background: linear-gradient(90deg, #ffd166, #ffb700); color: #3a2500; font-weight: 900; padding: 6px 16px; border-radius: 99px; box-shadow: 0 0 30px #ffb700aa; font-size: 15px; }
   .tcg-actions { position: fixed; left: 50%; bottom: calc(14px + env(safe-area-inset-bottom)); transform: translateX(-50%); display: flex; gap: 4px; padding: 6px;
