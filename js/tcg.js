@@ -173,7 +173,7 @@ PM.tcg = (function () {
     const rot = el.querySelector('.tcg-rot');
     let flipped = false, raf = null, target = { x: 50, y: 50 }, cur = { x: 50, y: 50 }, active = false;
     const apply = () => {
-      cur.x += (target.x - cur.x) * 0.18; cur.y += (target.y - cur.y) * 0.18;
+      const k = el._soft ? 0.07 : 0.18; cur.x += (target.x - cur.x) * k; cur.y += (target.y - cur.y) * k;
       const rx = (cur.y - 50) / 50 * -14, ry = (cur.x - 50) / 50 * 18;
       el.style.setProperty('--mx', cur.x + '%'); el.style.setProperty('--my', cur.y + '%');
       el.style.setProperty('--rx', rx + 'deg'); el.style.setProperty('--ry', (flipped ? 180 : 0) + ry + 'deg');
@@ -182,11 +182,14 @@ PM.tcg = (function () {
     };
     const go = () => { if (!raf) raf = requestAnimationFrame(apply); };
     const point = (cx, cy) => { const b = el.getBoundingClientRect(); target = { x: Math.max(0, Math.min(100, (cx - b.left) / b.width * 100)), y: Math.max(0, Math.min(100, (cy - b.top) / b.height * 100)) }; active = true; el.classList.add('active'); go(); };
-    el.addEventListener('pointermove', (e) => point(e.clientX, e.clientY));
+    el.addEventListener('pointermove', (e) => { if (e.pointerType !== 'mouse') return; el._soft = false; point(e.clientX, e.clientY); });
     el.addEventListener('pointerleave', () => { target = { x: 50, y: 50 }; active = false; el.classList.remove('active'); go(); });
     el.addEventListener('click', () => { flipped = !flipped; el.classList.toggle('flipped', flipped); rot.style.transition = 'transform .8s cubic-bezier(.3,1.5,.5,1)'; go(); setTimeout(() => { rot.style.transition = ''; }, 800); });
     // móvil: inclinación
-    const tilt = (e) => { if (active || e.beta == null || !document.body.contains(el)) return; target = { x: 50 + Math.max(-45, Math.min(45, e.gamma)) * 1.1, y: 50 + Math.max(-45, Math.min(45, e.beta - 40)) * 1.1 }; el.classList.add('active'); go(); };
+    const tilt = (e) => { if (active || e.beta == null || !document.body.contains(el)) return; el._soft = true;
+      const t = { x: 50 + Math.max(-30, Math.min(30, e.gamma)) * 0.9, y: 50 + Math.max(-30, Math.min(30, e.beta - 40)) * 0.9 };
+      if (Math.abs(t.x - target.x) < 2.5 && Math.abs(t.y - target.y) < 2.5) return;   // ignora el temblor de la mano
+      target = t; el.classList.add('active'); go(); };
     window.addEventListener('deviceorientation', tilt);
     // vaivén suave al aparecer (para que se vea el brillo sin tocar)
     let t0 = performance.now();
@@ -202,13 +205,13 @@ PM.tcg = (function () {
     ov.innerHTML = `<div class="tcg-stage-wrap">
       ${opts.badge ? `<div class="tcg-badge">${opts.badge}</div>` : ''}
       ${html(d)}
-      <div class="tcg-actions">
-        <button data-a="flip">↻ Girar</button>
-        ${(opts.actions || []).map((a, i) => `<button data-x="${i}" class="${a.primary ? 'pri' : ''}">${a.label}</button>`).join('')}
-        <button data-a="png">⬇️ Imagen</button>
-        <button data-a="close">✕</button>
-      </div>
-      <p class="tcg-hint">Mueve el ratón (o inclina el móvil) para ver el brillo · tócala para darle la vuelta</p>
+      <p class="tcg-hint">Toca la carta para darle la vuelta</p>
+    </div>
+    <div class="tcg-actions">
+      ${btn('flip', '↻', 'Girar')}
+      ${(opts.actions || []).map((a, i) => { const m = String(a.label).match(/^(\S+)\s+(.*)$/); return btn('', m ? m[1] : '★', m ? m[2] : a.label, a.primary, i); }).join('')}
+      ${btn('png', '⤓', 'Guardar')}
+      ${btn('close', '✕', 'Cerrar')}
     </div>`;
     ov.classList.add('show');
     const card = ov.querySelector('.tcg');
@@ -229,6 +232,9 @@ PM.tcg = (function () {
       }).catch(() => {});
     }
     document.addEventListener('keydown', esc1);
+  }
+  function btn(a, ico, txt, pri, x) {
+    return `<button ${a ? `data-a="${a}"` : `data-x="${x}"`} class="${pri ? 'pri' : ''}"><i>${ico}</i><span>${txt}</span></button>`;
   }
   function esc1(e) { if (e.key === 'Escape') close(); }
   function close() { const ov = document.getElementById('tcg-view'); if (ov) ov.classList.remove('show'); document.removeEventListener('keydown', esc1); }
@@ -286,13 +292,13 @@ PM.tcg = (function () {
   .tcg-band { margin: -.1em auto 0; font-size: .6em; font-style: italic; font-weight: 600; text-align: center; color: #3a2a00; background: linear-gradient(90deg, transparent, rgba(255,255,255,.75), transparent); padding: .2em 1.5em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
   .tcg-moves { display: flex; flex-direction: column; justify-content: center; gap: .05em; margin-top: .2em; }
   .tcg-move { display: flex; align-items: center; gap: .45em; } .tcg-move b { flex: 1; font-size: .95em; font-weight: 900; color: #1b1b1b; } .tcg-move span { font-size: 1.05em; font-weight: 900; color: #1b1b1b; }
-  .tcg-moves p { margin: 0 0 .25em 3.2em; font-size: .62em; line-height: 1.3; color: #2c2c2c; }
+  .tcg-moves p { margin: 0 0 .2em 3.2em; font-size: .56em; line-height: 1.3; color: #2c2c2c; }
   .tcg-moves { gap: .15em !important; }
   .tcg-en { display: inline-flex; gap: .15em; min-width: 2.6em; } .tcg-en i { width: .95em; height: .95em; border-radius: 50%; box-shadow: inset 0 -.1em .15em rgba(0,0,0,.35), 0 0 0 .08em rgba(255,255,255,.7); }
   .tcg-wrr { display: flex; justify-content: space-between; border-top: .1em solid rgba(0,0,0,.25); padding-top: .2em; font-size: .7em; font-weight: 700; color: #222; }
   .tcg-wrr small { display: block; font-size: .7em; font-weight: 600; color: rgba(0,0,0,.55); text-transform: lowercase; }
-  .tcg-flavor { flex: 1; min-height: 0; font-size: .6em; font-style: italic; line-height: 1.38; color: #2c2c2c; border: .12em solid rgba(160,120,20,.55); border-radius: .4em; padding: .4em .6em; background: rgba(255,255,255,.4);
-    overflow: hidden; display: -webkit-box; -webkit-line-clamp: 9; -webkit-box-orient: vertical; text-align: justify; hyphens: auto; }
+  .tcg-flavor { flex: 1; min-height: 0; font-size: .74em; font-style: italic; line-height: 1.32; color: #2c2c2c; border: .12em solid rgba(160,120,20,.55); border-radius: .4em; padding: .4em .6em; background: rgba(255,255,255,.4);
+    overflow: hidden; display: -webkit-box; -webkit-line-clamp: 8; -webkit-box-orient: vertical; text-align: left; hyphens: auto; font-weight: 500; color: #1d1d1d; }
   .tcg-foot { display: flex; justify-content: space-between; align-items: center; font-size: .5em; color: rgba(0,0,0,.6); font-weight: 600; }
   .tcg-set b { color: #111; margin-left: .3em; }
   /* --- brillo holográfico --- */
@@ -352,19 +358,26 @@ PM.tcg = (function () {
   .tcg-corner path { fill: none; stroke: #ffd166; stroke-width: 2.2; } .tcg-corner path.thin { stroke-width: 1; opacity: .7; } .tcg-corner circle { fill: #ffd166; filter: drop-shadow(0 0 2px #ffb700); }
   .tcg-corner.tl { top: 2.5%; left: 2.5%; } .tcg-corner.tr { top: 2.5%; right: 2.5%; transform: scaleX(-1); }
   .tcg-corner.bl { bottom: 2.5%; left: 2.5%; transform: scaleY(-1); } .tcg-corner.br { bottom: 2.5%; right: 2.5%; transform: scale(-1); }
-  .tcg-shine.back { opacity: calc(.08 + var(--hyp) * .45); }
-  .tcg-glitter.back { opacity: calc(var(--hyp) * .9); }
+  .tcg-shine.back, .tcg-glitter.back { display: none; }
+  .tcg-back .tcg-map, .tcg-back .tcg-rays, .tcg-back .tcg-ring, .tcg-back .tcg-pin, .tcg-back .tcg-pin-ico { animation: none; }
+  .tcg-back .tcg-glare { opacity: .12 !important; }
   .tcg.flat .tcg-rot { transform: none; } .tcg.flat .tcg-face { box-shadow: none; }
   /* --- vista grande --- */
-  #tcg-view { position: fixed; inset: 0; z-index: 3000; display: none; place-items: center; background: radial-gradient(circle at 50% 40%, rgba(40,20,80,.75), rgba(5,5,20,.92)); backdrop-filter: blur(6px); }
+  #tcg-view { position: fixed; inset: 0; z-index: 3000; display: none; place-items: center; padding-bottom: calc(92px + env(safe-area-inset-bottom)); background: radial-gradient(circle at 50% 40%, rgba(40,20,80,.75), rgba(5,5,20,.92)); backdrop-filter: blur(6px); }
   #tcg-view.show { display: grid; animation: tcgfade .25s ease-out; }
   @keyframes tcgfade { from { opacity: 0; } }
-  .tcg-stage-wrap { --w: min(86vw, 400px, 58vh); width: var(--w); display: flex; flex-direction: column; align-items: center; gap: 16px; animation: tcgpop .6s cubic-bezier(.2,1.5,.4,1); }
+  .tcg-stage-wrap { --w: min(94vw, 460px, calc((100vh - 150px) * .7)); width: var(--w); display: flex; flex-direction: column; align-items: center; gap: 10px; animation: tcgpop .6s cubic-bezier(.2,1.5,.4,1); }
   @keyframes tcgpop { from { transform: scale(.4) rotate(-12deg); opacity: 0; } }
   .tcg-badge { background: linear-gradient(90deg, #ffd166, #ffb700); color: #3a2500; font-weight: 900; padding: 6px 16px; border-radius: 99px; box-shadow: 0 0 30px #ffb700aa; font-size: 15px; }
-  .tcg-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
-  .tcg-actions button { border: 0; background: rgba(255,255,255,.12); color: #fff; padding: 10px 14px; border-radius: 12px; font: 600 14px Inter, system-ui, sans-serif; cursor: pointer; backdrop-filter: blur(4px); }
-  .tcg-actions button:hover { background: rgba(255,255,255,.22); } .tcg-actions button.pri { background: #ff2e88; }
+  .tcg-actions { position: fixed; left: 50%; bottom: calc(14px + env(safe-area-inset-bottom)); transform: translateX(-50%); display: flex; gap: 4px; padding: 6px;
+    border-radius: 22px; background: rgba(20,18,40,.72); border: 1px solid rgba(255,255,255,.12); backdrop-filter: blur(14px); box-shadow: 0 10px 30px rgba(0,0,0,.45); max-width: calc(100vw - 20px); }
+  .tcg-actions button { border: 0; background: transparent; color: #fff; min-width: 64px; padding: 8px 10px 6px; border-radius: 16px; cursor: pointer;
+    display: flex; flex-direction: column; align-items: center; gap: 3px; font: 600 11.5px Inter, system-ui, sans-serif; letter-spacing: .01em; -webkit-tap-highlight-color: transparent; transition: background .15s, transform .15s; }
+  .tcg-actions button i { font-style: normal; font-size: 20px; line-height: 1; display: grid; place-items: center; width: 38px; height: 38px; border-radius: 50%; background: rgba(255,255,255,.1); }
+  .tcg-actions button span { opacity: .85; white-space: nowrap; }
+  .tcg-actions button:hover { background: rgba(255,255,255,.08); } .tcg-actions button:active { transform: scale(.94); }
+  .tcg-actions button.pri i { background: linear-gradient(135deg, #ff2e88, #ff7a3d); box-shadow: 0 0 16px rgba(255,46,136,.6); }
+  .tcg-actions button.pri span { opacity: 1; color: #ffb3d1; }
   .tcg-hint { color: rgba(255,255,255,.6); font: 12.5px Inter, system-ui, sans-serif; margin: 0; text-align: center; }
   `;
   const st = document.createElement('style'); st.textContent = css; document.head.appendChild(st);
