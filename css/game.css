@@ -288,3 +288,56 @@ details.howto ol { padding-left: 18px; line-height: 1.6; }
 #cloud-banner span { flex: 1; } #cloud-banner .x { background: none; border: none; font-size: 16px; }
 .howto-card { text-align: left; background: var(--card); border-radius: 12px; padding: 12px 14px; font-size: 13.5px; line-height: 1.5; }
 .howto-card ol { padding-left: 18px; margin: 8px 0; }
+
+/* ================= Cromos ================= */
+.tabs { margin-bottom: 12px; flex-wrap: wrap; } .tabs .btn { font-size: 13px; padding: 8px 10px; }
+.cromos { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 12px; }
+.cromo { --c: #9aa4b2; --rx: 0deg; --ry: 0deg; --hx: 50%; --hy: 50%; position: relative; aspect-ratio: 3 / 4.3; perspective: 900px; cursor: pointer; }
+.cromo.r-raro { --c: #3fa9ff; } .cromo.r-epico { --c: #b65cff; } .cromo.r-legendario { --c: #ffb700; }
+.cromo-in { position: absolute; inset: 0; transform-style: preserve-3d; transition: transform .6s cubic-bezier(.3,1.4,.5,1); transform: rotateX(var(--rx)) rotateY(var(--ry)); }
+.cromo.flip .cromo-in { transform: rotateX(var(--rx)) rotateY(calc(180deg + var(--ry))); }
+.cara { position: absolute; inset: 0; backface-visibility: hidden; -webkit-backface-visibility: hidden; border-radius: 14px; overflow: hidden;
+  background: #fff; border: 5px solid var(--c); box-shadow: 0 6px 18px rgba(0,0,0,.18), inset 0 0 0 2px rgba(255,255,255,.7); }
+.r-legendario .cara { border-image: linear-gradient(135deg, #ffe08a, #ffb700, #fff3c4, #e09b00) 1; border-radius: 6px; }
+.front .foto { position: absolute; left: 0; right: 0; top: 0; bottom: 27%; background: #eef1f7 center / cover no-repeat; }
+.front .foto.vacia { display: grid; place-items: center; background: radial-gradient(circle at 50% 40%, #ffffff, #e6e9f2); }
+.front .foto.vacia span { font-size: 54px; filter: drop-shadow(0 4px 6px rgba(0,0,0,.2)); }
+.front .foto.vacia em { position: absolute; bottom: 8px; font-style: normal; font-size: 11px; color: #5d6578; font-weight: 700; }
+.pie { position: absolute; left: 0; right: 0; bottom: 0; height: 27%; padding: 6px 8px; background: linear-gradient(#fff, #f4f6fb); border-top: 3px solid var(--c); }
+.pie b { display: block; font-size: 13px; line-height: 1.15; color: #1a1d29; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.pie small { display: block; font-size: 10.5px; color: #5d6578; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px; }
+.cinta { position: absolute; top: 6px; left: 6px; padding: 2px 8px; border-radius: 99px; font-size: 10px; font-weight: 900; color: #111; text-transform: uppercase; letter-spacing: .5px; box-shadow: 0 1px 3px rgba(0,0,0,.3); }
+.num { position: absolute; top: 6px; right: 8px; font-size: 11px; font-weight: 900; color: #fff; text-shadow: 0 1px 3px rgba(0,0,0,.7); }
+.sello { position: absolute; bottom: 29%; right: 6px; background: var(--paint); color: #fff; font-size: 10px; font-weight: 800; padding: 2px 7px; border-radius: 99px; transform: rotate(-4deg); box-shadow: 0 2px 4px rgba(0,0,0,.3); }
+.holo { position: absolute; inset: 0; pointer-events: none; border-radius: 10px; opacity: 0; }
+.r-epico .holo, .r-legendario .holo { opacity: 1; mix-blend-mode: color-dodge; background-size: 260% 260%; background-position: var(--hx) var(--hy);
+  background-image: linear-gradient(115deg, transparent 22%, rgba(255,255,255,.55) 34%, rgba(255,46,136,.28) 44%, rgba(255,209,102,.25) 50%, rgba(34,211,238,.3) 56%, rgba(168,85,247,.25) 62%, transparent 74%);
+  animation: holo 5s ease-in-out infinite; }
+.r-epico .holo { opacity: .6; }
+@keyframes holo { 0%, 100% { background-position: 0% 0%; } 50% { background-position: 100% 100%; } }
+.back { transform: rotateY(180deg); padding: 14px 12px; display: flex; flex-direction: column; background: linear-gradient(160deg, #fff, #eef1f7); }
+.back h3 { margin: 0 0 6px; font-size: 16px; color: #1a1d29; }
+.back p { font-size: 12.5px; line-height: 1.45; color: #2b3040; margin: 0 0 8px; overflow: auto; flex: 1; }
+.back ul { list-style: none; padding: 0; margin: 0 0 6px; font-size: 12px; color: #2b3040; line-height: 1.6; }
+.back small { font-size: 10px; color: #7a8399; } .back small a { color: var(--paint); }
+.cromo.barrio .foto.sil { background: #141722; }
+.cromo.barrio svg { width: 100%; height: 100%; } .cromo.barrio polyline { fill: none; stroke: var(--paint); stroke-width: 1.4; stroke-linecap: round; filter: drop-shadow(0 0 1px var(--paint)); }
+.cromo.city .foto.vacia { background: radial-gradient(circle, #fff3c4, #ffb700); }
+/* Vista grande */
+#cromo-view { position: fixed; inset: 0; z-index: 1150; display: none; place-items: center; background: rgba(10,10,25,.72); backdrop-filter: blur(4px); }
+#cromo-view.show { display: grid; }
+.cv-in { display: flex; flex-direction: column; align-items: center; gap: 14px; padding: 16px; animation: pop .5s cubic-bezier(.2,1.6,.4,1); }
+.cromo.big { width: min(78vw, 340px); }
+.cromo.big .pie b { font-size: 18px; } .cromo.big .pie small { font-size: 12.5px; } .cromo.big .cinta { font-size: 12px; }
+.cv-new { background: var(--gold); color: #1a1200; font-weight: 900; padding: 6px 16px; border-radius: 99px; box-shadow: 0 0 24px var(--gold); font-size: 15px; }
+.cv-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+.cv-actions .btn { background: #fff; color: #1a1d29; } .cv-actions .btn.on { background: var(--paint); color: #fff; }
+.cv-hint { color: #fff; font-size: 13px; max-width: 320px; text-align: center; margin: 0; opacity: .9; }
+/* Editor de foto */
+#foto-editor { position: fixed; inset: 0; z-index: 1160; display: grid; place-items: center; background: rgba(10,10,25,.85); }
+.fe-in { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 16px; color: #fff; }
+.fe-in h3 { margin: 0; }
+.fe-prev { position: relative; width: min(70vw, 300px); aspect-ratio: 3 / 4; border-radius: 14px; overflow: hidden; border: 5px solid #fff; box-shadow: 0 8px 30px rgba(0,0,0,.5); }
+.fe-prev canvas { width: 100%; height: 100%; display: block; }
+.fe-filters { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; max-width: 360px; }
+.fe-filters .btn { background: rgba(255,255,255,.12); color: #fff; border-color: rgba(255,255,255,.3); font-size: 13px; } .fe-filters .btn.on { background: var(--paint); border-color: var(--paint); }

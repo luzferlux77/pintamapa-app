@@ -101,7 +101,7 @@ PM.world = (function () {
     let rarity = c.rarity;
     if (wiki && rarity !== 'legendario') rarity = Object.keys(RANK)[RANK[rarity] + 1];
     const church = /^(Iglesia|Basílica|Catedral)$/.test(c.kind);
-    const lm = { id, name: tags.name, kind: c.kind, emoji: c.emoji, rarity, pos, prio: c.prio + (wiki ? 6 : 0),
+    const lm = { id, name: tags.name, kind: c.kind, emoji: c.emoji, rarity, pos, prio: c.prio + (wiki ? 6 : 0), wiki: tags.wikipedia, wd: tags.wikidata,
       townhall: c.kind === 'Ayuntamiento', church, points: 100 * RARITY[rarity].mult,
       // principales: siempre visibles y conquistables aunque estén pegados a otro punto: ayuntamiento, catedral,
       // basílica, castillo e iglesias importantes (con artículo en Wikipedia o protegidas como patrimonio)
@@ -812,6 +812,7 @@ PM.world = (function () {
     TILE, RARITY, tiles, pieces, landmarks, cans,
     tileKeyOf, tileBounds, ensureAround, piecesNear, onChange,
     barrios, barrioAt: barrioOf, barrioComplete, route, setAvoid, isAvoided,
+    cityAt(p) { const t = tiles[tileKeyOf(p[0], p[1])]; return (t && t.city) || (PM.state && (PM.state.data.tileNames[tileKeyOf(p[0], p[1])] || {}).city) || null; },
     // carga las celdas que faltan para tener entero el barrio (hasta 12)
     ensureBarrio(id) {
       const B = barrios[id];

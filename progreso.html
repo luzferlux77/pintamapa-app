@@ -56,8 +56,9 @@
 
     <div id="login" class="card login">
       <h2 style="margin-top:0">📊 Mi progreso real</h2>
-      <p class="muted">Todo lo que pintas con el móvil por la calle, guardado en tu GitHub privado. Funciona desde cualquier navegador, sin nada encendido en casa.</p>
-      <input id="token" type="password" placeholder="Token de GitHub (el mismo que pusiste en la app)" autocomplete="off">
+      <p class="muted">Todo lo que pintas con el móvil por la calle, guardado cifrado en la nube. Entra con tu <b>nombre de pintor</b> y la <b>contraseña</b> que pusiste en la app (Perfil → Mi cuenta en la nube).</p>
+      <input id="user" placeholder="Nombre de pintor" autocomplete="username">
+      <input id="pass" type="password" placeholder="Contraseña de pintor" autocomplete="current-password">
       <button class="btn primary" id="go">Ver mi progreso</button>
       <div id="who" class="players" style="margin-top:12px"></div>
       <p class="err" id="err"></p>
@@ -105,70 +106,45 @@
   <script src="js/util.js"></script>
   <script src="js/world.js"></script>
   <script src="js/game.js"></script>
+  <script src="js/merge.js"></script>
+  <script src="js/sync.js"></script>
   <script>
   (function () {
     const $ = (s) => document.querySelector(s);
     const KEY = 'pintamapa_dash';
-    const REPO = 'luzferlux77/pintamapa-progreso';
     let creds = {}; try { creds = JSON.parse(localStorage.getItem(KEY) || '{}'); } catch (e) {}
     let map, walkLayer, selLayer, data;
-    const serverAddr = '';
+    const REPO = PM.cloud.REPO;
 
-    // ---- lectura del repositorio privado de GitHub ----
-    async function gh(path, raw) {
-      const r = await fetch('https://api.github.com/repos/' + REPO + '/contents/' + path + '?t=' + Date.now(), { cache: 'no-store',
-        headers: { Authorization: 'Bearer ' + creds.token, 'X-GitHub-Api-Version': '2022-11-28', Accept: raw ? 'application/vnd.github.raw+json' : 'application/vnd.github+json' } });
-      if (r.status === 404) return null;
-      if (r.status === 401) throw new Error('Token no válido o caducado');
-      if (!r.ok) throw new Error('GitHub respondió ' + r.status);
-      return raw ? r.json() : r.json();
-    }
-    async function players() {
-      const list = await gh('jugadores');
-      return (list || []).filter((x) => x.type === 'dir').map((x) => x.name);
-    }
     async function load() {
       $('#err').textContent = '';
+      $('#who').innerHTML = '';
       try {
-        if (!creds.token) throw new Error('Pega tu token de GitHub');
-        if (!creds.player) {
-          const ps = await players();
-          localStorage.setItem(KEY, JSON.stringify(creds));
-          if (!ps.length) {
-            $('#who').innerHTML = `<div class="howto-card"><b>Tu token funciona ✅, pero tu móvil aún no ha guardado nada.</b>
-              <ol><li>Abre PintaMapa en el móvil (versión 0.2 o superior) y toca tu nombre.</li>
-              <li>Arriba debe poner <b>📡 Real</b> (no «Prueba»).</li>
-              <li>Toca <b>🎨 Perfil</b> → <b>☁️ Mi cuenta en la nube</b>.</li>
-              <li>Pega <b>el mismo token</b> que aquí y pulsa <b>Conectar y guardar</b>.</li>
-              <li>Vuelve aquí y pulsa <b>Ver mi progreso</b>.</li></ol>
-              <small>Desde entonces se guarda solo al terminar cada paseo y al abrir la app.</small></div>`;
-            return;
-          }
-          if (ps.length > 1) {
-            $('#who').innerHTML = '<b>¿Quién eres?</b>' + ps.map((p) => `<button class="pcard" data-p="${p}"><span class="pav">${p[0].toUpperCase()}</span><span class="pinfo"><b>${p}</b></span><span class="pgo">▶</span></button>`).join('');
-            document.querySelectorAll('#who .pcard').forEach((b) => b.addEventListener('click', () => { creds.player = b.dataset.p; load(); }));
-            return;
-          }
-          creds.player = ps[0];
+        if (!creds.user || !creds.pass) throw new Error('Pon tu nombre de pintor y tu contraseña');
+        $('#go').textContent = '⏳ Descifrando…';
+        let r;
+        try { r = await PM.cloud.load(creds.user, creds.pass); }
+        catch (e) { throw new Error(e.name === 'OperationError' ? 'Contraseña incorrecta' : (e.message || 'Error')); }
+        if (!r) {
+          $('#who').innerHTML = `<div class="howto-card"><b>No encuentro la partida de «${creds.user}» con esa contraseña.</b>
+            <ol><li>Revisa el nombre y la contraseña (las mayúsculas cuentan en la contraseña).</li>
+            <li>En el móvil: toca tu nombre → arriba debe poner <b>📡 Real</b> → <b>🎨 Perfil → ☁️ Mi cuenta en la nube</b> → pon la contraseña y pulsa <b>Activar y guardar</b>.</li>
+            <li>Vuelve aquí y pulsa <b>Ver mi progreso</b>.</li></ol></div>`;
+          return;
         }
-        const base = 'jugadores/' + creds.player + '/';
-        const save = await gh(base + 'partida.json', true);
-        if (!save) throw new Error('No encuentro la partida de ' + creds.player);
-        const geo = {};
-        for (const f of (await gh(base + 'calles')) || []) if (f.name.endsWith('.json')) Object.assign(geo, await gh(base + 'calles/' + f.name, true));
         localStorage.setItem(KEY, JSON.stringify(creds));
-        data = { name: save.player || creds.player, updated: save.syncedAt, save, geo };
+        data = { name: r.save.player || creds.user, updated: r.save.syncedAt, save: r.save, geo: r.geo };
         render();
       } catch (e) {
-        $('#err').textContent = e.message === 'Failed to fetch' ? 'Sin conexión con GitHub' : e.message;
+        $('#err').textContent = e.message === 'Failed to fetch' ? 'Sin conexión' : e.message;
         $('#login').hidden = false; $('#dash').hidden = true;
-      }
+      } finally { $('#go').textContent = 'Ver mi progreso'; }
     }
-    $('#go').addEventListener('click', () => { creds = { token: $('#token').value.trim() || creds.token }; load(); });
-    $('#token').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('#go').click(); });
+    $('#go').addEventListener('click', () => { creds = { user: $('#user').value.trim(), pass: $('#pass').value }; load(); });
+    $('#pass').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('#go').click(); });
     $('#logout').addEventListener('click', () => { localStorage.removeItem(KEY); location.reload(); });
     $('#reload').addEventListener('click', load);
-    if (creds.token) load();
+    if (creds.user && creds.pass) { $('#user').value = creds.user; load(); }
 
     const xpFor = (l) => Math.round(400 * Math.pow(l - 1, 1.6));
     function fmtTime(ms) { const m = Math.round(ms / 60000); return m >= 60 ? Math.floor(m / 60) + ' h ' + (m % 60) + ' min' : m + ' min'; }
@@ -263,7 +239,7 @@
         : '<div class="empty">Ningún monumento capturado aún.</div>';
 
       $('#footer').innerHTML = 'Último guardado desde el móvil: ' + (data.updated ? new Date(data.updated).toLocaleString('es-ES') : '—') +
-        ' · Datos en tu GitHub privado (' + REPO + ')';
+        ' · Guardado cifrado con tu contraseña';
     }
 
     function splitTrack(t) {

@@ -1017,7 +1017,7 @@
         if (session && d.first) session.st.captures++;
         placeLandmark(lm);
         if (d.first) {
-          showCard(lm, d.pts);
+          PM.cards.open(lm.id, { isNew: true, pts: d.pts });
           PM.sound.capture(); PM.vibrate([60, 40, 120]);
         } else toast(`${lm.emoji} Has vuelto a <b>${lm.name}</b> · +${d.pts}`, 'ok');
         break;
@@ -1050,6 +1050,14 @@
         break;
       case 'chest':
         celebrate('¡Cofre diario!', 'Has completado las 3 misiones de hoy. +1000. Mañana, más.', '🎁');
+        break;
+      case 'set':
+        toast(`${d.set.icon} ¡Colección «${d.set.name}» ${['', '🥉 Bronce', '🥈 Plata', '🥇 Oro'][d.tier]}!`, 'gold', 4500);
+        PM.sound.capture();
+        break;
+      case 'photo':
+        toast(`📸 ¡Cromo con foto propia! +${d.bonus} pts`, 'gold', 3500);
+        if (lmMarkers[d.id]) placeLandmark(W.landmarks[d.id] || Object.assign({ id: d.id }, S().landmarks[d.id]));
         break;
       case 'achievement':
         toast(`🏆 Logro: <b>${d.a.name}</b> — ${d.a.desc}`, 'gold', 4000);
@@ -1110,6 +1118,10 @@
   }
 
   function panelAlbum() {
+    openSheet('🃏 Álbum de cromos', '<div id="album-box"></div>');
+    PM.cards.album($('#album-box'));
+  }
+  function panelAlbumOld() {
     const s = S();
     const got = Object.entries(s.landmarks).sort((a, b) => b[1].t - a[1].t);
     const order = ['legendario', 'epico', 'raro', 'comun'];
@@ -1181,20 +1193,15 @@
       }).join('');
     }
     if (PM.isNative && PM.profile === 'real') {
-      const has = !!PM.cloud.token();
+      const has = !!PM.cloud.password();
       html += `<h4>☁️ Mi cuenta en la nube</h4>
-        <p class="muted">Tu progreso real se guarda en tu GitHub privado (<b>${PM.cloud.REPO}</b>) por Wi-Fi o datos, sin depender de ningún PC encendido. «Mi progreso» lo lee desde cualquier navegador.</p>
-        ${has ? '' : `<details class="howto"><summary>Cómo conseguir tu token (una sola vez, 1 minuto)</summary><ol>
-          <li>Pulsa <b>Crear token</b> (se abre GitHub).</li>
-          <li>Nombre: <i>PintaMapa</i> · Caducidad: la más larga posible.</li>
-          <li><b>Repository access</b> → <i>Only select repositories</i> → <b>pintamapa-progreso</b>.</li>
-          <li><b>Permissions → Repository permissions → Contents</b>: <i>Read and write</i>.</li>
-          <li><b>Generate token</b>, cópialo y pégalo aquí.</li></ol>
-          <button class="btn" id="cl-new">🔑 Crear token en GitHub</button></details>`}
-        <input id="cl-token" type="password" placeholder="${has ? 'Token guardado ✓ (pega otro para cambiarlo)' : 'Pega aquí tu token (github_pat_…)'}" autocomplete="off">
-        <button class="btn on" id="cl-go">☁️ ${has ? 'Guardar en la nube ahora' : 'Conectar y guardar'}</button>
+        <p class="muted">Tu progreso se guarda en la nube por Wi-Fi o datos, <b>cifrado con tu contraseña</b>: nadie más puede verlo. Con tu <b>nombre de pintor (${PM.player ? PM.player.name : ''}) y esta contraseña</b> lo ves en «Mi progreso» desde cualquier navegador:<br><b>luzferlux77.github.io/pintamapa-app/progreso.html</b></p>
+        ${PM.cloud.hasKey() ? '' : '<p class="err">Esta versión no trae la clave de la nube: actualiza la app.</p>'}
+        <input id="cl-pass" type="password" placeholder="${has ? 'Contraseña guardada ✓ (escribe otra para cambiarla)' : 'Inventa una contraseña de pintor (mín. 4)'}" autocomplete="new-password">
+        <button class="btn on" id="cl-go">☁️ ${has ? 'Guardar en la nube ahora' : 'Activar y guardar'}</button>
         <p class="muted" id="cl-msg">${s.syncedAt ? 'Último guardado: ' + new Date(s.syncedAt).toLocaleString('es-ES') : 'Aún no guardado en la nube.'}
-        ${Object.keys(s.pendingGeo || {}).length ? ' · ' + Object.keys(s.pendingGeo).length + ' tramos pendientes' : ''}</p>`;
+        ${Object.keys(s.pendingGeo || {}).length ? ' · ' + Object.keys(s.pendingGeo).length + ' tramos pendientes' : ''}</p>
+        <p class="muted">⚠️ Apúntala: si la olvidas no se puede recuperar (por eso nadie más puede leer tu progreso). Si la cambias, empiezas una copia nueva en la nube con lo que tengas en el móvil.</p>`;
     } else if (!PM.isNative) {
       html += `<h4>📊 Tu progreso real</h4><p class="muted">Lo que pintas con el móvil por la calle (separado de esta partida de prueba). Se lee de la nube: no hace falta tener nada encendido.</p>
         <a class="btn on" href="progreso.html" target="_blank" style="display:inline-block;text-decoration:none">📊 Abrir «Mi progreso»</a>`;
@@ -1216,12 +1223,12 @@
     document.querySelectorAll('.color:not([disabled])').forEach((b) => b.addEventListener('click', () => {
       s.color = b.dataset.c; PM.state.save(); recolorAll(); panelProfile();
     }));
-    if ($('#cl-new')) $('#cl-new').addEventListener('click', () => { location.href = 'https://github.com/settings/personal-access-tokens/new'; });
     if ($('#cl-go')) $('#cl-go').addEventListener('click', async () => {
-      const t = $('#cl-token').value.trim();
-      if (t) PM.cloud.setToken(t);
+      const pw = $('#cl-pass').value;
+      if (pw) { if (pw.length < 4) { $('#cl-msg').textContent = '❌ Mínimo 4 caracteres'; return; } PM.cloud.setPassword(pw); }
+      if (!PM.cloud.password()) { $('#cl-pass').focus(); return; }
       $('#cl-msg').textContent = '⏳ Guardando en la nube…';
-      try { await PM.cloud.now(); $('#cl-msg').textContent = '✅ ¡Guardado! Ya lo puedes ver en «Mi progreso».'; recolorAll(); }
+      try { await PM.cloud.now(); $('#cl-msg').textContent = '✅ ¡Guardado! Ya lo puedes ver en «Mi progreso» con tu pintor y contraseña.'; recolorAll(); }
       catch (e) { $('#cl-msg').textContent = '❌ ' + (e.message || e); }
     });
     document.querySelectorAll('.av-rm').forEach((b) => b.addEventListener('click', () => { removeAvoid(b.dataset.id); }));
@@ -1366,7 +1373,7 @@
         const el = document.createElement('div');
         el.id = 'cloud-banner';
         el.innerHTML = `<span>☁️ <b>Conecta tu nube</b> para guardar tu progreso y verlo en el PC</span><button class="btn on">Conectar ahora</button><button class="x">✕</button>`;
-        el.querySelector('.btn').addEventListener('click', () => { el.remove(); panelProfile(); setTimeout(() => { const t = $('#cl-token'); if (t) { t.scrollIntoView({ block: 'center' }); t.focus(); } }, 350); });
+        el.querySelector('.btn').addEventListener('click', () => { el.remove(); panelProfile(); setTimeout(() => { const t = $('#cl-pass'); if (t) { t.scrollIntoView({ block: 'center' }); t.focus(); } }, 350); });
         el.querySelector('.x').addEventListener('click', () => el.remove());
         document.body.appendChild(el);
       }, 2500);

@@ -1,90 +1,118 @@
-// PintaMapa — tu progreso REAL guardado en la nube (repositorio privado de GitHub).
-// No depende de ningún PC encendido: funciona por Wi-Fi o datos móviles, desde cualquier sitio.
-//   jugadores/<pintor>/partida.json          → progreso, logros, paseos, monumentos
-//   jugadores/<pintor>/calles/<año-mes>.json → geometría de las calles pintadas (para el mapa de «Mi progreso»)
-// Acceso con un "token" de GitHub que solo puede tocar ese repositorio (lo pegas una vez en Perfil).
+// PintaMapa — tu progreso REAL en la nube (como BusMet: la clave de GitHub va dentro de la app).
+// Cada jugador solo pone su nombre de pintor y una contraseña. Su partida se CIFRA con esa contraseña
+// (AES-256-GCM) antes de subirse al repositorio público luzferlux77/pintamapa-progreso: nadie más puede leerla.
+//   j/<huella>/partida.json   → progreso, logros, paseos, monumentos (cifrado)
+//   j/<huella>/calles-AAAA-MM.json → geometría de las calles pintadas (cifrado)
+// <huella> = SHA-256(pintor + contraseña): ni siquiera el nombre se ve en el repositorio.
+// Funciona por Wi-Fi o datos, sin depender de ningún PC encendido. «Mi progreso» lo lee con pintor + contraseña.
 PM.cloud = (function () {
   const REPO = 'luzferlux77/pintamapa-progreso';
-  const KEY = 'pintamapa_cloud';
   const API = 'https://api.github.com/repos/' + REPO + '/contents/';
+  const KEY = 'pintamapa_cloud';
   let cfg = {};
   try { cfg = JSON.parse(localStorage.getItem(KEY) || '{}'); } catch (e) {}
   let busy = false;
 
-  const token = () => cfg.token || '';
-  function setToken(t) { cfg.token = String(t || '').trim(); try { localStorage.setItem(KEY, JSON.stringify(cfg)); } catch (e) {} }
-  const slug = () => (PM.player ? PM.player.slug : '');
-  const ready = () => !!(token() && slug());
-
-  // ---- base64 <-> UTF-8 (trozos para no desbordar con partidas grandes) ----
-  function b64encode(str) {
-    const bytes = new TextEncoder().encode(str);
-    let bin = '';
-    for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
-    return btoa(bin);
-  }
-  function b64decode(b64) {
-    const bin = atob(b64.replace(/\n/g, ''));
-    const bytes = new Uint8Array(bin.length);
-    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-    return new TextDecoder().decode(bytes);
+  // clave de escritura incluida en la app al compilar (www/js/clave.js, ofuscada)
+  function writeToken() {
+    if (!PM.CLAVE) return '';
+    try {
+      const raw = atob(PM.CLAVE.d), k = PM.CLAVE.k;
+      let out = '';
+      for (let i = 0; i < raw.length; i++) out += String.fromCharCode(raw.charCodeAt(i) ^ k.charCodeAt(i % k.length));
+      return out.split('').reverse().join('');
+    } catch (e) { return ''; }
   }
 
-  async function gh(path, opts = {}, raw = false) {
-    const r = await fetch(API + path + (opts.method ? '' : '?t=' + Date.now()), Object.assign({}, opts, {
-      cache: 'no-store',
-      headers: Object.assign({ Authorization: 'Bearer ' + token(), 'X-GitHub-Api-Version': '2022-11-28',
-        Accept: raw ? 'application/vnd.github.raw+json' : 'application/vnd.github+json' }, opts.headers || {}),
-    }));
+  // contraseña del pintor actual (guardada en este móvil)
+  const passKey = () => 'pw_' + (PM.player ? PM.player.slug : '');
+  const password = () => cfg[passKey()] || '';
+  function setPassword(p) { cfg[passKey()] = String(p || ''); try { localStorage.setItem(KEY, JSON.stringify(cfg)); } catch (e) {} }
+  const ready = () => !!(PM.player && password() && writeToken());
+
+  // ---- cifrado ----
+  const enc = new TextEncoder(), dec = new TextDecoder();
+  const toB64 = (u8) => { let s = ''; for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000)); return btoa(s); };
+  const fromB64 = (b) => { const s = atob(b); const u = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) u[i] = s.charCodeAt(i); return u; };
+  async function sha256hex(text) {
+    const h = new Uint8Array(await crypto.subtle.digest('SHA-256', enc.encode(text)));
+    return [...h].map((b) => b.toString(16).padStart(2, '0')).join('');
+  }
+  async function deriveKey(slug, pass) {
+    const base = await crypto.subtle.importKey('raw', enc.encode(pass), 'PBKDF2', false, ['deriveKey']);
+    return crypto.subtle.deriveKey({ name: 'PBKDF2', salt: enc.encode('pintamapa:' + slug), iterations: 150000, hash: 'SHA-256' },
+      base, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
+  }
+  async function encrypt(key, obj) {
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const ct = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, enc.encode(JSON.stringify(obj))));
+    return { v: 1, iv: toB64(iv), ct: toB64(ct) };
+  }
+  async function decrypt(key, box) {
+    const pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: fromB64(box.iv) }, key, fromB64(box.ct));
+    return JSON.parse(dec.decode(pt));
+  }
+  async function folderOf(slug, pass) { return 'j/' + (await sha256hex(slug + '\n' + pass)).slice(0, 40) + '/'; }
+
+  // ---- GitHub ----
+  async function gh(path, opts = {}, token) {
+    const headers = Object.assign({ 'X-GitHub-Api-Version': '2022-11-28', Accept: 'application/vnd.github+json' }, opts.headers || {});
+    if (token) headers.Authorization = 'Bearer ' + token;
+    const r = await fetch(API + path + (opts.method ? '' : '?t=' + Date.now()), Object.assign({}, opts, { cache: 'no-store', headers }));
     if (r.status === 404) return null;
-    if (r.status === 401) throw new Error('El token no es válido o ha caducado');
-    if (r.status === 403) throw new Error('El token no tiene permiso de escritura en ' + REPO);
+    if (r.status === 401 || r.status === 403) throw new Error('La clave de la nube de esta versión no es válida (avisa a quien te pasó la app)');
     if (!r.ok) { const e = new Error('GitHub respondió ' + r.status); e.status = r.status; throw e; }
-    return raw ? r.text() : r.json();
+    return r.json();
   }
-  // Lee un JSON del repositorio → { data, sha } (o null si no existe). Admite archivos de más de 1 MB.
-  async function read(path) {
-    const meta = await gh(path);
+  // lee un archivo JSON del repositorio (público) → { data, sha } o null
+  async function readRaw(path, token) {
+    const meta = await gh(path, {}, token);
     if (!meta) return null;
-    const text = meta.content && meta.encoding === 'base64' ? b64decode(meta.content) : await gh(path, {}, true);
+    let text;
+    if (meta.content && meta.encoding === 'base64') text = dec.decode(fromB64(meta.content.replace(/\n/g, '')));
+    else text = await (await fetch(meta.download_url + '?t=' + Date.now(), { cache: 'no-store' })).text();
     return { data: JSON.parse(text), sha: meta.sha };
   }
-  function write(path, data, sha, msg) {
+  function write(path, data, sha, msg, token) {
     return gh(path, { method: 'PUT', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message: msg, content: b64encode(JSON.stringify(data)), sha: sha || undefined }) });
+      body: JSON.stringify({ message: msg, content: toB64(enc.encode(JSON.stringify(data))), sha: sha || undefined }) }, token);
   }
 
-  // Sube tu partida: lee la de la nube, las fusiona (nunca se pierde nada) y guarda la unión en los dos sitios.
+  // Sube tu partida: lee la de la nube, las fusiona (nunca se pierde nada) y guarda la unión, cifrada.
   async function now() {
-    if (!ready()) throw new Error('Pega tu token de GitHub en Perfil → Mi cuenta en la nube');
+    if (!writeToken()) throw new Error('Esta versión de la app no trae la clave de la nube');
+    if (!PM.player) throw new Error('Elige tu pintor');
+    if (!password()) throw new Error('Pon una contraseña de pintor en Perfil → Mi cuenta en la nube');
     if (busy) return;
     busy = true;
     try {
+      const token = writeToken(), slug = PM.player.slug, pass = password();
+      const key = await deriveKey(slug, pass);
+      const base = await folderOf(slug, pass);
       PM.state.flush();
-      const base = 'jugadores/' + slug() + '/';
       for (let attempt = 0; attempt < 3; attempt++) {
         const local = PM.state.data;
         const mine = Object.assign({}, local); delete mine.pendingGeo; delete mine.session;
         mine.player = PM.player.name;
-        const remote = await read(base + 'partida.json');
-        const merged = PM.merge(remote && remote.data, mine);
-        try {
-          await write(base + 'partida.json', merged, remote && remote.sha, `${PM.player.name}: progreso`);
-        } catch (e) { if (e.status === 409 || e.status === 422) continue; throw e; }   // otro móvil escribió a la vez: reintentar
+        const remote = await readRaw(base + 'partida.json', token);
+        let remoteSave = null;
+        if (remote) { try { remoteSave = await decrypt(key, remote.data); } catch (e) { throw new Error('No se pudo descifrar la partida de la nube'); } }
+        const merged = PM.merge(remoteSave, mine);
+        try { await write(base + 'partida.json', await encrypt(key, merged), remote && remote.sha, 'progreso', token); }
+        catch (e) { if (e.status === 409 || e.status === 422) continue; throw e; }   // otro móvil escribió a la vez
         const cur = PM.state.data;
         PM.state.replace(Object.assign({}, merged, { session: cur.session, pendingGeo: cur.pendingGeo, syncedAt: Date.now() }));
         break;
       }
-      // calles pintadas (geometría), por meses para que cada archivo sea pequeño
       const pend = PM.state.data.pendingGeo || {};
       const ids = Object.keys(pend);
       if (ids.length) {
         const d = new Date(), month = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
-        const path = base + 'calles/' + month + '.json';
+        const path = base + 'calles-' + month + '.json';
         for (let attempt = 0; attempt < 3; attempt++) {
-          const cur = await read(path);
-          const all = Object.assign({}, cur && cur.data, pend);
-          try { await write(path, all, cur && cur.sha, `${PM.player.name}: ${ids.length} tramos`); break; }
+          const cur = await readRaw(path, token);
+          const prev = cur ? await decrypt(key, cur.data) : {};
+          try { await write(path, await encrypt(key, Object.assign(prev, pend)), cur && cur.sha, 'calles', token); break; }
           catch (e) { if ((e.status === 409 || e.status === 422) && attempt < 2) continue; throw e; }
         }
         const left = Object.assign({}, PM.state.data.pendingGeo);
@@ -103,7 +131,25 @@ PM.cloud = (function () {
     catch (e) { console.warn('Guardado en la nube pendiente', e); }
   }
 
-  return { now, auto, ready, token, setToken, read, REPO };
+  // Para «Mi progreso»: carga la partida de un pintor con su contraseña (lectura pública, sin clave)
+  async function load(name, pass) {
+    const slug = PM.slug(name);
+    const key = await deriveKey(slug, pass);
+    const base = await folderOf(slug, pass);
+    const p = await readRaw(base + 'partida.json');
+    if (!p) return null;
+    const save = await decrypt(key, p.data);
+    const geo = {};
+    const files = (await gh(base.replace(/\/$/, ''))) || [];
+    for (const f of files) {
+      if (!/^calles-.*\.json$/.test(f.name)) continue;
+      const c = await readRaw(base + f.name);
+      if (c) Object.assign(geo, await decrypt(key, c.data));
+    }
+    return { save, geo };
+  }
+
+  return { now, auto, ready, load, password, setPassword, hasKey: () => !!writeToken(), REPO,
+    token: () => (password() ? 'ok' : '') };   // compatibilidad: "¿está conectada la nube?"
 })();
-// compatibilidad con el nombre anterior
 PM.sync = PM.cloud;

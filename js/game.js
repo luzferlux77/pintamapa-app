@@ -65,6 +65,11 @@ PM.state = (function () {
     tileNames: {},
     cansTaken: {},      // id -> 1 (ids incluyen la fecha)
     achievements: {},
+    cardInfo: {},       // cromos: foto/texto de Wikipedia por monumento
+    cardPhotos: {},     // cromos con foto propia (la imagen está en el móvil)
+    barrioCards: {},    // cromos de barrio: silueta de sus calles pintadas
+    cityCards: {},      // cromos de ciudad (80 %)
+    setsDone: {},       // colecciones temáticas: nivel conseguido (1 bronce, 2 plata, 3 oro)
     avoid: [],          // zonas a evitar: { id, type:'barrio', name } | { id, type:'circle', c:[lat,lon], r }
     avoidRemoved: {},   // zonas quitadas (para que la nube no las devuelva)
     stats: { paintedM: 0, walkedM: 0, bestCombo: 0, captures: 0, cans: 0, days: 0, streak: 0, lastDay: null, churches: 0 },
@@ -199,6 +204,11 @@ PM.game = (function () {
     if (p >= 0.8 && !s.conqueredB[id]) {
       s.conqueredB[id] = Date.now();
       s.barrioNames[id] = B.name;
+      // cromo del barrio: silueta de las calles pintadas (muestra de hasta 500 tramos)
+      const painted = B.pieces.filter((pc) => s.painted[pc.id]);
+      const step = Math.max(1, Math.ceil(painted.length / 500));
+      s.barrioCards[id] = { name: B.name, city: PM.world.cityAt(B.pos), t: Date.now(), color: s.color,
+        lines: painted.filter((_, i) => i % step === 0).map((pc) => pc.pts.map((q) => [+q[0].toFixed(5), +q[1].toFixed(5)])) };
       addXP(2000, 'conquest');
       progressMission('conquer', 1);
       unlock('conquistador');
@@ -246,6 +256,7 @@ PM.game = (function () {
     const cp = cityProgress(city);
     if (cp.real && cp.pct >= 0.8 && !s.citiesWon[city]) {
       s.citiesWon[city] = Date.now();
+      s.cityCards[city] = { t: Date.now() };
       addXP(25000, 'city');
       unlock('rey_ciudad');
       emit('cityWon', { city });
@@ -261,7 +272,9 @@ PM.game = (function () {
     if (!rec) {
       // se guarda la posición: el monumento conquistado se dibuja para siempre, aunque esa zona no esté cargada
       s.landmarks[lm.id] = { t: now, last: now, visits: 1, name: lm.name, kind: lm.kind, emoji: lm.emoji, rarity: lm.rarity,
-        pos: [+lm.pos[0].toFixed(6), +lm.pos[1].toFixed(6)] };
+        pos: [+lm.pos[0].toFixed(6), +lm.pos[1].toFixed(6)], wiki: lm.wiki || null, wd: lm.wd || null,
+        city: PM.world.cityAt(lm.pos), barrio: (PM.world.barrioAt(lm.pos) || {}).name || null };
+      setTimeout(checkSets, 100);
       s.stats.captures++;
       if (lm.kind === 'Templo' || lm.kind === 'Catedral') s.stats.churches++;
       addXP(lm.points, 'landmark');
@@ -283,6 +296,34 @@ PM.game = (function () {
       return true;
     }
     return false;
+  }
+
+  // ---------------- Colecciones temáticas y fotos propias (cromos) ----------------
+  const SET_XP = [300, 1000, 3000];
+  function checkSets() {
+    const s = S();
+    if (!PM.cards) return;
+    for (const set of PM.cards.SETS) {
+      const n = PM.cards.setCount(set);
+      let tier = s.setsDone[set.id] || 0;
+      while (tier < 3 && n >= set.goals[tier]) {
+        tier++;
+        s.setsDone[set.id] = tier;
+        addXP(SET_XP[tier - 1], 'set');
+        emit('set', { set, tier });
+      }
+    }
+    PM.state.save();
+  }
+  function photoTaken(id) {
+    const s = S(), r = s.landmarks[id];
+    const bonus = r ? Math.round(100 * (PM.world.RARITY[r.rarity] || { mult: 1 }).mult * 0.5) : 50;
+    addXP(bonus, 'photo');
+    const n = Object.keys(s.cardPhotos).length;
+    unlock('fotografo');
+    if (n >= 10) unlock('reportero');
+    emit('photo', { id, bonus });
+    checkSets();
   }
 
   // ---------------- Botes de pintura ----------------
@@ -374,6 +415,8 @@ PM.game = (function () {
     senor_barrios: { name: 'Señor de los barrios', desc: 'Conquista 5 barrios', icon: '🗺️' },
     perfeccionista: { name: 'Perfeccionista', desc: 'Pinta un barrio al 100 %', icon: '💯' },
     rey_ciudad: { name: 'Rey de la ciudad', desc: 'Pinta el 80 % de una ciudad', icon: '🏙️' },
+    fotografo: { name: 'Fotógrafo', desc: 'Pon tu propia foto en un cromo', icon: '📸' },
+    reportero: { name: 'Reportero', desc: '10 cromos con foto propia', icon: '🎞️' },
     madrugador: { name: 'Madrugador', desc: 'Pinta antes de las 8:00', icon: '🌅' },
     noctambulo: { name: 'Noctámbulo', desc: 'Pinta después de las 22:00', icon: '🌙' },
     racha3: { name: 'Constante', desc: 'Juega 3 días seguidos', icon: '📅' },
@@ -400,7 +443,7 @@ PM.game = (function () {
   return {
     on: (fn) => listeners.push(fn),
     level, levelProgress, COLORS, ACHIEVEMENTS,
-    paintPiece, tileProgress, cityProgress, barrioProgress, checkBarrio, visitLandmark, takeCan, ensureDaily, addWalk, tickCombo,
+    paintPiece, tileProgress, cityProgress, barrioProgress, checkBarrio, checkSets, photoTaken, visitLandmark, takeCan, ensureDaily, addWalk, tickCombo,
     get combo() { return combo; },
     comboMult,
     goldenLeft: () => Math.max(0, goldenUntil - Date.now()),
