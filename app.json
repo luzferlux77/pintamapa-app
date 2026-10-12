@@ -1,8 +1,8 @@
 {
-  "version": "0.3.0",
-  "notes": "Cromos: cada conquista es un cromo con foto real e historia (Wikipedia), marco por rareza con brillo holográfico, se gira para ver la historia. Hazle tu propia foto con filtros (Holo, Neón, Retro, Cómic) para puntos extra. Álbum con colecciones por ciudad y temáticas (bronce/plata/oro), cromos de barrio y de ciudad. Comparte tus cromos por WhatsApp.",
+  "version": "0.3.1",
+  "notes": "Nube para todos: cada jugador guarda su progreso cifrado con su nombre de pintor y una contraseña (Perfil → Mi cuenta en la nube), y lo ve en «Mi progreso» desde cualquier navegador.",
   "native": 3,
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.3.0/pintamapa-web-0.3.0.zip",
-  "checksum": "86b59fbfd88792cacc32c99dee7d96389ecac4f8d147d933468b29a911f66333",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.3.0/PintaMapa-v0.3.0.apk"
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.3.1/pintamapa-web-0.3.1.zip",
+  "checksum": "f12a37b1683c100a84c6c3e41a3784d303c710cbc517122a8e0d2bed46d5d15d",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.3.1/PintaMapa-v0.3.1.apk"
 }
