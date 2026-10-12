@@ -1,8 +1,8 @@
 {
-  "version": "0.3.7",
-  "notes": "Cartas más grandes y legibles, reverso sin parpadeos y nueva barra de botones",
+  "version": "0.3.8",
+  "notes": "Cartas más altas: la descripción se lee entera",
   "native": 3,
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.3.7/pintamapa-web-0.3.7.zip",
-  "checksum": "3c338f80a409931edbc746b3997f93989f94497dc30b35d7d8bfe2ba8c824eab",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.3.7/PintaMapa-v0.3.7.apk"
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.3.8/pintamapa-web-0.3.8.zip",
+  "checksum": "b454e6d9cd7afa33f430283397512e409ab182ddb66c17cd53f7d69ef7f8d9d9",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.3.8/PintaMapa-v0.3.8.apk"
 }
