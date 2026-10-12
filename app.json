@@ -1,8 +1,8 @@
 {
-  "version": "0.3.3",
-  "notes": "Cartas estilo Pokémon: tipo, PTS, ataques, debilidad/resistencia, historia y número de colección; brillo holográfico que sigue al ratón o la inclinación del móvil; reverso con emblema PintaMapa; se voltean al tocarlas y se exportan como imagen. En «Mi progreso», pincha un monumento del mapa para ver su carta.",
+  "version": "0.3.4",
+  "notes": "Cartas: descripción más larga (historia completa de Wikipedia y datos de la conquista, mínimo 4 líneas) y reverso nuevo con plano de ciudad neón, chincheta con pincel, anillo con el lema, marco dorado ornamentado y cinta con el número de carta.",
   "native": 3,
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.3.3/pintamapa-web-0.3.3.zip",
-  "checksum": "7525b8aa88c8af8c5c9668528171f0e2f27aa9f232ed5c69908c936523a68e80",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.3.3/PintaMapa-v0.3.3.apk"
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.3.4/pintamapa-web-0.3.4.zip",
+  "checksum": "c793d7471c2b1ba566a988f34edd4ae60e0d0333958956dc29676caa5b7d4fcd",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.3.4/PintaMapa-v0.3.4.apk"
 }
