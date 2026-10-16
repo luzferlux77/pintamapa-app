@@ -159,6 +159,7 @@ PM.game = (function () {
     if (s.painted[piece.id]) return 0;
     s.painted[piece.id] = 1;
     lastPass[piece.id] = Date.now();
+    markActiveDay();
     if (PM.profile === 'real') s.pendingGeo[piece.id] = piece.pts.map((q) => [+q[0].toFixed(6), +q[1].toFixed(6)]);
     if (piece.trail) s.stats.trailM = (s.stats.trailM || 0) + piece.len;
     if (!piece.trail) s.paintedByTile[piece.tile] = (s.paintedByTile[piece.tile] || 0) + piece.len;   // senderos: no cuentan para el %
@@ -257,7 +258,7 @@ PM.game = (function () {
     if (!loadedTotal) for (const k in s.tileNames) if (s.tileNames[k].city === city) painted += s.paintedByTile[k] || 0;
     // calles en tus zonas a evitar: fuera del total y de lo pintado
     let avoidLen = 0, avoidPainted = 0;
-    for (const id in PM.world.pieces) {
+    if ((s.avoid || []).length) for (const id in PM.world.pieces) {
       const pc = PM.world.pieces[id];
       if (!pc.avoid) continue;
       const t = PM.world.tiles[pc.tile];
@@ -284,7 +285,7 @@ PM.game = (function () {
   }
 
   // ---------------- Monumentos ----------------
-  const REVISIT_MS = 60 * 60 * 1000;
+  const REVISIT_MS = 20 * 60 * 60 * 1000;   // "vuelve cada día": a partir de 20 h de la última visita
   function visitLandmark(lm) {
     const s = S();
     const rec = s.landmarks[lm.id];
@@ -296,7 +297,7 @@ PM.game = (function () {
         city: PM.world.cityAt(lm.pos), barrio: (PM.world.barrioAt(lm.pos) || {}).name || null };
       setTimeout(checkSets, 100);
       s.stats.captures++;
-      if (lm.kind === 'Templo' || lm.kind === 'Catedral') s.stats.churches++;
+      if (/^(Iglesia|Iglesia principal|Basílica|Catedral|Templo)$/.test(lm.kind)) s.stats.churches++;
       addXP(lm.points, 'landmark');
       progressMission('landmark', 1);
       unlock('primer_sello');
@@ -381,7 +382,13 @@ PM.game = (function () {
       missions.push({ type: tpl.type, goal, text: tpl.text(goal), progress: 0, done: false, reward: 300 });
     }
     s.daily = { date: today, missions, chest: false };
-    // racha de días
+    PM.state.save();
+    return s.daily;
+  }
+  // día "jugado" = día en que has pintado o andado de verdad (abrir la app no cuenta)
+  function markActiveDay() {
+    const s = S(), today = PM.today();
+    if (s.stats.lastDay === today) return;
     const yest = new Date(Date.now() - 86400000);
     const yKey = yest.getFullYear() + '-' + String(yest.getMonth() + 1).padStart(2, '0') + '-' + String(yest.getDate()).padStart(2, '0');
     s.stats.streak = s.stats.lastDay === yKey ? s.stats.streak + 1 : 1;
@@ -390,7 +397,6 @@ PM.game = (function () {
     if (s.stats.streak >= 3) unlock('racha3');
     if (s.stats.streak >= 7) unlock('racha7');
     PM.state.save();
-    return s.daily;
   }
 
   function progressMission(type, amount, isMax) {
@@ -413,6 +419,7 @@ PM.game = (function () {
   }
 
   function addWalk(m) {
+    markActiveDay();
     S().stats.walkedM += m;
     progressMission('walk', m);
   }
@@ -460,7 +467,7 @@ PM.game = (function () {
   serie('pinta', '🛣️', [5, 21, 50, 75, 100, 150, 200, 300, 500, 750, 1000], 'Rodillo incansable', (t) => `Pinta ${t} km de calles`, (s) => km(s.stats.paintedM));
   serie('anda', '👟', [1, 5, 10, 25, 50, 100, 200, 300, 500, 1000, 2000], 'Caminante', (t) => `Camina ${t} km en total`, (s) => km(s.stats.walkedM));
   serie('captura', '📸', [5, 25, 75, 100, 150, 200, 300, 500, 750, 1000], 'Cazador de lugares', (t) => `Captura ${t} lugares`, (s) => lmList(s).length);
-  const KINDS = [['Ayuntamiento', '🏛️'], ['Catedral', '⛪'], ['Basílica', '⛪'], ['Castillo', '🏰'], ['Palacio', '🏯'], ['Estadio', '🏟️'], ['Iglesia', '⛪'],
+  const KINDS = [['Ayuntamiento', '🏛️'], ['Catedral', '⛪'], ['Basílica', '⛪'], ['Castillo', '🏰'], ['Palacio', '🏰'], ['Estadio', '🏟️'], ['Iglesia', '⛪'],
     ['Templo', '🛕'], ['Museo', '🖼️'], ['Monumento', '🗽'], ['Torre / Puerta', '🗼'], ['Teatro', '🎭'], ['Universidad', '🎓'], ['Plaza', '🏙️'], ['Faro', '🗼'],
     ['Estación', '🚉'], ['Parque', '🌳'], ['Ruinas', '🏺'], ['Mirador', '🔭'], ['Campo de fútbol', '⚽'], ['Mercado', '🛒'], ['Biblioteca', '📚'],
     ['Atracción', '⭐'], ['Memorial', '🗿'], ['Fuente', '⛲'], ['Arte urbano', '🎨'], ['Hospital', '🏥'], ['Bomberos', '🚒'], ['Patrimonio', '🏛️'], ['Molino', '🌬️'], ['Lugar histórico', '📜']];
@@ -526,7 +533,7 @@ PM.game = (function () {
 
   return {
     on: (fn) => listeners.push(fn),
-    level, levelProgress, COLORS, ACHIEVEMENTS, checkAchievements: checkAll,
+    level, levelProgress, COLORS, ACHIEVEMENTS, checkAchievements: checkAll, REVISIT_MS,
     paintPiece, repass, tileProgress, cityProgress, barrioProgress, checkBarrio, checkSets, photoTaken, visitLandmark, takeCan, ensureDaily, addWalk, tickCombo,
     get combo() { return combo; },
     comboMult,

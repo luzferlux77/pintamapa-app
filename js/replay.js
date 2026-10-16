@@ -52,14 +52,15 @@ PM.replay = (function () {
     const s = G.near(a, 45), t = G.near(b, 45);
     if (!s || !t || s === t) return null;
     const dd = new Map([[s, 0]]), prev = new Map(), done = new Set(), heap = [[0, s]];
+    const push = (x) => { heap.push(x); let i = heap.length - 1; while (i > 0) { const j = (i - 1) >> 1; if (heap[j][0] <= heap[i][0]) break; [heap[i], heap[j]] = [heap[j], heap[i]]; i = j; } };
+    const pop = () => { const top = heap[0], last = heap.pop(); if (heap.length) { heap[0] = last; let i = 0; for (;;) { const l = 2 * i + 1, r = l + 1; let m = i; if (l < heap.length && heap[l][0] < heap[m][0]) m = l; if (r < heap.length && heap[r][0] < heap[m][0]) m = r; if (m === i) break; [heap[i], heap[m]] = [heap[m], heap[i]]; i = m; } } return top; };
     let it = 0;
     while (heap.length && it++ < 40000) {
-      let m = 0; for (let i = 1; i < heap.length; i++) if (heap[i][0] < heap[m][0]) m = i;
-      const [d, n] = heap.splice(m, 1)[0];
+      const [d, n] = pop();
       if (done.has(n)) continue; done.add(n);
       if (n === t) break;
       if (d > maxLen) return null;
-      for (const [to, l] of n.e) { const nd = d + l; if (nd < (dd.has(to) ? dd.get(to) : Infinity)) { dd.set(to, nd); prev.set(to, n); heap.push([nd, to]); } }
+      for (const [to, l] of n.e) { const nd = d + l; if (nd < (dd.has(to) ? dd.get(to) : Infinity)) { dd.set(to, nd); prev.set(to, n); push([nd, to]); } }
     }
     if (!done.has(t)) return null;
     const path = [t.p]; for (let n = t; prev.has(n); n = prev.get(n)) path.push(prev.get(n).p);

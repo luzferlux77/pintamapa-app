@@ -56,7 +56,7 @@ PM.world = (function () {
     // prio: importancia para la conquista (decide qué se queda cuando dos están muy cerca). El ayuntamiento, siempre el primero.
     const a = tags.amenity, h = tags.historic, t = tags.tourism, b = tags.building, l = tags.leisure, n = tags.name || '';
     if (a === 'townhall') return { kind: 'Ayuntamiento', emoji: '🏛️', rarity: 'legendario', prio: 100 };
-    if (b === 'cathedral' || /catedral|cathedral|cathédrale|cattedrale|duomo|dom\b|kathedrale|domkirke/i.test(n)) return { kind: 'Catedral', emoji: '⛪', rarity: 'legendario', prio: 95 };
+    if (b === 'cathedral' || /catedral|cathedral|cathédrale|cattedrale|\bduomo\b|\bdom\b|kathedrale|domkirke/i.test(n)) return { kind: 'Catedral', emoji: '⛪', rarity: 'legendario', prio: 95 };
     if (h === 'castle' || h === 'fort') return { kind: 'Castillo', emoji: '🏰', rarity: 'legendario', prio: 90 };
     if (b === 'palace' || /\b(palau|palacio|palace|palais|palazzo|pałac|palácio|schloss|paleis)\b/i.test(n)) return { kind: 'Palacio', emoji: '🏰', rarity: 'epico', prio: 84 };
     if (l === 'stadium' || b === 'stadium') return { kind: 'Estadio', emoji: '🏟️', rarity: 'epico', prio: 85 };
@@ -199,6 +199,7 @@ PM.world = (function () {
     }
     for (const lm of list) {
       if (landmarks[lm.id] || skip.has(lm)) continue;
+      if (nearbyAccepted(lm.pos).some((o) => o.name === lm.name && PM.geo.dist(o.pos, lm.pos) < 80)) continue;
       if (!lm.principal) {
         const clash = nearbyAccepted(lm.pos).some((o) => PM.geo.dist(o.pos, lm.pos) < (o.townhall ? TOWNHALL_GAP : MIN_GAP));
         if (clash) continue;
@@ -328,7 +329,9 @@ PM.world = (function () {
     for (const f of [0.2, 0.5, 0.8]) {
       const q = PM.geo.lerp(p.pts[0], p.pts[p.pts.length - 1], f);
       let hit = null;
-      for (const rec of legacyIdx[cellKey(q[0], q[1])] || []) if (PM.geo.distToPolyline(q, rec.pts) <= 5) { hit = rec; break; }
+      const ci = Math.floor(q[0] / CELL), cj = Math.floor(q[1] / CELL);
+      for (let di = -1; di <= 1 && !hit; di++) for (let dj = -1; dj <= 1 && !hit; dj++)
+        for (const rec of legacyIdx[(ci + di) + ':' + (cj + dj)] || []) if (PM.geo.distToPolyline(q, rec.pts) <= 5) { hit = rec; break; }
       if (!hit) return null;
       heat = Math.max(heat, hit.heat);
     }
@@ -657,9 +660,12 @@ PM.world = (function () {
   function scheduleReassign() { clearTimeout(reassignTimer); reassignTimer = setTimeout(reassignAll, 250); }
   function reassignAll() {
     for (const k in barrios) delete barrios[k];
+    const memo = new Map();
     for (const id in pieces) {
       const pc = pieces[id];
-      const b = barrioOf(pc.mid);
+      const ck = cellKey(pc.mid[0], pc.mid[1]);
+      let b = memo.get(ck);
+      if (!b) { b = barrioOf(pc.mid); memo.set(ck, b); }
       pc.barrio = b.id;
       let B = barrios[b.id];
       if (!B) {
@@ -899,6 +905,15 @@ PM.world = (function () {
     keys.forEach((k) => nameTile(k));
   }
 
+  // Carga estas celdas y espera a que estén listas (aunque otra carga las tuviera ya en marcha)
+  async function ensureKeys(keys) {
+    for (let i = 0; i < keys.length; i += 8) {
+      try { await loadTiles(keys.slice(i, i + 8)); } catch (e) { /* sin red: se intenta lo que se pueda */ }
+    }
+    const t0 = Date.now();
+    while (keys.some((k) => !(tiles[k] && tiles[k].loaded)) && Date.now() - t0 < 30000) await new Promise((r) => setTimeout(r, 400));
+  }
+
   // Fase 1: solo el entorno inmediato, para empezar a pintar ya (no se guarda en caché: es parcial)
   async function quickLoad(lat, lon) {
     const dLat = 150 / PM.geo.mPerDegLat, dLon = 150 / PM.geo.mPerDegLon(lat);
@@ -1085,7 +1100,7 @@ PM.world = (function () {
   return {
     TILE, RARITY, tiles, pieces, landmarks, cans,
     tileKeyOf, tileBounds, ensureAround, piecesNear, onChange,
-    barrios, barrioAt: barrioOf, barrioComplete, route, setAvoid, isAvoided, addLegacyGeo,
+    barrios, barrioAt: barrioOf, barrioComplete, route, setAvoid, isAvoided, addLegacyGeo, ensureKeys,
     cityAt(p) { const t = tiles[tileKeyOf(p[0], p[1])]; return (t && t.city) || (PM.state && (PM.state.data.tileNames[tileKeyOf(p[0], p[1])] || {}).city) || null; },
     // carga las celdas que faltan para tener entero el barrio (hasta 12)
     ensureBarrio(id) {

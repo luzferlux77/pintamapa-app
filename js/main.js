@@ -85,7 +85,8 @@
 
   // ---------- Barrios reales: contorno del barrio donde estás y de los conquistados, con bandera ----------
   let curBarrio = null;
-  function refreshFlag() { renderBarrios(); }
+  let flagTimer = null;
+  function refreshFlag() { clearTimeout(flagTimer); flagTimer = setTimeout(renderBarrios, 120); }
   // ---------- Zonas a evitar (personales, privadas): fuera del % de barrio y ciudad ----------
   let avoidEdit = false;
   function setAvoidEdit(on) {
@@ -120,7 +121,7 @@
     const already = S().avoid.find((z) => (z.type === 'barrio' && z.id === b.id) || (z.type === 'circle' && PM.geo.dist(p, z.c) <= z.r));
     if (already) { askRemoveAvoid(already); return; }
     openSheet('🚫 Zona a evitar', `
-      <p class="muted">Sus calles quedan <b>fuera del porcentaje</b> del barrio y de la ciudad: puedes llegar al 80 % sin pasar por ahí. Allí no salen botes y el radar no te lleva. Solo lo ves tú.</p>
+      <p class="muted">Sus calles quedan <b>fuera del porcentaje</b> del barrio y de la ciudad: puedes llegar al 80 % sin pasar por ahí. El radar no te lleva allí. Solo lo ves tú.</p>
       <h4>Alrededor de este punto</h4>
       <div class="seg"><button class="btn" data-r="100">100 m</button><button class="btn" data-r="200">200 m</button><button class="btn" data-r="400">400 m</button></div>
       <h4>O el barrio entero</h4>
@@ -441,7 +442,7 @@
     if (document.hidden || !session) { $('#radar').classList.remove('show'); return; }
     let lm = null, lmD = Infinity, can = null, canD = Infinity;
     for (const id in W.landmarks) {
-      if (S().landmarks[id] || W.isAvoided(W.landmarks[id].pos)) continue;
+      if (S().landmarks[id] || (S().avoid.length && W.isAvoided(W.landmarks[id].pos))) continue;
       const d = PM.geo.dist(pos, W.landmarks[id].pos);
       if (d < lmD) { lmD = d; lm = W.landmarks[id]; }
     }
@@ -462,7 +463,7 @@
   // Captura por permanencia: CAPTURE_SECONDS seguidos a menos de CAPTURE_RADIUS del monumento.
   // t = hora real de la lectura GPS (con la pantalla bloqueada las lecturas llegan luego, en lote).
   let dwell = null;   // { lm, since }
-  const canCapture = (lm) => { const r = S().landmarks[lm.id]; return !r || Date.now() - r.last > 3600000; };
+  const canCapture = (lm) => { const r = S().landmarks[lm.id]; return !r || Date.now() - r.last > G.REVISIT_MS; };
   function checkDwell(p, t, visible) {
     if (!session || session.paused) { dwell = null; showDwell(); return; }
     if (dwell) {
@@ -964,11 +965,8 @@
       if ((S().walks || []).some((w) => w.id === 'gpx' + t0)) { msg('Este recorrido ya estaba importado.'); return; }
       msg('⏳ Cargando las calles del recorrido…');
       const keys = [...new Set(pts.map((q) => W.tileKeyOf(q.lat, q.lon)))];
-      for (let i = 0; i < keys.length; i++) {
-        const [a, b] = keys[i].split('_').map(Number);
-        msg(`⏳ Cargando calles (${i + 1}/${keys.length})…`);
-        await W.ensureAround((a + 0.5) * W.TILE, (b + 0.5) * W.TILE);
-      }
+      msg(`⏳ Cargando calles (${keys.length} zona${keys.length > 1 ? 's' : ''})…`);
+      await W.ensureKeys(keys);
       msg('🖌️ Pintando…');
       const st = { walked: 0, painted: 0, pts: 0, pieces: 0, captures: 0, bestCombo: 0, conquests: 0, repassed: 0 };
       const before = { m: S().stats.paintedM, xp: S().xp };
@@ -1023,13 +1021,15 @@
   }
 
   // ---------------- HUD ----------------
+  let hudB = { p: null, b: null, dirty: true };
   function updateHUD() {
     const lp = G.levelProgress();
     $('#lvl').textContent = lp.short; $('#lvl').title = 'Nivel ' + lp.label; $('#lvl').style.color = lp.tier ? lp.tier.color : '';
     $('#xpbar i').style.width = (lp.pct * 100).toFixed(1) + '%';
     $('#xptext').textContent = `${PM.fmtNum(S().xp)} pts · v${PM.VERSION.app}`;
     const t = W.tiles[curTile];
-    const bq = t && (t.loaded || t.partial) ? W.barrioAt(pos) : null;
+    if (t && (t.loaded || t.partial) && (!hudB.p || hudB.dirty || PM.geo.dist(hudB.p, pos) > 8)) hudB = { p: pos.slice(), b: W.barrioAt(pos), dirty: false };
+    const bq = t && (t.loaded || t.partial) ? hudB.b : null;
     const B = bq && W.barrios[bq.id];
     if (t && (t.loaded || t.partial)) {
       if (bq && bq.id !== curBarrio) { curBarrio = bq.id; W.ensureBarrio(bq.id); renderBarrios(); }
@@ -1207,14 +1207,14 @@
   });
 
   W.onChange((ev, d) => {
-    if (ev === 'barrios') { renderBarrios(); return; }
+    if (ev === 'barrios') { hudB.dirty = true; renderBarrios(); return; }
     if (ev === 'migrated') { Object.keys(tileLayers).forEach((k) => renderTile(k, true)); return; }
     if (ev === 'loaded' || ev === 'partial') {
       d.tiles.forEach((k) => renderTile(k, true));
       renderLandmarks(); renderCans();
       if (ev === 'loaded') $('#loading').classList.remove('show');
       else $('#loading').textContent = '🗺️ Ya puedes pintar · completando el barrio…';
-      if (lastP) paintAround(lastP);
+      if (lastP && session && !session.paused) paintAround(lastP);
     } else if (ev === 'loading') {
       $('#loading').textContent = d.quick ? '🗺️ Descargando las calles de tu alrededor…' : '🗺️ Descargando calles del barrio…';
       $('#loading').classList.add('show');
@@ -1503,8 +1503,7 @@
   function playerCard(p) {
     let sv = {};
     try { sv = JSON.parse(localStorage.getItem('pintamapa_save_' + p.slug + '_' + PM.profile) || '{}'); } catch (e) {}
-    let lvl = 1; const xp = sv.xp || 0;
-    while (xp >= Math.round(400 * Math.pow(lvl, 1.6))) lvl++;
+    const lvl = PM.levelInfo(sv.xp || 0).label;
     const km = sv.stats ? PM.fmtDist(sv.stats.paintedM || 0) : '0 m';
     return `<button class="pcard ${PM.player && PM.player.slug === p.slug ? 'cur' : ''}" data-slug="${p.slug}">
       <span class="pav" style="background:${sv.color || '#ff2e88'}">${p.name.slice(0, 1).toUpperCase()}</span>
