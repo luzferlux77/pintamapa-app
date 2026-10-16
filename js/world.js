@@ -117,7 +117,11 @@ PM.world = (function () {
       if (area < 30000) return;
     }
     if (!pos) return;
-    const id = el.type[0] + el.id;
+    let id = el.type[0] + el.id;
+    // ya conquistado con otro id (llegó de otra fuente de datos): se usa el de tu conquista
+    if (PM.state && !PM.state.data.landmarks[id]) {
+      for (const [cid, r] of Object.entries(PM.state.data.landmarks)) if (r.name === tags.name && r.pos && PM.geo.dist(r.pos, pos) < 60) { id = cid; break; }
+    }
     if (landmarks[id]) return;
     // los que tienen artículo en Wikipedia son más "importantes": suben un nivel de rareza y algo de prioridad
     const wiki = !!(tags.wikipedia || tags.wikidata);
@@ -216,43 +220,142 @@ PM.world = (function () {
     return false;
   }
 
-  function addWay(wayId, geom, acceptTiles, wide, trail) {
-    // recorre la polilínea y corta cada PIECE_LEN metros; id estable: way:k
-    let k = 0, cur = [geom[0]], acc = 0;
-    const flush = () => {
-      if (cur.length < 2) return;
-      const id = wayId + ':' + k++;
-      let len = 0;
-      for (let i = 0; i < cur.length - 1; i++) len += PM.geo.dist(cur[i], cur[i + 1]);
-      const mid = PM.geo.lerp(cur[0], cur[cur.length - 1], 0.5);
-      const tk = tileKeyOf(mid[0], mid[1]);
-      if (acceptTiles.has(tk) && !pieces[id] && len > 0.5) {
-        const p = { id, tile: tk, pts: cur, len, mid, wide: !!wide, trail: !!trail };
-        graphAdd(p);
-        p.avoid = inAvoidCircle(mid);
-        pieces[id] = p;
-        tiles[tk].pieces.push(p);
-        if (!trail) tiles[tk].total += len;
-        const cells = new Set(cur.map((q) => cellKey(q[0], q[1])));
-        cells.add(cellKey(mid[0], mid[1]));
-        cells.forEach((c) => (index[c] = index[c] || []).push(id));
+  // Tramos de calle "anclados al mapa": cada calle se corta donde cruza una cuadrícula fija de ~11 m, y el id del
+  // tramo es la casilla + su dirección. Así el mismo trozo de calle tiene SIEMPRE el mismo id, venga de donde venga
+  // (OpenFreeMap, OpenStreetMap oficial, VersaTiles u Overpass), y lo pintado se reconoce con cualquier fuente.
+  const GLAT = 0.0001, GLON = 0.00013;
+  function gridCut(geom) {
+    const out = []; let cur = [geom[0]], curLen = 0;
+    for (let i = 1; i < geom.length; i++) {
+      const a = geom[i - 1], b = geom[i], ts = [];
+      if (a[0] !== b[0]) for (let k = Math.floor(Math.min(a[0], b[0]) / GLAT) + 1; k * GLAT < Math.max(a[0], b[0]); k++) ts.push((k * GLAT - a[0]) / (b[0] - a[0]));
+      if (a[1] !== b[1]) for (let k = Math.floor(Math.min(a[1], b[1]) / GLON) + 1; k * GLON < Math.max(a[1], b[1]); k++) ts.push((k * GLON - a[1]) / (b[1] - a[1]));
+      ts.sort((x, y) => x - y);
+      let last = a;
+      for (const t of ts) {
+        if (t <= 1e-9 || t >= 1 - 1e-9) continue;
+        const q = [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
+        curLen += PM.geo.dist(last, q); last = q;
+        cur.push(q);
+        if (curLen >= 1) { out.push(cur); cur = [q]; curLen = 0; }   // trozos de menos de 1 m: se quedan pegados al siguiente
       }
-    };
+      curLen += PM.geo.dist(last, b);
+      cur.push(b);
+    }
+    if (cur.length > 1) { if (curLen < 1 && out.length) out[out.length - 1].push(...cur.slice(1)); else out.push(cur); }
+    return out;
+  }
+  function pieceId(pts, mid) {
+    const a = pts[0], b = pts[pts.length - 1];
+    const brg = (Math.atan2((b[1] - a[1]) * Math.cos(a[0] * Math.PI / 180), b[0] - a[0]) * 180 / Math.PI + 360) % 180;
+    const sec = Math.floor(brg / 22.5) % 8;
+    return { base: 'c' + Math.floor(mid[0] / GLAT) + '_' + Math.floor(mid[1] / GLON) + '.', sec };
+  }
+
+  function addWay(wayId, geom, acceptTiles, wide, trail) {
+    const added = [];
+    for (const pts of gridCut(geom)) {
+      let len = 0;
+      for (let i = 0; i < pts.length - 1; i++) len += PM.geo.dist(pts[i], pts[i + 1]);
+      if (len < 0.3) continue;
+      const mid = PM.geo.lerp(pts[0], pts[pts.length - 1], 0.5);
+      const tk = tileKeyOf(mid[0], mid[1]);
+      if (!acceptTiles.has(tk)) continue;
+      const { base, sec } = pieceId(pts, mid);
+      let id = base + sec;
+      // el mismo tramo llegado por otra tesela o fuente: ya está
+      if (pieces[id] && PM.geo.dist(pieces[id].mid, mid) < 4) continue;
+      // si la dirección cae justo en el borde entre dos sectores, se reconoce lo ya pintado con el sector vecino
+      const painted = PM.state ? PM.state.data.painted : {};
+      if (!painted[id]) for (const alt of [base + (sec + 1) % 8, base + (sec + 7) % 8]) if (painted[alt] && !pieces[alt]) { id = alt; break; }
+      if (pieces[id]) { let n = 2; while (pieces[id + '~' + n]) n++; id = id + '~' + n; }   // dos calles en la misma casilla
+      const p = { id, tile: tk, pts, len, mid, wide: !!wide, trail: !!trail };
+      graphAdd(p);
+      p.avoid = inAvoidCircle(mid);
+      pieces[id] = p;
+      tiles[tk].pieces.push(p);
+      if (!trail) tiles[tk].total += len;
+      const cells = new Set(pts.map((q) => cellKey(q[0], q[1])));
+      cells.add(cellKey(mid[0], mid[1]));
+      cells.forEach((c) => (index[c] = index[c] || []).push(id));
+      added.push(p);
+    }
+    return added;
+  }
+
+  // ---------------- Migración: lo pintado con los tramos antiguos (id "w<vía>:<n>") pasa a los tramos nuevos ----------------
+  // Nada se pierde: los ids antiguos se quedan guardados; los tramos nuevos que caen encima de una calle que ya
+  // pintaste se marcan como pintados (sin dar puntos otra vez). La geometría antigua sale de las calles guardadas
+  // en el móvil (Overpass), de lo pendiente de subir y de tu nube.
+  const LEGACY_RE = /^w\d+:\d+$/;
+  let legacyOn = null;
+  const legacyIdx = {};   // celda (~50 m) -> [{ pts, heat }]
+  let legacyCount = 0;
+  function legacyActive() {
+    if (legacyOn === null && PM.state) legacyOn = Object.keys(PM.state.data.painted).some((k) => LEGACY_RE.test(k));
+    return !!legacyOn;
+  }
+  function addLegacy(pts, heat) {
+    const rec = { pts, heat: heat || 1 };
+    const cells = new Set(pts.map((q) => cellKey(q[0], q[1])));
+    cells.forEach((c) => (legacyIdx[c] = legacyIdx[c] || []).push(rec));
+    legacyCount++;
+  }
+  // corte antiguo (cada 12 m desde el inicio de la vía), idéntico al de versiones anteriores, para saber qué geometría tenía cada id
+  function legacyPieces(wayId, geom, cb) {
+    let k = 0, cur = [geom[0]], acc = 0;
+    const flush = () => { if (cur.length < 2) return; cb(wayId + ':' + k++, cur); };
     for (let i = 1; i < geom.length; i++) {
       let a = cur[cur.length - 1];
       const b = geom[i];
       let seg = PM.geo.dist(a, b);
-      while (acc + seg >= PIECE_LEN) {
-        const t = (PIECE_LEN - acc) / seg;
-        const cut = PM.geo.lerp(a, b, t);
-        cur.push(cut);
-        flush();
+      while (acc + seg >= 12) {
+        const t = (12 - acc) / seg, cut = PM.geo.lerp(a, b, t);
+        cur.push(cut); flush();
         cur = [cut]; a = cut; seg = PM.geo.dist(a, b); acc = 0;
       }
-      acc += seg;
-      cur.push(b);
+      acc += seg; cur.push(b);
     }
     if (acc > 3 || k === 0) flush();
+  }
+  function legacyFrom(el, geom) {
+    if (!legacyActive() || el.src === 'vt' || typeof el.id !== 'number') return;
+    const s = PM.state.data;
+    legacyPieces('w' + el.id, geom, (id, pts) => { if (s.painted[id]) addLegacy(pts.slice(), (s.heat || {})[id]); });
+  }
+  function legacyCovers(p) {
+    let heat = 0;
+    for (const f of [0.2, 0.5, 0.8]) {
+      const q = PM.geo.lerp(p.pts[0], p.pts[p.pts.length - 1], f);
+      let hit = null;
+      for (const rec of legacyIdx[cellKey(q[0], q[1])] || []) if (PM.geo.distToPolyline(q, rec.pts) <= 5) { hit = rec; break; }
+      if (!hit) return null;
+      heat = Math.max(heat, hit.heat);
+    }
+    return { heat };
+  }
+  function migrate(list) {
+    if (!legacyCount || !PM.state) return 0;
+    const s = PM.state.data;
+    let n = 0;
+    for (const p of list) {
+      if (s.painted[p.id]) continue;
+      const c = legacyCovers(p);
+      if (!c) continue;
+      s.painted[p.id] = 1; n++;
+      if (c.heat > 1) { s.heat = s.heat || {}; s.heat[p.id] = Math.max(s.heat[p.id] || 0, c.heat); }
+    }
+    if (n) PM.state.save();
+    return n;
+  }
+  // geometría antigua conocida (id → puntos): pendientes de subir, nube…
+  function addLegacyGeo(geo) {
+    if (!legacyActive() || !geo) return 0;
+    const s = PM.state.data;
+    for (const [id, pts] of Object.entries(geo)) if (LEGACY_RE.test(id) && s.painted[id] && pts && pts.length > 1) addLegacy(pts, (s.heat || {})[id]);
+    const n = migrate(Object.values(pieces));
+    if (n) emit('migrated', { n });
+    return n;
   }
 
 
@@ -309,7 +412,7 @@ PM.world = (function () {
   // ---------------- Caché local de barrios (IndexedDB) ----------------
   // Cada barrio se descarga una vez y se guarda 30 días: menos datos móviles, menos batería y arranque instantáneo.
   const CACHE_DAYS = 90;
-  const CACHE_V = 6;   // súbelo si cambia lo que se descarga (p. ej. nuevos tipos de puntos): fuerza a renovar la caché
+  const CACHE_V = 7;   // súbelo si cambia lo que se descarga (p. ej. nuevos tipos de puntos): fuerza a renovar la caché
   const cache = (function () {
     let dbp = null;
     function db() {
@@ -375,10 +478,17 @@ PM.world = (function () {
   // Con la pantalla apagada (móvil en el bolsillo) el GPS a veces se salta lecturas. Entre dos lecturas
   // separadas se busca el camino más corto POR LAS CALLES y se pinta ese recorrido (no una línea recta).
   const gnodes = new Map();   // "lat,lon" -> { p:[lat,lon], e:[{ to, len, piece }] }
-  const gkey = (q) => q[0].toFixed(6) + ',' + q[1].toFixed(6);
+  const gkey = (q) => q[0].toFixed(5) + ',' + q[1].toFixed(5);
   function gnode(q) {
     const k = gkey(q);
     let n = gnodes.get(k);
+    if (!n) {   // ¿hay un vértice a menos de 1 m en una casilla vecina? (la misma esquina llegada de dos teselas)
+      const la = Math.round(q[0] * 1e5), lo = Math.round(q[1] * 1e5);
+      for (let i = -1; i <= 1 && !n; i++) for (let j = -1; j <= 1 && !n; j++) {
+        const o = gnodes.get(((la + i) / 1e5).toFixed(5) + ',' + ((lo + j) / 1e5).toFixed(5));
+        if (o && PM.geo.dist(o.p, q) < 1) n = o;
+      }
+    }
     if (!n) { n = { k, p: q, e: [] }; gnodes.set(k, n); }
     return n;
   }
@@ -456,6 +566,8 @@ PM.world = (function () {
   function noteBarrio(el) {
     const t = el.tags || {};
     if (el.type === 'node' && NODE_LVL[t.place] && t.name) {
+      // el mismo barrio llegado de otra fuente (con otro id): se queda el primero
+      if (!barrioNodes[el.id] && Object.values(barrioNodes).some((b) => b.name === t.name && PM.geo.dist(b.pos, [el.lat, el.lon]) < 600)) return true;
       if (!barrioNodes[el.id]) { barrioNodes[el.id] = { id: el.id, name: t.name, pos: [el.lat, el.lon], lvl: NODE_LVL[t.place] }; scheduleReassign(); }
       return true;
     }
@@ -661,6 +773,7 @@ PM.world = (function () {
   // Completa un barrio guardado sin los lugares de Wikidata (y los añade al mapa en cuanto llegan)
   // (de uno en uno, en segundo plano, para no saturar a los servidores mientras se cargan calles)
   const completing = new Set();
+  let extrasFailT = 0;
   let completeChain = Promise.resolve();
   function completeTile(k, c) {
     if (completing.has(k)) return;
@@ -670,9 +783,9 @@ PM.world = (function () {
         const [[s, w], [n, e]] = tileBounds(k);
         const bb = [s, w, n, e].map((v) => v.toFixed(5)).join(',');
         let add = [], extrasMiss = !!c.extrasMiss, wdMiss = !!c.wdMiss;
-        if (extrasMiss) {
+        if (extrasMiss && Date.now() - extrasFailT > 600000) {   // Overpass caído hace poco: ni lo intenta (10 min)
           try { const d = await overpass(QUERY(bb), 45000); add = add.concat(d.elements.map(slim).filter((el) => tilesOf(el).has(k))); extrasMiss = false; }
-          catch (err) { console.warn('Lugares del barrio pendientes', k, err); }
+          catch (err) { extrasFailT = Date.now(); console.warn('Extras del barrio pendientes (Overpass no responde)', k, err); }
         }
         if (wdMiss) {
           const got = await wikidataBox(bb);
@@ -695,6 +808,24 @@ PM.world = (function () {
       clearTimeout(to); return r;
     } catch (err) { console.warn('Wikidata no disponible', err); return null; }   // null = falló (se reintentará)
   }
+  // Calles y lugares desde los mapas vectoriales (en paralelo y en menos de un segundo normalmente)
+  let vtFailT = 0;
+  const vtDown = () => !PM.vtiles || Date.now() - vtFailT < 5 * 60000;   // si fallaron hace poco, 5 min por Overpass
+  async function vectorTiles(keys) {
+    try {
+      const [s, w, n, e] = bboxOf(keys).split(',').map(Number);
+      const { els, src } = await PM.vtiles.fetchBox(s + 1e-6, w + 1e-6, n - 1e-6, e - 1e-6);
+      const per = {}; keys.forEach((k) => (per[k] = []));
+      for (const el of els) for (const k of tilesOf(el)) if (per[k]) per[k].push(el);
+      for (const k of keys) {
+        const entry = { v: CACHE_V, t: Date.now(), els: per[k], wdMiss: true, extrasMiss: true, src };
+        cache.put(k, entry);
+        setTimeout(() => completeTile(k, entry), 1500);   // patrimonio, contornos de barrio y Wikidata: después, sin prisa
+      }
+      return per;
+    } catch (err) { console.warn('Mapas vectoriales no disponibles; uso Overpass', err); vtFailT = Date.now(); return null; }
+  }
+
   // Descarga barrios de Overpass (una consulta) y los guarda en caché; devuelve {barrio: elementos}
   async function fetchTiles(keys) {
     // solo calles (rápido); lugares, barrios y Wikidata se completan justo después en segundo plano
@@ -716,16 +847,20 @@ PM.world = (function () {
   // Mete elementos en el mundo (calles troceadas en los barrios aceptados + monumentos)
   function ingest(elements, accept) {
     lmBatch = [];
+    const newPieces = [];
     const seen = new Set();
     for (const el of elements) {
       if (seen.has(el.type + el.id)) continue;
       seen.add(el.type + el.id);
       if (el.type === 'way' && el.geometry && el.tags && el.tags.highway && (HW_RE.test(el.tags.highway) || isTrailTags(el.tags))) {
         const trail = !HW_RE.test(el.tags.highway);
-        addWay('w' + el.id, el.geometry.map((g) => [g.lat, g.lon]), accept, !trail && isWide(el.tags), trail);
+        const geom = el.geometry.map((g) => [g.lat, g.lon]);
+        legacyFrom(el, geom);
+        newPieces.push(...addWay('w' + el.id, geom, accept, !trail && isWide(el.tags), trail));
       } else if (el.tags && !noteBarrio(el)) addLandmark(el);
     }
     commitLandmarks(lmBatch); lmBatch = null;
+    migrate(newPieces);
     scheduleReassign();
   }
 
@@ -738,7 +873,11 @@ PM.world = (function () {
       const els = [];
       const fetchKeys = [];
       for (const k of keys) { const c = await cachedTile(k); if (c) els.push(...c); else fetchKeys.push(k); }
-      // los que no están en el móvil: primero GitHub (rápido), el resto de OpenStreetMap
+      // los que no están en el móvil: mapas vectoriales (OpenFreeMap → OSM oficial → VersaTiles), luego GitHub y, al final, Overpass
+      if (fetchKeys.length && !demoMode && !vtDown()) {
+        const per = await vectorTiles(fetchKeys);
+        if (per) { for (const k of fetchKeys) els.push(...per[k]); fetchKeys.length = 0; }
+      }
       if (fetchKeys.length && !demoMode) {
         const got = await Promise.all(fetchKeys.map((k) => cdnTile(k)));
         for (let i = fetchKeys.length - 1; i >= 0; i--) if (got[i]) { els.push(...got[i]); fetchKeys.splice(i, 1); }
@@ -784,10 +923,12 @@ PM.world = (function () {
       const ring = [];
       for (let di = -1; di <= 1; di++) for (let dj = -1; dj <= 1; dj++) if (di || dj) ring.push((ci + di) + '_' + (cj + dj));
       try {
-        if (!ensureTile(cur).loaded && !ensureTile(cur).partial && !demoMode && !(await cachedTile(cur)) && !(await cdnTile(cur))) await quickLoad(lat, lon);
+        // los mapas vectoriales ya son rápidos; la carga "de urgencia" por Overpass solo si esas fuentes están caídas
+        if (vtDown() && !ensureTile(cur).loaded && !ensureTile(cur).partial && !demoMode && !(await cachedTile(cur)) && !(await cdnTile(cur))) await quickLoad(lat, lon);
         await loadTiles([cur]);
         // el anillo de alrededor en tandas de 2 (consultas pequeñas = rápidas, y si una falla no se pierde todo)
-        for (let i = 0; i < ring.length; i += 2) await loadTiles(ring.slice(i, i + 2));
+        const step = vtDown() ? 2 : 8;   // con mapas vectoriales, todo el anillo de una vez (en paralelo)
+        for (let i = 0; i < ring.length; i += step) await loadTiles(ring.slice(i, i + step));
         retries = 0;
       } catch (err) {
         // Nunca inventamos calles sobre una ciudad real: reintentamos más tarde
@@ -944,7 +1085,7 @@ PM.world = (function () {
   return {
     TILE, RARITY, tiles, pieces, landmarks, cans,
     tileKeyOf, tileBounds, ensureAround, piecesNear, onChange,
-    barrios, barrioAt: barrioOf, barrioComplete, route, setAvoid, isAvoided,
+    barrios, barrioAt: barrioOf, barrioComplete, route, setAvoid, isAvoided, addLegacyGeo,
     cityAt(p) { const t = tiles[tileKeyOf(p[0], p[1])]; return (t && t.city) || (PM.state && (PM.state.data.tileNames[tileKeyOf(p[0], p[1])] || {}).city) || null; },
     // carga las celdas que faltan para tener entero el barrio (hasta 12)
     ensureBarrio(id) {

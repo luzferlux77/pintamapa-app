@@ -1208,6 +1208,7 @@
 
   W.onChange((ev, d) => {
     if (ev === 'barrios') { renderBarrios(); return; }
+    if (ev === 'migrated') { Object.keys(tileLayers).forEach((k) => renderTile(k, true)); return; }
     if (ev === 'loaded' || ev === 'partial') {
       d.tiles.forEach((k) => renderTile(k, true));
       renderLandmarks(); renderCans();
@@ -1554,6 +1555,13 @@
     requestAnimationFrame(loop);
     PM.sync.auto();
     PM.update.watch(toast);
+    // tramos pintados con versiones anteriores: su geometría (pendiente de subir y la de tu nube) para reconocerlos con la nueva fuente de mapas
+    W.addLegacyGeo(S().pendingGeo);
+    if (PM.profile === 'real' && PM.player && PM.cloud.password() && Date.now() - (S().legacyCloudT || 0) > 7 * 86400000) {
+      PM.cloud.load(PM.player.name, PM.cloud.password()).then((r) => {
+        if (r && r.geo) { W.addLegacyGeo(r.geo); S().legacyCloudT = Date.now(); PM.state.save(); }
+      }).catch((e) => console.warn('Geometría de la nube para la migración: pendiente', e));
+    }
     // perfil real sin nube conectada: aviso claro (sin el token en el móvil, el PC no puede ver tu progreso)
     if (PM.isNative && PM.profile === 'real' && !PM.cloud.token()) {
       setTimeout(() => {
