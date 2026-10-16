@@ -1,8 +1,8 @@
 {
-  "version": "0.5.2",
-  "notes": "Cartas holográficas: el brillo arcoíris recorre toda la carta al inclinar el móvil (estable, sin parpadeos), también en el reverso; botón Compartir con su símbolo",
+  "version": "0.5.3",
+  "notes": "Holograma de las cartas más sutil y realista",
   "native": 3,
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.5.2/pintamapa-web-0.5.2.zip",
-  "checksum": "86476b17cacfe1d3faa913f81516004164a69707cb231f9305e843e8091e7bf6",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.5.2/PintaMapa-v0.5.2.apk"
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.5.3/pintamapa-web-0.5.3.zip",
+  "checksum": "10716ebc14198241866074dd050a98289cd4041ad09e21d1432a1be11abb67f5",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.5.3/PintaMapa-v0.5.3.apk"
 }
