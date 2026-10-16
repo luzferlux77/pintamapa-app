@@ -79,6 +79,19 @@
     .pbar em { position: absolute; left: 80%; top: -2px; bottom: -2px; width: 2px; background: var(--text); opacity: .5; }
     .insight { display: flex; gap: 10px; align-items: flex-start; padding: 10px 0; border-bottom: 1px solid var(--line); font-size: 13.5px; line-height: 1.45; }
     .insight:last-child { border-bottom: 0; } .insight .ic { font-size: 18px; width: 26px; text-align: center; flex: none; }
+    .act-seg { display: flex; gap: 4px; background: #eef0f4; padding: 4px; border-radius: 12px; margin-bottom: 12px; }
+    .act-seg button { flex: 1; border: 0; background: transparent; padding: 7px 4px; border-radius: 9px; font: 600 12.5px Inter, sans-serif; color: var(--muted); cursor: pointer; }
+    .act-seg button.on { background: #fff; color: var(--text); box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+    .dl { font-size: 11px; font-weight: 700; } .dl.up { color: #059669; } .dl.down { color: #dc2626; }
+    .streak { display: flex; gap: 18px; align-items: center; flex-wrap: wrap; } .streak b { font-size: 22px; display: block; } .streak small { color: var(--muted); font-size: 12px; }
+    .streak .dots { display: flex; gap: 4px; align-items: center; flex-wrap: wrap; } .streak .dots i { width: 14px; height: 14px; border-radius: 4px; background: #eef0f4; }
+    .streak .dots i.on { background: var(--paint); } .streak .dots small { width: 100%; }
+    .recs { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; } .rec { display: flex; gap: 10px; align-items: center; padding: 10px; border-radius: 12px; background: #f8f9fc; cursor: pointer; }
+    .rec span { font-size: 20px; } .rec div { flex: 1; min-width: 0; } .rec small { display: block; color: var(--muted); font-size: 11.5px; } .rec b { font-size: 15px; } .rec em { font-style: normal; font-size: 11px; color: var(--muted); }
+    .rec:hover { background: #f1f3f8; }
+    .hbars div { display: grid; grid-template-columns: 34px 1fr 52px; align-items: center; gap: 8px; margin: 5px 0; font-size: 12.5px; }
+    .hbars i { height: 10px; background: #eef0f4; border-radius: 6px; overflow: hidden; } .hbars em { display: block; height: 100%; background: var(--cyan); border-radius: 6px; }
+    .hbars .hi em { background: var(--paint); } .hbars .hi span, .hbars .hi b { font-weight: 800; } .hbars b { text-align: right; font-weight: 600; color: var(--muted); }
     .calhead { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; } .calhead b { font-size: 16px; } .calhead b::first-letter { text-transform: uppercase; }
     .calnav { border: 1px solid var(--line); background: #fff; width: 34px; height: 34px; border-radius: 10px; font-size: 18px; cursor: pointer; }
     .calgrid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; text-align: center; }
@@ -179,7 +192,7 @@
     const KEY = 'pintamapa_dash';
     const MIN_WALK = 120000;   // los paseos de menos de 2 minutos no cuentan
     let creds = {}; try { creds = JSON.parse(localStorage.getItem(KEY) || '{}'); } catch (e) {}
-    let data, map, layers = {}, selLayer = null, tab = 'res', fitBounds = null, stackGroups = [], calMonth = null, calDay = null;
+    let data, map, layers = {}, selLayer = null, tab = 'res', fitBounds = null, stackGroups = [], calMonth = null, calDay = null, actPeriod = 'd30';
     const esc = (t) => String(t == null ? '' : t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
     const km = (m) => (m / 1000).toFixed(m >= 10000 ? 1 : 2);
     const dist = (m) => PM.fmtDist(m || 0);
@@ -429,6 +442,88 @@
       return html + '</div>';
     }
 
+    // gráfico de área doble (andado / pintado)
+    function area(bk) {
+      const W = 400, H = 140, pl = 4, pb = 18, n = bk.length, max = Math.max(0.1, ...bk.map((b) => Math.max(b.w, b.p)));
+      const X = (i) => pl + (n === 1 ? (W - pl * 2) / 2 : i * (W - pl * 2) / (n - 1)), Y = (v) => H - pb - v / max * (H - pb - 8);
+      const path = (k) => bk.map((b, i) => (i ? 'L' : 'M') + X(i).toFixed(1) + ',' + Y(b[k]).toFixed(1)).join('');
+      const fill = (k) => path(k) + `L${X(n - 1).toFixed(1)},${H - pb}L${X(0).toFixed(1)},${H - pb}Z`;
+      const every = Math.max(1, Math.ceil(n / 6));
+      let svg = `<svg viewBox="0 0 ${W} ${H}" width="100%" style="display:block"><defs>
+        <linearGradient id="gw" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#93c5fd" stop-opacity=".55"/><stop offset="1" stop-color="#93c5fd" stop-opacity="0"/></linearGradient>
+        <linearGradient id="gp" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="var(--paint)" stop-opacity=".45"/><stop offset="1" stop-color="var(--paint)" stop-opacity="0"/></linearGradient></defs>`;
+      for (let g = 1; g <= 3; g++) svg += `<line x1="0" x2="${W}" y1="${Y(max * g / 3).toFixed(1)}" y2="${Y(max * g / 3).toFixed(1)}" stroke="#eef0f4"/>`;
+      svg += `<path d="${fill('w')}" fill="url(#gw)"/><path d="${path('w')}" fill="none" stroke="#60a5fa" stroke-width="2"/>`;
+      svg += `<path d="${fill('p')}" fill="url(#gp)"/><path d="${path('p')}" fill="none" stroke="var(--paint)" stroke-width="2.4"/>`;
+      bk.forEach((b, i) => { svg += `<circle cx="${X(i).toFixed(1)}" cy="${Y(b.p).toFixed(1)}" r="${b.p ? 2.6 : 0}" fill="var(--paint)"><title>${b.lab}: ${b.w.toFixed(2)} km andados · ${b.p.toFixed(2)} km nuevos</title></circle>`;
+        if (i % every === 0 || i === n - 1) svg += `<text x="${X(i).toFixed(1)}" y="${H - 4}" font-size="10" fill="#9ca3af" text-anchor="middle">${b.lab}</text>`; });
+      svg += `<text x="${W - 2}" y="${Y(max) - 2}" font-size="10" fill="#9ca3af" text-anchor="end">${max.toFixed(1)} km</text>`;
+      return svg + '</svg>';
+    }
+    // acumulado con hitos (5, 10, 25, 50, 100… km)
+    function cumulative(c) {
+      if (c.length < 2) return '<div class="empty">Necesitas al menos 2 paseos.</div>';
+      const W = 400, H = 120, pb = 16, t0 = c[0].t, t1 = c[c.length - 1].t, max = c[c.length - 1].v || 1;
+      const X = (t) => 4 + (t - t0) / Math.max(1, t1 - t0) * (W - 8), Y = (v) => H - pb - v / max * (H - pb - 10);
+      const d = c.map((q, i) => (i ? 'L' : 'M') + X(q.t).toFixed(1) + ',' + Y(q.v).toFixed(1)).join('');
+      let svg = `<svg viewBox="0 0 ${W} ${H}" width="100%" style="display:block"><path d="${d}L${X(t1).toFixed(1)},${H - pb}L${X(t0)},${H - pb}Z" fill="var(--paint)" fill-opacity=".12"/><path d="${d}" fill="none" stroke="var(--paint)" stroke-width="2.5"/>`;
+      for (const m of [1, 5, 10, 25, 50, 100, 250, 500, 1000]) {
+        if (m > max) break;
+        const hit = c.find((q) => q.v >= m);
+        svg += `<g><circle cx="${X(hit.t).toFixed(1)}" cy="${Y(m).toFixed(1)}" r="4" fill="#fff" stroke="var(--paint)" stroke-width="2"/><text x="${Math.min(W - 18, Math.max(18, X(hit.t))).toFixed(1)}" y="${(Y(m) - 8).toFixed(1)}" font-size="10" font-weight="700" fill="#374151" text-anchor="middle">${m} km</text><title>${m} km el ${new Date(hit.t).toLocaleDateString('es-ES')}</title></g>`;
+      }
+      svg += `<text x="4" y="${H - 2}" font-size="10" fill="#9ca3af">${new Date(t0).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}</text><text x="${W - 4}" y="${H - 2}" font-size="10" fill="#9ca3af" text-anchor="end">hoy</text>`;
+      return svg + '</svg>';
+    }
+    // mapa de calor estilo GitHub, con meses y leyenda
+    function heatmap() {
+      const days = A.days, max = Math.max(1, ...Object.values(days).map((d) => d.painted));
+      const end = new Date(); end.setHours(0, 0, 0, 0);
+      const start = new Date(end.getTime() - 25 * 7 * 86400000); start.setDate(start.getDate() - ((start.getDay() + 6) % 7));
+      const cs = 13, gap = 3, weeks = Math.ceil((end - start) / 86400000 / 7) + 1, W = 24 + weeks * (cs + gap), H = 18 + 7 * (cs + gap);
+      let svg = `<svg viewBox="0 0 ${W} ${H + 18}" width="100%" style="display:block">`, lastM = -1;
+      ['L', '', 'X', '', 'V', '', 'D'].forEach((l, i) => { if (l) svg += `<text x="0" y="${18 + i * (cs + gap) + 10}" font-size="9" fill="#9ca3af">${l}</text>`; });
+      for (let t = start.getTime(), i = 0; t <= end.getTime(); t += 86400000, i++) {
+        const wk = Math.floor(i / 7), wd = i % 7, dt = new Date(t), d = days[dayKey(t)];
+        if (wd === 0 && dt.getMonth() !== lastM) { lastM = dt.getMonth(); svg += `<text x="${24 + wk * (cs + gap)}" y="10" font-size="9.5" fill="#6b7280">${dt.toLocaleDateString('es-ES', { month: 'short' })}</text>`; }
+        const lv = d ? 0.25 + 0.75 * d.painted / max : 0;
+        svg += `<rect x="${24 + wk * (cs + gap)}" y="${18 + wd * (cs + gap)}" width="${cs}" height="${cs}" rx="3" fill="${d ? 'var(--paint)' : '#eef0f4'}" fill-opacity="${d ? lv.toFixed(2) : 1}"><title>${dt.toLocaleDateString('es-ES')}${d ? ' · ' + dist(d.painted) + ' pintados · ' + dist(d.walked) + ' andados' : ''}</title></rect>`;
+      }
+      const lx = W - 5 * (cs + gap) - 34;
+      svg += `<text x="${lx - 4}" y="${H + 12}" font-size="9" fill="#9ca3af" text-anchor="end">menos</text>`;
+      [0, 0.3, 0.55, 0.8, 1].forEach((v, i) => { svg += `<rect x="${lx + i * (cs + gap)}" y="${H + 3}" width="${cs}" height="${cs}" rx="3" fill="${v ? 'var(--paint)' : '#eef0f4'}" fill-opacity="${v || 1}"/>`; });
+      svg += `<text x="${lx + 5 * (cs + gap) + 2}" y="${H + 12}" font-size="9" fill="#9ca3af">más</text>`;
+      return svg + '</svg>';
+    }
+    // reloj de 24 h (barras radiales)
+    function clock24(hours) {
+      const max = Math.max(1e-6, ...hours), cx = 90, cy = 90, r0 = 34, r1 = 82;
+      let svg = `<svg viewBox="0 0 180 180" width="100%" style="display:block;max-width:220px;margin:auto"><circle cx="${cx}" cy="${cy}" r="${r0 - 4}" fill="#f8f9fc"/>`;
+      hours.forEach((v, hh) => {
+        const a0 = (hh / 24) * 2 * Math.PI - Math.PI / 2 + 0.02, a1 = ((hh + 1) / 24) * 2 * Math.PI - Math.PI / 2 - 0.02, r = r0 + (r1 - r0) * (v / max);
+        const P = (a, rr) => (cx + rr * Math.cos(a)).toFixed(1) + ',' + (cy + rr * Math.sin(a)).toFixed(1);
+        svg += `<path d="M${P(a0, r0)}L${P(a0, Math.max(r0 + 2, r))}A${r},${r} 0 0 1 ${P(a1, Math.max(r0 + 2, r))}L${P(a1, r0)}A${r0},${r0} 0 0 0 ${P(a0, r0)}Z" fill="${v ? 'var(--paint)' : '#eef0f4'}" fill-opacity="${v ? (0.35 + 0.65 * v / max).toFixed(2) : 1}"><title>${hh}:00 · ${v.toFixed(2)} km</title></path>`;
+      });
+      [[0, '0h'], [6, '6h'], [12, '12h'], [18, '18h']].forEach(([hh, l]) => { const a = hh / 24 * 2 * Math.PI - Math.PI / 2; svg += `<text x="${(cx + (r0 - 14) * Math.cos(a)).toFixed(1)}" y="${(cy + (r0 - 14) * Math.sin(a) + 3).toFixed(1)}" font-size="8" fill="#9ca3af" text-anchor="middle">${l}</text>`; });
+      return svg + '</svg>';
+    }
+    // barras horizontales con valor
+    function hbars(labels, vals, hi) {
+      const max = Math.max(1e-6, ...vals);
+      return '<div class="hbars">' + labels.map((l, i) => `<div class="${i === hi ? 'hi' : ''}"><span>${l}</span><i><em style="width:${(vals[i] / max * 100).toFixed(1)}%"></em></i><b>${vals[i].toFixed(1)} km</b></div>`).join('') + '</div>';
+    }
+    // ritmo por paseo (min/km), con media
+    function paceLine(ws) {
+      const W = 400, H = 110, pb = 16, vals = ws.map((w) => w.elapsed / 60000 / (w.st.walked / 1000));
+      const mn = Math.min(...vals) * 0.9, mx = Math.max(...vals) * 1.05, X = (i) => 10 + i * (W - 20) / (ws.length - 1), Y = (v) => 8 + (mx - v) / (mx - mn || 1) * (H - pb - 14);   // lento arriba, rápido abajo
+      const avg = vals.reduce((a, v) => a + v, 0) / vals.length;
+      let svg = `<svg viewBox="0 0 ${W} ${H}" width="100%" style="display:block"><line x1="0" x2="${W}" y1="${Y(avg).toFixed(1)}" y2="${Y(avg).toFixed(1)}" stroke="#d1d5db" stroke-dasharray="4 4"/>
+        <text x="${W - 2}" y="${(Y(avg) - 3).toFixed(1)}" font-size="9" fill="#9ca3af" text-anchor="end">media ${Math.floor(avg)}:${String(Math.round(avg % 1 * 60)).padStart(2, '0')}</text>
+        <path d="${vals.map((v, i) => (i ? 'L' : 'M') + X(i).toFixed(1) + ',' + Y(v).toFixed(1)).join('')}" fill="none" stroke="var(--cyan)" stroke-width="2.4"/>`;
+      vals.forEach((v, i) => { svg += `<circle cx="${X(i).toFixed(1)}" cy="${Y(v).toFixed(1)}" r="3.2" fill="#fff" stroke="var(--cyan)" stroke-width="2"><title>${new Date(ws[i].start).toLocaleDateString('es-ES')} · ${Math.floor(v)}:${String(Math.round(v % 1 * 60)).padStart(2, '0')} /km</title></circle>`; });
+      return svg + '</svg>';
+    }
+
     // ---------------- panel ----------------
     document.querySelectorAll('#tabs button').forEach((b) => b.addEventListener('click', () => {
       tab = b.dataset.t; document.querySelectorAll('#tabs button').forEach((x) => x.classList.toggle('on', x === b)); drawPanel();
@@ -468,16 +563,63 @@
           <div class="row"><span>🔥 Racha más larga</span><b>${A.maxStreak} días</b></div></div>`;
       }
       if (tab === 'act') {
-        const N = 30, vals = [], labs = [];
-        for (let i = N - 1; i >= 0; i--) { const t = Date.now() - i * 86400000, d = days[dayKey(t)]; vals.push([d ? d.walked / 1000 : 0, d ? d.painted / 1000 : 0]); labs.push(new Date(t).getDate()); }
-        h += `<div class="card"><h3>Últimos 30 días <span>km</span></h3>${bars(vals, labs, { colors: ['#c7d2fe', 'var(--paint)'], every: 5, fmt: (v) => v.toFixed(2) + ' km' })}
-          <div class="legend"><span><i style="background:#c7d2fe"></i>caminado</span><span><i style="background:var(--paint)"></i>pintado</span></div></div>`;
-        h += `<div class="card"><h3>Calendario <span>6 meses</span></h3>${calendar()}</div>`;
-        h += `<div class="grid2">
-          <div class="card"><h3>Hora del día</h3>${bars(A.hours, A.hours.map((_, i) => i), { every: 6, h: 90, fmt: (v) => v.toFixed(2) + ' km' })}</div>
-          <div class="card"><h3>Día de la semana</h3>${bars(A.wdays, ['L', 'M', 'X', 'J', 'V', 'S', 'D'], { h: 90, colors: ['var(--cyan)'], fmt: (v) => v.toFixed(2) + ' km' })}</div></div>`;
-        const lastW = walks.slice(0, 20).reverse();
-        h += `<div class="card"><h3>Evolución por paseo <span>últimos ${lastW.length}</span></h3>${lastW.length ? bars(lastW.map((w) => (w.st.painted || 0) / 1000), lastW.map((w) => new Date(w.start).getDate() + '/' + (new Date(w.start).getMonth() + 1)), { every: Math.ceil(lastW.length / 6), fmt: (v) => v.toFixed(2) + ' km pintados' }) : '<div class="empty">Sin paseos aún.</div>'}</div>`;
+        // ---- periodo elegido y el anterior (para comparar) ----
+        const DAY = 86400000, today0 = new Date(); today0.setHours(0, 0, 0, 0);
+        const PER = { d7: { n: 7, unit: 'd', name: '7 días' }, d30: { n: 30, unit: 'd', name: '30 días' }, w12: { n: 12, unit: 'w', name: '12 semanas' }, all: { n: 0, unit: 'm', name: 'Todo' } };
+        const per = PER[actPeriod] || PER.d30;
+        const firstWalk = walks.length ? Math.min(...walks.map((w) => w.start)) : Date.now();
+        const spanMs = per.unit === 'd' ? per.n * DAY : per.unit === 'w' ? per.n * 7 * DAY : Math.max(DAY, Date.now() - firstWalk + DAY);
+        const from = Date.now() - spanMs, prevFrom = from - spanMs;
+        const inP = walks.filter((w) => w.start >= from), inPrev = walks.filter((w) => w.start >= prevFrom && w.start < from);
+        const sum = (ws, f) => ws.reduce((a, w) => a + (f(w) || 0), 0);
+        const agg = (ws) => ({ walked: sum(ws, (w) => w.st.walked), painted: sum(ws, (w) => w.st.painted), ms: sum(ws, (w) => w.elapsed), pts: sum(ws, (w) => w.st.pts), n: ws.length, days: new Set(ws.map((w) => dayKey(w.start))).size });
+        const cur = agg(inP), prv = agg(inPrev);
+        const delta = (a, b) => actPeriod === 'all' || !b ? '' : (() => { const d = (a - b) / b * 100; return `<span class="dl ${d >= 0 ? 'up' : 'down'}">${d >= 0 ? '▲' : '▼'} ${Math.abs(d).toFixed(0)} %</span>`; })();
+        const tile = (v, l, d) => `<div class="kpi"><b>${v}</b><small>${l}</small>${d ? `<div>${d}</div>` : ''}</div>`;
+        h += `<div class="seg act-seg">${Object.entries(PER).map(([k, v]) => `<button class="${k === actPeriod ? 'on' : ''}" data-per="${k}">${v.name}</button>`).join('')}</div>`;
+        h += `<div class="kpis">${tile(dist(cur.walked), 'andados', delta(cur.walked, prv.walked))}${tile(dist(cur.painted), 'calles nuevas', delta(cur.painted, prv.painted))}
+          ${tile(dur(cur.ms), 'en la calle', delta(cur.ms, prv.ms))}${tile(cur.days, 'días activos', delta(cur.days, prv.days))}
+          ${tile(cur.n, 'paseos', delta(cur.n, prv.n))}${tile(PM.fmtNum(Math.round(cur.pts)), 'puntos', delta(cur.pts, prv.pts))}</div>`;
+        // ---- gráfico de área: andado y pintado por día / semana / mes ----
+        const buckets = [];
+        if (per.unit === 'd') for (let i = per.n - 1; i >= 0; i--) { const t0 = today0.getTime() - i * DAY; buckets.push({ t0, t1: t0 + DAY, lab: new Date(t0).getDate() + '/' + (new Date(t0).getMonth() + 1) }); }
+        else if (per.unit === 'w') for (let i = per.n - 1; i >= 0; i--) { const mon = today0.getTime() - ((today0.getDay() + 6) % 7) * DAY - i * 7 * DAY; buckets.push({ t0: mon, t1: mon + 7 * DAY, lab: 'sem ' + new Date(mon).getDate() + '/' + (new Date(mon).getMonth() + 1) }); }
+        else { const d0 = new Date(firstWalk); for (let y = d0.getFullYear(), m = d0.getMonth(); new Date(y, m, 1) <= new Date(); m++) { const t0 = new Date(y, m, 1).getTime(), t1 = new Date(y, m + 1, 1).getTime(); buckets.push({ t0, t1, lab: new Date(t0).toLocaleDateString('es-ES', { month: 'short' }) }); } }
+        buckets.forEach((bk) => { const ws = walks.filter((w) => w.start >= bk.t0 && w.start < bk.t1); bk.w = sum(ws, (w) => w.st.walked) / 1000; bk.p = sum(ws, (w) => w.st.painted) / 1000; });
+        h += `<div class="card"><h3>Andado y pintado <span>km por ${per.unit === 'd' ? 'día' : per.unit === 'w' ? 'semana' : 'mes'}</span></h3>${area(buckets)}
+          <div class="legend"><span><i style="background:#93c5fd"></i>andado</span><span><i style="background:var(--paint)"></i>calles nuevas</span></div></div>`;
+        // ---- acumulado de calles pintadas con hitos ----
+        const asc = walks.slice().sort((x, y) => x.start - y.start);
+        let accP = 0; const cum = asc.map((w) => { accP += (w.st.painted || 0) / 1000; return { t: w.start, v: accP }; });
+        h += `<div class="card"><h3>Calles pintadas en total <span>${dist(accP * 1000)}</span></h3>${cumulative(cum)}</div>`;
+        // ---- mapa de calor de 6 meses ----
+        h += `<div class="card"><h3>Constancia <span>últimos 6 meses</span></h3>${heatmap()}</div>`;
+        // ---- reloj 24 h + días de la semana ----
+        const peakH = A.hours.indexOf(Math.max(...A.hours)), WD = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
+        const peakD = A.wdays.indexOf(Math.max(...A.wdays));
+        h += `<div class="grid2"><div class="card"><h3>¿A qué hora sales? <span>${walks.length ? 'sobre las ' + peakH + ':00' : ''}</span></h3>${clock24(A.hours)}</div>
+          <div class="card"><h3>Días de la semana <span>${walks.length ? 'mejor: ' + WD[peakD].toLowerCase() : ''}</span></h3>${hbars(WD.map((d) => d.slice(0, 3)), A.wdays, peakD)}</div></div>`;
+        // ---- rachas ----
+        const last14 = []; for (let i = 13; i >= 0; i--) { const k = dayKey(today0.getTime() - i * DAY); last14.push(!!days[k]); }
+        let streak = 0; for (let i = 0; ; i++) { const k = dayKey(today0.getTime() - i * DAY); if (days[k]) streak++; else if (i > 0 || streak) break; else continue; if (i > 400) break; }
+        h += `<div class="card"><h3>Rachas</h3><div class="streak"><div><b>🔥 ${streak}</b><small>días seguidos ahora</small></div><div><b>🏆 ${A.maxStreak}</b><small>tu mejor racha</small></div>
+          <div class="dots">${last14.map((on, i) => `<i class="${on ? 'on' : ''}" title="${new Date(today0.getTime() - (13 - i) * DAY).toLocaleDateString('es-ES')}"></i>`).join('')}<small>últimos 14 días</small></div></div></div>`;
+        // ---- récords ----
+        const timed = walks.filter((w) => (w.st.walked || 0) > 500 && (w.track || []).some((q) => q && q[2] != null));
+        const best = (f, ws = walks) => ws.slice().sort((x, y) => f(y) - f(x))[0];
+        const rLong = best((w) => w.st.walked || 0), rPaint = best((w) => w.st.painted || 0), rTime = best((w) => w.elapsed || 0), rPts = best((w) => w.st.pts || 0);
+        const rFast = timed.slice().sort((x, y) => x.elapsed / x.st.walked - y.elapsed / y.st.walked)[0];
+        const when = (w) => w ? new Date(w.start).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' }) : '';
+        const recRow = (ic, l, v, w) => `<div class="rec" ${w ? `data-wi="${walks.indexOf(w)}"` : ''}><span>${ic}</span><div><small>${l}</small><b>${v}</b></div><em>${when(w)}</em></div>`;
+        h += `<div class="card"><h3>Récords <span>toca uno para verlo</span></h3><div class="recs">
+          ${rLong ? recRow('🥾', 'Paseo más largo', dist(rLong.st.walked), rLong) : ''}${rPaint ? recRow('🖌️', 'Más calles nuevas', dist(rPaint.st.painted), rPaint) : ''}
+          ${rTime ? recRow('⏱️', 'Más tiempo', dur(rTime.elapsed), rTime) : ''}${rPts ? recRow('⭐', 'Más puntos', '+' + PM.fmtNum(rPts.st.pts || 0), rPts) : ''}
+          ${rFast ? recRow('⚡', 'Ritmo más rápido', pace(rFast.elapsed, rFast.st.walked), rFast) : ''}
+          ${A.bestDay ? `<div class="rec"><span>📅</span><div><small>Mejor día</small><b>${dist(A.bestDay[1].painted)} pintados</b></div><em>${new Date(A.bestDay[0] + 'T12:00').toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}</em></div>` : ''}
+          </div></div>`;
+        // ---- ritmo por paseo (solo paseos con hora en cada punto) ----
+        const tl = timed.slice().sort((x, y) => x.start - y.start).slice(-20);
+        if (tl.length >= 2) h += `<div class="card"><h3>Ritmo por paseo <span>min/km · más abajo = más rápido</span></h3>${paceLine(tl)}</div>`;
       }
       if (tab === 'pas') {
         // calendario del mes: días con paseo pintados (más intensos cuanto más pintaste); al tocar un día, sus paseos
@@ -536,6 +678,8 @@
         if (ph) { ph.style.backgroundImage = `url('${img}')`; ph.innerHTML = ''; }
       }, 'tcggrid');
       P.querySelectorAll('.walk').forEach((el) => el.addEventListener('click', () => showWalk(walks[+el.dataset.i], el)));
+      P.querySelectorAll('[data-per]').forEach((b) => b.addEventListener('click', () => { actPeriod = b.dataset.per; drawPanel(); }));
+      P.querySelectorAll('.rec[data-wi]').forEach((r) => r.addEventListener('click', () => showWalk(walks[+r.dataset.wi])));
       P.querySelectorAll('.calnav').forEach((b) => b.addEventListener('click', () => { calMonth = new Date(calMonth.getFullYear(), calMonth.getMonth() + +b.dataset.m, 1); drawPanel(); }));
       P.querySelectorAll('.cd.on').forEach((b) => b.addEventListener('click', () => {
         calDay = b.dataset.day; drawPanel();
