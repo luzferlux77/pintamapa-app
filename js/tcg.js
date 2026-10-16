@@ -469,6 +469,7 @@ PM.tcg = (function () {
   .cs-rar i.r-legendario { background: #f5b301; } .cs-rar i.r-epico { background: #a855f7; } .cs-rar i.r-raro { background: #3b82f6; } .cs-rar i.r-comun { background: #9aa4b2; }
   .cs-chev { font-size: 26px; opacity: .5; transition: transform .2s; } .cstack.open .cs-chev { transform: rotate(90deg); }
   .cs-grid { padding: 12px 2px 4px; }
+  .cs-grid[hidden] { display: none !important; }   /* la rejilla de cartas no debe ganar al "cerrado" */
   /* --- vista grande --- */
   #tcg-view { position: fixed; inset: 0; z-index: 3000; display: none; place-items: center; padding-bottom: calc(92px + env(safe-area-inset-bottom)); background: radial-gradient(circle at 50% 40%, rgba(40,20,80,.75), rgba(5,5,20,.92)); backdrop-filter: blur(6px); }
   #tcg-view.show { display: grid; animation: tcgfade .25s ease-out; }
