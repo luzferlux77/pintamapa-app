@@ -481,14 +481,14 @@
       if (tab === 'con') {
         const byR = ['legendario', 'epico', 'raro', 'comun'].map((r) => ({ r, v: lms.filter((l) => l.rarity === r).length, c: RAR_C[r] }));
         const byK = {}; lms.forEach((l) => { byK[l.kind] = (byK[l.kind] || 0) + 1; });
-        h += `<div class="card"><h3>Monumentos <span>${lms.length} conquistados · ${Object.keys(s.cardPhotos || {}).length} con foto propia</span></h3>
-          <div style="display:flex;gap:16px;align-items:center">${donut(byR.map((x) => ({ v: x.v, c: x.c })))}
-          <div style="flex:1">${byR.map((x) => `<div class="row"><span><i style="display:inline-block;width:9px;height:9px;border-radius:3px;background:${x.c};margin-right:6px"></i>${RAR[x.r].label}</span><b>${x.v}</b></div>`).join('')}</div></div></div>`;
-        h += `<div class="card"><h3>Por tipo</h3>${Object.keys(byK).length ? Object.entries(byK).sort((a, b) => b[1] - a[1]).map(([k, v]) => `<div class="row"><span>${esc(k)}</span><b>${v}</b></div>`).join('') : '<div class="empty">Quédate 10 s junto a un monumento para conquistarlo.</div>'}</div>`;
         PM.fillLandmarkCities(s); lms.forEach((l) => { if (!l.city && s.landmarks[l.id]) l.city = s.landmarks[l.id].city; });
         const byCity = {}; lms.forEach((l) => { (byCity[l.city || 'Otros lugares'] = byCity[l.city || 'Otros lugares'] || []).push(l); });
         h += `<div class="card"><h3>Cartas <span>por ciudad · toca un mazo para abrirlo</span></h3>${lms.length ? '<div id="city-stacks"></div>' : '<div class="empty">Sin cartas aún.</div>'}</div>`;
         stackGroups = Object.entries(byCity).sort((a, b) => b[1].length - a[1].length).map(([city, list]) => ({ city, ids: list.map((l) => l.id) }));
+        h += `<div class="card"><h3>Monumentos <span>${lms.length} conquistados · ${Object.keys(s.cardPhotos || {}).length} con foto propia</span></h3>
+          <div style="display:flex;gap:16px;align-items:center">${donut(byR.map((x) => ({ v: x.v, c: x.c })))}
+          <div style="flex:1">${byR.map((x) => `<div class="row"><span><i style="display:inline-block;width:9px;height:9px;border-radius:3px;background:${x.c};margin-right:6px"></i>${RAR[x.r].label}</span><b>${x.v}</b></div>`).join('')}</div></div></div>`;
+        h += `<div class="card"><h3>Por tipo</h3>${Object.keys(byK).length ? Object.entries(byK).sort((a, b) => b[1] - a[1]).map(([k, v]) => `<div class="row"><span>${esc(k)}</span><b>${v}</b></div>`).join('') : '<div class="empty">Quédate 10 s junto a un monumento para conquistarlo.</div>'}</div>`;
         const ach = PM.game.ACHIEVEMENTS, got = s.achievements || {};
         h += `<div class="card"><h3>Logros <span>${Object.keys(got).filter((k) => ach[k]).length}/${Object.keys(ach).length}</span></h3><div class="ach">${Object.entries(ach).map(([id, a]) =>
           `<div class="${got[id] ? '' : 'off'}" title="${esc(a.desc)}"><span>${a.icon}</span>${esc(a.name)}</div>`).join('')}</div></div>`;
