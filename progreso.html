@@ -485,6 +485,7 @@
           <div style="display:flex;gap:16px;align-items:center">${donut(byR.map((x) => ({ v: x.v, c: x.c })))}
           <div style="flex:1">${byR.map((x) => `<div class="row"><span><i style="display:inline-block;width:9px;height:9px;border-radius:3px;background:${x.c};margin-right:6px"></i>${RAR[x.r].label}</span><b>${x.v}</b></div>`).join('')}</div></div></div>`;
         h += `<div class="card"><h3>Por tipo</h3>${Object.keys(byK).length ? Object.entries(byK).sort((a, b) => b[1] - a[1]).map(([k, v]) => `<div class="row"><span>${esc(k)}</span><b>${v}</b></div>`).join('') : '<div class="empty">Quédate 10 s junto a un monumento para conquistarlo.</div>'}</div>`;
+        PM.fillLandmarkCities(s); lms.forEach((l) => { if (!l.city && s.landmarks[l.id]) l.city = s.landmarks[l.id].city; });
         const byCity = {}; lms.forEach((l) => { (byCity[l.city || 'Otros lugares'] = byCity[l.city || 'Otros lugares'] || []).push(l); });
         h += `<div class="card"><h3>Cartas <span>por ciudad · toca una para verla</span></h3>${lms.length ? Object.entries(byCity).sort((a, b) => b[1].length - a[1].length).map(([c, list]) =>
           `<h4 class="city-h">🏙️ ${esc(c)} <span>${list.length}</span></h4><div class="tcggrid">` + list.sort((a, b) => b.t - a.t).map((l) =>

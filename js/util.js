@@ -128,3 +128,22 @@ PM.levelInfo = function (xp) {
   return { level: l, label: nm.label, short: nm.short, tier: nm.tier, max,
     nextLabel: max ? null : PM.levelName(l + 1).label, cur: xp - a, need: max ? 0 : b - a, pct: max ? 1 : (xp - a) / (b - a) };
 };
+
+// Ciudad de un lugar conquistado al que le falta (se capturó antes de que llegara el nombre de la ciudad):
+// por el nombre ya guardado de su zona (~1 km) o, si no, por el lugar conquistado con ciudad más cercano (< 3 km).
+PM.fillLandmarkCities = function (s) {
+  if (!s || !s.landmarks) return 0;
+  let n = 0;
+  const withCity = Object.values(s.landmarks).filter((r) => r.city && r.pos);
+  for (const r of Object.values(s.landmarks)) {
+    if (r.city || !r.pos) continue;
+    const k = Math.floor(r.pos[0] / 0.01) + '_' + Math.floor(r.pos[1] / 0.01);
+    let c = s.tileNames && s.tileNames[k] && s.tileNames[k].city;
+    if (!c) {
+      let bd = 3000;
+      for (const o of withCity) { const d = PM.geo.dist(r.pos, o.pos); if (d < bd) { bd = d; c = o.city; } }
+    }
+    if (c && !/^(Zona sin nombre|Ciudad desconocida)$/.test(c)) { r.city = c; n++; }
+  }
+  return n;
+};

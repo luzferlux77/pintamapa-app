@@ -1218,6 +1218,7 @@
   W.onChange((ev, d) => {
     if (ev === 'barrios') { hudB.dirty = true; renderBarrios(); return; }
     if (ev === 'migrated') { paintedDirty = true; return; }
+    if (ev === 'named') { if (PM.fillLandmarkCities(S())) PM.state.save(); return; }
     if (ev === 'loaded' || ev === 'partial') {
       d.tiles.forEach((k) => renderTile(k, true));
       renderLandmarks(); renderCans();
@@ -1554,6 +1555,7 @@
     $('#intro').classList.remove('show');
     PM.sound._ctx();
     G.ensureDaily();
+    if (PM.fillLandmarkCities(S())) PM.state.save();   // lugares conquistados sin ciudad: se completa
     recolorAll();
     W.setAvoid(S().avoid);
     teleport(pos);
