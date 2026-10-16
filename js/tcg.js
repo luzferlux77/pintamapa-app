@@ -219,7 +219,7 @@ PM.tcg = (function () {
       if (!base) base = { g: e.gamma, b: e.beta };
       base.g += (e.gamma - base.g) * 0.004; base.b += (e.beta - base.b) * 0.004;
       el._soft = true;
-      target = { x: 50 + clamp((e.gamma - base.g) * 2.4), y: 50 + clamp((e.beta - base.b) * 2.4) };
+      target = { x: 50 + clamp((e.gamma - base.g) * 1.8), y: 50 + clamp((e.beta - base.b) * 1.8) };
       el.classList.add('active'); go();
     };
     window.addEventListener('deviceorientation', tilt);
@@ -357,26 +357,27 @@ PM.tcg = (function () {
   .tcg-glare { z-index: 4; mix-blend-mode: soft-light; opacity: calc(.25 + var(--hyp) * .6); background: radial-gradient(circle at var(--mx) var(--my), rgba(255,255,255,.95) 0%, rgba(255,255,255,.35) 12%, rgba(255,255,255,0) 32%, rgba(0,0,0,.18) 100%); }
   .tcg:not(.active) .tcg-glare { opacity: .15; }
   /* lámina holográfica sobre TODA la carta: bandas de arcoíris + reflejo que se deslizan al mover la carta (o el ratón) */
+  /* (sutil, como un cromo de verdad: casi invisible de frente; una franja de color suave aparece al inclinar) */
   .tcg-foil { position: absolute; inset: 0; pointer-events: none; z-index: 3; border-radius: inherit; mix-blend-mode: overlay;
-    opacity: calc(.1 + var(--holo) * (.16 + var(--hyp) * .32));
-    background: repeating-linear-gradient(115deg, rgba(255,30,140,.8) 0%, rgba(255,200,40,.75) 6%, rgba(40,240,160,.75) 12%, rgba(30,150,255,.8) 18%, rgba(160,50,255,.75) 24%, rgba(255,30,140,.8) 30%);
-    background-size: 400% 400%; background-position: var(--mx) var(--my); }
+    opacity: calc(var(--holo) * (.07 + var(--hyp) * .45));
+    background: linear-gradient(115deg, transparent 28%, rgba(255,140,200,.5) 38%, rgba(255,226,140,.45) 44%, rgba(150,255,215,.45) 50%, rgba(140,195,255,.5) 56%, rgba(200,160,255,.45) 62%, transparent 72%);
+    background-size: 300% 300%; background-position: var(--mx) var(--my); }
   .tcg-foil::after { content: ''; position: absolute; inset: 0; border-radius: inherit; mix-blend-mode: soft-light;
-    background: linear-gradient(115deg, transparent 35%, rgba(255,255,255,.95) 50%, transparent 65%); background-size: 250% 250%; background-position: var(--mx) var(--my); }
+    background: linear-gradient(115deg, transparent 44%, rgba(255,255,255,.7) 50%, transparent 56%); background-size: 260% 260%; background-position: var(--mx) var(--my); }
   .tcg.flat .tcg-foil { opacity: .12; }
   /* holograma del reverso: arcoíris muy suave que se desliza al mover la carta */
-  .bk-holo { position: absolute; inset: 0; pointer-events: none; z-index: 3; border-radius: inherit; mix-blend-mode: overlay; opacity: calc(.18 + var(--hyp) * .3);
+  .bk-holo { position: absolute; inset: 0; pointer-events: none; z-index: 3; border-radius: inherit; mix-blend-mode: overlay; opacity: calc(.04 + var(--hyp) * .2);
     background: linear-gradient(120deg, transparent 20%, rgba(255,80,170,.55) 32%, rgba(255,220,90,.5) 40%, rgba(80,255,190,.45) 48%, rgba(90,190,255,.55) 56%, rgba(190,110,255,.5) 64%, transparent 76%);
     background-size: 280% 280%; background-position: var(--mx) var(--my); }
   @media (hover: none) {
     /* móvil: holograma estable (mezcla "overlay", sin destellos de ruido ni giro 3D) */
     .tcg-glitter { display: none; }
     .r-legendario .tcg-inner::after { display: none; }
-    .tcg-shine { mix-blend-mode: hard-light; opacity: calc(.18 + var(--holo) * (.22 + var(--hyp) * .3)); filter: none;
-      background: repeating-linear-gradient(115deg, rgba(255,30,140,.75) 0%, rgba(255,200,40,.7) 7%, rgba(40,240,160,.7) 14%, rgba(30,150,255,.75) 21%, rgba(160,50,255,.7) 28%, rgba(255,30,140,.75) 35%);
+    .tcg-shine { mix-blend-mode: overlay; opacity: calc(var(--holo) * (.12 + var(--hyp) * .45)); filter: none;
+      background: linear-gradient(115deg, transparent 25%, rgba(255,120,190,.6) 37%, rgba(255,220,120,.55) 44%, rgba(130,255,205,.55) 51%, rgba(120,180,255,.6) 58%, rgba(190,140,255,.55) 65%, transparent 76%);
       background-size: 320% 320%; background-position: var(--mx) var(--my); }
     .tcg-shine::after { content: ''; position: absolute; inset: 0; mix-blend-mode: soft-light;
-      background: linear-gradient(115deg, transparent 36%, rgba(255,255,255,.9) 50%, transparent 64%); background-size: 240% 240%; background-position: var(--mx) var(--my); }
+      background: linear-gradient(115deg, transparent 44%, rgba(255,255,255,.65) 50%, transparent 56%); background-size: 260% 260%; background-position: var(--mx) var(--my); }
     .tcg-glare { mix-blend-mode: soft-light; }
   }
   /* --- reverso: sello de conquista --- */
