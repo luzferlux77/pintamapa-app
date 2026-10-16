@@ -456,6 +456,19 @@ PM.tcg = (function () {
   .bk-foot { width: 100%; display: flex; justify-content: space-between; margin-top: .7em; font-size: .5em; letter-spacing: .12em; color: #7f8aa0; font-family: ui-monospace, Consolas, monospace; }
   .tcg-back .tcg-glare { opacity: .1 !important; }
   .tcg.flat .tcg-rot { transform: none; } .tcg.flat .tcg-face { box-shadow: none; }
+  /* --- mazos por ciudad --- */
+  .cstack { margin: 10px 0; }
+  .cs-head { width: 100%; display: flex; align-items: center; gap: 16px; padding: 12px 14px; border-radius: 16px; border: 1px solid rgba(127,127,127,.22); background: rgba(127,127,127,.06); cursor: pointer; text-align: left; font: inherit; color: inherit; }
+  .cstack.open .cs-head { background: rgba(127,127,127,.12); }
+  .cs-deck { position: relative; width: 86px; height: 120px; flex: none; }
+  .cs-c { position: absolute; left: 6px; top: 4px; width: 72px; --w: 72px; transform: rotate(calc((var(--k) - 1) * 7deg)) translateX(calc((var(--k) - 1) * 6px)); transform-origin: 50% 90%; filter: drop-shadow(0 3px 5px rgba(0,0,0,.25)); pointer-events: none; }
+  .cs-c .tcg.mini { font-size: calc(72px / 26); }
+  .cs-info { flex: 1; display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+  .cs-info b { font-size: 17px; } .cs-info small { opacity: .7; font-size: 13.5px; }
+  .cs-rar { font-size: 12.5px; opacity: .85; } .cs-rar i { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin: 0 3px 0 6px; }
+  .cs-rar i.r-legendario { background: #f5b301; } .cs-rar i.r-epico { background: #a855f7; } .cs-rar i.r-raro { background: #3b82f6; } .cs-rar i.r-comun { background: #9aa4b2; }
+  .cs-chev { font-size: 26px; opacity: .5; transition: transform .2s; } .cstack.open .cs-chev { transform: rotate(90deg); }
+  .cs-grid { padding: 12px 2px 4px; }
   /* --- vista grande --- */
   #tcg-view { position: fixed; inset: 0; z-index: 3000; display: none; place-items: center; padding-bottom: calc(92px + env(safe-area-inset-bottom)); background: radial-gradient(circle at 50% 40%, rgba(40,20,80,.75), rgba(5,5,20,.92)); backdrop-filter: blur(6px); }
   #tcg-view.show { display: grid; animation: tcgfade .25s ease-out; }
@@ -477,5 +490,37 @@ PM.tcg = (function () {
   `;
   const st = document.createElement('style'); st.textContent = css; document.head.appendChild(st);
 
-  return { html, open, close, interactive, toPng, download, typeOf };
+  // ---------------- Mazos por ciudad: cada ciudad es un mazo cerrado; al tocarlo se despliegan sus cartas ----------------
+  // groups: [{ city, ids:[...] }] · getData(id) → datos de la carta (puede ser async) · onCell(el, id) al dibujar cada carta
+  const RANKR = { legendario: 3, epico: 2, raro: 1, comun: 0 };
+  async function stacks(container, groups, getData, onCell, gridClass) {
+    container.innerHTML = groups.map((g, i) => `<div class="cstack" data-i="${i}">
+      <button class="cs-head"><div class="cs-deck"></div>
+        <div class="cs-info"><b>🏙️ ${esc(g.city)}</b><small>${g.ids.length} carta${g.ids.length > 1 ? 's' : ''}</small><span class="cs-rar"></span></div>
+        <span class="cs-chev">›</span></button>
+      <div class="cs-grid ${gridClass || ''}" hidden></div></div>`).join('');
+    container.querySelectorAll('.cstack').forEach(async (el) => {
+      const g = groups[+el.dataset.i];
+      const datas = await Promise.all(g.ids.map(async (id) => [id, await getData(id)]));
+      // las 3 más valiosas (y recientes) arriba del mazo
+      datas.sort((a, b) => (RANKR[b[1].rarity] || 0) - (RANKR[a[1].rarity] || 0) || (b[1].t || 0) - (a[1].t || 0));
+      el.querySelector('.cs-deck').innerHTML = datas.slice(0, 3).reverse().map(([, d], k, arr) =>
+        `<div class="cs-c" style="--k:${arr.length - 1 - k}">${html(d, { mini: true })}</div>`).join('');
+      const cnt = {}; datas.forEach(([, d]) => (cnt[d.rarity] = (cnt[d.rarity] || 0) + 1));
+      el.querySelector('.cs-rar').innerHTML = ['legendario', 'epico', 'raro', 'comun'].filter((r) => cnt[r]).map((r) => `<i class="r-${r}"></i>${cnt[r]}`).join(' ');
+      const grid = el.querySelector('.cs-grid');
+      el.querySelector('.cs-head').addEventListener('click', () => {
+        const open = grid.hidden;
+        grid.hidden = !open; el.classList.toggle('open', open);
+        if (open && !grid.childElementCount) {   // las cartas se dibujan solo al abrir el mazo
+          datas.sort((a, b) => (b[1].t || 0) - (a[1].t || 0));
+          grid.innerHTML = datas.map(([id, d]) => `<div class="tcg-cell" data-lm="${esc(id)}">${html(d, { mini: true })}</div>`).join('');
+          grid.querySelectorAll('.tcg-cell').forEach((c) => onCell && onCell(c, c.dataset.lm));
+        }
+        if (open) setTimeout(() => el.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
+      });
+    });
+  }
+
+  return { html, open, close, interactive, toPng, download, typeOf, stacks };
 })();

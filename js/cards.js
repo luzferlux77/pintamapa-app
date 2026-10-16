@@ -354,14 +354,7 @@ PM.cards = (function () {
         <button class="btn ${tab === 'bar' ? 'on' : ''}" data-t="bar">🏘️ Barrios (${Object.keys(s.barrioCards || {}).length})</button></div>`;
       if (tab === 'cromos') {
         if (!ids.length) html += '<p class="muted">Aún no tienes cromos. Quédate 10 s junto a un monumento, iglesia, plaza… para conquistarlo.</p>';
-        // agrupados por ciudad (la que más cromos tiene, primero)
-        const byCity = {};
-        for (const id of ids) { const c = s.landmarks[id].city || 'Otros lugares'; (byCity[c] = byCity[c] || []).push(id); }
-        for (const [c, list] of Object.entries(byCity).sort((a, b) => b[1].length - a[1].length)) {
-          html += `<h4 class="city-h">🏙️ ${esc(c)} <span>${list.length}</span></h4><div class="cromos">`;
-          for (const id of list) html += `<div class="tcg-cell">${PM.tcg.html(await dataFor(id), { mini: true })}</div>`;
-          html += '</div>';
-        }
+        html += '<div id="city-stacks"></div>';
       } else if (tab === 'col') {
         // por ciudad: conquistados / descubiertos
         const byCity = {};
@@ -386,6 +379,13 @@ PM.cards = (function () {
           <div class="pie"><b>${esc(c)}</b><small>Conquistada el ${new Date(v.t).toLocaleDateString('es-ES')}</small></div></div></div></div>`).join('') + '</div>';
       }
       container.innerHTML = html;
+      if (tab === 'cromos' && ids.length) {
+        // mazos por ciudad (la que más cartas tiene, primero): se despliegan al tocar
+        const byCity = {};
+        for (const id of ids) { const c = s.landmarks[id].city || 'Otros lugares'; (byCity[c] = byCity[c] || []).push(id); }
+        const groups = Object.entries(byCity).sort((a, b) => b[1].length - a[1].length).map(([city, list]) => ({ city, ids: list }));
+        PM.tcg.stacks(container.querySelector('#city-stacks'), groups, dataFor, (el, id) => el.addEventListener('click', () => open(id)), 'cromos');
+      }
       container.querySelectorAll('[data-t]').forEach((b) => b.addEventListener('click', () => { tab = b.dataset.t; draw(); }));
       container.querySelectorAll('.cromo[data-id], .tcg[data-id]').forEach((el) => el.addEventListener('click', () => open(el.dataset.id)));
     };

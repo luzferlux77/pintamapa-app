@@ -1074,7 +1074,9 @@
     const el = document.createElement('div');
     el.className = 'toast ' + kind;
     el.innerHTML = html;
-    $('#toasts').appendChild(el);
+    const box = $('#toasts');
+    box.appendChild(el);
+    while (box.children.length > 3) box.firstElementChild.remove();   // como mucho 3 avisos a la vez
     setTimeout(() => el.classList.add('out'), ms);
     setTimeout(() => el.remove(), ms + 400);
   }
@@ -1137,7 +1139,7 @@
   }
 
   // ---------------- Eventos del juego ----------------
-  let splatThrottle = 0;
+  let splatThrottle = 0, achQueue = [], achTimer = null;
   G.on((ev, d) => {
     if (ev === 'xp' && session) { session.st.pts += d.n; persistSession(); }
     switch (ev) {
@@ -1209,8 +1211,14 @@
         toast(`📸 ¡Cromo con foto propia! +${d.bonus} pts`, 'gold', 3500);
         if (lmMarkers[d.id]) placeLandmark(W.landmarks[d.id] || Object.assign({ id: d.id }, S().landmarks[d.id]));
         break;
-      case 'achievement':
-        toast(`🏆 Logro: <b>${d.a.name}</b> — ${d.a.desc}`, 'gold', 4000);
+      case 'achievement':   // los que llegan juntos se agrupan en un solo aviso
+        achQueue.push(d.a);
+        clearTimeout(achTimer);
+        achTimer = setTimeout(() => {
+          const q = achQueue.splice(0);
+          toast(q.length === 1 ? `🏆 Logro: <b>${q[0].name}</b> — ${q[0].desc}`
+            : `🏆 <b>${q.length} logros nuevos</b>: ${q.slice(0, 3).map((a) => a.name).join(', ')}${q.length > 3 ? '…' : ''}`, 'gold', 4500);
+        }, 700);
         break;
     }
   });

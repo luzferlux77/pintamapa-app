@@ -170,7 +170,7 @@
     const KEY = 'pintamapa_dash';
     const MIN_WALK = 120000;   // los paseos de menos de 2 minutos no cuentan
     let creds = {}; try { creds = JSON.parse(localStorage.getItem(KEY) || '{}'); } catch (e) {}
-    let data, map, layers = {}, selLayer = null, tab = 'res', fitBounds = null;
+    let data, map, layers = {}, selLayer = null, tab = 'res', fitBounds = null, stackGroups = [];
     const esc = (t) => String(t == null ? '' : t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
     const km = (m) => (m / 1000).toFixed(m >= 10000 ? 1 : 2);
     const dist = (m) => PM.fmtDist(m || 0);
@@ -487,9 +487,8 @@
         h += `<div class="card"><h3>Por tipo</h3>${Object.keys(byK).length ? Object.entries(byK).sort((a, b) => b[1] - a[1]).map(([k, v]) => `<div class="row"><span>${esc(k)}</span><b>${v}</b></div>`).join('') : '<div class="empty">Quédate 10 s junto a un monumento para conquistarlo.</div>'}</div>`;
         PM.fillLandmarkCities(s); lms.forEach((l) => { if (!l.city && s.landmarks[l.id]) l.city = s.landmarks[l.id].city; });
         const byCity = {}; lms.forEach((l) => { (byCity[l.city || 'Otros lugares'] = byCity[l.city || 'Otros lugares'] || []).push(l); });
-        h += `<div class="card"><h3>Cartas <span>por ciudad · toca una para verla</span></h3>${lms.length ? Object.entries(byCity).sort((a, b) => b[1].length - a[1].length).map(([c, list]) =>
-          `<h4 class="city-h">🏙️ ${esc(c)} <span>${list.length}</span></h4><div class="tcggrid">` + list.sort((a, b) => b.t - a.t).map((l) =>
-          `<div class="tcg-cell" data-lm="${l.id}">${PM.tcg.html(cardData(l.id), { mini: true })}</div>`).join('') + '</div>').join('') : '<div class="empty">Sin cartas aún.</div>'}</div>`;
+        h += `<div class="card"><h3>Cartas <span>por ciudad · toca un mazo para abrirlo</span></h3>${lms.length ? '<div id="city-stacks"></div>' : '<div class="empty">Sin cartas aún.</div>'}</div>`;
+        stackGroups = Object.entries(byCity).sort((a, b) => b[1].length - a[1].length).map(([city, list]) => ({ city, ids: list.map((l) => l.id) }));
         const ach = PM.game.ACHIEVEMENTS, got = s.achievements || {};
         h += `<div class="card"><h3>Logros <span>${Object.keys(got).filter((k) => ach[k]).length}/${Object.keys(ach).length}</span></h3><div class="ach">${Object.entries(ach).map(([id, a]) =>
           `<div class="${got[id] ? '' : 'off'}" title="${esc(a.desc)}"><span>${a.icon}</span>${esc(a.name)}</div>`).join('')}</div></div>`;
@@ -497,6 +496,12 @@
         h += `<div class="card"><h3>Barrios conquistados <span>${bc.length}</span></h3>${bc.length ? bc.map((b) => `<div class="row"><span>🚩 ${esc(b.name)}</span><b>${new Date(b.t).toLocaleDateString('es-ES')}</b></div>`).join('') : '<div class="empty">Pinta el 80 % de un barrio para conquistarlo.</div>'}</div>`;
       }
       P.innerHTML = h;
+      if (tab === 'con' && P.querySelector('#city-stacks')) PM.tcg.stacks(P.querySelector('#city-stacks'), stackGroups, cardData, async (el, id) => {
+        el.addEventListener('click', () => openCard(id));
+        if (!(A.s.cardPhotos || {})[id]) return;   // tu foto (de la nube) en cuanto llega
+        const img = await ownPhoto(id), ph = img && el.querySelector('.tcg-photo');
+        if (ph) { ph.style.backgroundImage = `url('${img}')`; ph.innerHTML = ''; }
+      }, 'tcggrid');
       P.querySelectorAll('.walk').forEach((el) => el.addEventListener('click', () => showWalk(walks[+el.dataset.i], el)));
       P.querySelectorAll('.wdet').forEach((b) => b.addEventListener('click', (e) => { e.stopPropagation(); PM.replay.open(walks[+b.dataset.w], { geo: data.geo, color: A.s.color, player: A.s.player || creds.user }); }));
       // tus fotos de cromo (de la nube): se ponen en las cartas en cuanto llegan
