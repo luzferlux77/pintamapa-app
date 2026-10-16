@@ -33,7 +33,7 @@
   // Mapa base de OpenFreeMap (datos de OpenStreetMap, gratis y sin clave). Encima, capas propias: calles jugables,
   // lo pintado (con intensidad por pasadas), contornos de barrio, zonas evitadas y halos de conquista.
   const start = S().lastPos || HOME;
-  const STYLE = { light: 'https://tiles.openfreemap.org/styles/positron', dark: 'https://tiles.openfreemap.org/styles/dark' };
+  const STYLE = PM.mapStyle.URL;
   const ll = (p) => [p[1], p[0]];   // el juego usa [lat, lon]; MapLibre, [lon, lat]
   let curStyle = S().theme === 'dark' ? 'dark' : 'light';
   const map = new maplibregl.Map({ container: 'map', style: STYLE[curStyle], center: ll(start), zoom: 17, attributionControl: false,
@@ -61,7 +61,7 @@
     const round = { 'line-cap': 'round', 'line-join': 'round' };
     add({ id: 'pm-avoid-fill', type: 'fill', source: 'pm-avoid', paint: { 'fill-color': '#6b7280', 'fill-opacity': 0.18 } });
     add({ id: 'pm-avoid-line', type: 'line', source: 'pm-avoid', paint: { 'line-color': '#6b7280', 'line-width': 2, 'line-dasharray': [3, 3] } });
-    add({ id: 'pm-streets', type: 'line', source: 'pm-streets', filter: ['!=', ['get', 't'], 1], layout: round, paint: { 'line-color': '#8a93a6', 'line-opacity': 0.5, 'line-width': zw(1, 3, 7) } });
+    add({ id: 'pm-streets', type: 'line', source: 'pm-streets', filter: ['!=', ['get', 't'], 1], layout: round, paint: { 'line-color': '#9aa3b5', 'line-opacity': 0.38, 'line-width': zw(0.8, 2.4, 6) } });
     add({ id: 'pm-trails', type: 'line', source: 'pm-streets', filter: ['==', ['get', 't'], 1], paint: { 'line-color': '#9a8a66', 'line-opacity': 0.85, 'line-width': zw(0.8, 2.2, 4), 'line-dasharray': [1.5, 2] } });
     add({ id: 'pm-glow', type: 'line', source: 'pm-painted', layout: round, paint: { 'line-color': paintColor(), 'line-opacity': 0.22, 'line-width': zw(4, 14, 30), 'line-blur': zw(2, 6, 12) } });
     add({ id: 'pm-paint', type: 'line', source: 'pm-painted', layout: round, paint: { 'line-color': paintExpr(), 'line-width': zw(1.6, 5, 11, ['+', 1, ['*', 0.2, ['get', 'h']]]) } });
@@ -70,7 +70,7 @@
     add({ id: 'pm-barrio-cur', type: 'line', source: 'pm-barrios', filter: ['==', ['get', 'c'], 0], paint: { 'line-color': '#5b6478', 'line-opacity': 0.8, 'line-width': 2.5, 'line-dasharray': [3, 3] } }, true);
     add({ id: 'pm-barrio-conq', type: 'line', source: 'pm-barrios', filter: ['==', ['get', 'c'], 1], paint: { 'line-color': paintColor(), 'line-opacity': 0.75, 'line-width': ['case', ['==', ['get', 'cur'], 1], 3, 2] } }, true);
   }
-  map.on('style.load', () => { mapReady = true; addOverlay(); });
+  map.on('style.load', () => { mapReady = true; PM.mapStyle.enhance(map, curStyle); addOverlay(); });
   // créditos plegados (botón ⓘ): ocupan mucho en el móvil
   map.once('idle', () => { const a = document.querySelector('.maplibregl-ctrl-attrib'); if (a) a.classList.remove('maplibregl-compact-show'); });
   // marcador HTML (lugares, banderas, etiquetas)

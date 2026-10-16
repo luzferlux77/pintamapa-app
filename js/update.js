@@ -71,8 +71,15 @@ PM.update = (function () {
         if (manual) await applyVersion(remote.version); else showReadyBanner(remote);
         return;
       }
-      setStatus(`Descargando la ${remote.version}…`);
-      const b = await U().download({ url: remote.bundle, version: remote.version, checksum: remote.checksum });
+      // ¿ya estaba descargada? (p. ej. se apartó durante un paseo): se reutiliza; si quedó rota, se borra y se baja otra vez.
+      // Antes se intentaba descargar de nuevo, el actualizador decía "esa versión ya existe" y la app se quedaba atascada.
+      const list = await U().list().catch(() => ({ bundles: [] }));
+      let b = (list.bundles || []).find((x) => x.version === remote.version);
+      if (b && b.status === 'error') { await U().delete({ id: b.id }).catch(() => {}); b = null; }
+      if (!b) {
+        setStatus(`Descargando la ${remote.version}…`);
+        b = await U().download({ url: remote.bundle, version: remote.version, checksum: remote.checksum });
+      }
       await U().next({ id: b.id });
       setStatus(`La ${remote.version} está descargada: se aplica al volver a abrir la app`);
       if (manual) await U().set({ id: b.id });                 // «Actualizar ahora»: se recarga ya

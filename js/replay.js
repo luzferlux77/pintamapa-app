@@ -276,13 +276,10 @@ ${segs.map((s) => `<LineString><tessellate>1</tessellate><altitudeMode>clampToGr
     const sc = Math.min(2, box.w / Math.max(1, mx(e, z) - mx(w, z)), box.h / Math.max(1, my(s, z) - my(n, z)));
     const cx = (mx(w, z) + mx(e, z)) / 2, cy = (my(n, z) + my(s, z)) / 2;
     const P = (p) => [W / 2 + (mx(p[1], z) - cx) * sc, box.y + box.h / 2 + (my(p[0], z) - cy) * sc];
-    // teselas que cubren todo el vídeo
+    // zona geográfica que cubre todo el vídeo (para pedir sus calles a los mapas vectoriales)
     const x0 = cx - (W / 2) / sc, x1 = cx + (W / 2) / sc, y0 = cy - (box.y + box.h / 2) / sc, y1 = cy + (H - box.y - box.h / 2) / sc;
-    const tiles = [];
-    for (let tx = Math.floor(x0 / 256); tx <= Math.floor(x1 / 256); tx++) for (let ty = Math.floor(y0 / 256); ty <= Math.floor(y1 / 256); ty++) {
-      if (ty < 0 || ty >= 2 ** z) continue;
-      tiles.push({ url: `https://tile.openstreetmap.org/${z}/${((tx % 2 ** z) + 2 ** z) % 2 ** z}/${ty}.png`, x: W / 2 + (tx * 256 - cx) * sc, y: box.y + box.h / 2 + (ty * 256 - cy) * sc, s: 256 * sc });
-    }
+    const lonOf = (x) => x / (256 * 2 ** z) * 360 - 180, latOf = (y) => Math.atan(Math.sinh(Math.PI * (1 - 2 * y / (256 * 2 ** z)))) * 180 / Math.PI;
+    const area = { s: latOf(y1), n: latOf(y0), w: lonOf(x0), e: lonOf(x1) };
     const path = []; let acc = 0;
     segs.forEach((sg, si) => sg.forEach((p, i) => { if (i) acc += dist(sg[i - 1], p); path.push({ p: P(p), d: acc, start: i === 0 && si > 0 }); }));
     const bg = [];
@@ -293,17 +290,19 @@ ${segs.map((s) => `<LineString><tessellate>1</tessellate><altitudeMode>clampToGr
       if (a && a[0] > mS && a[0] < mN && a[1] > mW && a[1] < mE) bg.push(line.map(P));
       if (bg.length > 6000) break;
     }
-    return { path, total: acc, bg, tiles };
+    return { path, total: acc, bg, area, P, streets: [] };
   }
-  // descarga las teselas del mapa (si no hay conexión, el vídeo sale igual con tus calles pintadas de fondo)
-  function loadTiles(sc) {
-    return Promise.all(sc.tiles.map((t) => new Promise((res) => {
-      const im = new Image(); im.crossOrigin = 'anonymous';
-      const to = setTimeout(() => res(), 8000);
-      im.onload = () => { clearTimeout(to); t.img = im; res(); };
-      im.onerror = () => { clearTimeout(to); res(); };
-      im.src = t.url;
-    })));
+  // calles de fondo desde los mapas vectoriales (OpenFreeMap…). Sin conexión, el vídeo sale igual sobre fondo liso.
+  async function loadStreets(sc) {
+    const a = sc.area;
+    if (!PM.vtiles || (a.e - a.w) * (a.n - a.s) > 0.02) return;   // zona enorme: sin fondo de calles
+    try {
+      const { els } = await Promise.race([PM.vtiles.fetchBox(a.s, a.w, a.n, a.e), new Promise((_, r) => setTimeout(() => r(new Error('lento')), 15000))]);
+      for (const el of els) {
+        if (el.type !== 'way' || !el.geometry || !el.tags || !el.tags.highway) continue;
+        sc.streets.push({ pts: el.geometry.map((q) => sc.P([q.lat, q.lon])), major: /^(primary|secondary|tertiary)/.test(el.tags.highway), trail: /^(path|track|bridleway)$/.test(el.tags.highway) });
+      }
+    } catch (e) { /* sin calles de fondo */ }
   }
   function draw(ctx, sc, t, walk, opts, A) {
     const color = opts.color || '#e4572e';
@@ -311,9 +310,13 @@ ${segs.map((s) => `<LineString><tessellate>1</tessellate><altitudeMode>clampToGr
     g.addColorStop(0, '#111827'); g.addColorStop(1, '#0b1220');
     ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
     // mapa de calles de fondo, en tono oscuro
-    if (sc.tiles.some((t) => t.img)) {
-      ctx.save(); ctx.filter = 'invert(1) hue-rotate(180deg) brightness(.85) contrast(1.05) saturate(.35)';
-      for (const t of sc.tiles) if (t.img) ctx.drawImage(t.img, t.x, t.y, t.s + 0.5, t.s + 0.5);
+    if (sc.streets.length) {
+      ctx.save(); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+      for (const [sel, col, lw] of [[(x) => x.trail, 'rgba(148,163,184,.18)', 1.2], [(x) => !x.trail && !x.major, 'rgba(148,163,184,.30)', 2], [(x) => x.major, 'rgba(203,213,225,.42)', 4]]) {
+        ctx.strokeStyle = col; ctx.lineWidth = lw; ctx.beginPath();
+        for (const st of sc.streets) if (sel(st)) st.pts.forEach((q, i) => (i ? ctx.lineTo(q[0], q[1]) : ctx.moveTo(q[0], q[1])));
+        ctx.stroke();
+      }
       ctx.restore();
       // velo arriba y abajo para que se lean los textos
       const vt = ctx.createLinearGradient(0, 0, 0, 330); vt.addColorStop(0, 'rgba(11,18,32,.95)'); vt.addColorStop(1, 'rgba(11,18,32,0)');
@@ -420,7 +423,7 @@ ${segs.map((s) => `<LineString><tessellate>1</tessellate><altitudeMode>clampToGr
     const sc = scene(walk, opts);
     const cv = body.querySelector('canvas'), ctx = cv.getContext('2d'), msg = body.querySelector('.rp-msg');
     msg.textContent = 'Cargando el mapa…';
-    await loadTiles(sc);
+    await loadStreets(sc);
     msg.textContent = '';
     let t0 = performance.now(), raf = null, recording = false;
     const loop = (now) => {
@@ -434,6 +437,16 @@ ${segs.map((s) => `<LineString><tessellate>1</tessellate><altitudeMode>clampToGr
     body.querySelector('[data-a=play]').onclick = play;
     body.querySelector('[data-a=rec]').onclick = async () => {
       if (recording) return;
+      // 1) MP4 H.264 "de verdad" (WebCodecs): lo aceptan X, WhatsApp, Instagram… y se genera más rápido que en tiempo real
+      if (window.VideoEncoder && window.Mp4Muxer) {
+        recording = true;
+        try {
+          const blob = await encodeMp4(sc, walk, opts, A, (f) => { msg.textContent = `🎬 Creando vídeo… ${Math.round(f * 100)} %`; });
+          if (blob) { recording = false; msg.textContent = '✅ Vídeo listo (MP4)'; await save(blob, `${fileBase(walk)}.mp4`, 'Mi paseo en PintaMapa'); play(); return; }
+        } catch (e) { console.warn('MP4 no disponible, grabo en tiempo real', e); }
+        recording = false;
+      }
+      // 2) Respaldo: grabación en tiempo real (puede salir en WebM)
       if (!cv.captureStream || !window.MediaRecorder) { msg.textContent = 'Este navegador no puede grabar vídeo.'; return; }
       const type = ['video/mp4;codecs=avc1', 'video/mp4', 'video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm'].find((x) => MediaRecorder.isTypeSupported(x));
       const rec = new MediaRecorder(cv.captureStream(FPS), { mimeType: type, videoBitsPerSecond: 5e6 });
@@ -458,6 +471,34 @@ ${segs.map((s) => `<LineString><tessellate>1</tessellate><altitudeMode>clampToGr
       if (x === 'geojson') save(new Blob([geojson(walk, P, A)], { type: 'application/geo+json' }), base + '.geojson');
       if (x === 'csv') save(new Blob([csv(walk, P)], { type: 'text/csv' }), base + '.csv');
     }));
+  }
+  // Codifica el vídeo fotograma a fotograma en MP4 (H.264, 30 fps constantes, "faststart"): el formato más compatible
+  async function encodeMp4(sc, walk, opts, A, progress) {
+    let codec = null;
+    for (const c of ['avc1.4d0028', 'avc1.42e028', 'avc1.640028', 'avc1.42001f']) {
+      try { const r = await VideoEncoder.isConfigSupported({ codec: c, width: W, height: H, bitrate: 5e6, framerate: FPS }); if (r.supported) { codec = c; break; } } catch (e) {}
+    }
+    if (!codec) return null;
+    const muxer = new Mp4Muxer.Muxer({ target: new Mp4Muxer.ArrayBufferTarget(), video: { codec: 'avc', width: W, height: H, frameRate: FPS }, fastStart: 'in-memory' });
+    let err = null;
+    const enc = new VideoEncoder({ output: (chunk, meta) => muxer.addVideoChunk(chunk, meta), error: (e) => { err = e; } });
+    enc.configure({ codec, width: W, height: H, bitrate: 5e6, framerate: FPS, avc: { format: 'avc' } });
+    const cvs = document.createElement('canvas'); cvs.width = W; cvs.height = H;
+    const ctx = cvs.getContext('2d');
+    const total = Math.round((DRAW_S + HOLD_S) * FPS), us = 1e6 / FPS;
+    for (let i = 0; i < total; i++) {
+      if (err) throw err;
+      draw(ctx, sc, i / FPS / DRAW_S, walk, opts, A);
+      const frame = new VideoFrame(cvs, { timestamp: Math.round(i * us), duration: Math.round(us) });
+      enc.encode(frame, { keyFrame: i % (FPS * 2) === 0 });
+      frame.close();
+      while (enc.encodeQueueSize > 6) await new Promise((r) => setTimeout(r, 5));
+      if (i % 10 === 0) { progress(i / total); await new Promise((r) => setTimeout(r, 0)); }
+    }
+    await enc.flush(); enc.close();
+    if (err) throw err;
+    muxer.finalize();
+    return new Blob([muxer.target.buffer], { type: 'video/mp4' });
   }
   const fileBase = (walk) => 'PintaMapa-paseo-' + new Date(walk.start).toISOString().slice(0, 16).replace(/[T:]/g, '-');
   async function save(blob, name, title) {

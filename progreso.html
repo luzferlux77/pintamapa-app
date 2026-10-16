@@ -6,7 +6,7 @@
   <title>Mi progreso · PintaMapa</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="lib/leaflet/leaflet.css">
+  <link rel="stylesheet" href="lib/maplibre/maplibre-gl.css">
   <style>
     :root {
       --bg: #f5f6fa; --card: #ffffff; --line: #eceef3; --text: #111827; --muted: #6b7280; --soft: #9ca3af;
@@ -150,17 +150,19 @@
     </aside>
   </div>
 
-  <script src="lib/leaflet/leaflet.js"></script>
+  <script src="lib/maplibre/maplibre-gl.js"></script>
   <script src="js/version.js"></script>
   <script src="js/util.js"></script>
   <script src="js/wikidata.js"></script>
   <script src="js/vtiles.js"></script>
+  <script src="js/mapstyle.js"></script>
   <script src="js/world.js"></script>
   <script src="js/game.js"></script>
   <script src="js/merge.js"></script>
   <script src="js/sync.js"></script>
   <script src="lib/html-to-image.js"></script>
   <script src="js/tcg.js"></script>
+  <script src="lib/mp4-muxer.js"></script>
   <script src="js/replay.js"></script>
   <script>
   (function () {
@@ -257,59 +259,82 @@
       document.documentElement.style.setProperty('--paint', s.color || '#ff2e88');
     }
 
-    // ---------------- mapa ----------------
-    function drawMap() {
+    // ---------------- mapa (MapLibre: mapa vectorial de OpenFreeMap, como en la app) ----------------
+    const ll = (q) => [q[1], q[0]];
+    const FC = (features) => ({ type: 'FeatureCollection', features });
+    const lineF = (pts, props) => ({ type: 'Feature', properties: props || {}, geometry: { type: 'LineString', coordinates: pts.map(ll) } });
+    const circlePoly = (c, r) => {
+      const out = [], kLat = r / 111320, kLon = r / (111320 * Math.cos(c[0] * Math.PI / 180));
+      for (let i = 0; i <= 40; i++) { const a = i / 40 * 2 * Math.PI; out.push([c[1] + Math.sin(a) * kLon, c[0] + Math.cos(a) * kLat]); }
+      return { type: 'Feature', properties: {}, geometry: { type: 'Polygon', coordinates: [out] } };
+    };
+    let lmMarkers = [], mapLoaded = null;
+    // grupos de capas que se encienden/apagan con los botones de encima del mapa
+    const GROUPS = { calles: ['pv-glow', 'pv-paint'], rutas: ['pv-walks'], monumentos: ['pv-halo-fill', 'pv-halo-line'], barrios: ['pv-barrios'] };
+    function setData(id, fc) {
+      if (map.getSource(id)) map.getSource(id).setData(fc);
+      else map.addSource(id, { type: 'geojson', data: fc });
+    }
+    async function drawMap() {
       const { s, walks, lms } = A;
-      const color = s.color || '#ff2e88';
+      const color = s.color || '#2563eb';
       if (!map) {
-        map = L.map('bigmap', { preferCanvas: true, zoomControl: false });
-        L.control.zoom({ position: 'bottomright' }).addTo(map);
-        L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, className: 'gray-tiles', attribution: '© OpenStreetMap' }).addTo(map);
+        map = new maplibregl.Map({ container: 'bigmap', style: PM.mapStyle.URL.light, center: [2.07386, 41.35763], zoom: 14,
+          attributionControl: false, dragRotate: false, pitchWithRotate: false });
+        map.touchZoomRotate.disableRotation();
+        map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'bottom-right');
+        map.addControl(new maplibregl.AttributionControl({ compact: true, customAttribution: '© OpenStreetMap · OpenFreeMap' }), 'bottom-left');
+        mapLoaded = new Promise((r) => map.on('load', r));
+        map.on('style.load', () => PM.mapStyle.enhance(map, 'light'));
       }
-      Object.values(layers).forEach((l) => map.removeLayer(l.layer));
-      layers = {};
-      const bounds = L.latLngBounds([]);
+      await mapLoaded;
+      const bounds = new maplibregl.LngLatBounds();
+      const ext = (pts) => pts.forEach((q) => bounds.extend(ll(q)));
       // calles pintadas
       const geo = Object.values(data.geo || {});
-      const g = L.layerGroup();
-      if (geo.length) {
-        L.polyline(geo, { color, weight: 14, opacity: 0.16 }).addTo(g);
-        const core = L.polyline(geo, { color, weight: 4.5, opacity: 1, lineCap: 'round' }).addTo(g);
-        bounds.extend(core.getBounds());
-      }
-      layers.calles = { layer: g, name: 'Calles pintadas', dot: color, on: true };
+      setData('pv-painted', FC(geo.map((g) => lineF(g))));
+      geo.forEach(ext);
       // recorridos (más recientes, más intensos)
-      const t = L.layerGroup();
-      walks.forEach((w, i) => {
-        const segs = splitTrack(w.track);
-        if (segs.length) bounds.extend(L.polyline(segs, { color: '#2563eb', weight: 2, opacity: Math.max(0.15, 0.55 - i * 0.04), dashArray: '3 5' }).addTo(t).getBounds());
-      });
-      layers.rutas = { layer: t, name: 'Recorridos', dot: '#2563eb', on: true };
-      // monumentos
-      const m = L.layerGroup();
-      lms.filter((v) => v.pos).forEach((v) => {
-        const info = (s.cardInfo || {})[v.id];
-        L.circle(v.pos, { radius: 45, color, weight: 1.5, fillColor: color, fillOpacity: 0.12 }).addTo(m);
-        L.marker(v.pos, { icon: L.divIcon({ className: '', iconSize: [34, 34], iconAnchor: [17, 17], html: `<div class="lmk" style="--c:${RAR_C[v.rarity]}">${v.emoji}</div>` }) })
-          .bindTooltip(esc(v.name), { direction: 'top', offset: [0, -16] })
-          .on('click', () => openCard(v.id))
-          .addTo(m);
-        bounds.extend(v.pos);
-      });
-      layers.monumentos = { layer: m, name: 'Monumentos', dot: '#ffb700', on: true };
+      const wf = [];
+      walks.forEach((w, i) => splitTrack(w.track).forEach((sg) => { wf.push(lineF(sg, { o: Math.max(0.15, 0.55 - i * 0.04) })); ext(sg); }));
+      setData('pv-walks', FC(wf));
+      // monumentos: halo + marcador (toca para ver la carta)
+      setData('pv-halos', FC(lms.filter((v) => v.pos).map((v) => circlePoly(v.pos, 45))));
       // barrios conquistados (silueta)
-      const b = L.layerGroup();
-      Object.values(s.barrioCards || {}).forEach((bc) => { if (bc.lines && bc.lines.length) L.polyline(bc.lines, { color: '#8b5cf6', weight: 3, opacity: 0.6 }).bindTooltip('🚩 ' + bc.name).addTo(b); });
-      layers.barrios = { layer: b, name: 'Barrios 🚩', dot: '#8b5cf6', on: true };
-      Object.values(layers).forEach((l) => l.on && l.layer.addTo(map));
+      const bf = [];
+      Object.values(s.barrioCards || {}).forEach((bc) => (bc.lines || []).forEach((ln) => bf.push(lineF(ln))));
+      setData('pv-barrios', FC(bf));
+      // recorrido seleccionado
+      setData('pv-sel', FC([]));
+      const first = (map.getStyle().layers || []).find((l) => l.type === 'symbol');
+      const add = (l) => { if (!map.getLayer(l.id)) map.addLayer(l, first && first.id); };
+      const round = { 'line-cap': 'round', 'line-join': 'round' };
+      add({ id: 'pv-barrios', type: 'line', source: 'pv-barrios', paint: { 'line-color': '#8b5cf6', 'line-width': 3, 'line-opacity': 0.55 } });
+      add({ id: 'pv-glow', type: 'line', source: 'pv-painted', layout: round, paint: { 'line-color': color, 'line-width': ['interpolate', ['linear'], ['zoom'], 12, 4, 17, 14], 'line-opacity': 0.18, 'line-blur': 4 } });
+      add({ id: 'pv-paint', type: 'line', source: 'pv-painted', layout: round, paint: { 'line-color': color, 'line-width': ['interpolate', ['linear'], ['zoom'], 12, 1.5, 17, 4.5] } });
+      add({ id: 'pv-walks', type: 'line', source: 'pv-walks', paint: { 'line-color': '#2563eb', 'line-width': 2, 'line-opacity': ['get', 'o'], 'line-dasharray': [2, 3] } });
+      add({ id: 'pv-halo-fill', type: 'fill', source: 'pv-halos', paint: { 'fill-color': color, 'fill-opacity': 0.12 } });
+      add({ id: 'pv-halo-line', type: 'line', source: 'pv-halos', paint: { 'line-color': color, 'line-width': 1.5 } });
+      add({ id: 'pv-sel-casing', type: 'line', source: 'pv-sel', layout: round, paint: { 'line-color': '#fff', 'line-width': 9, 'line-opacity': 0.9 } });
+      add({ id: 'pv-sel', type: 'line', source: 'pv-sel', layout: round, paint: { 'line-color': '#2563eb', 'line-width': 5 } });
+      lmMarkers.forEach((m) => m.remove()); lmMarkers = [];
+      lms.filter((v) => v.pos).forEach((v) => {
+        const el = document.createElement('div');
+        el.innerHTML = `<div class="lmk" style="--c:${RAR_C[v.rarity]}" title="${esc(v.name)}">${v.emoji}</div>`;
+        el.addEventListener('click', (e) => { e.stopPropagation(); openCard(v.id); });
+        lmMarkers.push(new maplibregl.Marker({ element: el }).setLngLat(ll(v.pos)).addTo(map));
+        bounds.extend(ll(v.pos));
+      });
+      const layers = { calles: { name: 'Calles pintadas', dot: color }, rutas: { name: 'Recorridos', dot: '#2563eb' }, monumentos: { name: 'Monumentos', dot: '#ffb700' }, barrios: { name: 'Barrios 🚩', dot: '#8b5cf6' } };
       $('#layers').innerHTML = Object.entries(layers).map(([k, l]) => `<button class="chip on" data-l="${k}"><i style="background:${l.dot}"></i>${l.name}</button>`).join('');
       document.querySelectorAll('[data-l]').forEach((el) => el.addEventListener('click', () => {
-        const l = layers[el.dataset.l]; l.on = !l.on; el.classList.toggle('on', l.on);
-        if (l.on) l.layer.addTo(map); else map.removeLayer(l.layer);
+        const on = !el.classList.contains('on'); el.classList.toggle('on', on);
+        GROUPS[el.dataset.l].forEach((id) => map.getLayer(id) && map.setLayoutProperty(id, 'visibility', on ? 'visible' : 'none'));
+        if (el.dataset.l === 'monumentos') lmMarkers.forEach((m) => (m.getElement().style.display = on ? '' : 'none'));
       }));
-      fitBounds = bounds.isValid() ? bounds : null;
+      fitBounds = bounds.isEmpty() ? null : bounds;
       fit();
-      setTimeout(() => map.invalidateSize(), 60);
+      setTimeout(() => map.resize(), 60);
       const st = A.st;
       $('#mapstats').innerHTML = [[dist(st.paintedM), 'pintados'], [lms.length, 'monumentos'], [Object.keys(s.conqueredB || {}).length, 'barrios 🚩']]
         .map(([b, t]) => `<div class="mapstat"><b>${b}</b><small>${t}</small></div>`).join('');
@@ -331,11 +356,11 @@
       const v = A.s.landmarks[id];
       const d = cardData(id);
       if ((A.s.cardPhotos || {})[id]) { const img = await ownPhoto(id); if (img) { d.img = img; d.own = true; d.credit = 'Foto: ' + (A.s.player || creds.user); } }
-      PM.tcg.open(d, { actions: [{ label: '📍 Ver en el mapa', on: () => { PM.tcg.close(); if (v.pos) map.setView(v.pos, 18); } }] });
+      PM.tcg.open(d, { actions: [{ label: '📍 Ver en el mapa', on: () => { PM.tcg.close(); if (v.pos) map.flyTo({ center: ll(v.pos), zoom: 18 }); } }] });
     }
 
-    function fit() { if (fitBounds) map.fitBounds(fitBounds, { padding: [60, 60], maxZoom: 17 }); else map.setView([41.35763, 2.07386], 15); }
-    $('#fit').addEventListener('click', () => { if (selLayer) { map.removeLayer(selLayer); selLayer = null; document.querySelectorAll('.walk').forEach((x) => x.classList.remove('sel')); } fit(); });
+    function fit() { if (fitBounds) map.fitBounds(fitBounds, { padding: 60, maxZoom: 17, duration: 0 }); else map.jumpTo({ center: [2.07386, 41.35763], zoom: 15 }); }
+    $('#fit').addEventListener('click', () => { if (map.getSource('pv-sel')) map.getSource('pv-sel').setData(FC([])); document.querySelectorAll('.walk').forEach((x) => x.classList.remove('sel')); fit(); });
     function splitTrack(t) {
       const segs = []; let cur = [];
       (t || []).forEach((p) => { if (!p) { if (cur.length > 1) segs.push(cur); cur = []; } else cur.push(p); });
@@ -345,11 +370,11 @@
     function showWalk(w, el) {
       document.querySelectorAll('.walk').forEach((x) => x.classList.remove('sel'));
       if (el) el.classList.add('sel');
-      if (selLayer) map.removeLayer(selLayer);
       const segs = splitTrack(w.track);
-      if (!segs.length) return;
-      selLayer = L.layerGroup([L.polyline(segs, { color: '#fff', weight: 9, opacity: 0.9 }), L.polyline(segs, { color: '#2563eb', weight: 5, opacity: 1 })]).addTo(map);
-      map.fitBounds(L.polyline(segs).getBounds(), { padding: [80, 80], maxZoom: 18 });
+      if (!segs.length || !map.getSource('pv-sel')) return;
+      map.getSource('pv-sel').setData(FC(segs.map((sg) => lineF(sg))));
+      const bb = new maplibregl.LngLatBounds(); segs.forEach((sg) => sg.forEach((q) => bb.extend(ll(q))));
+      map.fitBounds(bb, { padding: 80, maxZoom: 18 });
     }
 
     // ---------------- gráficos (SVG) ----------------
