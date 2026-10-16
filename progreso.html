@@ -93,6 +93,8 @@
     .ach div span { display: grid; place-items: center; width: 44px; height: 44px; margin: 0 auto 4px; border-radius: 12px; background: #f3f4f7; font-size: 22px; }
     .ach div.off span { filter: grayscale(1); opacity: .35; }
     .tcggrid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+    .city-h { margin: 14px 0 8px; font-size: 14px; font-weight: 700; } .city-h span { color: var(--muted, #888); font-weight: 500; margin-left: 4px; }
+    .wdet { margin-top: 8px; border: 1px solid rgba(127,127,127,.35); background: transparent; color: inherit; border-radius: 9px; padding: 7px 12px; font: 600 13px system-ui, sans-serif; cursor: pointer; }
     .tcggrid .tcg-cell { --w: 128px; } .tcggrid .tcg.mini { font-size: calc(var(--w) / 26); }
     .lmlist { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 10px; }
     .lmc { border-radius: 12px; overflow: hidden; background: #f3f4f7; cursor: pointer; border: 2px solid var(--c, #e5e7eb); }
@@ -151,12 +153,14 @@
   <script src="lib/leaflet/leaflet.js"></script>
   <script src="js/version.js"></script>
   <script src="js/util.js"></script>
+  <script src="js/wikidata.js"></script>
   <script src="js/world.js"></script>
   <script src="js/game.js"></script>
   <script src="js/merge.js"></script>
   <script src="js/sync.js"></script>
   <script src="lib/html-to-image.js"></script>
   <script src="js/tcg.js"></script>
+  <script src="js/replay.js"></script>
   <script>
   (function () {
     const $ = (s) => document.querySelector(s);
@@ -189,7 +193,7 @@
           return;
         }
         localStorage.setItem(KEY, JSON.stringify(creds));
-        data = { save: r.save, geo: r.geo };
+        data = { save: r.save, geo: r.geo, photo: r.photo };
         $('#login').style.display = 'none'; $('#app').classList.add('show');
         analyze(); header(); drawMap(); drawPanel();
       } catch (e) {
@@ -236,18 +240,18 @@
       const painted30 = rec30.reduce((a, w) => a + (w.st.painted || 0), 0);
       const perDay = painted30 / 30;
       const lms = Object.entries(s.landmarks || {}).map(([id, v]) => Object.assign({ id }, v));
-      let lvl = 1; while ((s.xp || 0) >= xpFor(lvl + 1)) lvl++;
-      A = { s, st, walks, totMs, wWalked, wPainted, days, maxStreak, hours, wdays, cities, perDay, activeDays30, painted30, lms, lvl,
+      const LI = PM.levelInfo(s.xp), lvl = LI.level;
+      A = { s, st, walks, totMs, wWalked, wPainted, days, maxStreak, hours, wdays, cities, perDay, activeDays30, painted30, lms, lvl, LI,
         longest: rec((w) => w.st.walked || 0), topPts: rec((w) => w.st.pts || 0), fastest, bestDay,
         eff: (st.walkedM || 0) > 0 ? (st.paintedM || 0) / st.walkedM : 0 };
     }
 
     function header() {
-      const { s, lvl } = A;
-      const p = ((s.xp - xpFor(lvl)) / (xpFor(lvl + 1) - xpFor(lvl))) * 100;
-      $('#ring').style.setProperty('--p', p.toFixed(1)); $('#lvl').textContent = lvl;
+      const { s, LI } = A;
+      const p = LI.pct * 100;
+      $('#ring').style.setProperty('--p', p.toFixed(1)); $('#lvl').textContent = LI.short; $('#lvl').style.color = LI.tier ? LI.tier.color : '';
       $('#name').textContent = s.player || creds.user;
-      $('#lvltext').textContent = `Nivel ${lvl} · ${PM.fmtNum(s.xp || 0)} pts · faltan ${PM.fmtNum(xpFor(lvl + 1) - (s.xp || 0))} para el ${lvl + 1}`;
+      $('#lvltext').textContent = `Nivel ${LI.label}${LI.tier ? ' ' + LI.tier.icon : ''} · ${PM.fmtNum(s.xp || 0)} pts · ` + (LI.max ? '¡nivel máximo!' : `faltan ${PM.fmtNum(LI.need - LI.cur)} para el ${LI.nextLabel}`);
       $('#synced').textContent = s.syncedAt ? 'Actualizado ' + new Date(s.syncedAt).toLocaleString('es-ES', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
       document.documentElement.style.setProperty('--paint', s.color || '#ff2e88');
     }
@@ -317,9 +321,16 @@
         img: info.img, text: info.text, credit: info.credit, points: 100 * ((RAR[v.rarity] || {}).mult || 1),
         number: order.indexOf(id) + 1, total: order.length, player: s.player || creds.user };
     }
-    function openCard(id) {
+    const photoCache = {};
+    async function ownPhoto(id) {
+      if (!(id in photoCache)) photoCache[id] = data.photo ? data.photo(id) : Promise.resolve(null);
+      return photoCache[id];
+    }
+    async function openCard(id) {
       const v = A.s.landmarks[id];
-      PM.tcg.open(cardData(id), { actions: [{ label: '📍 Ver en el mapa', on: () => { PM.tcg.close(); if (v.pos) map.setView(v.pos, 18); } }] });
+      const d = cardData(id);
+      if ((A.s.cardPhotos || {})[id]) { const img = await ownPhoto(id); if (img) { d.img = img; d.own = true; d.credit = 'Foto: ' + (A.s.player || creds.user); } }
+      PM.tcg.open(d, { actions: [{ label: '📍 Ver en el mapa', on: () => { PM.tcg.close(); if (v.pos) map.setView(v.pos, 18); } }] });
     }
 
     function fit() { if (fitBounds) map.fitBounds(fitBounds, { padding: [60, 60], maxZoom: 17 }); else map.setView([41.35763, 2.07386], 15); }
@@ -437,7 +448,8 @@
         h += `<div class="card" style="padding:8px"><h3 style="padding:8px 8px 0">Paseos <span>${walks.length} · toca uno para verlo en el mapa</span></h3>` + (walks.length ? walks.map((w, i) => `
           <div class="walk" data-i="${i}"><b>${new Date(w.start).toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric', month: 'short' })} · ${new Date(w.start).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}</b>
           <div class="pts">+${PM.fmtNum(w.st.pts || 0)}</div>
-          <small>⏱ ${dur(w.elapsed)} · 🚶 ${dist(w.st.walked)} · 🖌️ ${dist(w.st.painted)} nuevos · ⚡ ${pace(w.elapsed, w.st.walked)} · 📸 ${w.st.captures || 0} · 🪣 ${w.st.cans || 0}${w.st.conquests ? ' · 🚩 ' + w.st.conquests : ''}</small></div>`).join('')
+          <small>⏱ ${dur(w.elapsed)} · 🚶 ${dist(w.st.walked)} · 🖌️ ${dist(w.st.painted)} nuevos · ⚡ ${pace(w.elapsed, w.st.walked)} · 📸 ${w.st.captures || 0}${w.st.conquests ? ' · 🚩 ' + w.st.conquests : ''}${w.imported ? ' · ⌚' : ''}</small>
+          <button class="wdet" data-w="${i}">📊 Estadísticas, vídeo y exportar</button></div>`).join('')
           : '<div class="empty">Aún no hay paseos de más de 2 minutos.</div>') + '</div>';
       }
       if (tab === 'con') {
@@ -447,8 +459,10 @@
           <div style="display:flex;gap:16px;align-items:center">${donut(byR.map((x) => ({ v: x.v, c: x.c })))}
           <div style="flex:1">${byR.map((x) => `<div class="row"><span><i style="display:inline-block;width:9px;height:9px;border-radius:3px;background:${x.c};margin-right:6px"></i>${RAR[x.r].label}</span><b>${x.v}</b></div>`).join('')}</div></div></div>`;
         h += `<div class="card"><h3>Por tipo</h3>${Object.keys(byK).length ? Object.entries(byK).sort((a, b) => b[1] - a[1]).map(([k, v]) => `<div class="row"><span>${esc(k)}</span><b>${v}</b></div>`).join('') : '<div class="empty">Quédate 10 s junto a un monumento para conquistarlo.</div>'}</div>`;
-        h += `<div class="card"><h3>Cartas <span>toca una para verla</span></h3>${lms.length ? '<div class="tcggrid">' + lms.sort((a, b) => b.t - a.t).map((l) =>
-          `<div class="tcg-cell" data-lm="${l.id}">${PM.tcg.html(cardData(l.id), { mini: true })}</div>`).join('') + '</div>' : '<div class="empty">Sin cartas aún.</div>'}</div>`;
+        const byCity = {}; lms.forEach((l) => { (byCity[l.city || 'Otros lugares'] = byCity[l.city || 'Otros lugares'] || []).push(l); });
+        h += `<div class="card"><h3>Cartas <span>por ciudad · toca una para verla</span></h3>${lms.length ? Object.entries(byCity).sort((a, b) => b[1].length - a[1].length).map(([c, list]) =>
+          `<h4 class="city-h">🏙️ ${esc(c)} <span>${list.length}</span></h4><div class="tcggrid">` + list.sort((a, b) => b.t - a.t).map((l) =>
+          `<div class="tcg-cell" data-lm="${l.id}">${PM.tcg.html(cardData(l.id), { mini: true })}</div>`).join('') + '</div>').join('') : '<div class="empty">Sin cartas aún.</div>'}</div>`;
         const ach = PM.game.ACHIEVEMENTS, got = s.achievements || {};
         h += `<div class="card"><h3>Logros <span>${Object.keys(got).filter((k) => ach[k]).length}/${Object.keys(ach).length}</span></h3><div class="ach">${Object.entries(ach).map(([id, a]) =>
           `<div class="${got[id] ? '' : 'off'}" title="${esc(a.desc)}"><span>${a.icon}</span>${esc(a.name)}</div>`).join('')}</div></div>`;
@@ -457,6 +471,15 @@
       }
       P.innerHTML = h;
       P.querySelectorAll('.walk').forEach((el) => el.addEventListener('click', () => showWalk(walks[+el.dataset.i], el)));
+      P.querySelectorAll('.wdet').forEach((b) => b.addEventListener('click', (e) => { e.stopPropagation(); PM.replay.open(walks[+b.dataset.w], { geo: data.geo, color: A.s.color, player: A.s.player || creds.user }); }));
+      // tus fotos de cromo (de la nube): se ponen en las cartas en cuanto llegan
+      P.querySelectorAll('.tcg-cell[data-lm]').forEach(async (el) => {
+        const id = el.dataset.lm;
+        if (!(A.s.cardPhotos || {})[id]) return;
+        const img = await ownPhoto(id);
+        const ph = img && el.querySelector('.tcg-photo');
+        if (ph) { ph.style.backgroundImage = `url('${img}')`; ph.innerHTML = ''; }
+      });
       P.querySelectorAll('[data-lm]').forEach((el) => el.addEventListener('click', () => openCard(el.dataset.lm)));
     }
 

@@ -8,7 +8,7 @@ PM.tcg = (function () {
   const TYPES = {
     ayto:     { name: 'Gobierno',  c1: '#fff6d6', c2: '#f3cf6b', orb: '#e0a400', kinds: ['Ayuntamiento'] },
     templo:   { name: 'Espíritu',  c1: '#f1e6ff', c2: '#c7a6f2', orb: '#8b5cf6', kinds: ['Iglesia', 'Iglesia principal', 'Basílica', 'Catedral', 'Templo'] },
-    historia: { name: 'Historia',  c1: '#f5e9dc', c2: '#d6b48e', orb: '#a16207', kinds: ['Castillo', 'Monumento', 'Torre / Puerta', 'Ruinas', 'Lugar histórico', 'Memorial'] },
+    historia: { name: 'Historia',  c1: '#f5e9dc', c2: '#d6b48e', orb: '#a16207', kinds: ['Castillo', 'Palacio', 'Patrimonio', 'Molino', 'Monumento', 'Torre / Puerta', 'Ruinas', 'Lugar histórico', 'Memorial'] },
     cultura:  { name: 'Cultura',   c1: '#e3f1ff', c2: '#9cc7f2', orb: '#2563eb', kinds: ['Museo', 'Teatro', 'Biblioteca', 'Universidad'] },
     deporte:  { name: 'Deporte',   c1: '#ffe6e1', c2: '#f5a08f', orb: '#e53e1f', kinds: ['Estadio', 'Campo de fútbol'] },
     verde:    { name: 'Naturaleza', c1: '#e3f7e3', c2: '#9fd89f', orb: '#16a34a', kinds: ['Parque', 'Mirador'] },
@@ -38,7 +38,24 @@ PM.tcg = (function () {
     const intro = `${d.name} es ${/^[AEIOUÁÉÍÓÚ]/i.test(d.kind || '') ? 'un' : 'un'} ${(d.kind || 'lugar').toLowerCase()}${where ? ' situado en ' + where : ''}.`;
     if (t.length < 300) t = (t ? t + ' ' : intro + ' ') + (ABOUT[tk] || ABOUT.ciudad)(d);
     if (t.length < 260) t += ' Un sitio que merece la pena descubrir caminando, con calma y con los ojos bien abiertos.';
-    return t;
+    return clip4(t, (ABOUT[tk] || ABOUT.ciudad)(d));
+  }
+  // Como máximo 4 líneas y SIEMPRE frases completas (acabadas en punto), nunca un texto cortado.
+  // Todo en la carta se mide en "em" del ancho de la carta, así que el nº de letras por línea es el mismo en cualquier tamaño.
+  const DESC_MAX = 235;
+  function clip4(t, extra) {
+    t = t.replace(/\s*\([^)]*\)/g, '').replace(/\s*\[[^\]]*\]/g, '').replace(/\s+/g, ' ').trim();
+    const sentences = (s) => (s.match(/[^.!?]+[.!?]+(\s|$)/g) || [s]).map((x) => x.trim()).filter(Boolean);
+    let out = '';
+    for (const s of sentences(t)) { if ((out + ' ' + s).trim().length > DESC_MAX) break; out = (out + ' ' + s).trim(); }
+    if (!out) {   // una sola frase larguísima: se acorta en una coma o espacio y se cierra con punto
+      const c = t.slice(0, DESC_MAX - 1);
+      const cm = c.lastIndexOf(', ');
+      out = c.slice(0, cm > DESC_MAX * 0.5 ? cm : c.lastIndexOf(' '))
+        .replace(/(\s+(de|del|la|el|los|las|y|e|o|a|en|con|por|para|que|un|una|al|su|sus))+$/i, '').replace(/[,;:\s]+$/, '') + '.';
+    }
+    if (out.length < 140 && extra) for (const s of sentences(extra)) { if ((out + ' ' + s).length > DESC_MAX) break; if (!out.includes(s)) out += ' ' + s; }
+    return out;
   }
   const code = (d) => ((d.city || 'PM').normalize('NFD').replace(/[^A-Za-z]/g, '').slice(0, 4).toUpperCase() || 'PM') + '·' + String(hash(d.id) % 10000).padStart(4, '0');
 
@@ -190,7 +207,8 @@ PM.tcg = (function () {
       const t = { x: 50 + Math.max(-30, Math.min(30, e.gamma)) * 0.9, y: 50 + Math.max(-30, Math.min(30, e.beta - 40)) * 0.9 };
       if (Math.abs(t.x - target.x) < 2.5 && Math.abs(t.y - target.y) < 2.5) return;   // ignora el temblor de la mano
       target = t; el.classList.add('active'); go(); };
-    window.addEventListener('deviceorientation', tilt);
+    // en el móvil la inclinación por sensor hacía parpadear la carta: solo con ratón (PC)
+    if (window.matchMedia && matchMedia('(hover: hover)').matches) window.addEventListener('deviceorientation', tilt);
     // vaivén suave al aparecer (para que se vea el brillo sin tocar)
     let t0 = performance.now();
     const idle = (now) => { if (active || !document.body.contains(el)) return; const k = (now - t0) / 1000; if (k > 3.2) return; target = { x: 50 + Math.sin(k * 2.2) * 30, y: 50 + Math.cos(k * 1.7) * 18 }; el.classList.add('active'); go(); requestAnimationFrame(idle); };
@@ -285,7 +303,7 @@ PM.tcg = (function () {
   .tcg-hp { display: flex; align-items: center; gap: .25em; font-weight: 900; font-size: 1.25em; color: #c81e1e; white-space: nowrap; }
   .tcg-hp small { font-size: .5em; color: #c81e1e; }
   .tcg-orb { display: grid; place-items: center; width: 1.6em; height: 1.6em; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #fff8, transparent 45%), var(--orb); font-style: normal; font-size: .85em; box-shadow: 0 .1em .25em rgba(0,0,0,.4), inset 0 -.15em .3em rgba(0,0,0,.25); }
-  .tcg-art { position: relative; height: 33%; flex: none; border-radius: .3em; overflow: hidden; border: .32em solid; border-image: linear-gradient(135deg, #f4f4f4, #9a9a9a, #fafafa, #8a8a8a) 1; box-shadow: 0 .2em .5em rgba(0,0,0,.35); background: #ddd; }
+  .tcg-art { position: relative; height: auto; flex: 1 1 33%; min-height: 28%; border-radius: .3em; overflow: hidden; border: .32em solid; border-image: linear-gradient(135deg, #f4f4f4, #9a9a9a, #fafafa, #8a8a8a) 1; box-shadow: 0 .2em .5em rgba(0,0,0,.35); background: #ddd; }
   .tcg-photo { position: absolute; inset: 0; background: center / cover no-repeat; display: grid; place-items: center; background-color: #e9e2d4; }
   .tcg-photo span { font-size: 4.5em; filter: drop-shadow(0 .1em .2em rgba(0,0,0,.3)); }
   .tcg-own { position: absolute; right: .4em; bottom: .4em; background: #ff2e88; color: #fff; font-size: .62em; font-weight: 800; padding: .2em .6em; border-radius: 99px; transform: rotate(-4deg); z-index: 3; }
@@ -297,8 +315,8 @@ PM.tcg = (function () {
   .tcg-en { display: inline-flex; gap: .15em; min-width: 2.6em; } .tcg-en i { width: .95em; height: .95em; border-radius: 50%; box-shadow: inset 0 -.1em .15em rgba(0,0,0,.35), 0 0 0 .08em rgba(255,255,255,.7); }
   .tcg-wrr { display: flex; justify-content: space-between; border-top: .1em solid rgba(0,0,0,.25); padding-top: .2em; font-size: .7em; font-weight: 700; color: #222; }
   .tcg-wrr small { display: block; font-size: .7em; font-weight: 600; color: rgba(0,0,0,.55); text-transform: lowercase; }
-  .tcg-flavor { flex: 1; min-height: 0; font-size: .74em; font-style: italic; line-height: 1.32; color: #2c2c2c; border: .12em solid rgba(160,120,20,.55); border-radius: .4em; padding: .4em .6em; background: rgba(255,255,255,.4);
-    overflow: hidden; display: -webkit-box; -webkit-line-clamp: 8; -webkit-box-orient: vertical; text-align: left; hyphens: auto; font-weight: 500; color: #1d1d1d; }
+  .tcg-flavor { flex: none; height: calc(4 * 1.32em + .9em); font-size: .74em; font-style: italic; line-height: 1.32; color: #2c2c2c; border: .12em solid rgba(160,120,20,.55); border-radius: .4em; padding: .4em .6em; background: rgba(255,255,255,.4);
+    overflow: hidden; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; text-align: left; hyphens: auto; font-weight: 500; color: #1d1d1d; }
   .tcg-foot { display: flex; justify-content: space-between; align-items: center; font-size: .5em; color: rgba(0,0,0,.6); font-weight: 600; }
   .tcg-set b { color: #111; margin-left: .3em; }
   /* --- brillo holográfico --- */
@@ -316,6 +334,12 @@ PM.tcg = (function () {
     -webkit-mask-image: radial-gradient(circle at var(--mx) var(--my), #000 0%, rgba(0,0,0,.55) 16%, transparent 38%); mask-image: radial-gradient(circle at var(--mx) var(--my), #000 0%, rgba(0,0,0,.55) 16%, transparent 38%); }
   .tcg-glare { z-index: 4; mix-blend-mode: soft-light; opacity: calc(.25 + var(--hyp) * .6); background: radial-gradient(circle at var(--mx) var(--my), rgba(255,255,255,.95) 0%, rgba(255,255,255,.35) 12%, rgba(255,255,255,0) 32%, rgba(0,0,0,.18) 100%); }
   .tcg:not(.active) .tcg-glare { opacity: .15; }
+  @media (hover: none) {
+    .tcg-glitter { display: none; }
+    .tcg-shine { mix-blend-mode: soft-light; opacity: calc(var(--holo) * .35); }
+    .r-legendario .tcg-inner::after { display: none; }
+    .tcg-rot { will-change: transform; }
+  }
   /* --- reverso --- */
   .tcg-back { transform: rotateY(180deg); padding: 3.6%; background: linear-gradient(135deg, #f7d77a, #c9952a 30%, #fff1b8 50%, #b8841f 70%, #f3cf6b); }
   .tcg-back-in { position: relative; height: 100%; border-radius: 2.4% / 1.7%; overflow: hidden;
@@ -347,10 +371,10 @@ PM.tcg = (function () {
   .tcg-ribbon { position: absolute; left: 50%; top: 89.5%; transform: translateX(-50%); white-space: nowrap; }
   .tcg-ribbon span { display: inline-block; font-size: .58em; font-weight: 900; letter-spacing: .14em; color: #3a2500; padding: .45em 1.6em; background: linear-gradient(180deg, #ffe7a3, #f2c14e 55%, #c99525);
     clip-path: polygon(0 0, 100% 0, 94% 50%, 100% 100%, 0 100%, 6% 50%); box-shadow: 0 .2em .4em rgba(0,0,0,.4); }
-  .tcg-me { position: absolute; left: 9%; right: 9%; top: 56.5%; bottom: 13%; padding: .55em .8em; border-radius: .7em; background: rgba(10,12,42,.72); backdrop-filter: blur(3px);
+  .tcg-me { position: absolute; left: 7%; right: 7%; top: 53%; bottom: 12.5%; padding: .6em .9em; border-radius: .7em; background: rgba(10,12,42,.72); backdrop-filter: blur(3px);
     border: .1em solid rgba(255,209,102,.55); box-shadow: 0 0 1.2em rgba(255,46,136,.25), inset 0 0 1em rgba(34,211,238,.12); display: flex; flex-direction: column; justify-content: space-evenly; }
-  .tcg-me-h { text-align: center; font-size: .66em; font-weight: 900; letter-spacing: .12em; text-transform: uppercase; color: #ffd166; }
-  .tcg-me-row { display: flex; justify-content: space-between; gap: .6em; font-size: .62em; color: #c9d1ff; border-bottom: .06em dashed rgba(255,255,255,.12); padding: .12em 0; }
+  .tcg-me-h { text-align: center; font-size: .82em; font-weight: 900; letter-spacing: .12em; text-transform: uppercase; color: #ffd166; }
+  .tcg-me-row { display: flex; justify-content: space-between; gap: .6em; font-size: .8em; color: #dfe4ff; border-bottom: .06em dashed rgba(255,255,255,.12); padding: .12em 0; }
   .tcg-me-row:last-child { border-bottom: 0; } .tcg-me-row b { color: #fff; font-weight: 800; text-align: right; }
   .tcg-back-txt { position: absolute; bottom: 5.5%; left: 0; right: 0; text-align: center; color: #c9d1ff; font-size: .56em; }
   .tcg-back-txt b { color: #fff; }
@@ -368,7 +392,6 @@ PM.tcg = (function () {
   @keyframes tcgfade { from { opacity: 0; } }
   .tcg-stage-wrap { --w: min(94vw, 460px, calc((100vh - 150px) * .63)); width: var(--w); display: flex; flex-direction: column; align-items: center; gap: 10px; animation: tcgpop .6s cubic-bezier(.2,1.5,.4,1); }
   .tcg-stage-wrap .tcg { aspect-ratio: 63 / 98; }
-  .tcg-stage-wrap .tcg-flavor { -webkit-line-clamp: 11; }
   @keyframes tcgpop { from { transform: scale(.4) rotate(-12deg); opacity: 0; } }
   .tcg-badge { background: linear-gradient(90deg, #ffd166, #ffb700); color: #3a2500; font-weight: 900; padding: 6px 16px; border-radius: 99px; box-shadow: 0 0 30px #ffb700aa; font-size: 15px; }
   .tcg-actions { position: fixed; left: 50%; bottom: calc(14px + env(safe-area-inset-bottom)); transform: translateX(-50%); display: flex; gap: 4px; padding: 6px;

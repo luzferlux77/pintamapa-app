@@ -263,6 +263,7 @@ PM.cards = (function () {
       PM.state.save();
       ov.remove();
       if (first && PM.game.photoTaken) PM.game.photoTaken(id);
+      if (PM.cloud && PM.cloud.auto) PM.cloud.auto();   // sube la foto (cifrada) para verla también en «Mi progreso»
       if (after) after();
     });
   }
@@ -353,9 +354,14 @@ PM.cards = (function () {
         <button class="btn ${tab === 'bar' ? 'on' : ''}" data-t="bar">🏘️ Barrios (${Object.keys(s.barrioCards || {}).length})</button></div>`;
       if (tab === 'cromos') {
         if (!ids.length) html += '<p class="muted">Aún no tienes cromos. Quédate 10 s junto a un monumento, iglesia, plaza… para conquistarlo.</p>';
-        html += '<div class="cromos">';
-        for (const id of ids) html += `<div class="tcg-cell">${PM.tcg.html(await dataFor(id), { mini: true })}</div>`;
-        html += '</div>';
+        // agrupados por ciudad (la que más cromos tiene, primero)
+        const byCity = {};
+        for (const id of ids) { const c = s.landmarks[id].city || 'Otros lugares'; (byCity[c] = byCity[c] || []).push(id); }
+        for (const [c, list] of Object.entries(byCity).sort((a, b) => b[1].length - a[1].length)) {
+          html += `<h4 class="city-h">🏙️ ${esc(c)} <span>${list.length}</span></h4><div class="cromos">`;
+          for (const id of list) html += `<div class="tcg-cell">${PM.tcg.html(await dataFor(id), { mini: true })}</div>`;
+          html += '</div>';
+        }
       } else if (tab === 'col') {
         // por ciudad: conquistados / descubiertos
         const byCity = {};

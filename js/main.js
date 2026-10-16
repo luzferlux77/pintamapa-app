@@ -56,7 +56,8 @@
   function removeTileLayers(key) {
     const tl = tileLayers[key];
     if (!tl) return;
-    ['base', 'glow', 'core', 'rect', 'flag'].forEach((n) => tl[n] && tl[n].remove());
+    ['base', 'trailBase', 'glow', 'core', 'rect', 'flag'].forEach((n) => tl[n] && tl[n].remove());
+    (tl.heat || []).forEach((h) => h.remove());
     delete tileLayers[key];
   }
   // force: redibujar (p. ej. al pasar de carga parcial a barrio completo)
@@ -64,13 +65,19 @@
     if (force === true) removeTileLayers(key);
     const t = W.tiles[key];
     if (!t || !(t.loaded || t.partial) || tileLayers[key]) return;
-    const all = t.pieces.map((p) => p.pts);
-    const paintedPts = t.pieces.filter((p) => S().painted[p.id]).map((p) => p.pts);
-    const tl = { paintedPts };
-    if (all.length) {
-      tl.base = L.polyline(all, { renderer, color: '#6b7690', weight: 4, opacity: 0.8, interactive: false }).addTo(layers.tiles);
-      tl.glow = L.polyline(paintedPts, { renderer, color: paintColor(), weight: 14, opacity: 0.22, lineCap: 'round', interactive: false }).addTo(layers.tiles);
-      tl.core = L.polyline(paintedPts, { renderer, color: paintColor(), weight: 5, opacity: 1, lineCap: 'round', interactive: false }).addTo(layers.tiles);
+    const streets = t.pieces.filter((p) => !p.trail).map((p) => p.pts), trails = t.pieces.filter((p) => p.trail).map((p) => p.pts);
+    const painted = t.pieces.filter((p) => S().painted[p.id]);
+    const lv = (p) => heatLevel(p.id);
+    const tl = { paintedPts: painted.filter((p) => !lv(p)).map((p) => p.pts), glowPts: painted.map((p) => p.pts) };
+    if (t.pieces.length) {
+      tl.base = L.polyline(streets, { renderer, color: '#6b7690', weight: 4, opacity: 0.8, interactive: false }).addTo(layers.tiles);
+      // senderos y caminos: discontinuos (se pintan, pero no cuentan para el % de conquista)
+      if (trails.length) tl.trailBase = L.polyline(trails, { renderer, color: '#9a8a66', weight: 2.5, opacity: 0.85, dashArray: '3 6', interactive: false }).addTo(layers.tiles);
+      tl.glow = L.polyline(tl.glowPts, { renderer, color: paintColor(), weight: 14, opacity: 0.22, lineCap: 'round', interactive: false }).addTo(layers.tiles);
+      tl.core = L.polyline(tl.paintedPts, { renderer, color: paintColor(), weight: 5, opacity: 1, lineCap: 'round', interactive: false }).addTo(layers.tiles);
+      // tus calles de siempre: cuantas más veces pasas, más intenso y grueso el trazo
+      tl.heat = [1, 2, 3].map((l) => L.polyline(painted.filter((p) => lv(p) === l).map((p) => p.pts),
+        { renderer, color: heatColor(l), weight: 5 + l, opacity: 1, lineCap: 'round', interactive: false }).addTo(layers.tiles));
     }
     tileLayers[key] = tl;
     refreshFlag(key);
@@ -160,18 +167,28 @@
   }
 
   const dirtyTiles = new Set();
+  const rerenderTiles = new Set();
   function flushPaint() {
     dirtyTiles.forEach((k) => {
       const tl = tileLayers[k];
-      if (tl && tl.core) { tl.core.setLatLngs(tl.paintedPts); tl.glow.setLatLngs(tl.paintedPts); }
+      if (tl && tl.core) { tl.core.setLatLngs(tl.paintedPts); tl.glow.setLatLngs(tl.glowPts); }
     });
     dirtyTiles.clear();
+    if (rerenderTiles.size && !document.hidden) { rerenderTiles.forEach((k) => renderTile(k, true)); rerenderTiles.clear(); }
+  }
+  // intensidad del trazo según las pasadas: 1 vez = normal · 2-3 · 4-6 · 7+ = tu ruta habitual
+  function heatLevel(id) { const n = (S().heat || {})[id] || 1; return n >= 7 ? 3 : n >= 4 ? 2 : n >= 2 ? 1 : 0; }
+  function heatColor(l) {
+    const c = paintColor().replace('#', ''), k = [0, 0.2, 0.36, 0.5][l];
+    const ch = (i) => Math.round(parseInt(c.substr(i, 2), 16) * (1 - k)).toString(16).padStart(2, '0');
+    return c.length === 6 ? '#' + ch(0) + ch(2) + ch(4) : paintColor();
   }
 
   function recolorAll() {
     for (const k in tileLayers) {
       const tl = tileLayers[k];
       if (tl.core) { tl.core.setStyle({ color: paintColor() }); tl.glow.setStyle({ color: paintColor() }); }
+      (tl.heat || []).forEach((h, i) => h.setStyle({ color: heatColor(i + 1) }));
     }
     renderBarrios();
     for (const id in lmHalos) lmHalos[id].setStyle({ color: paintColor(), fillColor: paintColor() });
@@ -215,6 +232,7 @@
   // Botes de pintura
   const canMarkers = {};
   function renderCans() {
+    return;   // ya no hay botes de pintura en el mapa
     for (const id in W.cans) {
       if (canMarkers[id] || S().cansTaken[id]) continue;
       const c = W.cans[id];
@@ -276,7 +294,7 @@
 
   function teleport(p) {
     pos = p.slice(); lastP = null; walkAnchor = null;
-    map.setView(pos, 17); follow = true;
+    map.setView(pos, Math.max(16, map.getZoom() || 17)); follow = true;
     showAt(pos, false);
     onMove(pos, true);
   }
@@ -288,7 +306,7 @@
     const visible = !document.hidden;
     if (visible) showAt(p, mode === 'gps' && !isTeleport);
     // rumbo que da el propio GPS (fiable al caminar): manda sobre el calculado
-    if (fixBearing != null && !isNaN(fixBearing) && (fixSpeed || 0) > 0.6) { setHeadingTarget(fixBearing); lastCourseT = Date.now(); }
+    if (fixBearing != null && !isNaN(fixBearing) && (fixSpeed || 0) > 0.9 && confirmTurn(fixBearing)) { setHeadingTarget(fixBearing); lastCourseT = Date.now(); }
     const painting = session && !session.paused;
 
     if (!painting) {
@@ -308,17 +326,18 @@
       tooFast = mode === 'gps' && speed > MAX_SPEED;
       // Hueco entre lecturas (GPS en el bolsillo): se pinta el camino más corto POR LAS CALLES
       let routed = false;
-      if (!jump && !tooFast && mode === 'gps' && d > 25 && d < 2500) {
-        const maxLen = Math.max(d * 1.8, d + 150);
-        const r = W.route(lastP, p, maxLen);
-        if (r && r.len <= maxLen && (dt <= 0 || r.len / dt <= MAX_SPEED * 1.3)) {
+      const via = softFixes.filter((f) => f.t > lastT && f.t < now).map((f) => f.p); softFixes = [];
+      if (!jump && !tooFast && mode === 'gps' && d > 20 && d < 3000) {
+        const maxLen = Math.max(d * 2, d + 250);
+        const r = (via.length && routeVia(lastP, p, via)) || W.route(lastP, p, maxLen);
+        if (r && r.len <= Math.max(maxLen, r.via ? r.len : 0) && (dt <= 0 || r.len / dt <= MAX_SPEED * 1.5)) {
           routed = true;
           const aura = nearestLandmark(p).d <= AURA_RADIUS;
-          for (const id of r.pieces) { const pc = W.pieces[id]; if (pc && !S().painted[pc.id]) G.paintPiece(pc, aura); }
+          for (const id of r.pieces) { const pc = W.pieces[id]; if (pc) { if (S().painted[pc.id]) G.repass(pc); else G.paintPiece(pc, aura); } }
           paintAround(p, [p[0] - lastP[0], (p[1] - lastP[1]) * Math.cos(p[0] * Math.PI / 180)]);
           G.addWalk(r.len); session.st.walked += r.len; walkAnchor = p.slice();
           const tr = session.track || (session.track = []);
-          tr.push([+p[0].toFixed(6), +p[1].toFixed(6)]);
+          tr.push(trackPt(p, now));
         }
       }
       if (!routed && !jump && d > 0.01 && d < 400) {
@@ -331,7 +350,7 @@
           const wa = PM.geo.dist(walkAnchor, p);
           if (wa >= 10 || mode === 'sim') { G.addWalk(wa); session.st.walked += wa; walkAnchor = p.slice(); }
           const tr = session.track || (session.track = []), lt = tr[tr.length - 1];
-          if (!lt || PM.geo.dist(lt, p) >= 8) tr.push([+p[0].toFixed(6), +p[1].toFixed(6)]);
+          if (!lt || PM.geo.dist(lt, p) >= 8) tr.push(trackPt(p, now));
         }
       }
     } else {
@@ -346,6 +365,26 @@
     const tk = W.tileKeyOf(p[0], p[1]);
     if (tk !== curTile) { curTile = tk; W.ensureAround(p[0], p[1]); }
     if (visible) updateSpeedBadge();
+  }
+
+  // punto del recorrido: [lat, lon, segundos desde el inicio del paseo, altitud del GPS] (para las estadísticas tipo Strava)
+  let lastAlt = null;
+  const trackPt = (p, t) => { const q = [+p[0].toFixed(6), +p[1].toFixed(6), Math.round(((t || Date.now()) - session.start) / 1000)]; if (lastAlt != null) q.push(Math.round(lastAlt * 10) / 10); return q; };
+  // lecturas con poca precisión (bolsillo, poca cobertura): no pintan solas, pero guían la ruta del hueco
+  let softFixes = [], lastFixT = 0;
+  function routeVia(a, b, via) {
+    const pts = [a];
+    for (const q of via) if (PM.geo.dist(pts[pts.length - 1], q) > 35 && PM.geo.dist(q, b) > 35) pts.push(q);
+    if (pts.length < 2) return null;
+    pts.push(b);
+    let len = 0; const pieces = [];
+    for (let i = 0; i < pts.length - 1; i++) {
+      const dl = PM.geo.dist(pts[i], pts[i + 1]);
+      const r = W.route(pts[i], pts[i + 1], Math.max(dl * 2.2, dl + 200));
+      if (!r) return null;
+      len += r.len; pieces.push(...r.pieces);
+    }
+    return { len, pieces, via: true };
   }
 
   function nearestLandmark(p) {
@@ -368,7 +407,7 @@
     const aura = nearCache.v.d <= AURA_RADIUS;
     const hl = heading ? Math.hypot(heading[0], heading[1]) : 0;
     for (const piece of W.piecesNear(p, WIDE_RADIUS)) {
-      if (S().painted[piece.id]) continue;
+      const done = S().painted[piece.id];
       const dist = PM.geo.distToPolyline(p, piece.pts);
       if (dist > (piece.wide ? WIDE_RADIUS : PAINT_RADIUS)) continue;
       // Sin dirección conocida (parado, primera lectura): solo lo que pisas. Con dirección: solo tramos
@@ -381,7 +420,7 @@
         // lejos (otra calzada de una avenida) se exige ir casi paralelo: < ~30°; cerca basta < ~53°
         ok = vl > 0 && Math.abs((v[0] * heading[0] + v[1] * heading[1]) / (vl * hl)) >= (dist > PAINT_RADIUS ? 0.85 : 0.6);
       }
-      if (ok) G.paintPiece(piece, aura);
+      if (ok) { if (done) G.repass(piece); else G.paintPiece(piece, aura); }
     }
   }
 
@@ -407,7 +446,6 @@
     const arrow = (t) => `<i class="rarrow" style="transform:rotate(${bearingTo(pos, t) + map.getBearing()}deg)">➤</i>`;
     const parts = [];
     if (lm && lmD < 1500) parts.push(`${lm.emoji} ${PM.fmtDist(lmD)} ${arrow(lm.pos)}`);
-    if (can && canD < 1500) parts.push(`🪣 ${PM.fmtDist(canD)} ${arrow(can.pos)}`);
     $('#radar').innerHTML = parts.length ? '🎯 ' + parts.join(' · ') : '';
     $('#radar').classList.toggle('show', parts.length > 0);
   }
@@ -572,10 +610,11 @@
   // cada fotograma: girar poco a poco hacia el rumbo (sin saltos)
   function stepHeading(dt) {
     // brújula (hacia donde apunta el móvil) si la hay; si no, el rumbo del GPS / de la marcha
-    if (orient === 'heading' && compass != null && Date.now() - compassT < 1500 && !(mode === 'sim' && (simTurned || target))) setHeadingTarget(compass);
+    const walkingNow = mode === 'gps' && speed > 0.6 && Date.now() - Math.max(lastMoveT, lastCourseT) < 6000;
+    if (orient === 'heading' && compass != null && Date.now() - compassT < 1500 && !walkingNow && !(mode === 'sim' && (simTurned || target))) setHeadingTarget(compass);
     const d = angDiff(heading, headingTarget);
     if (Math.abs(d) < 0.3) return;
-    heading = (heading + d * Math.min(1, dt * 4) + 360) % 360;
+    heading = (heading + d * Math.min(1, dt * (mode === 'gps' ? 2.2 : 4)) + 360) % 360;
     applyBearing();
   }
 
@@ -587,14 +626,23 @@
     const a = headAnchor;
     const d = PM.geo.dist(a, b);
     if (d > 60) { headAnchor = b.slice(); return; }       // salto (teletransporte, hueco): se reinicia
-    if (d < (mode === 'gps' ? 6 : 4)) return;             // aún poco recorrido: se espera
+    if (d < (mode === 'gps' ? 12 : 4)) return;            // aún poco recorrido: se espera (con GPS, 12 m: menos tumbos)
     headAnchor = b.slice();
     if (simTurned && mode === 'sim' && orient === 'heading' && !target) return;
     const dx = (b[1] - a[1]) * PM.geo.mPerDegLon(a[0]), dy = (b[0] - a[0]) * PM.geo.mPerDegLat;
     const h = (Math.atan2(dx, dy) * 180 / Math.PI + 360) % 360;
-    if (mode === 'gps' && Date.now() - lastCourseT < 3000) return;   // ya hay rumbo del GPS, más fiable
     lastMoveT = Date.now();
+    if (mode === 'gps' && Date.now() - lastCourseT < 3000) return;   // ya hay rumbo del GPS, más fiable
+    if (mode === 'gps' && !confirmTurn(h)) return;
     setHeadingTarget(h);
+  }
+
+  // un giro brusco (> 120°, "media vuelta") solo se acepta si la siguiente medida lo confirma: fuera tumbos por ruido
+  let flipCand = null;
+  function confirmTurn(h) {
+    if (Math.abs(angDiff(headingTarget, h)) <= 120) { flipCand = null; return true; }
+    if (flipCand != null && Math.abs(angDiff(flipCand, h)) < 45) { flipCand = null; return true; }
+    flipCand = h; return false;
   }
 
   function applyBearing(force) {
@@ -685,7 +733,13 @@
     const acc = c.accuracy || 0;
     $('#gps').textContent = acc > 35 ? `📡 GPS impreciso (±${Math.round(acc)} m)` : `📡 GPS ±${Math.round(acc)} m`;
     $('#gps').classList.toggle('bad', acc > 35);
-    if (acc > 35) return;   // con mucho error podríamos pintar la calle de al lado: se descarta (el hueco se rellena por las calles)
+    lastFixT = Date.now();
+    if (c.altitude != null && isFinite(c.altitude) && (c.altitudeAccuracy == null || c.altitudeAccuracy < 30)) lastAlt = c.altitude;
+    if (acc > 35) {   // con mucho error podríamos pintar la calle de al lado: no pinta, pero sirve de guía para rellenar el hueco
+      if (acc <= 120 && session && !session.paused) softFixes.push({ p: [c.latitude, c.longitude], t: t || c.time || Date.now() });
+      if (softFixes.length > 60) softFixes.shift();
+      return;
+    }
     pos = [c.latitude, c.longitude];
     onMove(pos, false, t || c.time || Date.now(), c.speed, c.bearing != null ? c.bearing : c.heading);
   }
@@ -856,12 +910,81 @@
         <div><b>${PM.fmtDist(st.painted)}</b><small>calles nuevas</small></div>
         <div><b>+${PM.fmtNum(st.pts)}</b><small>puntos</small></div>
         <div><b>${st.captures}</b><small>monumentos</small></div>
-        <div><b>${st.cans}</b><small>botes</small></div>
+        <div><b>${PM.fmtDist(st.repassed || 0)}</b><small>repasados 🔥</small></div>
         <div><b>x${st.bestCombo}</b><small>mejor combo</small></div>
       </div>
       <p>${st.conquests ? `🚩 ¡Conquistaste ${st.conquests} barrio(s)! ` : ''}Velocidad media ${kmh.toFixed(1)} km/h.</p>
-      <p class="muted">${st.painted > 0 ? '¡Buen paseo! Mañana tendrás misiones nuevas y botes de pintura frescos.' : 'Hoy no pintaste calles nuevas: prueba por calles que aún estén grises.'}</p>`);
+      <p class="muted">${st.painted > 0 ? '¡Buen paseo! Mañana tendrás misiones nuevas.' : 'Hoy no pintaste calles nuevas: prueba por calles que aún estén grises.'}</p>
+      ${s.elapsed >= 120000 ? '<button class="btn on" id="sum-detail">📊 Estadísticas, vídeo y exportar</button>' : ''}`);
+    if ($('#sum-detail')) $('#sum-detail').addEventListener('click', () => openWalk(S().walks.find((w) => w.id === String(s.start))));
     celebrate('¡Paseo completado!', `${PM.fmtDist(st.walked)} caminados · ${PM.fmtDist(st.painted)} pintados · +${PM.fmtNum(st.pts)} pts`, '🏁');
+  }
+
+  // Detalle de un paseo (estadísticas tipo Strava, vídeo y exportar GPX/KML/KMZ…)
+  function openWalk(w) {
+    if (!w) return;
+    const geo = {};
+    for (const id in S().painted) { const pc = W.pieces[id]; if (pc) geo[id] = pc.pts; }
+    PM.replay.open(w, { geo, color: paintColor(), player: PM.player && PM.player.name });
+  }
+  function panelWalks() {
+    const ws = (S().walks || []).slice().reverse();
+    openSheet('🥾 Mis paseos', (ws.length ? ws.map((w, i) => `<div class="mission walk-row" data-i="${i}"><div class="mt">${new Date(w.start).toLocaleString('es-ES', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}<span>${PM.fmtDist(w.st.walked || 0)} ›</span></div>
+      <small>⏱ ${fmtTime(w.elapsed)} · 🖌️ ${PM.fmtDist(w.st.painted || 0)} nuevas · +${PM.fmtNum(w.st.pts || 0)} pts${w.imported ? ' · ⌚ importado' : ''}</small></div>`).join('')
+      : '<p class="muted">Aún no hay paseos de más de 2 minutos.</p>') +
+      `<h4>⌚ Paseo grabado con un reloj</h4><p class="muted">¿Saliste solo con el reloj (Garmin, Apple Watch, Wear OS, Polar, Suunto…)? Exporta la actividad como <b>GPX</b> o <b>TCX</b> desde su app y súbela aquí: se pintan sus calles igual que andando con el móvil.</p>
+      <button class="btn" id="imp-gpx">📂 Importar GPX / TCX</button><p class="muted" id="imp-msg"></p>`);
+    document.querySelectorAll('.walk-row').forEach((el) => el.addEventListener('click', () => openWalk(ws[+el.dataset.i])));
+    $('#imp-gpx').addEventListener('click', () => {
+      const inp = document.createElement('input'); inp.type = 'file'; inp.accept = '.gpx,.tcx,application/gpx+xml,application/xml,text/xml';
+      inp.onchange = () => inp.files[0] && importTrack(inp.files[0]);
+      inp.click();
+    });
+  }
+  // Importar un recorrido de reloj: lee los puntos (con hora y altitud), carga sus calles y las pinta siguiendo el trazado
+  async function importTrack(file) {
+    const msg = (t) => { const el = $('#imp-msg'); if (el) el.textContent = t; };
+    try {
+      const xml = new DOMParser().parseFromString(await file.text(), 'application/xml');
+      let pts = [...xml.getElementsByTagName('trkpt')].map((n) => ({ lat: +n.getAttribute('lat'), lon: +n.getAttribute('lon'),
+        t: Date.parse((n.getElementsByTagName('time')[0] || {}).textContent), e: parseFloat((n.getElementsByTagName('ele')[0] || {}).textContent) }));
+      if (!pts.length) pts = [...xml.getElementsByTagName('Trackpoint')].map((n) => ({ lat: +((n.getElementsByTagName('LatitudeDegrees')[0] || {}).textContent), lon: +((n.getElementsByTagName('LongitudeDegrees')[0] || {}).textContent),
+        t: Date.parse((n.getElementsByTagName('Time')[0] || {}).textContent), e: parseFloat((n.getElementsByTagName('AltitudeMeters')[0] || {}).textContent) }));
+      pts = pts.filter((q) => isFinite(q.lat) && isFinite(q.lon) && (q.lat || q.lon));
+      if (pts.length < 2) { msg('❌ No encuentro puntos de recorrido en el archivo.'); return; }
+      const t0 = isFinite(pts[0].t) ? pts[0].t : Date.now(), t1 = isFinite(pts[pts.length - 1].t) ? pts[pts.length - 1].t : t0;
+      if ((S().walks || []).some((w) => w.id === 'gpx' + t0)) { msg('Este recorrido ya estaba importado.'); return; }
+      msg('⏳ Cargando las calles del recorrido…');
+      const keys = [...new Set(pts.map((q) => W.tileKeyOf(q.lat, q.lon)))];
+      for (let i = 0; i < keys.length; i++) {
+        const [a, b] = keys[i].split('_').map(Number);
+        msg(`⏳ Cargando calles (${i + 1}/${keys.length})…`);
+        await W.ensureAround((a + 0.5) * W.TILE, (b + 0.5) * W.TILE);
+      }
+      msg('🖌️ Pintando…');
+      const st = { walked: 0, painted: 0, pts: 0, pieces: 0, captures: 0, bestCombo: 0, conquests: 0, repassed: 0 };
+      const before = { m: S().stats.paintedM, xp: S().xp };
+      const track = [];
+      for (let i = 0; i < pts.length; i++) {
+        const q = [pts[i].lat, pts[i].lon];
+        if (i) {
+          const a = [pts[i - 1].lat, pts[i - 1].lon], d = PM.geo.dist(a, q);
+          if (d < 400) { const n = Math.ceil(d / 4), hd = [q[0] - a[0], (q[1] - a[1]) * Math.cos(q[0] * Math.PI / 180)]; for (let k = 1; k <= n; k++) paintAround(PM.geo.lerp(a, q, k / n), hd); st.walked += d; }
+        }
+        if (!track.length || PM.geo.dist(track[track.length - 1], q) >= 8) {
+          const p = [+q[0].toFixed(6), +q[1].toFixed(6), Math.round(((isFinite(pts[i].t) ? pts[i].t : t0) - t0) / 1000)];
+          if (isFinite(pts[i].e)) p.push(Math.round(pts[i].e * 10) / 10);
+          track.push(p);
+        }
+      }
+      st.painted = S().stats.paintedM - before.m; st.pts = S().xp - before.xp;
+      G.addWalk(st.walked);
+      S().walks.push({ id: 'gpx' + t0, start: t0, elapsed: Math.max(120000, t1 - t0), st, track, imported: true });
+      S().walks.sort((x, y) => x.start - y.start);
+      PM.state.save(); flushPaint();
+      msg(`✅ Importado: ${PM.fmtDist(st.walked)} recorridos · ${PM.fmtDist(st.painted)} de calles nuevas pintadas.`);
+      PM.sync.auto();
+    } catch (e) { msg('❌ No se pudo leer el archivo: ' + (e.message || e)); }
   }
 
   // Al volver de segundo plano: recolocar cámara y redibujar lo pintado mientras estaba oculta
@@ -869,6 +992,11 @@
     if (!document.hidden) {
       showAt(pos, false);
       flushPaint(); updateSessionInfo();
+      if (mode === 'gps') {
+        if (gpsWanted()) { if (!gpsWatch || Date.now() - lastFixT > 20000) startGPS(); }   // el servicio pudo morir en el bolsillo
+        else locateOnce();                                                               // sin paseo: una lectura para recolocarte
+      }
+      curTile = null; W.ensureAround(pos[0], pos[1]);
     }
   });
 
@@ -889,7 +1017,7 @@
   // ---------------- HUD ----------------
   function updateHUD() {
     const lp = G.levelProgress();
-    $('#lvl').textContent = lp.level;
+    $('#lvl').textContent = lp.short; $('#lvl').title = 'Nivel ' + lp.label; $('#lvl').style.color = lp.tier ? lp.tier.color : '';
     $('#xpbar i').style.width = (lp.pct * 100).toFixed(1) + '%';
     $('#xptext').textContent = `${PM.fmtNum(S().xp)} pts · v${PM.VERSION.app}`;
     const t = W.tiles[curTile];
@@ -995,9 +1123,14 @@
   G.on((ev, d) => {
     if (ev === 'xp' && session) { session.st.pts += d.n; persistSession(); }
     switch (ev) {
+      case 'repass': {
+        if ([2, 4, 7].includes(d.n)) rerenderTiles.add(d.piece.tile);   // cambia de intensidad: redibujar
+        if (session) { session.st.repassed = (session.st.repassed || 0) + d.piece.len; }
+        break;
+      }
       case 'painted': {
         const tl = tileLayers[d.piece.tile];
-        if (tl) { tl.paintedPts.push(d.piece.pts); dirtyTiles.add(d.piece.tile); }
+        if (tl) { tl.paintedPts.push(d.piece.pts); tl.glowPts.push(d.piece.pts); dirtyTiles.add(d.piece.tile); }
         if (session) { session.st.painted += d.piece.len; session.st.pieces++; session.st.bestCombo = Math.max(session.st.bestCombo, d.combo); }
         const now = performance.now();
         if (!document.hidden && now - splatThrottle > 120) {
@@ -1042,7 +1175,7 @@
         break;
       case 'levelup':
         PM.sound.levelUp(); PM.vibrate([80, 40, 80]);
-        toast(`⭐ ¡Nivel ${d.level}!` + (d.colors.length ? ` Nuevo color: <b style="color:${d.colors[0].c}">${d.colors[0].name}</b>` : ''), 'gold', 4000);
+        toast(`${PM.levelName(d.level).tier ? PM.levelName(d.level).tier.icon : '⭐'} ¡Nivel ${PM.levelName(d.level).label}!` + (d.colors.length ? ` Nuevo color: <b style="color:${d.colors[0].c}">${d.colors[0].name}</b>` : ''), 'gold', 4000);
         break;
       case 'mission':
         toast(`🎯 Misión completada: ${d.m.text} · +${d.m.reward}`, 'gold', 3500);
@@ -1169,14 +1302,14 @@
     for (const k in s.tileNames) { const c = s.tileNames[k].city; if (c) cities[c] = true; }
     let html = `<div class="profile">
       <div class="avatar" style="background:${s.color}">🖌️</div>
-      <div><h2>${PM.player ? PM.player.name : 'Pintor'} · nivel ${lp.level}</h2><p>${PM.fmtNum(s.xp)} pts · faltan ${PM.fmtNum(lp.need - lp.cur)} para el nivel ${lp.level + 1}</p></div></div>
+      <div><h2>${PM.player ? PM.player.name : 'Pintor'} · nivel ${lp.label}${lp.tier ? ' ' + lp.tier.icon : ''}</h2><p>${PM.fmtNum(s.xp)} pts · ${lp.max ? '¡nivel máximo!' : `faltan ${PM.fmtNum(lp.need - lp.cur)} para el nivel ${lp.nextLabel}`}</p></div></div>
       <div class="stats">
         <div><b>${PM.fmtDist(st.paintedM)}</b><small>pintados</small></div>
         <div><b>${PM.fmtDist(st.walkedM)}</b><small>caminados</small></div>
         <div><b>${Object.keys(s.conqueredB || {}).length}</b><small>barrios 🚩</small></div>
         <div><b>${st.captures}</b><small>monumentos</small></div>
         <div><b>x${st.bestCombo}</b><small>mejor combo</small></div>
-        <div><b>${st.cans}</b><small>botes</small></div>
+        <div><b>${Object.keys(s.heat || {}).length}</b><small>tramos habituales 🔥</small></div>
       </div>
       <h4>Color de tu pintura</h4><div class="colors">` +
       G.COLORS.map((c) => {
@@ -1211,6 +1344,8 @@
         s.avoid.map((z) => `<div class="mission"><div class="mt">🚫 ${z.type === 'barrio' ? z.name : 'Zona de ' + z.r + ' m'}<span><button class="btn av-rm" data-id="${z.id}">Quitar</button></span></div></div>`).join('');
     }
     html += `<p class="muted" style="margin-top:14px">Perfil actual: <b>${PM.profile === 'real' ? '📡 Real' : '🕹️ Prueba'}</b></p>`;
+    html += `<h4>🥾 Mis paseos</h4><p class="muted">Estadísticas completas, vídeo del recorrido, exportar a GPX/KML/KMZ e importar desde un reloj.</p>
+      <button class="btn" id="opt-walks">🥾 Ver mis paseos (${(s.walks || []).length})</button>`;
     html += `<h4>Ajustes</h4>
       <label class="row"><input type="checkbox" style="width:auto" id="opt-sound" ${PM.sound.enabled ? 'checked' : ''}> Sonido</label>
       <label class="row"><input type="checkbox" style="width:auto" id="opt-dark" ${s.theme === 'dark' ? 'checked' : ''}> Tema oscuro</label>
@@ -1239,10 +1374,12 @@
     });
     $('#opt-sound').addEventListener('change', (e) => { PM.sound.enabled = e.target.checked; });
     $('#opt-dark').addEventListener('change', (e) => { s.theme = e.target.checked ? 'dark' : 'light'; PM.state.save(); applyTheme(); });
+    $('#opt-walks').addEventListener('click', panelWalks);
     $('#opt-reset').addEventListener('click', () => { if (confirm('¿Seguro? Se perderá todo tu progreso.')) PM.state.reset(); });
   }
 
   function renderSimPanel() {
+    if (PM.isNative) { $('#modebtn').style.display = 'none'; return; }   // móvil: solo real, sin selector de modo
     $('#modebtn').textContent = PM.isNative ? (PM.profile === 'real' ? '📡 Real' : '🕹️ Prueba')
       : (mode === 'sim' ? '🕹️ Prueba' : '📡 GPS (prueba)');
     $('#modebtn').classList.toggle('test', PM.profile === 'prueba');

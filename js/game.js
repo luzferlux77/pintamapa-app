@@ -6,7 +6,7 @@ PM.profile = (function () {
   let p = null;
   try { p = localStorage.getItem('pintamapa_profile'); } catch (e) {}
   if (!PM.isNative) return 'prueba';          // en el PC se juega siempre en prueba
-  return p === 'prueba' ? 'prueba' : 'real';
+  return 'real';                               // en el móvil solo existe la partida real (sin modo prueba)
 })();
 PM.switchProfile = function (p) {
   try { localStorage.setItem('pintamapa_profile', p); } catch (e) {}
@@ -51,8 +51,9 @@ PM.state = (function () {
   const fresh = () => ({
     version: 1,
     xp: 0,
-    color: '#ff2e88',
+    color: '#2563eb',
     painted: {},        // pieceId -> 1
+    heat: {},           // pieceId -> veces que has vuelto a pasar (el trazo se intensifica: "tu ruta habitual")
     paintedByTile: {},  // tileKey -> metros pintados
     landmarks: {},      // id -> {t, name, kind, emoji, rarity, visits, last}
     conquered: {},      // (antiguo, por cuadrícula)
@@ -112,14 +113,15 @@ PM.game = (function () {
   const emit = (ev, d) => listeners.forEach((fn) => fn(ev, d));
 
   // ---------------- Niveles ----------------
-  const xpForLevel = (lvl) => Math.round(400 * Math.pow(lvl - 1, 1.6)); // xp acumulada para llegar a lvl
-  function level() { let l = 1; while (S().xp >= xpForLevel(l + 1)) l++; return l; }
-  function levelProgress() {
-    const l = level(), a = xpForLevel(l), b = xpForLevel(l + 1);
-    return { level: l, cur: S().xp - a, need: b - a, pct: (S().xp - a) / (b - a) };
-  }
+  // del 1 al 99 y luego 100 Bronce, Plata, Oro, Platino, Diamante y Master (ver PM.levelInfo en util.js)
+  function level() { return PM.levelInfo(S().xp).level; }
+  function levelProgress() { return PM.levelInfo(S().xp); }
 
   const COLORS = [
+    { c: '#2563eb', name: 'Azul', lvl: 1 },
+    { c: '#16a34a', name: 'Verde', lvl: 1 },
+    { c: '#e4572e', name: 'Teja', lvl: 1 },
+    { c: '#334155', name: 'Grafito', lvl: 1 },
     { c: '#ff2e88', name: 'Rosa neón', lvl: 1 },
     { c: '#22d3ee', name: 'Cian eléctrico', lvl: 1 },
     { c: '#a3e635', name: 'Lima ácida', lvl: 2 },
@@ -154,8 +156,10 @@ PM.game = (function () {
     const s = S();
     if (s.painted[piece.id]) return 0;
     s.painted[piece.id] = 1;
+    lastPass[piece.id] = Date.now();
     if (PM.profile === 'real') s.pendingGeo[piece.id] = piece.pts.map((q) => [+q[0].toFixed(6), +q[1].toFixed(6)]);
-    s.paintedByTile[piece.tile] = (s.paintedByTile[piece.tile] || 0) + piece.len;
+    if (piece.trail) s.stats.trailM = (s.stats.trailM || 0) + piece.len;
+    if (!piece.trail) s.paintedByTile[piece.tile] = (s.paintedByTile[piece.tile] || 0) + piece.len;   // senderos: no cuentan para el %
     s.stats.paintedM += piece.len;
     const now = Date.now();
     combo++; lastPaintT = now;
@@ -176,6 +180,19 @@ PM.game = (function () {
     return pts;
   }
 
+  // Volver a pasar por una calle ya pintada: cuenta como "otra pasada" si hace más de 30 min de la anterior
+  const lastPass = {};
+  function repass(piece) {
+    const s = S(), now = Date.now();
+    if (!s.painted[piece.id] || now - (lastPass[piece.id] || 0) < 1800000) return;
+    lastPass[piece.id] = now;
+    if (!s.heat) s.heat = {};
+    const n = Math.min(20, (s.heat[piece.id] || 1) + 1);
+    s.heat[piece.id] = n;
+    PM.state.save();
+    emit('repass', { piece, n });
+  }
+
   function tileProgress(key) {
     const t = PM.world.tiles[key];
     if (!t || !t.total) return 0;
@@ -194,7 +211,7 @@ PM.game = (function () {
     if (!B || !B.total) return 0;
     const s = S();
     let m = 0;
-    for (const pc of B.pieces) if (!pc.avoid && s.painted[pc.id]) m += pc.len;
+    for (const pc of B.pieces) if (!pc.avoid && !pc.trail && s.painted[pc.id]) m += pc.len;
     return Math.min(1, m / B.total);
   }
   function checkBarrio(id) {
@@ -347,7 +364,6 @@ PM.game = (function () {
     { type: 'landmark', goals: [1, 2, 3], text: (g) => `Captura ${g} monumento${g > 1 ? 's' : ''}` },
     { type: 'combo', goals: [15, 25, 40], text: (g) => `Consigue un combo x${g}` },
     { type: 'walk', goals: [1000, 2000, 4000], text: (g) => `Camina ${PM.fmtDist(g)}` },
-    { type: 'cans', goals: [2, 3, 5], text: (g) => `Recoge ${g} botes de pintura` },
   ];
 
   function ensureDaily() {
@@ -424,12 +440,77 @@ PM.game = (function () {
     racha7: { name: 'Hábito de hierro', desc: 'Juega 7 días seguidos', icon: '💪' },
   };
 
-  function unlock(id) {
+  // ---------- Logros en series (más de 200): se comprueban solos con el estado de la partida ----------
+  const km = (m) => m / 1000;
+  const fmtN = (n) => n >= 1000 ? (n / 1000) + ' mil' : String(n);
+  function serie(prefix, icon, tiers, name, desc, value) {
+    tiers.forEach((t, i) => {
+      const id = prefix + '_' + t;
+      if (ACHIEVEMENTS[id]) return;
+      ACHIEVEMENTS[id] = { name: typeof name === 'function' ? name(t, i) : name + ' ' + ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI', 'XII', 'XIII', 'XIV', 'XV'][i],
+        desc: desc(t), icon, check: (s) => value(s) >= t };
+    });
+  }
+  const lmList = (s) => Object.values(s.landmarks || {});
+  const byKind = (s, k) => lmList(s).filter((v) => (v.kind || '').replace(' principal', '') === k).length;
+  const byRarity = (s, r) => lmList(s).filter((v) => v.rarity === r).length;
+  const walksOf = (s) => s.walks || [];
+  serie('pinta', '🛣️', [5, 21, 50, 75, 100, 150, 200, 300, 500, 750, 1000], 'Rodillo incansable', (t) => `Pinta ${t} km de calles`, (s) => km(s.stats.paintedM));
+  serie('anda', '👟', [1, 5, 10, 25, 50, 100, 200, 300, 500, 1000, 2000], 'Caminante', (t) => `Camina ${t} km en total`, (s) => km(s.stats.walkedM));
+  serie('captura', '📸', [5, 25, 75, 100, 150, 200, 300, 500, 750, 1000], 'Cazador de lugares', (t) => `Captura ${t} lugares`, (s) => lmList(s).length);
+  const KINDS = [['Ayuntamiento', '🏛️'], ['Catedral', '⛪'], ['Basílica', '⛪'], ['Castillo', '🏰'], ['Palacio', '🏯'], ['Estadio', '🏟️'], ['Iglesia', '⛪'],
+    ['Templo', '🛕'], ['Museo', '🖼️'], ['Monumento', '🗽'], ['Torre / Puerta', '🗼'], ['Teatro', '🎭'], ['Universidad', '🎓'], ['Plaza', '🏙️'], ['Faro', '🗼'],
+    ['Estación', '🚉'], ['Parque', '🌳'], ['Ruinas', '🏺'], ['Mirador', '🔭'], ['Campo de fútbol', '⚽'], ['Mercado', '🛒'], ['Biblioteca', '📚'],
+    ['Atracción', '⭐'], ['Memorial', '🗿'], ['Fuente', '⛲'], ['Arte urbano', '🎨'], ['Hospital', '🏥'], ['Bomberos', '🚒'], ['Patrimonio', '🏛️'], ['Molino', '🌬️'], ['Lugar histórico', '📜']];
+  for (const [k, ic] of KINDS) {
+    const slug = k.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z]+/g, '');
+    serie('k' + slug, ic, [1, 5, 15], (t, i) => `${k}: ${['primera', 'coleccionista', 'experto'][i]}`, (t) => `Captura ${t} ${t > 1 ? 'lugares' : 'lugar'} de tipo «${k}»`, (s) => byKind(s, k));
+  }
+  serie('legend', '👑', [5, 10, 25, 50], 'Cazador de leyendas', (t) => `Captura ${t} lugares legendarios`, (s) => byRarity(s, 'legendario'));
+  serie('epico', '💜', [1, 10, 25, 50, 100], 'Épico', (t) => `Captura ${t} lugares épicos`, (s) => byRarity(s, 'epico'));
+  serie('raro', '💙', [10, 50, 100, 200], 'Rarezas', (t) => `Captura ${t} lugares raros`, (s) => byRarity(s, 'raro'));
+  serie('barrios', '🚩', [10, 15, 25, 50, 75, 100, 150, 200], 'Señor de los barrios', (t) => `Conquista ${t} barrios`, (s) => Object.keys(s.conqueredB || {}).length);
+  serie('perfecto', '💯', [3, 5, 10, 25], 'Perfeccionista', (t) => `Pinta ${t} barrios al 100 %`, (s) => Object.keys(s.perfectB || {}).length);
+  serie('reyes', '🏙️', [2, 3, 5, 10], 'Rey de ciudades', (t) => `Pinta el 80 % de ${t} ciudades`, (s) => Object.keys(s.citiesWon || {}).length);
+  serie('viajero', '🧳', [2, 3, 5, 10, 20, 50], 'Viajero', (t) => `Pinta calles en ${t} ciudades distintas`,
+    (s) => new Set(Object.entries(s.tileNames || {}).filter(([k, v]) => v.city && (s.paintedByTile || {})[k] > 0).map(([, v]) => v.city)).size);
+  serie('racha', '📅', [14, 30, 60, 100, 365], 'Racha', (t) => `Juega ${t} días seguidos`, (s) => s.stats.streak || 0);
+  serie('dias', '🗓️', [5, 10, 25, 50, 100, 200, 365], 'Veterano', (t) => `Juega ${t} días distintos`, (s) => s.stats.days || 0);
+  serie('combo', '🔥', [10, 25, 100, 150, 200], 'Combo', (t) => `Consigue un combo x${t}`, (s) => s.stats.bestCombo || 0);
+  const LV = [5, 10, 20, 30, 40, 50, 60, 70, 80, 90, 99, 100, 150, 200, 300, 400, 500, 600, 699];
+  serie('nivel', '⭐', LV, (t) => `Nivel ${PM.levelName(t).label}`, (t) => `Llega al nivel ${PM.levelName(t).label}`, (s) => PM.levelInfo(s.xp).level);
+  serie('paseos', '🚶', [1, 5, 10, 25, 50, 100, 200, 365, 500], 'Paseante', (t) => `Completa ${t} paseo${t > 1 ? 's' : ''}`, (s) => walksOf(s).length);
+  serie('largo', '🥾', [3, 5, 10, 15, 21, 30], 'Gran paseo', (t) => `Un paseo de ${t} km o más`, (s) => km(Math.max(0, ...walksOf(s).map((w) => (w.st && w.st.walked) || 0))));
+  serie('horas', '⏱️', [30, 60, 120, 180], (t) => t < 60 ? 'Media hora' : `${t / 60} hora${t > 60 ? 's' : ''} sin parar`, (t) => `Un paseo de ${t} minutos o más`, (s) => Math.max(0, ...walksOf(s).map((w) => (w.elapsed || 0) / 60000)));
+  serie('habitual', '♻️', [10, 50, 100, 500, 1000, 5000], 'Ruta habitual', (t) => `Repite ${fmtN(t)} tramos de calle ya pintados`, (s) => Object.keys(s.heat || {}).length);
+  serie('fotos', '📷', [5, 25, 50, 100], 'Fotógrafo', (t) => `${t} cromos con foto propia`, (s) => Object.keys(s.cardPhotos || {}).length);
+  serie('fiel', '🔁', [5, 10, 25], 'Fiel', (t) => `Visita ${t} veces el mismo lugar`, (s) => Math.max(0, ...lmList(s).map((v) => v.visits || 1)));
+  serie('colec', '🗂️', [1, 3, 5, 10], 'Colecciones', (t) => `Completa ${t} colecci${t > 1 ? 'ones' : 'ón'}`, (s) => Object.keys(s.setsDone || {}).length);
+  serie('sendero', '🌲', [1, 5, 10, 25], 'Senderista', (t) => `Pinta ${t} km de senderos y caminos`, (s) => km(s.stats.trailM || 0));
+  serie('puntos', '🏆', [10000, 50000, 100000, 250000, 500000, 1000000, 2000000, 5000000], 'Puntos', (t) => `Consigue ${PM.fmtNum ? PM.fmtNum(t) : t} puntos`, (s) => s.xp || 0);
+
+  let achReady = false;
+  function checkAll() {
+    if (!document.getElementById('hud') || !PM.state) return;   // solo en el juego (no en la web de progreso)
+    const s = S();
+    const first = !s.achInit;   // la primera vez (partidas antiguas): se apuntan sin avisar de golpe
+    for (const id in ACHIEVEMENTS) {
+      const a = ACHIEVEMENTS[id];
+      if (!a.check || s.achievements[id]) continue;
+      try { if (a.check(s)) unlock(id, first); } catch (e) { /* dato que aún no existe */ }
+    }
+    if (first) { s.achInit = Date.now(); PM.state.save(); }
+    achReady = true;
+  }
+  setInterval(checkAll, 8000);
+  setTimeout(checkAll, 1500);
+
+  function unlock(id, silent) {
     const s = S();
     if (s.achievements[id] || !ACHIEVEMENTS[id]) return;
     s.achievements[id] = Date.now();
     PM.state.save();
-    emit('achievement', { id, a: ACHIEVEMENTS[id] });
+    if (!silent) emit('achievement', { id, a: ACHIEVEMENTS[id] });
   }
 
   function checkPaintAchievements() {
@@ -443,8 +524,8 @@ PM.game = (function () {
 
   return {
     on: (fn) => listeners.push(fn),
-    level, levelProgress, COLORS, ACHIEVEMENTS,
-    paintPiece, tileProgress, cityProgress, barrioProgress, checkBarrio, checkSets, photoTaken, visitLandmark, takeCan, ensureDaily, addWalk, tickCombo,
+    level, levelProgress, COLORS, ACHIEVEMENTS, checkAchievements: checkAll,
+    paintPiece, repass, tileProgress, cityProgress, barrioProgress, checkBarrio, checkSets, photoTaken, visitLandmark, takeCan, ensureDaily, addWalk, tickCombo,
     get combo() { return combo; },
     comboMult,
     goldenLeft: () => Math.max(0, goldenUntil - Date.now()),

@@ -52,6 +52,8 @@ PM.cloud = (function () {
     const pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: fromB64(box.iv) }, key, fromB64(box.ct));
     return JSON.parse(dec.decode(pt));
   }
+  // nombre del archivo de una foto: no revela qué lugar es
+  async function photoName(id, pass) { return (await sha256hex(id + '|' + pass)).slice(0, 24); }
   async function folderOf(slug, pass) { return 'j/' + (await sha256hex(slug + '\n' + pass)).slice(0, 40) + '/'; }
 
   // ---- GitHub ----
@@ -120,8 +122,35 @@ PM.cloud = (function () {
         PM.state.data.pendingGeo = left;
         PM.state.save();
       }
+      // fotos propias de los cromos (cifradas igual): así «Mi progreso» también enseña TU foto
+      const photos = PM.state.data.cardPhotos || {};
+      for (const [id, v] of Object.entries(photos)) {
+        if (v.up && v.up >= (v.t || 0)) continue;
+        const img = PM.cards && await PM.cards.getPhoto(id);
+        if (!img) continue;
+        const small = await shrink(img, 800);
+        const path = base + 'fotos/' + (await photoName(id, pass)) + '.json';
+        const cur = await readRaw(path, token).catch(() => null);
+        await write(path, await encrypt(key, { id, img: small }), cur && cur.sha, 'foto', token);
+        v.up = Date.now(); PM.state.save();
+      }
       return true;
     } finally { busy = false; }
+  }
+
+  // reduce la foto (dataURL) a como mucho `max` px de lado, en JPEG
+  function shrink(dataUrl, max) {
+    return new Promise((res) => {
+      const im = new Image();
+      im.onload = () => {
+        const k = Math.min(1, max / Math.max(im.width, im.height));
+        const c = document.createElement('canvas'); c.width = Math.round(im.width * k); c.height = Math.round(im.height * k);
+        c.getContext('2d').drawImage(im, 0, 0, c.width, c.height);
+        res(c.toDataURL('image/jpeg', 0.8));
+      };
+      im.onerror = () => res(dataUrl);
+      im.src = dataUrl;
+    });
   }
 
   // Silenciosa: al abrir la app y al terminar un paseo. Sin cobertura no pasa nada: se reintenta más tarde.
@@ -146,7 +175,14 @@ PM.cloud = (function () {
       const c = await readRaw(base + f.name);
       if (c) Object.assign(geo, await decrypt(key, c.data));
     }
-    return { save, geo };
+    // tus fotos de cromo: se descargan al abrir cada carta
+    const photo = async (id) => {
+      try {
+        const f = await readRaw(base + 'fotos/' + (await photoName(id, pass)) + '.json');
+        return f ? (await decrypt(key, f.data)).img : null;
+      } catch (e) { return null; }
+    };
+    return { save, geo, photo };
   }
 
   return { now, auto, ready, load, password, setPassword, hasKey: () => !!writeToken(), REPO,

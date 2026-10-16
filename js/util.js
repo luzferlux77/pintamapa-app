@@ -104,3 +104,27 @@ PM.sound = {
 PM.vibrate = function (pattern) {
   try { if (navigator.vibrate) navigator.vibrate(pattern); } catch (e) { /* sin vibración */ }
 };
+
+// Niveles: del 1 al 99 y luego rangos de 100 niveles cada uno: Bronce 1…100 → Plata 1…100 → Oro → Platino → Diamante → Master
+PM.LEVEL_TIERS = [
+  { name: 'Bronce', icon: '🥉', color: '#cd7f32' }, { name: 'Plata', icon: '🥈', color: '#a8b0bb' },
+  { name: 'Oro', icon: '🥇', color: '#e0a800' }, { name: 'Platino', icon: '💠', color: '#3fb8a8' },
+  { name: 'Diamante', icon: '💎', color: '#3b9cff' }, { name: 'Master', icon: '👑', color: '#ff2e88' },
+];
+PM.LEVEL_MAX = 99 + PM.LEVEL_TIERS.length * 100;   // nivel interno 699 = Master 100
+// xp acumulada para llegar al nivel interno lvl (curva suave: cada rango cuesta algo más que el anterior)
+PM.xpForLevel = (lvl) => lvl <= 99 ? Math.round(400 * Math.pow(lvl - 1, 1.6))
+  : Math.round(400 * Math.pow(98, 1.6) + (lvl - 99) * 6000 * Math.pow(1.25, Math.floor((lvl - 100) / 100)));
+PM.levelName = (l) => {
+  if (l <= 99) return { label: String(l), short: String(l), tier: null };
+  const t = PM.LEVEL_TIERS[Math.floor((l - 100) / 100)], n = ((l - 100) % 100) + 1;
+  return { label: t.name + ' ' + n, short: String(n), tier: t };
+};
+PM.levelInfo = function (xp) {
+  xp = xp || 0;
+  let l = 1;
+  while (l < PM.LEVEL_MAX && xp >= PM.xpForLevel(l + 1)) l++;
+  const a = PM.xpForLevel(l), b = PM.xpForLevel(l + 1), max = l >= PM.LEVEL_MAX, nm = PM.levelName(l);
+  return { level: l, label: nm.label, short: nm.short, tier: nm.tier, max,
+    nextLabel: max ? null : PM.levelName(l + 1).label, cur: xp - a, need: max ? 0 : b - a, pct: max ? 1 : (xp - a) / (b - a) };
+};
