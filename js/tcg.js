@@ -80,60 +80,65 @@ PM.tcg = (function () {
   }
 
   // ---------------- Reverso: plano de ciudad con calles pintadas, chincheta, anillo con lema ----------------
+  // Reverso: "sello de conquista" sobrio y elegante, como un visado de pasaporte. Fondo con grabado tipo billete
+  // (guilloché) distinto en cada carta, sello circular con el nombre del lugar, y los datos de TU conquista.
+  function guilloche(seed) {
+    let r = seed || 7;
+    const rand = () => { r = (r * 1103515245 + 12345) % 2147483648; return r / 2147483648; };
+    let paths = '';
+    for (let c = 0; c < 4; c++) {
+      const R1 = 30 + c * 9 + rand() * 4, r1 = 3 + Math.floor(rand() * 5) + c, d1 = 10 + rand() * 12;
+      let path = '';
+      for (let i = 0; i <= 720; i++) {
+        const t = i / 720 * Math.PI * 2 * r1;
+        const x = 50 + ((R1 - r1) * Math.cos(t) + d1 * Math.cos((R1 - r1) / r1 * t)) * 0.62;
+        const y = 54 + ((R1 - r1) * Math.sin(t) - d1 * Math.sin((R1 - r1) / r1 * t)) * 0.62;
+        path += (i ? 'L' : 'M') + x.toFixed(2) + ',' + y.toFixed(2);
+      }
+      paths += `<path d="${path}"/>`;
+    }
+    return paths;
+  }
   function backHTML(d, R) {
-    const seed = hash(d.id);
-    let rnd = seed || 7;
-    const rand = () => { rnd = (rnd * 1103515245 + 12345) % 2147483648; return rnd / 2147483648; };
-    const painted = { comun: 0.25, raro: 0.4, epico: 0.55, legendario: 0.75 }[d.rarity] || 0.3;
-    let streets = '';
-    for (let i = 0; i < 9; i++) {   // calles "horizontales" algo torcidas
-      const y = 6 + i * 16 + rand() * 6, y2 = y + (rand() - 0.5) * 18;
-      const on = rand() < painted;
-      streets += `<path d="M-5,${y.toFixed(1)} Q50,${((y + y2) / 2 + (rand() - 0.5) * 10).toFixed(1)} 105,${y2.toFixed(1)}" class="${on ? 'on' : ''}"/>`;
-    }
-    for (let i = 0; i < 7; i++) {   // calles "verticales"
-      const x = 4 + i * 16 + rand() * 6, x2 = x + (rand() - 0.5) * 16;
-      const on = rand() < painted;
-      streets += `<path d="M${x.toFixed(1)},-5 Q${((x + x2) / 2 + (rand() - 0.5) * 10).toFixed(1)},70 ${x2.toFixed(1)},145" class="${on ? 'on c' : ''}"/>`;
-    }
-    streets += `<path d="M-5,${(20 + rand() * 30).toFixed(1)} L105,${(110 + rand() * 30).toFixed(1)}" class="on big"/>`;
-    const tp = 'tp' + seed;
-    const corner = `<svg viewBox="0 0 40 40"><path d="M2,38 L2,10 Q2,2 10,2 L38,2" /><path d="M8,38 L8,14 Q8,8 14,8 L38,8" class="thin"/><circle cx="8" cy="8" r="3.2"/></svg>`;
-    const date = d.t ? new Date(d.t).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' }) : '';
+    const seed = hash(d.id), uid = 'bk' + seed;
+    const date = d.t ? new Date(d.t).toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' }) : '—';
+    const year = d.t ? new Date(d.t).getFullYear() : new Date().getFullYear();
     const base = d.points || 100, earned = base + Math.max(0, (d.visits || 1) - 1) * Math.round(base * 0.2);
+    const color = d.color || '#2563eb';
+    const ring = `${String(d.name || '').toUpperCase()} · ${String(d.city || 'PINTAMAPA').toUpperCase()} · ${year} · `;
+    const ringTxt = ring.length > 58 ? ring.slice(0, 55) + '… · ' : ring;
+    const coord = (v, pos, neg) => Math.abs(v).toFixed(4) + '° ' + (v >= 0 ? pos : neg);
+    const where = d.pos ? `${coord(d.pos[0], 'N', 'S')} · ${coord(d.pos[1], 'E', 'O')}` : '';
     return `<div class="tcg-face tcg-back">
-      <div class="tcg-back-in">
-        <svg class="tcg-map" viewBox="0 0 100 140" preserveAspectRatio="xMidYMid slice">${streets}</svg>
-        <div class="tcg-rays"></div>
-        <div class="tcg-stars">${R.sym.replace(/./g, '<i>$&</i>')}</div>
-        <div class="tcg-crest">
-          <svg class="tcg-ring" viewBox="0 0 100 100">
-            <defs><path id="${tp}" d="M50,50 m-40,0 a40,40 0 1,1 80,0 a40,40 0 1,1 -80,0"/></defs>
-            <circle cx="50" cy="50" r="47" class="r1"/><circle cx="50" cy="50" r="33" class="r2"/>
-            <text><textPath href="#${tp}" startOffset="0">SAL A LA CALLE ✦ PINTA TU CIUDAD ✦ CONQUÍSTALA ✦</textPath></text>
-          </svg>
-          <svg class="tcg-pin" viewBox="0 0 100 120">
-            <defs><linearGradient id="g${tp}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ff6fb5"/><stop offset=".55" stop-color="#ff2e88"/><stop offset="1" stop-color="#b3125c"/></linearGradient></defs>
-            <path d="M50,4 C27,4 11,21 11,43 C11,72 50,114 50,114 C50,114 89,72 89,43 C89,21 73,4 50,4 Z" fill="url(#g${tp})" stroke="#fff" stroke-width="3.5"/>
-            <circle cx="50" cy="43" r="22" fill="#fff"/>
-            <path d="M20,30 Q30,14 48,10" stroke="#fff" stroke-opacity=".55" stroke-width="4" fill="none" stroke-linecap="round"/>
-          </svg>
-          <div class="tcg-pin-ico">🖌️</div>
+      <div class="bk">
+        <svg class="bk-guil" viewBox="0 0 100 108" preserveAspectRatio="xMidYMid slice">${guilloche(seed)}</svg>
+        <div class="bk-top"><span>PintaMapa</span><i></i><span>Carta de conquista</span></div>
+        <svg class="bk-seal" viewBox="0 0 200 200" style="--pc:${color}">
+          <defs>
+            <path id="${uid}" d="M100,100 m-76,0 a76,76 0 1,1 152,0 a76,76 0 1,1 -152,0"/>
+            <radialGradient id="${uid}g" cx="40%" cy="35%" r="75%"><stop offset="0" stop-color="#fff" stop-opacity=".28"/><stop offset=".55" stop-color="#fff" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".35"/></radialGradient>
+          </defs>
+          <circle cx="100" cy="100" r="95" class="s1"/><circle cx="100" cy="100" r="89" class="s2"/>
+          <text class="st"><textPath href="#${uid}" textLength="472" lengthAdjust="spacing">${esc(ringTxt)}</textPath></text>
+          <circle cx="100" cy="100" r="60" fill="${color}"/><circle cx="100" cy="100" r="60" fill="url(#${uid}g)"/>
+          <circle cx="100" cy="100" r="60" class="s3"/><circle cx="100" cy="100" r="54" class="s4"/>
+          <text x="100" y="114" class="se">${d.emoji || '📍'}</text>
+          <text x="100" y="146" class="sr">${esc(R.sym)}</text>
+        </svg>
+        <div class="bk-name">${esc(d.name)}</div>
+        <div class="bk-sub">${esc([d.barrio, d.city].filter(Boolean).join(' · ') || d.kind || '')}</div>
+        <div class="bk-motto"><i></i><span>Sal a la calle · Pinta tu ciudad · Conquístala</span><i></i></div>
+        <div class="bk-grid">
+          <div><small>Conquistado por</small><b>${esc(d.player || '—')}</b></div>
+          <div><small>Fecha</small><b>${esc(date)}</b></div>
+          <div><small>Visitas</small><b>${d.visits || 1}</b></div>
+          <div><small>Puntos</small><b>${earned.toLocaleString('es-ES')}</b></div>
+          <div><small>Colección</small><b>Nº ${d.number || 1} / ${d.total || 1}</b></div>
+          <div><small>Rareza</small><b>${esc(R.name)}</b></div>
         </div>
-        <div class="tcg-word"><span class="p">Pinta</span><span class="m">Mapa</span></div>
-        <div class="tcg-me">
-          <div class="tcg-me-h">🏆 Mi conquista</div>
-          <div class="tcg-me-row"><span>Pintor</span><b>${esc(d.player || '—')}</b></div>
-          <div class="tcg-me-row"><span>Conquistado</span><b>${date || '—'}</b></div>
-          <div class="tcg-me-row"><span>Visitas</span><b>${d.visits || 1}</b></div>
-          <div class="tcg-me-row"><span>Puntos ganados</span><b>${earned}</b></div>
-          <div class="tcg-me-row"><span>En mi colección</span><b>Nº ${d.number || 1} de ${d.total || 1}</b></div>
-          ${d.own ? '<div class="tcg-me-row"><span>Foto</span><b>📸 propia</b></div>' : ''}
-        </div>
-        <div class="tcg-ribbon"><span>CARTA DE CONQUISTA</span></div>
-        <div class="tcg-corner tl">${corner}</div><div class="tcg-corner tr">${corner}</div><div class="tcg-corner bl">${corner}</div><div class="tcg-corner br">${corner}</div>
+        <div class="bk-foot"><span>${esc(where)}</span><span>${esc(code(d))}</span></div>
       </div>
-      <div class="tcg-shine back"></div><div class="tcg-glitter back"></div><div class="tcg-glare"></div>
+      <div class="tcg-glare"></div>
     </div>`;
   }
 
@@ -340,51 +345,38 @@ PM.tcg = (function () {
     .r-legendario .tcg-inner::after { display: none; }
     .tcg-rot { will-change: transform; }
   }
-  /* --- reverso --- */
-  .tcg-back { transform: rotateY(180deg); padding: 3.6%; background: linear-gradient(135deg, #f7d77a, #c9952a 30%, #fff1b8 50%, #b8841f 70%, #f3cf6b); }
-  .tcg-back-in { position: relative; height: 100%; border-radius: 2.4% / 1.7%; overflow: hidden;
-    background: radial-gradient(ellipse at 50% 38%, #3b1d6e 0%, #1a1550 45%, #0a0c2a 100%); box-shadow: inset 0 0 0 .18em #0a0c2a, inset 0 0 0 .32em #22d3ee, inset 0 0 2.5em rgba(0,0,0,.8); }
-  .tcg-map { position: absolute; inset: 0; width: 100%; height: 100%; opacity: .9; animation: tcgpan 26s ease-in-out infinite alternate; }
-  @keyframes tcgpan { to { transform: scale(1.12) translate(2%, -2%); } }
-  .tcg-map path { fill: none; stroke: rgba(160,180,255,.16); stroke-width: 1.1; stroke-linecap: round; }
-  .tcg-map path.on { stroke: #ff2e88; stroke-width: 1.5; filter: drop-shadow(0 0 1.4px #ff2e88); opacity: .85; }
-  .tcg-map path.on.c { stroke: #22d3ee; filter: drop-shadow(0 0 1.4px #22d3ee); }
-  .tcg-map path.big { stroke-width: 2.6; opacity: .7; }
-  .tcg-rays { position: absolute; left: 50%; top: 27%; width: 170%; aspect-ratio: 1; transform: translate(-50%, -50%); border-radius: 50%;
-    background: repeating-conic-gradient(from 0deg, rgba(255,46,136,.16) 0deg 6deg, transparent 6deg 15deg, rgba(34,211,238,.13) 15deg 21deg, transparent 21deg 30deg);
-    -webkit-mask: radial-gradient(circle, #000 18%, transparent 62%); mask: radial-gradient(circle, #000 18%, transparent 62%); animation: tcgspin 60s linear infinite; }
-  @keyframes tcgspin { to { transform: translate(-50%, -50%) rotate(360deg); } }
-  .tcg-crest { position: absolute; left: 50%; top: 27%; width: 60%; aspect-ratio: 1; transform: translate(-50%, -50%); }
-  .tcg-ring { position: absolute; inset: 0; width: 100%; height: 100%; animation: tcgring 40s linear infinite; filter: drop-shadow(0 0 .5em rgba(255,46,136,.6)); }
-  @keyframes tcgring { to { transform: rotate(-360deg); } }
-  .tcg-ring .r1 { fill: rgba(10,12,42,.55); stroke: #ffd166; stroke-width: 1.4; }
-  .tcg-ring .r2 { fill: none; stroke: #ffd166; stroke-width: .8; stroke-dasharray: 1.5 2.2; }
-  .tcg-ring text { fill: #ffe7a3; font: 800 7.2px Inter, system-ui, sans-serif; letter-spacing: 1.1px; }
-  .tcg-pin { position: absolute; left: 50%; top: 47%; width: 44%; transform: translate(-50%, -50%); filter: drop-shadow(0 .4em .6em rgba(0,0,0,.6)) drop-shadow(0 0 1em rgba(255,46,136,.7)); animation: tcgbob 3.5s ease-in-out infinite; }
-  @keyframes tcgbob { 50% { transform: translate(-50%, -56%); } }
-  .tcg-pin-ico { position: absolute; left: 50%; top: 41%; transform: translate(-50%, -50%) rotate(-12deg); font-size: 2.6em; animation: tcgbob2 3.5s ease-in-out infinite; }
-  @keyframes tcgbob2 { 50% { transform: translate(-50%, -62%) rotate(-12deg); } }
-  .tcg-word { position: absolute; left: 0; right: 0; top: 47.5%; text-align: center; font-weight: 900; font-style: italic; letter-spacing: -.04em; font-size: 2.15em; line-height: 1; }
-  .tcg-word .p { color: #ff2e88; text-shadow: 0 0 .35em #ff2e88, 0 .06em 0 #6d0b3c; } .tcg-word .m { color: #22d3ee; text-shadow: 0 0 .35em #22d3ee, 0 .06em 0 #064e5c; }
-  .tcg-stars { position: absolute; top: 4.5%; left: 0; right: 0; text-align: center; letter-spacing: .3em; }
-  .tcg-stars i { font-style: normal; color: #ffd166; font-size: 1em; text-shadow: 0 0 .5em #ffb700; }
-  .tcg-ribbon { position: absolute; left: 50%; top: 89.5%; transform: translateX(-50%); white-space: nowrap; }
-  .tcg-ribbon span { display: inline-block; font-size: .58em; font-weight: 900; letter-spacing: .14em; color: #3a2500; padding: .45em 1.6em; background: linear-gradient(180deg, #ffe7a3, #f2c14e 55%, #c99525);
-    clip-path: polygon(0 0, 100% 0, 94% 50%, 100% 100%, 0 100%, 6% 50%); box-shadow: 0 .2em .4em rgba(0,0,0,.4); }
-  .tcg-me { position: absolute; left: 7%; right: 7%; top: 53%; bottom: 12.5%; padding: .6em .9em; border-radius: .7em; background: rgba(10,12,42,.72); backdrop-filter: blur(3px);
-    border: .1em solid rgba(255,209,102,.55); box-shadow: 0 0 1.2em rgba(255,46,136,.25), inset 0 0 1em rgba(34,211,238,.12); display: flex; flex-direction: column; justify-content: space-evenly; }
-  .tcg-me-h { text-align: center; font-size: .82em; font-weight: 900; letter-spacing: .12em; text-transform: uppercase; color: #ffd166; }
-  .tcg-me-row { display: flex; justify-content: space-between; gap: .6em; font-size: .8em; color: #dfe4ff; border-bottom: .06em dashed rgba(255,255,255,.12); padding: .12em 0; }
-  .tcg-me-row:last-child { border-bottom: 0; } .tcg-me-row b { color: #fff; font-weight: 800; text-align: right; }
-  .tcg-back-txt { position: absolute; bottom: 5.5%; left: 0; right: 0; text-align: center; color: #c9d1ff; font-size: .56em; }
-  .tcg-back-txt b { color: #fff; }
-  .tcg-corner { position: absolute; width: 15%; aspect-ratio: 1; } .tcg-corner svg { width: 100%; height: 100%; }
-  .tcg-corner path { fill: none; stroke: #ffd166; stroke-width: 2.2; } .tcg-corner path.thin { stroke-width: 1; opacity: .7; } .tcg-corner circle { fill: #ffd166; filter: drop-shadow(0 0 2px #ffb700); }
-  .tcg-corner.tl { top: 2.5%; left: 2.5%; } .tcg-corner.tr { top: 2.5%; right: 2.5%; transform: scaleX(-1); }
-  .tcg-corner.bl { bottom: 2.5%; left: 2.5%; transform: scaleY(-1); } .tcg-corner.br { bottom: 2.5%; right: 2.5%; transform: scale(-1); }
-  .tcg-shine.back, .tcg-glitter.back { display: none; }
-  .tcg-back .tcg-map, .tcg-back .tcg-rays, .tcg-back .tcg-ring, .tcg-back .tcg-pin, .tcg-back .tcg-pin-ico { animation: none; }
-  .tcg-back .tcg-glare { opacity: .12 !important; }
+  /* --- reverso: sello de conquista --- */
+  .tcg-back { transform: rotateY(180deg); padding: 3.2%; background: linear-gradient(135deg, #e9d7a6, #b8955a 30%, #f3e6c4 50%, #a8844a 72%, #e2cd98); }
+  .bk { position: relative; height: 100%; border-radius: 2.4% / 1.7%; overflow: hidden; color: #e9edf4; font-family: Inter, system-ui, sans-serif;
+    background: radial-gradient(120% 80% at 50% 30%, #1c2638 0%, #121a28 55%, #0b1019 100%);
+    box-shadow: inset 0 0 0 .14em #0b1019, inset 0 0 0 .26em rgba(212,175,106,.75), inset 0 0 0 .42em #0b1019, inset 0 0 0 .48em rgba(212,175,106,.35);
+    display: flex; flex-direction: column; align-items: center; padding: 7% 8% 5.5%; }
+  .bk-guil { position: absolute; inset: 0; width: 100%; height: 100%; -webkit-mask-image: radial-gradient(ellipse 75% 42% at 50% 30%, #000 35%, transparent 78%); mask-image: radial-gradient(ellipse 75% 42% at 50% 30%, #000 35%, transparent 78%); }
+  .bk-guil path { fill: none; stroke: #d4af6a; stroke-width: .16; opacity: .26; }
+  .bk > *:not(.bk-guil) { position: relative; }
+  .bk-top { width: 100%; display: flex; align-items: center; gap: .6em; font-size: .52em; letter-spacing: .28em; text-transform: uppercase; color: #d4af6a; font-weight: 600; }
+  .bk-top i { flex: 1; height: 1px; background: linear-gradient(90deg, rgba(212,175,106,.6), rgba(212,175,106,.1)); }
+  .bk-seal { width: 56%; margin: 6% 0 3%; transform: rotate(-7deg); filter: drop-shadow(0 .4em .8em rgba(0,0,0,.45)); }
+  .bk-seal .s1 { fill: rgba(11,16,25,.55); stroke: #d4af6a; stroke-width: 1.6; }
+  .bk-seal .s2 { fill: none; stroke: #d4af6a; stroke-width: .7; stroke-dasharray: 1.5 3; opacity: .8; }
+  .bk-seal .s3 { fill: none; stroke: #f1dfb2; stroke-width: 1.4; }
+  .bk-seal .s4 { fill: none; stroke: rgba(255,255,255,.35); stroke-width: .6; stroke-dasharray: 2 2.5; }
+  .bk-seal .st { fill: #e3c88d; font: 600 10.5px Inter, system-ui, sans-serif; letter-spacing: 1.5px; }
+  .bk-seal .se { text-anchor: middle; font-size: 46px; }
+  .bk-seal .sr { text-anchor: middle; fill: #fff4d6; font: 700 11px Inter, system-ui, sans-serif; letter-spacing: 3px; }
+  .bk-name { font-family: Georgia, "Times New Roman", serif; font-size: 1.32em; line-height: 1.12; text-align: center; color: #fff; font-weight: 700; letter-spacing: -.01em;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; max-width: 100%; }
+  .bk-sub { font-size: .66em; color: #9aa6ba; margin-top: .35em; letter-spacing: .04em; text-align: center; }
+  .bk-motto { margin-top: auto; margin-bottom: .9em; width: 100%; display: flex; align-items: center; gap: .6em; font-family: Georgia, serif; font-style: italic; font-size: .58em; color: #c9b27c; white-space: nowrap; }
+  .bk-motto i { flex: 1; height: 1px; background: rgba(212,175,106,.35); }
+  .bk-grid { width: 100%; display: grid; grid-template-columns: 1fr 1fr; border-top: 1px solid rgba(212,175,106,.35); }
+  .bk-grid div { padding: .5em .2em .45em; border-bottom: 1px solid rgba(212,175,106,.18); min-width: 0; }
+  .bk-grid div:nth-child(odd) { border-right: 1px solid rgba(212,175,106,.18); padding-right: .6em; }
+  .bk-grid div:nth-child(even) { padding-left: .7em; }
+  .bk-grid small { display: block; font-size: .5em; letter-spacing: .16em; text-transform: uppercase; color: #a08a5c; font-weight: 600; }
+  .bk-grid b { display: block; font-size: .78em; font-weight: 600; color: #f2f4f8; margin-top: .15em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .bk-foot { width: 100%; display: flex; justify-content: space-between; margin-top: .7em; font-size: .5em; letter-spacing: .12em; color: #7f8aa0; font-family: ui-monospace, Consolas, monospace; }
+  .tcg-back .tcg-glare { opacity: .1 !important; }
   .tcg.flat .tcg-rot { transform: none; } .tcg.flat .tcg-face { box-shadow: none; }
   /* --- vista grande --- */
   #tcg-view { position: fixed; inset: 0; z-index: 3000; display: none; place-items: center; padding-bottom: calc(92px + env(safe-area-inset-bottom)); background: radial-gradient(circle at 50% 40%, rgba(40,20,80,.75), rgba(5,5,20,.92)); backdrop-filter: blur(6px); }
