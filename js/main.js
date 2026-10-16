@@ -471,38 +471,45 @@
 
   // Captura por permanencia: CAPTURE_SECONDS seguidos a menos de CAPTURE_RADIUS del monumento.
   // t = hora real de la lectura GPS (con la pantalla bloqueada las lecturas llegan luego, en lote).
-  let dwell = null;   // { lm, since }
+  // Captura de VARIOS a la vez: cada lugar en cuyo radio estás cuenta su propio tiempo; si hay varios juntos
+  // (castillo + palacio + museo en la misma plaza…), a los 10 s se conquistan todos.
+  let dwells = {};   // id -> { lm, since }
   const canCapture = (lm) => { const r = S().landmarks[lm.id]; return !r || Date.now() - r.last > G.REVISIT_MS; };
   function checkDwell(p, t, visible) {
-    if (!session || session.paused) { dwell = null; showDwell(); return; }
-    if (dwell) {
-      if (PM.geo.dist(p, dwell.lm.pos) > (dwell.lm.capR || CAPTURE_RADIUS) + (CAPTURE_EXIT - CAPTURE_RADIUS) || !canCapture(dwell.lm)) {
-        if (visible && canCapture(dwell.lm)) toast(`📸 Te has alejado de ${dwell.lm.emoji} ${dwell.lm.name}: captura cancelada`, 'warn', 2500);
-        dwell = null;
-      } else if (t - dwell.since >= CAPTURE_SECONDS * 1000) {
-        const lm = dwell.lm; dwell = null;
-        G.visitLandmark(lm);
+    if (!session || session.paused) { dwells = {}; showDwell(); return; }
+    // los que ya estaban en marcha: ¿sigues cerca?, ¿ha pasado el tiempo?
+    for (const [id, dw] of Object.entries(dwells)) {
+      if (PM.geo.dist(p, dw.lm.pos) > (dw.lm.capR || CAPTURE_RADIUS) + (CAPTURE_EXIT - CAPTURE_RADIUS) || !canCapture(dw.lm)) {
+        if (visible && canCapture(dw.lm)) toast(`📸 Te has alejado de ${dw.lm.emoji} ${dw.lm.name}: captura cancelada`, 'warn', 2500);
+        delete dwells[id];
+      } else if (t - dw.since >= CAPTURE_SECONDS * 1000) {
+        delete dwells[id];
+        G.visitLandmark(dw.lm);
       }
     }
-    if (!dwell) {
-      let best = null, bd = 1;   // distancia relativa a su radio de captura (los estadios tienen más)
-      for (const id in W.landmarks) {
-        const lm = W.landmarks[id], d = PM.geo.dist(p, lm.pos) / (lm.capR || CAPTURE_RADIUS);
-        if (d <= bd && canCapture(lm)) { bd = d; best = lm; }
-      }
-      if (best) {
-        dwell = { lm: best, since: t };
-        if (visible) { toast(`📸 Quédate ${CAPTURE_SECONDS} s junto a ${best.emoji} <b>${best.name}</b> para capturarlo`, 'info', 3000); PM.vibrate(30); }
-      }
+    // los nuevos dentro de su radio de captura (da igual lo cerca que estén unos de otros)
+    const nuevos = [];
+    for (const id in W.landmarks) {
+      const lm = W.landmarks[id];
+      if (dwells[id] || !canCapture(lm) || PM.geo.dist(p, lm.pos) > (lm.capR || CAPTURE_RADIUS)) continue;
+      dwells[id] = { lm, since: t }; nuevos.push(lm);
+    }
+    if (nuevos.length && visible) {
+      toast(nuevos.length === 1 ? `📸 Quédate ${CAPTURE_SECONDS} s junto a ${nuevos[0].emoji} <b>${nuevos[0].name}</b> para capturarlo`
+        : `📸 Quédate ${CAPTURE_SECONDS} s: capturas <b>${nuevos.length} lugares</b> a la vez (${nuevos.map((l) => l.emoji).join(' ')})`, 'info', 3000);
+      PM.vibrate(30);
     }
     if (visible) showDwell(t);
   }
   function showDwell(t) {
     const el = $('#capture');
-    if (!dwell) { el.classList.remove('show'); return; }
-    const left = Math.max(0, CAPTURE_SECONDS - Math.floor(((t || Date.now()) - dwell.since) / 1000));
-    const pct = Math.min(100, (((t || Date.now()) - dwell.since) / (CAPTURE_SECONDS * 1000)) * 100);
-    el.innerHTML = `📸 Capturando ${dwell.lm.emoji} ${dwell.lm.name}… <b>${left} s</b><span class="cbar"><i style="width:${pct}%"></i></span>`;
+    const list = Object.values(dwells).sort((x, y) => x.since - y.since);
+    if (!list.length) { el.classList.remove('show'); return; }
+    const dw = list[0], now = t || Date.now();
+    const left = Math.max(0, CAPTURE_SECONDS - Math.floor((now - dw.since) / 1000));
+    const pct = Math.min(100, ((now - dw.since) / (CAPTURE_SECONDS * 1000)) * 100);
+    const names = list.length === 1 ? `${dw.lm.emoji} ${dw.lm.name}` : `${list.map((x) => x.lm.emoji).join(' ')} ${list.length} lugares`;
+    el.innerHTML = `📸 Capturando ${names}… <b>${left} s</b><span class="cbar"><i style="width:${pct}%"></i></span>`;
     el.classList.add('show');
   }
   // quieto junto al monumento no llegan lecturas nuevas del GPS: se comprueba cada segundo con la última posición
@@ -1140,6 +1147,14 @@
 
   // ---------------- Eventos del juego ----------------
   let splatThrottle = 0, achQueue = [], achTimer = null;
+  const cardQueue = [];
+  function showNextCard() {
+    const v = document.getElementById('tcg-view');
+    if (!cardQueue.length || (v && v.classList.contains('show'))) return;
+    const [id, pts] = cardQueue.shift();
+    PM.cards.open(id, { isNew: true, pts });
+  }
+  setInterval(showNextCard, 600);
   G.on((ev, d) => {
     if (ev === 'xp' && session) { session.st.pts += d.n; persistSession(); }
     switch (ev) {
@@ -1169,7 +1184,7 @@
         if (session && d.first) session.st.captures++;
         placeLandmark(lm);
         if (d.first) {
-          PM.cards.open(lm.id, { isNew: true, pts: d.pts });
+          cardQueue.push([lm.id, d.pts]); showNextCard();   // varias capturas a la vez: una carta detrás de otra
           PM.sound.capture(); PM.vibrate([60, 40, 120]);
         } else toast(`${lm.emoji} Has vuelto a <b>${lm.name}</b> · +${d.pts}`, 'ok');
         break;
