@@ -1,8 +1,8 @@
 {
-  "version": "0.4.1",
-  "notes": "Icono de perfil: silueta de una cabeza",
+  "version": "0.4.2",
+  "notes": "Toca tu nivel para ver por qué lo tienes y de dónde vienen tus puntos; vídeo del paseo con el mapa de calles debajo y el recorrido siguiendo las calles (sin diagonales); los paseos guardan el trazado real en los huecos del GPS; carga de calles más ligera y preguntando a varios servidores a la vez",
   "native": 3,
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.4.1/pintamapa-web-0.4.1.zip",
-  "checksum": "2cd22aeee5a882955e922c44d1f696936da6433b7e845914af3685ffaba13637",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.4.1/PintaMapa-v0.4.1.apk"
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.4.2/pintamapa-web-0.4.2.zip",
+  "checksum": "4e7a89bf29788cfdbec1701d96d9d1462ba5b96020cd66f6a7c5a275c019e55d",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.4.2/PintaMapa-v0.4.2.apk"
 }
