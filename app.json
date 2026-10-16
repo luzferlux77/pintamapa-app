@@ -1,8 +1,8 @@
 {
-  "version": "0.5.0",
-  "notes": "Calles mucho más rápidas y estables: mapas vectoriales de OpenFreeMap (con OpenStreetMap oficial y VersaTiles de reserva, y Overpass como último recurso) — una ciudad nueva en ~1 s; tramos de calle anclados al mapa y migración automática de lo ya pintado",
+  "version": "0.5.1",
+  "notes": "Nuevo reverso de las cartas: sello de conquista elegante (estilo pasaporte), grabado único por carta, tus datos de conquista y las coordenadas del lugar",
   "native": 3,
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.5.0/pintamapa-web-0.5.0.zip",
-  "checksum": "7ffd135c32762e3be79d3f10f5edb8a1fccf0a1eea60885ebd23796d32d98eaf",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.5.0/PintaMapa-v0.5.0.apk"
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.5.1/pintamapa-web-0.5.1.zip",
+  "checksum": "fcd216a50eee11cd27b76f6b3c7400aef6443c2dcc3953a8a8d80da71085a726",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.5.1/PintaMapa-v0.5.1.apk"
 }
