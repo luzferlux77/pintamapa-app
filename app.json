@@ -1,8 +1,8 @@
 {
-  "version": "0.6.9",
-  "notes": "Mi progreso › Actividad renovada: periodos (7 días, 30 días, 12 semanas, todo) con comparación, gráfico de área, acumulado con hitos, mapa de calor, reloj de horas, días de la semana, rachas, récords y ritmo por paseo",
+  "version": "0.6.10",
+  "notes": "Lugares: ermitas y monasterios (siempre visibles si son patrimonio), comercios emblemáticos protegidos, todas las estaciones (tren, cercanías, metro) y paradas de tranvía; fuentes solo monumentales; murales, grafitis, memoriales y placas solo con Wikipedia",
   "native": 3,
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.9/pintamapa-web-0.6.9.zip",
-  "checksum": "3afd2d1de28e5d36b347620934b819a8fb489de91626412087ffbe0bc6918260",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.9/PintaMapa-v0.6.9.apk"
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.10/pintamapa-web-0.6.10.zip",
+  "checksum": "18324de5716803dd20630e57869dff8570f5b2b726dd980c42070e4b30430977",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.10/PintaMapa-v0.6.10.apk"
 }
