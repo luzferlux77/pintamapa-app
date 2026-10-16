@@ -1,8 +1,8 @@
 {
-  "version": "0.6.2",
-  "notes": "Paseos antiguos: ya no se muestran ritmos por kilómetro inventados (todos iguales); solo el desnivel, que sí es real",
+  "version": "0.6.3",
+  "notes": "Cartas: los lugares conquistados antes de conocer la ciudad ya no salen en «Otros lugares», se les asigna su ciudad",
   "native": 3,
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.2/pintamapa-web-0.6.2.zip",
-  "checksum": "b329c683e37c1455f7ee0f57463157b704c4bcf1024c0814350274626ea25837",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.2/PintaMapa-v0.6.2.apk"
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.3/pintamapa-web-0.6.3.zip",
+  "checksum": "6d0c9890c81b559348d5e95baa0006996bf1c04ebb64cc5aba081d373d659dff",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.3/PintaMapa-v0.6.3.apk"
 }
