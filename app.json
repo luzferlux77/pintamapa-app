@@ -1,8 +1,8 @@
 {
-  "version": "0.6.1",
-  "notes": "Mapa con más vida: colores, parques, agua y edificios en 3D; «Mi progreso» con el mismo mapa nuevo; vídeo del paseo en MP4 compatible con X, WhatsApp e Instagram (y se crea en segundos); arreglado que las actualizaciones se quedaran atascadas tras un paseo",
+  "version": "0.6.2",
+  "notes": "Paseos antiguos: ya no se muestran ritmos por kilómetro inventados (todos iguales); solo el desnivel, que sí es real",
   "native": 3,
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.1/pintamapa-web-0.6.1.zip",
-  "checksum": "4dce16bb62228f1898863db5c9ade73c7cc3194caa57d889cbb906f7a78f768a",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.1/PintaMapa-v0.6.1.apk"
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.2/pintamapa-web-0.6.2.zip",
+  "checksum": "b329c683e37c1455f7ee0f57463157b704c4bcf1024c0814350274626ea25837",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.2/PintaMapa-v0.6.2.apk"
 }
