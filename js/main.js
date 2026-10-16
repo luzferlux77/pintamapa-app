@@ -1354,7 +1354,7 @@
       <p class="muted">PintaMapa <b>v${PM.VERSION.app}</b> · ${(PM.update.status() || {}).msg || 'Se busca actualización al abrir la app.'}</p>
       ${PM.isNative ? '<button class="btn" id="opt-upd">🔄 Buscar actualización ahora</button>' : ''}
       <p class="muted">Mapas y calles © OpenStreetMap</p>`;
-    openSheet('🎨 Perfil', html);
+    openSheet('👤 Perfil', html);
     document.querySelectorAll('.color:not([disabled])').forEach((b) => b.addEventListener('click', () => {
       s.color = b.dataset.c; PM.state.save(); recolorAll(); panelProfile();
     }));
