@@ -1,8 +1,8 @@
 {
-  "version": "0.6.6",
-  "notes": "Mi progreso › Conquistas: primero las cartas, luego monumentos y por tipo",
+  "version": "0.6.7",
+  "notes": "Cartas agrupadas por país (con bandera) y, dentro, ciudades por orden alfabético (app y web)",
   "native": 3,
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.6/pintamapa-web-0.6.6.zip",
-  "checksum": "20fe4cd854fed2165797a95be9fc21fb0edda76dac63cb86a4408905a188510c",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.6/PintaMapa-v0.6.6.apk"
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.7/pintamapa-web-0.6.7.zip",
+  "checksum": "6eff145305e3839013aaa5743dbb605e26d8953945d41169a7912a2625497eed",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.7/PintaMapa-v0.6.7.apk"
 }
