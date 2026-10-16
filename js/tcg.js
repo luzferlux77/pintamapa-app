@@ -138,7 +138,7 @@ PM.tcg = (function () {
         </div>
         <div class="bk-foot"><span>${esc(where)}</span><span>${esc(code(d))}</span></div>
       </div>
-      <div class="tcg-glare"></div>
+      <div class="bk-holo"></div><div class="tcg-glare"></div>
     </div>`;
   }
 
@@ -183,7 +183,7 @@ PM.tcg = (function () {
             <div class="tcg-foot"><span>${esc(d.own ? 'Foto: propia del pintor' : (d.credit || 'Foto: Wikimedia Commons'))}</span>
               <span class="tcg-set">🖌️ PintaMapa <b>${R.sym}</b></span></div>
           </div>
-          <div class="tcg-glare"></div>
+          <div class="tcg-foil"></div><div class="tcg-glare"></div>
         </div>
         ${backHTML(d, R)}
       </div>
@@ -194,9 +194,11 @@ PM.tcg = (function () {
   function interactive(el) {
     const rot = el.querySelector('.tcg-rot');
     let flipped = false, raf = null, target = { x: 50, y: 50 }, cur = { x: 50, y: 50 }, active = false;
+    const touch = !!(window.matchMedia && matchMedia('(hover: none)').matches);
     const apply = () => {
-      const k = el._soft ? 0.07 : 0.18; cur.x += (target.x - cur.x) * k; cur.y += (target.y - cur.y) * k;
-      const rx = (cur.y - 50) / 50 * -14, ry = (cur.x - 50) / 50 * 18;
+      const k = el._soft ? 0.1 : 0.18; cur.x += (target.x - cur.x) * k; cur.y += (target.y - cur.y) * k;
+      // en el móvil la carta no gira en 3D (eso parpadeaba): solo se mueve el holograma; en el PC, giro con el ratón
+      const rx = touch ? 0 : (cur.y - 50) / 50 * -14, ry = touch ? 0 : (cur.x - 50) / 50 * 18;
       el.style.setProperty('--mx', cur.x + '%'); el.style.setProperty('--my', cur.y + '%');
       el.style.setProperty('--rx', rx + 'deg'); el.style.setProperty('--ry', (flipped ? 180 : 0) + ry + 'deg');
       el.style.setProperty('--hyp', Math.min(1, Math.hypot(cur.x - 50, cur.y - 50) / 50).toFixed(3));
@@ -207,13 +209,20 @@ PM.tcg = (function () {
     el.addEventListener('pointermove', (e) => { if (e.pointerType !== 'mouse') return; el._soft = false; point(e.clientX, e.clientY); });
     el.addEventListener('pointerleave', () => { target = { x: 50, y: 50 }; active = false; el.classList.remove('active'); go(); });
     el.addEventListener('click', () => { flipped = !flipped; el.classList.toggle('flipped', flipped); rot.style.transition = 'transform .8s cubic-bezier(.3,1.5,.5,1)'; go(); setTimeout(() => { rot.style.transition = ''; }, 800); });
-    // móvil: inclinación
-    const tilt = (e) => { if (active || e.beta == null || !document.body.contains(el)) return; el._soft = true;
-      const t = { x: 50 + Math.max(-30, Math.min(30, e.gamma)) * 0.9, y: 50 + Math.max(-30, Math.min(30, e.beta - 40)) * 0.9 };
-      if (Math.abs(t.x - target.x) < 2.5 && Math.abs(t.y - target.y) < 2.5) return;   // ignora el temblor de la mano
-      target = t; el.classList.add('active'); go(); };
-    // en el móvil la inclinación por sensor hacía parpadear la carta: solo con ratón (PC)
-    if (window.matchMedia && matchMedia('(hover: hover)').matches) window.addEventListener('deviceorientation', tilt);
+    // móvil: al inclinarlo, el holograma se desliza por la carta (como un cromo de verdad bajo la luz).
+    // La postura con la que la miras es el "centro" y se recalibra despacio si cambias de postura.
+    let base = null;
+    const clamp = (v) => Math.max(-48, Math.min(48, v));
+    const tilt = (e) => {
+      if (!document.body.contains(el)) { window.removeEventListener('deviceorientation', tilt); return; }
+      if (active || e.beta == null || e.gamma == null) return;
+      if (!base) base = { g: e.gamma, b: e.beta };
+      base.g += (e.gamma - base.g) * 0.004; base.b += (e.beta - base.b) * 0.004;
+      el._soft = true;
+      target = { x: 50 + clamp((e.gamma - base.g) * 2.4), y: 50 + clamp((e.beta - base.b) * 2.4) };
+      el.classList.add('active'); go();
+    };
+    window.addEventListener('deviceorientation', tilt);
     // vaivén suave al aparecer (para que se vea el brillo sin tocar)
     let t0 = performance.now();
     const idle = (now) => { if (active || !document.body.contains(el)) return; const k = (now - t0) / 1000; if (k > 3.2) return; target = { x: 50 + Math.sin(k * 2.2) * 30, y: 50 + Math.cos(k * 1.7) * 18 }; el.classList.add('active'); go(); requestAnimationFrame(idle); };
@@ -233,7 +242,7 @@ PM.tcg = (function () {
     <div class="tcg-actions">
       ${btn('flip', '↻', 'Girar')}
       ${(opts.actions || []).map((a, i) => { const m = String(a.label).match(/^(\S+)\s+(.*)$/); return btn('', m ? m[1] : '★', m ? m[2] : a.label, a.primary, i); }).join('')}
-      ${btn('png', '⤓', 'Guardar')}
+      ${btn('png', SHARE_ICON, 'Compartir')}
       ${btn('close', '✕', 'Cerrar')}
     </div>`;
     ov.classList.add('show');
@@ -274,9 +283,17 @@ PM.tcg = (function () {
       return await window.htmlToImage.toPng(card, { pixelRatio: 2, cacheBust: true, filter: (n) => !(n.classList && n.classList.contains('tcg-back')) });
     } finally { box.remove(); }
   }
+  // símbolo de compartir (tres puntos unidos)
+  const SHARE_ICON = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"/></svg>';
   async function download(d) {
     try {
       const url = await toPng(d);
+      // navegador del móvil o PC compatible: el menú de compartir del sistema (WhatsApp, Instagram…)
+      if (!PM.isNative && navigator.canShare) {
+        const blob = await (await fetch(url)).blob();
+        const file = new File([blob], `PintaMapa - ${d.name}.png`, { type: 'image/png' });
+        if (navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], title: d.name, text: `He conquistado «${d.name}» en PintaMapa 🖌️🚩` }).catch(() => {}); return; }
+      }
       if (PM.isNative && window.Capacitor.Plugins.Filesystem && window.Capacitor.Plugins.Share) {
         const f = await window.Capacitor.Plugins.Filesystem.writeFile({ path: `carta-${d.id}.png`, data: url.split(',')[1], directory: 'CACHE' });
         await window.Capacitor.Plugins.Share.share({ title: d.name, text: `He conquistado «${d.name}» en PintaMapa 🖌️🚩`, files: [f.uri] }).catch(() => {});
@@ -339,11 +356,28 @@ PM.tcg = (function () {
     -webkit-mask-image: radial-gradient(circle at var(--mx) var(--my), #000 0%, rgba(0,0,0,.55) 16%, transparent 38%); mask-image: radial-gradient(circle at var(--mx) var(--my), #000 0%, rgba(0,0,0,.55) 16%, transparent 38%); }
   .tcg-glare { z-index: 4; mix-blend-mode: soft-light; opacity: calc(.25 + var(--hyp) * .6); background: radial-gradient(circle at var(--mx) var(--my), rgba(255,255,255,.95) 0%, rgba(255,255,255,.35) 12%, rgba(255,255,255,0) 32%, rgba(0,0,0,.18) 100%); }
   .tcg:not(.active) .tcg-glare { opacity: .15; }
+  /* lámina holográfica sobre TODA la carta: bandas de arcoíris + reflejo que se deslizan al mover la carta (o el ratón) */
+  .tcg-foil { position: absolute; inset: 0; pointer-events: none; z-index: 3; border-radius: inherit; mix-blend-mode: overlay;
+    opacity: calc(.1 + var(--holo) * (.16 + var(--hyp) * .32));
+    background: repeating-linear-gradient(115deg, rgba(255,30,140,.8) 0%, rgba(255,200,40,.75) 6%, rgba(40,240,160,.75) 12%, rgba(30,150,255,.8) 18%, rgba(160,50,255,.75) 24%, rgba(255,30,140,.8) 30%);
+    background-size: 400% 400%; background-position: var(--mx) var(--my); }
+  .tcg-foil::after { content: ''; position: absolute; inset: 0; border-radius: inherit; mix-blend-mode: soft-light;
+    background: linear-gradient(115deg, transparent 35%, rgba(255,255,255,.95) 50%, transparent 65%); background-size: 250% 250%; background-position: var(--mx) var(--my); }
+  .tcg.flat .tcg-foil { opacity: .12; }
+  /* holograma del reverso: arcoíris muy suave que se desliza al mover la carta */
+  .bk-holo { position: absolute; inset: 0; pointer-events: none; z-index: 3; border-radius: inherit; mix-blend-mode: overlay; opacity: calc(.18 + var(--hyp) * .3);
+    background: linear-gradient(120deg, transparent 20%, rgba(255,80,170,.55) 32%, rgba(255,220,90,.5) 40%, rgba(80,255,190,.45) 48%, rgba(90,190,255,.55) 56%, rgba(190,110,255,.5) 64%, transparent 76%);
+    background-size: 280% 280%; background-position: var(--mx) var(--my); }
   @media (hover: none) {
+    /* móvil: holograma estable (mezcla "overlay", sin destellos de ruido ni giro 3D) */
     .tcg-glitter { display: none; }
-    .tcg-shine { mix-blend-mode: soft-light; opacity: calc(var(--holo) * .35); }
     .r-legendario .tcg-inner::after { display: none; }
-    .tcg-rot { will-change: transform; }
+    .tcg-shine { mix-blend-mode: hard-light; opacity: calc(.18 + var(--holo) * (.22 + var(--hyp) * .3)); filter: none;
+      background: repeating-linear-gradient(115deg, rgba(255,30,140,.75) 0%, rgba(255,200,40,.7) 7%, rgba(40,240,160,.7) 14%, rgba(30,150,255,.75) 21%, rgba(160,50,255,.7) 28%, rgba(255,30,140,.75) 35%);
+      background-size: 320% 320%; background-position: var(--mx) var(--my); }
+    .tcg-shine::after { content: ''; position: absolute; inset: 0; mix-blend-mode: soft-light;
+      background: linear-gradient(115deg, transparent 36%, rgba(255,255,255,.9) 50%, transparent 64%); background-size: 240% 240%; background-position: var(--mx) var(--my); }
+    .tcg-glare { mix-blend-mode: soft-light; }
   }
   /* --- reverso: sello de conquista --- */
   .tcg-back { transform: rotateY(180deg); padding: 3.2%; background: linear-gradient(135deg, #e9d7a6, #b8955a 30%, #f3e6c4 50%, #a8844a 72%, #e2cd98); }
