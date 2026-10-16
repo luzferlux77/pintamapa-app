@@ -1,8 +1,8 @@
 {
-  "version": "0.5.6",
-  "notes": "Reverso de las cartas: el fondo son las calles reales alrededor del lugar, con el sello encima de su ubicación",
+  "version": "0.6.0",
+  "notes": "Nuevo mapa vectorial (MapLibre + OpenFreeMap): más limpio, más fluido, giro suave con la brújula y vista 3D inclinada en modo rumbo; tema oscuro con mapa oscuro de verdad",
   "native": 3,
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.5.6/pintamapa-web-0.5.6.zip",
-  "checksum": "d82e2b78fbfb74579342d40c5f777a6caa029257b04bed4b6f1cbe5d7789010d",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.5.6/PintaMapa-v0.5.6.apk"
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.0/pintamapa-web-0.6.0.zip",
+  "checksum": "9acf6a5695fd60047c69e78df61074cb3d72586e3d5cd4c782ace7504b1545cd",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.0/PintaMapa-v0.6.0.apk"
 }
