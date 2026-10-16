@@ -1,8 +1,8 @@
 {
-  "version": "0.6.5",
-  "notes": "Los mazos de cartas ya se cierran al volver a tocarlos",
+  "version": "0.6.6",
+  "notes": "Mi progreso › Conquistas: primero las cartas, luego monumentos y por tipo",
   "native": 3,
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.5/pintamapa-web-0.6.5.zip",
-  "checksum": "76135a434a5f0e500afc012047cf1b922ff4464cc4c2ef0866baee16924a7c43",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.5/PintaMapa-v0.6.5.apk"
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.6/pintamapa-web-0.6.6.zip",
+  "checksum": "20fe4cd854fed2165797a95be9fc21fb0edda76dac63cb86a4408905a188510c",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.6/PintaMapa-v0.6.6.apk"
 }
