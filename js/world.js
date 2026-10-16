@@ -1037,6 +1037,7 @@ PM.world = (function () {
         const a = j.address || {};
         t.city = a.city || a.town || a.village || a.municipality || 'Zona sin nombre';
         t.name = a.suburb || a.neighbourhood || a.quarter || a.city_district || a.hamlet || t.city;
+        if (PM.state && a.country && t.city) { const cs = PM.state.data.countries || (PM.state.data.countries = {}); if (!cs[t.city]) cs[t.city] = { name: a.country, cc: a.country_code || '' }; }
       } catch (e) {
         t.name = 'Sector ' + key.replace('_', '·'); t.city = t.city || 'Ciudad desconocida';
       }

@@ -147,3 +147,20 @@ PM.fillLandmarkCities = function (s) {
   }
   return n;
 };
+
+// País de cada ciudad (para agrupar las cartas): se pregunta una vez por ciudad y se guarda en la partida (s.countries)
+PM.flag = (cc) => (cc && cc.length === 2 ? String.fromCodePoint(...cc.toUpperCase().split('').map((c) => 127397 + c.charCodeAt(0))) : '🏳️');
+PM.ensureCountries = async function (s, cityPos) {
+  s.countries = s.countries || {};
+  let changed = false;
+  for (const [city, pos] of Object.entries(cityPos)) {
+    if (s.countries[city] || !pos || city === 'Otros lugares') continue;
+    try {
+      const r = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=3&accept-language=es&lat=${pos[0]}&lon=${pos[1]}`);
+      const a = (await r.json()).address || {};
+      if (a.country) { s.countries[city] = { name: a.country, cc: a.country_code || '' }; changed = true; }
+    } catch (e) { /* sin conexión: se agrupa como "Otros países" */ }
+    await new Promise((res) => setTimeout(res, 1100));   // Nominatim: 1 petición por segundo
+  }
+  return changed;
+};

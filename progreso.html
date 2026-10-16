@@ -484,7 +484,7 @@
         PM.fillLandmarkCities(s); lms.forEach((l) => { if (!l.city && s.landmarks[l.id]) l.city = s.landmarks[l.id].city; });
         const byCity = {}; lms.forEach((l) => { (byCity[l.city || 'Otros lugares'] = byCity[l.city || 'Otros lugares'] || []).push(l); });
         h += `<div class="card"><h3>Cartas <span>por ciudad · toca un mazo para abrirlo</span></h3>${lms.length ? '<div id="city-stacks"></div>' : '<div class="empty">Sin cartas aún.</div>'}</div>`;
-        stackGroups = Object.entries(byCity).sort((a, b) => b[1].length - a[1].length).map(([city, list]) => ({ city, ids: list.map((l) => l.id) }));
+        stackGroups = PM.tcg.byCountry(Object.entries(byCity).map(([city, list]) => ({ city, ids: list.map((l) => l.id), pos: list[0].pos })), s.countries);
         h += `<div class="card"><h3>Monumentos <span>${lms.length} conquistados · ${Object.keys(s.cardPhotos || {}).length} con foto propia</span></h3>
           <div style="display:flex;gap:16px;align-items:center">${donut(byR.map((x) => ({ v: x.v, c: x.c })))}
           <div style="flex:1">${byR.map((x) => `<div class="row"><span><i style="display:inline-block;width:9px;height:9px;border-radius:3px;background:${x.c};margin-right:6px"></i>${RAR[x.r].label}</span><b>${x.v}</b></div>`).join('')}</div></div></div>`;
@@ -496,6 +496,11 @@
         h += `<div class="card"><h3>Barrios conquistados <span>${bc.length}</span></h3>${bc.length ? bc.map((b) => `<div class="row"><span>🚩 ${esc(b.name)}</span><b>${new Date(b.t).toLocaleDateString('es-ES')}</b></div>`).join('') : '<div class="empty">Pinta el 80 % de un barrio para conquistarlo.</div>'}</div>`;
       }
       P.innerHTML = h;
+      if (tab === 'con' && P.querySelector('#city-stacks') && !A.countriesAsked) {   // países que falten: se averiguan y se redibuja
+        A.countriesAsked = true;
+        const cp = {}; stackGroups.forEach((g) => (cp[g.city] = g.pos));
+        PM.ensureCountries(A.s, cp).then((ch) => { if (ch && tab === 'con') drawPanel(); });
+      }
       if (tab === 'con' && P.querySelector('#city-stacks')) PM.tcg.stacks(P.querySelector('#city-stacks'), stackGroups, cardData, async (el, id) => {
         el.addEventListener('click', () => openCard(id));
         if (!(A.s.cardPhotos || {})[id]) return;   // tu foto (de la nube) en cuanto llega

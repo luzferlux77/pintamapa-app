@@ -383,8 +383,12 @@ PM.cards = (function () {
         // mazos por ciudad (la que más cartas tiene, primero): se despliegan al tocar
         const byCity = {};
         for (const id of ids) { const c = s.landmarks[id].city || 'Otros lugares'; (byCity[c] = byCity[c] || []).push(id); }
-        const groups = Object.entries(byCity).sort((a, b) => b[1].length - a[1].length).map(([city, list]) => ({ city, ids: list }));
-        PM.tcg.stacks(container.querySelector('#city-stacks'), groups, dataFor, (el, id) => el.addEventListener('click', () => open(id)), 'cromos');
+        const draw2 = () => PM.tcg.stacks(container.querySelector('#city-stacks'),
+          PM.tcg.byCountry(Object.entries(byCity).map(([city, list]) => ({ city, ids: list })), s.countries), dataFor, (el, id) => el.addEventListener('click', () => open(id)), 'cromos');
+        draw2();
+        // ciudades sin país aún: se averigua (una vez) y se recoloca
+        const cityPos = {}; for (const [c, list] of Object.entries(byCity)) cityPos[c] = s.landmarks[list[0]].pos;
+        PM.ensureCountries(s, cityPos).then((ch) => { if (ch) { PM.state.save(); if (container.querySelector('#city-stacks')) draw2(); } });
       }
       container.querySelectorAll('[data-t]').forEach((b) => b.addEventListener('click', () => { tab = b.dataset.t; draw(); }));
       container.querySelectorAll('.cromo[data-id], .tcg[data-id]').forEach((el) => el.addEventListener('click', () => open(el.dataset.id)));

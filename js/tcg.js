@@ -458,6 +458,7 @@ PM.tcg = (function () {
   .tcg.flat .tcg-rot { transform: none; } .tcg.flat .tcg-face { box-shadow: none; }
   /* --- mazos por ciudad --- */
   .cstack { margin: 10px 0; }
+  .cs-country { margin: 18px 2px 4px; font-size: 18px; font-weight: 800; } .cs-country span { opacity: .55; font-weight: 600; font-size: 14px; margin-left: 4px; }
   .cs-head { width: 100%; display: flex; align-items: center; gap: 16px; padding: 12px 14px; border-radius: 16px; border: 1px solid rgba(127,127,127,.22); background: rgba(127,127,127,.06); cursor: pointer; text-align: left; font: inherit; color: inherit; }
   .cstack.open .cs-head { background: rgba(127,127,127,.12); }
   .cs-deck { position: relative; width: 86px; height: 120px; flex: none; }
@@ -494,8 +495,17 @@ PM.tcg = (function () {
   // ---------------- Mazos por ciudad: cada ciudad es un mazo cerrado; al tocarlo se despliegan sus cartas ----------------
   // groups: [{ city, ids:[...] }] · getData(id) → datos de la carta (puede ser async) · onCell(el, id) al dibujar cada carta
   const RANKR = { legendario: 3, epico: 2, raro: 1, comun: 0 };
+  // agrupa ciudades por país (con bandera) y ordena ambos alfabéticamente; "Otros" al final
+  function byCountry(groups, countries) {
+    const col = (a, b) => a.localeCompare(b, 'es', { sensitivity: 'base' });
+    groups.forEach((g) => { const c = (countries || {})[g.city]; g.country = c ? c.name : 'Otros países'; g.flag = c ? PM.flag(c.cc) : '🌍'; });
+    return groups.sort((a, b) => ((a.country === 'Otros países') - (b.country === 'Otros países')) || col(a.country, b.country)
+      || ((a.city === 'Otros lugares') - (b.city === 'Otros lugares')) || col(a.city, b.city));
+  }
   async function stacks(container, groups, getData, onCell, gridClass) {
-    container.innerHTML = groups.map((g, i) => `<div class="cstack" data-i="${i}">
+    container.innerHTML = groups.map((g, i) => (g.country && (i === 0 || groups[i - 1].country !== g.country)
+      ? `<h4 class="cs-country">${g.flag || ''} ${esc(g.country)} <span>${groups.filter((x) => x.country === g.country).reduce((n, x) => n + x.ids.length, 0)}</span></h4>` : '') +
+      `<div class="cstack" data-i="${i}">
       <button class="cs-head"><div class="cs-deck"></div>
         <div class="cs-info"><b>🏙️ ${esc(g.city)}</b><small>${g.ids.length} carta${g.ids.length > 1 ? 's' : ''}</small><span class="cs-rar"></span></div>
         <span class="cs-chev">›</span></button>
@@ -523,5 +533,5 @@ PM.tcg = (function () {
     });
   }
 
-  return { html, open, close, interactive, toPng, download, typeOf, stacks };
+  return { html, open, close, interactive, toPng, download, typeOf, stacks, byCountry };
 })();
