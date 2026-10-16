@@ -92,12 +92,47 @@ PM.tcg = (function () {
       for (let i = 0; i <= 720; i++) {
         const t = i / 720 * Math.PI * 2 * r1;
         const x = 50 + ((R1 - r1) * Math.cos(t) + d1 * Math.cos((R1 - r1) / r1 * t)) * 0.62;
-        const y = 54 + ((R1 - r1) * Math.sin(t) - d1 * Math.sin((R1 - r1) / r1 * t)) * 0.62;
+        const y = 42 + ((R1 - r1) * Math.sin(t) - d1 * Math.sin((R1 - r1) / r1 * t)) * 0.62;
         path += (i ? 'L' : 'M') + x.toFixed(2) + ',' + y.toFixed(2);
       }
       paths += `<path d="${path}"/>`;
     }
     return paths;
+  }
+  // Fondo del reverso: las calles REALES alrededor del lugar (de los mapas vectoriales), con el sello justo encima
+  // de su ubicación. Mientras llegan (o sin conexión) se ve el grabado tipo billete.
+  const STREETS = new Map();
+  const posKey = (p) => (+p[0]).toFixed(5) + ',' + (+p[1]).toFixed(5);
+  const SEAL_Y = 33;      // altura del centro del sello en el reverso (unidades 0..140)
+  const M_PER_U = 4.2;    // metros por unidad de dibujo: ~420 m de ancho de carta
+  async function streetsFor(pos) {
+    const k = posKey(pos);
+    if (STREETS.has(k)) return STREETS.get(k);
+    if (!PM.vtiles) return null;
+    const lat = pos[0], lon = pos[1], mLat = 111320, mLon = 111320 * Math.cos(lat * Math.PI / 180);
+    const n = lat + (SEAL_Y * M_PER_U) / mLat, s = lat - ((140 - SEAL_Y) * M_PER_U) / mLat;
+    const w = lon - (50 * M_PER_U) / mLon, e = lon + (50 * M_PER_U) / mLon;
+    const { els } = await PM.vtiles.fetchBox(s, w, n, e);
+    const X = (q) => (50 + (q.lon - lon) * mLon / M_PER_U).toFixed(1), Y = (q) => (SEAL_Y - (q.lat - lat) * mLat / M_PER_U).toFixed(1);
+    const big = /^(primary|secondary|tertiary)/;
+    let minor = '', major = '', trail = '';
+    for (const el of els) {
+      if (el.type !== 'way' || !el.geometry || !el.tags || !el.tags.highway) continue;
+      const g = el.geometry;
+      if (!g.some((q) => q.lat > s && q.lat < n && q.lon > w && q.lon < e)) continue;
+      const d = 'M' + g.map((q) => X(q) + ' ' + Y(q)).join('L');
+      if (big.test(el.tags.highway)) major += d; else if (/^(path|track|bridleway)$/.test(el.tags.highway)) trail += d; else minor += d;
+    }
+    const svg = `<path class="sm" d="${minor}"/><path class="sb" d="${major}"/><path class="st2" d="${trail}"/><circle class="sp" cx="50" cy="${SEAL_Y}" r="2.2"/>`;
+    STREETS.set(k, svg);
+    return svg;
+  }
+  // rellena los reversos que haya dentro de `root` (vista grande de la carta)
+  function fillStreets(root) {
+    root.querySelectorAll('.bk-map[data-pos]').forEach(async (el) => {
+      const pos = el.dataset.pos.split(',').map(Number);
+      try { const svg = await streetsFor(pos); if (svg) { el.innerHTML = svg; el.classList.add('real'); } } catch (e) { /* sin conexión: se queda el grabado */ }
+    });
   }
   function backHTML(d, R) {
     const seed = hash(d.id), uid = 'bk' + seed;
@@ -111,7 +146,7 @@ PM.tcg = (function () {
     const where = d.pos ? `${coord(d.pos[0], 'N', 'S')} · ${coord(d.pos[1], 'E', 'O')}` : '';
     return `<div class="tcg-face tcg-back">
       <div class="bk">
-        <svg class="bk-guil" viewBox="0 0 100 108" preserveAspectRatio="xMidYMid slice">${guilloche(seed)}</svg>
+        <svg class="bk-guil${d.pos ? ' bk-map' : ''}" ${d.pos ? `data-pos="${d.pos[0]},${d.pos[1]}"` : ''} viewBox="0 0 100 140" preserveAspectRatio="xMidYMid slice">${d.pos && STREETS.has(posKey(d.pos)) ? STREETS.get(posKey(d.pos)) : guilloche(seed)}</svg>
         <div class="bk-top"><span>PintaMapa</span><i></i><span>Carta de conquista</span></div>
         <svg class="bk-seal" viewBox="0 0 200 200" style="--pc:${color}">
           <defs>
@@ -248,6 +283,7 @@ PM.tcg = (function () {
     ov.classList.add('show');
     const card = ov.querySelector('.tcg');
     const ctl = interactive(card);
+    fillStreets(ov);
     ov.querySelector('[data-a=flip]').addEventListener('click', () => ctl.flip());
     ov.querySelector('[data-a=close]').addEventListener('click', close);
     ov.querySelector('[data-a=png]').addEventListener('click', () => download(d));
@@ -388,6 +424,13 @@ PM.tcg = (function () {
     display: flex; flex-direction: column; align-items: center; padding: 7% 8% 5.5%; }
   .bk-guil { position: absolute; inset: 0; width: 100%; height: 100%; -webkit-mask-image: radial-gradient(ellipse 75% 42% at 50% 30%, #000 35%, transparent 78%); mask-image: radial-gradient(ellipse 75% 42% at 50% 30%, #000 35%, transparent 78%); }
   .bk-guil path { fill: none; stroke: #d4af6a; stroke-width: .16; opacity: .26; }
+  /* calles reales del lugar */
+  .bk-map.real { -webkit-mask-image: radial-gradient(ellipse 85% 55% at 50% 26%, #000 40%, transparent 85%); mask-image: radial-gradient(ellipse 85% 55% at 50% 26%, #000 40%, transparent 85%); }
+  .bk-map.real path { opacity: 1; stroke-linecap: round; stroke-linejoin: round; }
+  .bk-map.real .sm { stroke: rgba(212,175,106,.42); stroke-width: .55; }
+  .bk-map.real .sb { stroke: rgba(230,200,140,.7); stroke-width: 1.15; }
+  .bk-map.real .st2 { stroke: rgba(212,175,106,.3); stroke-width: .4; stroke-dasharray: 1 1.4; }
+  .bk-map.real .sp { fill: #f1dfb2; }
   .bk > *:not(.bk-guil) { position: relative; }
   .bk-top { width: 100%; display: flex; align-items: center; gap: .6em; font-size: .52em; letter-spacing: .28em; text-transform: uppercase; color: #d4af6a; font-weight: 600; }
   .bk-top i { flex: 1; height: 1px; background: linear-gradient(90deg, rgba(212,175,106,.6), rgba(212,175,106,.1)); }
