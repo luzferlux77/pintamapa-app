@@ -406,10 +406,12 @@ ${segs.map((s) => `<LineString><tessellate>1</tessellate><altitudeMode>clampToGr
       <h3>Ritmo</h3>${P.timed ? chart(P.pts, ((s) => (q) => s[P.pts.indexOf(q)])(paceSeries(P.pts)), { color: '#2563eb', unit: 'min/km', fmt: (v) => v.toFixed(1).replace('.', ','), invert: true })
         : '<div class="rp-empty">Este paseo es anterior a la versión que guarda la hora de cada punto: aquí verás el ritmo de tus próximos paseos.</div>'}
       <h3>Parciales por kilómetro</h3>
-      ${A.splits.length ? `<table class="rp-splits"><tr><th>Km</th><th>Ritmo</th><th>Desnivel</th><th></th></tr>${A.splits.map((x) => {
+      ${A.splits.length ? (P.timed ? '' : '<p class="rp-note">Este paseo no guardaba la hora de cada punto: el ritmo de cada kilómetro no se puede saber (solo la media). El desnivel sí es real.</p>') +
+        `<table class="rp-splits"><tr><th>Km</th><th>Ritmo</th><th>Desnivel</th><th></th></tr>${A.splits.map((x) => {
         const pace = x.sec / (x.partial ? (x.km % 1 || 1) : 1);
         const w = best ? Math.max(8, Math.min(100, best.sec / pace * 100)) : 50;
-        return `<tr class="${best && x === best ? 'best' : ''}"><td>${x.partial ? x.km.toFixed(2).replace('.', ',') : x.km}</td><td>${fmtPace(pace)}</td><td>${x.de != null ? (x.de >= 0 ? '+' : '') + Math.round(x.de) + ' m' : '—'}</td><td><i style="width:${w}%"></i></td></tr>`;
+        const isBest = P.timed && best && x === best;
+        return `<tr class="${isBest ? 'best' : ''}"><td>${x.partial ? x.km.toFixed(2).replace('.', ',') : x.km}</td><td>${P.timed ? fmtPace(pace) : '—'}</td><td>${x.de != null ? (x.de >= 0 ? '+' : '') + Math.round(x.de) + ' m' : '—'}</td><td>${P.timed ? `<i style="width:${w}%"></i>` : ''}</td></tr>`;
       }).join('')}</table>` : '<div class="rp-empty">Menos de 1 km.</div>'}
       <h3>Vídeo del recorrido</h3>
       <div class="rp-video"><canvas width="${W}" height="${H}"></canvas>
