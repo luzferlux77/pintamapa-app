@@ -297,7 +297,7 @@ PM.game = (function () {
         city: PM.world.cityAt(lm.pos), barrio: (PM.world.barrioAt(lm.pos) || {}).name || null };
       setTimeout(checkSets, 100);
       s.stats.captures++;
-      if (/^(Iglesia|Iglesia principal|Basílica|Catedral|Templo)$/.test(lm.kind)) s.stats.churches++;
+      if (/^(Iglesia|Iglesia principal|Basílica|Catedral|Templo|Ermita \/ Monasterio)$/.test(lm.kind)) s.stats.churches++;
       addXP(lm.points, 'landmark');
       progressMission('landmark', 1);
       unlock('primer_sello');
@@ -469,7 +469,7 @@ PM.game = (function () {
   serie('captura', '📸', [5, 25, 75, 100, 150, 200, 300, 500, 750, 1000], 'Cazador de lugares', (t) => `Captura ${t} lugares`, (s) => lmList(s).length);
   const KINDS = [['Ayuntamiento', '🏛️'], ['Catedral', '⛪'], ['Basílica', '⛪'], ['Castillo', '🏰'], ['Palacio', '🏰'], ['Estadio', '🏟️'], ['Iglesia', '⛪'],
     ['Templo', '🛕'], ['Museo', '🖼️'], ['Monumento', '🗽'], ['Torre / Puerta', '🗼'], ['Teatro', '🎭'], ['Universidad', '🎓'], ['Plaza', '🏙️'], ['Faro', '🗼'],
-    ['Estación', '🚉'], ['Parque', '🌳'], ['Ruinas', '🏺'], ['Mirador', '🔭'], ['Campo de fútbol', '⚽'], ['Mercado', '🛒'], ['Biblioteca', '📚'],
+    ['Estación', '🚉'], ['Parada de tranvía', '🚋'], ['Ermita / Monasterio', '⛪'], ['Comercio emblemático', '☕'], ['Parque', '🌳'], ['Ruinas', '🏺'], ['Mirador', '🔭'], ['Campo de fútbol', '⚽'], ['Mercado', '🛒'], ['Biblioteca', '📚'],
     ['Atracción', '⭐'], ['Memorial', '🗿'], ['Fuente', '⛲'], ['Arte urbano', '🎨'], ['Hospital', '🏥'], ['Bomberos', '🚒'], ['Patrimonio', '🏛️'], ['Molino', '🌬️'], ['Lugar histórico', '📜']];
   for (const [k, ic] of KINDS) {
     const slug = k.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z]+/g, '');

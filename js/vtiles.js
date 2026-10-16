@@ -113,7 +113,8 @@ PM.vtiles = (function () {
     else if (c === 'attraction') { if (s === 'viewpoint') t.tourism = 'viewpoint'; else if (s === 'attraction') t.tourism = 'attraction'; else if (s === 'fountain') t.amenity = 'fountain'; else return null; }
     else if (c === 'grocery' && s === 'marketplace') t.amenity = 'marketplace';
     else if (c === 'college' && s === 'university') t.amenity = 'university';
-    else if (c === 'railway' && s === 'station') t.railway = 'station';
+    else if (c === 'railway' && /^(station|halt|subway)$/.test(s)) t.railway = 'station';
+    else if (c === 'railway' && s === 'tram_stop') t.railway = 'tram_stop';
     else if (c === 'park' && s === 'park') t.leisure = 'park';
     else if (c === 'lighthouse' || s === 'lighthouse') t.man_made = 'lighthouse';
     else if (s === 'ruins' || s === 'archaeological_site') t.historic = s;

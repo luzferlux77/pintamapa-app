@@ -61,6 +61,9 @@ PM.world = (function () {
     if (b === 'palace' || /\b(palau|palacio|palace|palais|palazzo|pałac|palácio|schloss|paleis)\b/i.test(n)) return { kind: 'Palacio', emoji: '🏰', rarity: 'epico', prio: 84 };
     if (l === 'stadium' || b === 'stadium') return { kind: 'Estadio', emoji: '🏟️', rarity: 'epico', prio: 85 };
     if (b === 'basilica' || /bas[ií]lica|co-?catedral|concatedral/i.test(n)) return { kind: 'Basílica', emoji: '⛪', rarity: 'epico', prio: 80 };
+    // ermitas y monasterios (siempre visibles si son patrimonio o tienen Wikipedia)
+    if (a === 'place_of_worship' && (b === 'chapel' || /ermita|eremitori|santuari|monasteri|monestir|convent|abad[ií]a|cartuja|cartoixa|hermitage|monastery|abbey/i.test(n)))
+      return { kind: 'Ermita / Monasterio', emoji: '⛪', rarity: 'epico', prio: 74 };
     if (a === 'place_of_worship') return { kind: /christian/.test(tags.religion || 'christian') ? 'Iglesia' : 'Templo', emoji: '⛪', rarity: 'epico', prio: 75 };
     if (t === 'museum') return { kind: 'Museo', emoji: '🖼️', rarity: 'epico', prio: 70 };
     if (h === 'monument') return { kind: 'Monumento', emoji: '🗽', rarity: 'epico', prio: 70 };
@@ -71,7 +74,10 @@ PM.world = (function () {
     if (a === 'university') return { kind: 'Universidad', emoji: '🎓', rarity: 'raro', prio: 58 };
     if (tags.place === 'square') return { kind: 'Plaza', emoji: '🏙️', rarity: 'raro', prio: 55 };
     if (tags.man_made === 'lighthouse') return { kind: 'Faro', emoji: '🗼', rarity: 'raro', prio: 55 };
-    if (tags.railway === 'station') return { kind: 'Estación', emoji: '🚉', rarity: 'raro', prio: 50 };
+    if (/^(station|halt)$/.test(tags.railway || '')) return { kind: 'Estación', emoji: '🚉', rarity: 'raro', prio: 50 };   // tren, cercanías, metro
+    if (tags.railway === 'tram_stop') return { kind: 'Parada de tranvía', emoji: '🚋', rarity: 'comun', prio: 28 };
+    // comercios emblemáticos: solo si son patrimonio (cafés, pastelerías, farmacias, tiendas centenarias…)
+    if (tags.heritage && (tags.shop || /^(cafe|bar|restaurant|pharmacy|pub)$/.test(a || ''))) return { kind: 'Comercio emblemático', emoji: '☕', rarity: 'raro', prio: 52 };
     if (l === 'park' || l === 'garden') return { kind: 'Parque', emoji: '🌳', rarity: 'raro', prio: 48 };
     if (tags.man_made === 'windmill' || tags.man_made === 'watermill') return { kind: 'Molino', emoji: '🌬️', rarity: 'raro', prio: 52 };
     if (tags.heritage) return { kind: 'Patrimonio', emoji: /f[aàá]bri|factory|usine|fabbrica/i.test(n) ? '🏭' : '🏛️', rarity: 'raro', prio: 62 };
@@ -99,14 +105,16 @@ PM.world = (function () {
   function addLandmark(el) {
     const tags = el.tags || {};
     if (!tags.name) return;               // solo lugares con nombre: más "coleccionables"
-    if (/plaque|stolperstein|blue_plaque|bench/.test(tags.memorial || '')) return; // placas: demasiadas
-    if (tags.historic === 'memorial' && !tags.memorial && el.type === 'node' && !tags.wikidata) return;
+    const important = !!(tags.wikipedia || tags.wikidata || tags._wp || tags.heritage);
+    if (/plaque|stolperstein|blue_plaque|bench/.test(tags.memorial || '') && !(tags.wikipedia || tags.wikidata || tags._wp)) return;   // placas: solo con Wikipedia
     // iglesias evangélicas / pentecostales / testigos…: no (sí las demás religiones y templos del mundo)
     if (tags.amenity === 'place_of_worship' && (/evangel|pentecost|baptist|adventist|jehovah|protestant|neo/i.test(tags.denomination || '')
       || /evang[eè]li|pentecost|bautista|baptist|adventista|filad[eè]lfia|sal[oó]n del reino|kingdom hall|testigos de jehov|centro cristiano|comunidad cristiana|ministerio|iglesia de dios|asamblea de dios|cuerpo de cristo|betel|el shaddai|nueva vida|elim\b/i.test(tags.name))) return;
     const c = classify(tags);
     if (!c) return;
     if (c.kind === 'Atracción' && !(tags.wikipedia || tags.wikidata)) return;   // "atracciones" sin artículo: casi siempre ruido
+    if (c.kind === 'Fuente' && !important) return;                                          // solo fuentes monumentales
+    if ((c.kind === 'Arte urbano' || c.kind === 'Memorial') && !(tags.wikipedia || tags.wikidata || tags._wp)) return;   // murales, grafitis y memoriales: con Wikipedia
     if (tags.station === 'miniature' || tags.railway === 'station' && /miniature|museum/.test(tags.station || '')) return;
     const b = el.bounds;
     const pos = el.type === 'node' ? [el.lat, el.lon] : el.center ? [el.center.lat, el.center.lon]
@@ -142,7 +150,8 @@ PM.world = (function () {
       // importantes: SIEMPRE visibles y conquistables, sin restricción de cercanía con otros puntos:
       // ayuntamiento, catedral, basílica, castillo y cualquier lugar con artículo en Wikipedia o protegido como patrimonio
       // (de Wikidata: si tiene artículo en 2+ idiomas; parques y plazas: solo con artículo)
-      principal: c.kind !== 'Estación' && (c.kind === 'Ayuntamiento' || /^(Catedral|Basílica|Castillo|Estadio|Palacio|Museo)$/.test(c.kind)
+      principal: !/^(Estación|Parada de tranvía)$/.test(c.kind) && (c.kind === 'Ayuntamiento' || /^(Catedral|Basílica|Castillo|Estadio|Palacio|Museo)$/.test(c.kind)
+        || (c.kind === 'Ermita / Monasterio' && important)
         || (tags._wp ? tags._wp >= 2 : (wiki || (!!tags.heritage && !green)))),
       capR: PM.capRadius(c.kind) };
     if (lmBatch) lmBatch.push(lm); else commitLandmarks([lm]);
@@ -415,7 +424,7 @@ PM.world = (function () {
   // ---------------- Caché local de barrios (IndexedDB) ----------------
   // Cada barrio se descarga una vez y se guarda 30 días: menos datos móviles, menos batería y arranque instantáneo.
   const CACHE_DAYS = 90;
-  const CACHE_V = 7;   // súbelo si cambia lo que se descarga (p. ej. nuevos tipos de puntos): fuerza a renovar la caché
+  const CACHE_V = 8;   // súbelo si cambia lo que se descarga (p. ej. nuevos tipos de puntos): fuerza a renovar la caché
   const cache = (function () {
     let dbp = null;
     function db() {
@@ -442,7 +451,7 @@ PM.world = (function () {
 
   // Solo guardamos lo que el juego usa de cada elemento (ocupa mucho menos)
   const KEEP_TAGS = ['highway', 'oneway', 'lanes', 'width', 'dual_carriageway', 'name', 'amenity', 'historic', 'tourism', 'building', 'memorial',
-    'wikipedia', 'wikidata', 'leisure', 'sport', 'place', 'man_made', 'railway', 'religion', 'admin_level', 'boundary', 'heritage', 'footway', 'denomination', 'emergency', 'station'];
+    'wikipedia', 'wikidata', 'leisure', 'sport', 'place', 'man_made', 'railway', 'religion', 'admin_level', 'boundary', 'heritage', 'footway', 'denomination', 'emergency', 'station', 'shop'];
   function slim(el) {
     const tags = {};
     for (const k of KEEP_TAGS) if (el.tags && el.tags[k] != null) tags[k] = el.tags[k];
@@ -724,7 +733,8 @@ PM.world = (function () {
         nwr["leisure"="pitch"]["sport"="soccer"]["name"](${bb});
         nwr["place"="square"]["name"](${bb});
         nwr["man_made"="lighthouse"]["name"](${bb});
-        nwr["railway"="station"]["name"](${bb});
+        nwr["railway"~"^(station|halt|tram_stop)$"]["name"](${bb});
+        nwr["shop"]["heritage"]["name"](${bb});
         nwr["man_made"~"^(tower|windmill|watermill|obelisk)$"]["name"]["wikidata"](${bb});
         nwr["building"~"^(palace|castle|cathedral|basilica|tower)$"]["name"](${bb});
         nwr["heritage"]["name"]["highway"!~"."](${bb});
@@ -772,6 +782,8 @@ PM.world = (function () {
     if (demoMode) return null;
     const c = await cache.get(k);
     if (!(c && c.v >= 4 && Date.now() - c.t < CACHE_DAYS * 86400000)) return null;
+    if (c.src && c.v < 8) return null;          // de mapas vectoriales sin estaciones/paradas: se vuelve a pedir (tarda 1 s)
+    if (c.v < 8) c.extrasMiss = true;           // los extras de Overpass se completan con los tipos nuevos
     if (c.v < 6) c.wdMiss = true;   // guardado antes de Wikidata: se completa en segundo plano
     if (c.wdMiss || c.extrasMiss) setTimeout(() => completeTile(k, c), 3000);
     return c.els;
