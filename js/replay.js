@@ -322,8 +322,7 @@ ${segs.map((s) => `<LineString><tessellate>1</tessellate><altitudeMode>clampToGr
       ctx.fillStyle = 'rgba(160,170,190,.6)'; ctx.font = '500 16px system-ui, sans-serif'; ctx.textAlign = 'left'; ctx.fillText('© OpenStreetMap', 60, H - 40);
     }
     ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-    ctx.strokeStyle = (opts.color || '#e4572e') + '55'; ctx.lineWidth = 4;
-    for (const l of sc.bg) { ctx.beginPath(); l.forEach((q, i) => (i ? ctx.lineTo(q[0], q[1]) : ctx.moveTo(q[0], q[1]))); ctx.stroke(); }
+    // solo el recorrido de ESTE paseo (lo pintado en otros días no se dibuja: el mapa de fondo ya muestra las calles)
     const upto = sc.total * Math.min(1, t);
     let head = sc.path[0].p;
     const stroke = (w, col, blur) => {
