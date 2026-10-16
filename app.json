@@ -1,8 +1,8 @@
 {
-  "version": "0.6.7",
-  "notes": "Cartas agrupadas por país (con bandera) y, dentro, ciudades por orden alfabético (app y web)",
+  "version": "0.6.8",
+  "notes": "Mi progreso › Paseos: calendario del mes con los días de paseo pintados; al tocar un día, sus paseos",
   "native": 3,
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.7/pintamapa-web-0.6.7.zip",
-  "checksum": "6eff145305e3839013aaa5743dbb605e26d8953945d41169a7912a2625497eed",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.7/PintaMapa-v0.6.7.apk"
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.8/pintamapa-web-0.6.8.zip",
+  "checksum": "0e296c9b2c6272c7fa64c0a14ee8d9b352756e2caa190d9d9fcc1d3e9e545a34",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.8/PintaMapa-v0.6.8.apk"
 }
