@@ -1,8 +1,8 @@
 {
-  "version": "0.6.10",
-  "notes": "Lugares: ermitas y monasterios (siempre visibles si son patrimonio), comercios emblemáticos protegidos, todas las estaciones (tren, cercanías, metro) y paradas de tranvía; fuentes solo monumentales; murales, grafitis, memoriales y placas solo con Wikipedia",
+  "version": "0.6.11",
+  "notes": "Captura múltiple: si hay varios lugares juntos (castillo, palacio, monumento…), a los 10 s se conquistan todos; sus cartas nuevas salen una tras otra",
   "native": 3,
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.10/pintamapa-web-0.6.10.zip",
-  "checksum": "18324de5716803dd20630e57869dff8570f5b2b726dd980c42070e4b30430977",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.10/PintaMapa-v0.6.10.apk"
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.11/pintamapa-web-0.6.11.zip",
+  "checksum": "eae289daae13e599deb8e3deb6d33aeb60aa0234c7210f786d4394f01854ef89",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.11/PintaMapa-v0.6.11.apk"
 }
