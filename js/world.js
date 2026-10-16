@@ -10,7 +10,7 @@ PM.world = (function () {
   // calles "de verdad": se excluyen autopistas, aceras sueltas, caminos de servicio, etc.
   const HIGHWAYS = 'primary|primary_link|secondary|secondary_link|tertiary|tertiary_link|residential|unclassified|living_street|pedestrian|road';
   // senderos y caminos: se pintan (para el que sale al monte o al parque) pero NO cuentan para el % de barrio y ciudad
-  const TRAILS = 'path|footway|track|cycleway|bridleway|steps';
+  const TRAILS = 'path|track|bridleway';   // (sin aceras ni pasos peatonales urbanos: pesan mucho y no son "senderos")
   const isTrailTags = (t) => !!t && new RegExp('^(' + TRAILS + ')$').test(t.highway || '') && !/^(sidewalk|crossing|traffic_island|access_aisle)$/.test(t.footway || '');
 
   // En el navegador solo sirven los servidores que permiten CORS; en Android se usa HTTP nativo (sin CORS)
@@ -257,28 +257,48 @@ PM.world = (function () {
 
 
   // ---------------- Carga desde Overpass ----------------
-  async function overpass(query, timeoutMs = 45000) {
-    let lastErr;
+  // Peticiones "en carrera": se pregunta a un servidor y, si en HEDGE_MS no ha contestado, también al siguiente
+  // (y así); gana el primero que responde. Los servidores públicos de OSM a veces tardan mucho: así no se espera al lento.
+  const HEDGE_MS = 3000;
+  function overpass(query, timeoutMs = 45000) {
     const Http = PM.isNative && window.Capacitor.Plugins && window.Capacitor.Plugins.CapacitorHttp;
-    for (const url of Http ? OVERPASS_NATIVE : OVERPASS_WEB) {
-      try {
-        if (Http) {
-          const r = await Http.request({ url, method: 'POST', data: 'data=' + encodeURIComponent(query),
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'User-Agent': 'PintaMapa/' + PM.VERSION.app + ' (Android; juego de exploración urbana)' },
-            connectTimeout: 10000, readTimeout: timeoutMs });
-          if (r.status !== 200) throw new Error('HTTP ' + r.status);
-          return typeof r.data === 'string' ? JSON.parse(r.data) : r.data;
-        }
-        const ctl = new AbortController();
-        const to = setTimeout(() => ctl.abort(), timeoutMs);
-        const r = await fetch(url, { method: 'POST', body: 'data=' + encodeURIComponent(query), signal: ctl.signal,
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded' } });
-        clearTimeout(to);
-        if (!r.ok) throw new Error('HTTP ' + r.status);
-        return await r.json();
-      } catch (e) { lastErr = e; }
+    const urls = Http ? OVERPASS_NATIVE : OVERPASS_WEB;
+    const ctls = [];
+    return new Promise((resolve, reject) => {
+      let done = false, failed = 0, started = 0, lastErr = null, timer = null;
+      const launch = () => {
+        if (done || started >= urls.length) return;
+        const url = urls[started++];
+        const ctl = new AbortController(); ctls.push(ctl);
+        overpassOne(url, query, timeoutMs, ctl, Http).then((r) => {
+          if (done) return;
+          done = true; clearTimeout(timer); ctls.forEach((c) => c !== ctl && c.abort());
+          resolve(r);
+        }, (e) => {
+          lastErr = e; failed++;
+          if (done) return;
+          if (failed >= urls.length) { done = true; clearTimeout(timer); reject(lastErr); } else { clearTimeout(timer); launch(); schedule(); }
+        });
+      };
+      const schedule = () => { timer = setTimeout(() => { launch(); schedule(); }, HEDGE_MS); };
+      launch(); schedule();
+    });
+  }
+  async function overpassOne(url, query, timeoutMs, ctl, Http) {
+    if (Http) {
+      const r = await Http.request({ url, method: 'POST', data: 'data=' + encodeURIComponent(query),
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'User-Agent': 'PintaMapa/' + PM.VERSION.app + ' (Android; juego de exploración urbana)' },
+        connectTimeout: 10000, readTimeout: timeoutMs });
+      if (r.status !== 200) throw new Error('HTTP ' + r.status);
+      return typeof r.data === 'string' ? JSON.parse(r.data) : r.data;
     }
-    throw lastErr;
+    const to = setTimeout(() => ctl.abort(), timeoutMs);
+    try {
+      const r = await fetch(url, { method: 'POST', body: 'data=' + encodeURIComponent(query), signal: ctl.signal,
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' } });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return await r.json();
+    } finally { clearTimeout(to); }
   }
 
   function ensureTile(key) {
@@ -403,9 +423,9 @@ PM.world = (function () {
       }
     }
     if (!done.has(t)) return null;
-    const ids = new Set();
-    for (let n = t; prev.has(n); n = prev.get(n)[0]) ids.add(prev.get(n)[1]);
-    return { len: dist.get(t), pieces: [...ids] };
+    const ids = new Set(), path = [t.p];
+    for (let n = t; prev.has(n); n = prev.get(n)[0]) { ids.add(prev.get(n)[1]); path.push(prev.get(n)[0].p); }
+    return { len: dist.get(t), pieces: [...ids], path: path.reverse() };   // path: el camino por las calles, de a a b
   }
 
   // ---------------- Zonas a evitar (personales) ----------------
@@ -567,12 +587,14 @@ PM.world = (function () {
   // 2) Tu barrio completo (para el % de conquista). 3) Los 8 barrios de alrededor, en segundo plano.
   // Funciona igual en cualquier ciudad del mundo: abres la app allí y se carga lo que tienes alrededor.
   // Todo lo descargado queda en la caché del móvil (90 días).
-  const QUERY = (bb) => `[out:json][timeout:60];
+  // Dos consultas: CALLES (ligera: se pinta en cuanto llega) y EXTRAS (lugares, parques, barrios; llega después)
+  const STREETS = (bb) => `[out:json][timeout:40];
       (
         way["highway"~"^(${HIGHWAYS})$"](${bb});
         way["highway"~"^(${TRAILS})$"]["footway"!~"^(sidewalk|crossing|traffic_island|access_aisle)$"]["access"!~"^(private|no)$"](${bb});
       );
-      out geom;
+      out geom qt;`;
+  const QUERY = (bb) => `[out:json][timeout:60];
       nwr["leisure"~"^(park|garden)$"]["name"](${bb});
       out tags bb;
       (
@@ -615,8 +637,10 @@ PM.world = (function () {
       clearTimeout(to);
       if (!r.ok) { cdnMissing.add(k); return null; }
       const j = await r.json();
-      if (j.v !== 5) { cdnMissing.add(k); return null; }   // formato antiguo (sin barrios): mejor de OpenStreetMap
-      cache.put(k, { v: CACHE_V, t: Date.now(), els: j.els, wdMiss: !!j.wdMiss });
+      if (!(j.v >= 3)) { cdnMissing.add(k); return null; }   // formato muy antiguo (sin barrios): mejor de OpenStreetMap
+      const entry = { v: CACHE_V, t: Date.now(), els: j.els, wdMiss: !!j.wdMiss || j.v < 4 };
+      cache.put(k, entry);
+      if (entry.wdMiss) setTimeout(() => completeTile(k, entry), 4000);
       if (j.name || j.city) {
         const t = ensureTile(k);
         t.name = t.name || j.name; t.city = t.city || j.city;
@@ -629,22 +653,36 @@ PM.world = (function () {
   async function cachedTile(k) {
     if (demoMode) return null;
     const c = await cache.get(k);
-    if (!(c && c.v === CACHE_V && Date.now() - c.t < CACHE_DAYS * 86400000)) return null;
-    if (c.wdMiss) setTimeout(() => retryWikidata(k, c), 3000);   // aquella vez Wikidata no respondió: se piden ahora sus lugares
+    if (!(c && c.v >= 4 && Date.now() - c.t < CACHE_DAYS * 86400000)) return null;
+    if (c.v < 6) c.wdMiss = true;   // guardado antes de Wikidata: se completa en segundo plano
+    if (c.wdMiss || c.extrasMiss) setTimeout(() => completeTile(k, c), 3000);
     return c.els;
   }
   // Completa un barrio guardado sin los lugares de Wikidata (y los añade al mapa en cuanto llegan)
-  const wdRetrying = new Set();
-  async function retryWikidata(k, c) {
-    if (wdRetrying.has(k)) return;
-    wdRetrying.add(k);
-    const [[s, w], [n, e]] = tileBounds(k);
-    const got = await wikidataBox([s, w, n, e].map((v) => v.toFixed(5)).join(','));
-    wdRetrying.delete(k);
-    if (got === null) return;
-    const mine = got.filter((el) => tilesOf(el).has(k));
-    cache.put(k, Object.assign({}, c, { els: c.els.concat(mine), wdMiss: false }));
-    if (mine.length && tiles[k] && tiles[k].loaded) { ingest(mine, new Set([k])); emit('loaded', { tiles: [k] }); }
+  // (de uno en uno, en segundo plano, para no saturar a los servidores mientras se cargan calles)
+  const completing = new Set();
+  let completeChain = Promise.resolve();
+  function completeTile(k, c) {
+    if (completing.has(k)) return;
+    completing.add(k);
+    completeChain = completeChain.then(async () => {
+      try {
+        const [[s, w], [n, e]] = tileBounds(k);
+        const bb = [s, w, n, e].map((v) => v.toFixed(5)).join(',');
+        let add = [], extrasMiss = !!c.extrasMiss, wdMiss = !!c.wdMiss;
+        if (extrasMiss) {
+          try { const d = await overpass(QUERY(bb), 45000); add = add.concat(d.elements.map(slim).filter((el) => tilesOf(el).has(k))); extrasMiss = false; }
+          catch (err) { console.warn('Lugares del barrio pendientes', k, err); }
+        }
+        if (wdMiss) {
+          const got = await wikidataBox(bb);
+          if (got !== null) { add = add.concat(got.filter((el) => tilesOf(el).has(k))); wdMiss = false; }
+        }
+        const cur = (await cache.get(k)) || c;
+        cache.put(k, Object.assign({}, cur, { els: cur.els.concat(add), wdMiss, extrasMiss }));
+        if (add.length && tiles[k] && (tiles[k].loaded || tiles[k].partial)) { ingest(add, new Set([k])); emit('loaded', { tiles: [k] }); }
+      } finally { completing.delete(k); }
+    });
   }
 
   // Lugares emblemáticos de Wikidata (palacios, torres, patrimonio…). Si falla, se sigue solo con OpenStreetMap.
@@ -659,17 +697,19 @@ PM.world = (function () {
   }
   // Descarga barrios de Overpass (una consulta) y los guarda en caché; devuelve {barrio: elementos}
   async function fetchTiles(keys) {
+    // solo calles (rápido); lugares, barrios y Wikidata se completan justo después en segundo plano
     const bb = bboxOf(keys);
-    const wdP = wikidataBox(bb);
-    const data = await overpass(QUERY(bb), 40000);
+    const data = await overpass(STREETS(bb), 30000);
     const per = {}; keys.forEach((k) => (per[k] = []));
     for (const raw of data.elements) {
       const el = slim(raw);
       for (const k of tilesOf(el)) if (per[k]) per[k].push(el);
     }
-    const wd = await wdP;
-    for (const el of wd || []) for (const k of tilesOf(el)) if (per[k]) per[k].push(el);
-    for (const k of keys) cache.put(k, { v: CACHE_V, t: Date.now(), els: per[k], wdMiss: wd === null });
+    for (const k of keys) {
+      const entry = { v: CACHE_V, t: Date.now(), els: per[k], wdMiss: true, extrasMiss: true };
+      cache.put(k, entry);
+      setTimeout(() => completeTile(k, entry), 0);
+    }
     return per;
   }
 
@@ -725,7 +765,7 @@ PM.world = (function () {
     const dLat = 150 / PM.geo.mPerDegLat, dLon = 150 / PM.geo.mPerDegLon(lat);
     const bb = [lat - dLat, lon - dLon, lat + dLat, lon + dLon].map((v) => v.toFixed(5)).join(',');
     emit('loading', { count: 0, quick: true });
-    const data = await overpass(QUERY(bb), 15000);   // si un servidor tarda, se pasa pronto al siguiente
+    const data = await overpass(STREETS(bb), 15000);   // solo calles: llega en un par de segundos
     const els = data.elements.map(slim);
     const touched = new Set();
     for (const el of els) for (const k of tilesOf(el)) touched.add(k);
@@ -862,6 +902,8 @@ PM.world = (function () {
     if (shared[city] && !(cs[city] && cs[city].total)) { cs[city] = { total: shared[city] }; PM.state.save(); emit('city', { city }); return; }
     if ((cs[city] && cs[city].total) || cityPending.has(city)) return;
     cityPending.add(city);
+    // consulta pesada (todo el municipio): espera a que terminen de cargarse las calles para no frenarlas
+    while (loading.size || around) await new Promise((r) => setTimeout(r, 3000));
     const q = `[out:json][timeout:90];
       is_in(${lat},${lon})->.a;
       area.a["boundary"="administrative"]["admin_level"="8"]->.c;

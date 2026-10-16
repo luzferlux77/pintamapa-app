@@ -14,6 +14,8 @@
     out.setsDone = Object.assign({}, a.setsDone);
     for (const [k, v] of Object.entries(b.setsDone || {})) out.setsDone[k] = Math.max(out.setsDone[k] || 0, v);
     ['conquered', 'perfect', 'conqueredB', 'perfectB', 'citiesWon', 'achievements'].forEach(unionMin);
+    out.xpBy = Object.assign({}, a.xpBy);
+    for (const [k, v] of Object.entries(b.xpBy || {})) out.xpBy[k] = Math.max(out.xpBy[k] || 0, v);
     out.heat = Object.assign({}, a.heat);
     for (const [k, v] of Object.entries(b.heat || {})) out.heat[k] = Math.max(out.heat[k] || 0, v);
     out.paintedByTile = Object.assign({}, a.paintedByTile);

@@ -21,6 +21,80 @@ PM.replay = (function () {
     return segs;
   }
 
+  // ---------------- Recorrido por las calles ----------------
+  // Los paseos antiguos guardaban solo los extremos de cada hueco del GPS (móvil en el bolsillo) y salían diagonales.
+  // Se reconstruye el camino por TUS calles pintadas (por donde de verdad pasaste): ruta más corta entre los dos puntos.
+  function streetGraph(geo) {
+    const nodes = new Map(), grid = new Map();
+    const node = (q) => {
+      const k = (+q[0]).toFixed(5) + ',' + (+q[1]).toFixed(5);
+      let n = nodes.get(k);
+      if (!n) {
+        n = { p: [+q[0], +q[1]], e: [] }; nodes.set(k, n);
+        const g = Math.floor(q[0] / 0.001) + ':' + Math.floor(q[1] / 0.001);
+        (grid.get(g) || grid.set(g, []).get(g)).push(n);
+      }
+      return n;
+    };
+    for (const line of Object.values(geo || {})) for (let i = 0; i < line.length - 1; i++) {
+      const a = node(line[i]), b = node(line[i + 1]);
+      if (a === b) continue;
+      const l = dist(a.p, b.p); a.e.push([b, l]); b.e.push([a, l]);
+    }
+    const near = (q, max) => {
+      let best = null, bd = max; const gi = Math.floor(q[0] / 0.001), gj = Math.floor(q[1] / 0.001);
+      for (let di = -1; di <= 1; di++) for (let dj = -1; dj <= 1; dj++) for (const n of grid.get((gi + di) + ':' + (gj + dj)) || []) { const d = dist(q, n.p); if (d < bd) { bd = d; best = n; } }
+      return best;
+    };
+    return { size: nodes.size, near };
+  }
+  function graphRoute(G, a, b, maxLen) {
+    const s = G.near(a, 45), t = G.near(b, 45);
+    if (!s || !t || s === t) return null;
+    const dd = new Map([[s, 0]]), prev = new Map(), done = new Set(), heap = [[0, s]];
+    let it = 0;
+    while (heap.length && it++ < 40000) {
+      let m = 0; for (let i = 1; i < heap.length; i++) if (heap[i][0] < heap[m][0]) m = i;
+      const [d, n] = heap.splice(m, 1)[0];
+      if (done.has(n)) continue; done.add(n);
+      if (n === t) break;
+      if (d > maxLen) return null;
+      for (const [to, l] of n.e) { const nd = d + l; if (nd < (dd.has(to) ? dd.get(to) : Infinity)) { dd.set(to, nd); prev.set(to, n); heap.push([nd, to]); } }
+    }
+    if (!done.has(t)) return null;
+    const path = [t.p]; for (let n = t; prev.has(n); n = prev.get(n)) path.push(prev.get(n).p);
+    return path.reverse();
+  }
+  function snapTrack(track, geo) {
+    if (!geo || !track || track.length < 2) return track;
+    const G = streetGraph(geo);
+    if (!G.size) return track;
+    const out = [];
+    for (let i = 0; i < track.length; i++) {
+      const a = track[i - 1], b = track[i];
+      if (a && b) {
+        const d = dist(a, b);
+        if (d > 30 && d < 3000) {
+          const path = graphRoute(G, a, b, Math.max(d * 2.5, d + 300));
+          if (path) {
+            let tot = 0; for (let k = 1; k < path.length; k++) tot += dist(path[k - 1], path[k]);
+            let acc = dist(a, path[0]);
+            tot += acc + dist(path[path.length - 1], b);
+            for (let k = 0; k < path.length; k++) {
+              if (k) acc += dist(path[k - 1], path[k]);
+              const f = tot ? acc / tot : 0, q = [path[k][0], path[k][1]];
+              if (a[2] != null && b[2] != null) q[2] = a[2] + (b[2] - a[2]) * f;
+              if (a[3] != null && b[3] != null) q[3] = a[3] + (b[3] - a[3]) * f;
+              out.push(q);
+            }
+          }
+        }
+      }
+      out.push(b);
+    }
+    return out;
+  }
+
   // ---------------- Estadísticas ----------------
   // puntos con distancia acumulada (d), tiempo (t, s) y altitud (e)
   function points(walk) {
@@ -185,36 +259,70 @@ ${segs.map((s) => `<LineString><tessellate>1</tessellate><altitudeMode>clampToGr
   }
 
   // ---------------- Vídeo ----------------
+  // proyección Mercator (la de los mapas web) para que el recorrido case con las calles del mapa de fondo
+  const mx = (lon, z) => (lon + 180) / 360 * 256 * 2 ** z;
+  const my = (lat, z) => { const r = lat * Math.PI / 180; return (1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2 * 256 * 2 ** z; };
   function scene(walk, opts) {
     const segs = segsOf(walk.track);
     const pts = segs.flat();
     if (pts.length < 2) return null;
     let s = 90, n = -90, w = 180, e = -180;
     pts.forEach((p) => { s = Math.min(s, p[0]); n = Math.max(n, p[0]); w = Math.min(w, p[1]); e = Math.max(e, p[1]); });
-    const k = Math.cos(((s + n) / 2) * Math.PI / 180);
-    const box = { x: 60, y: 300, w: W - 120, h: H - 620 };
-    const spanX = Math.max((e - w) * k, 1e-4), spanY = Math.max(n - s, 1e-4);
-    const sc = Math.min(box.w / spanX, box.h / spanY);
-    const cx = (w + e) / 2, cy = (s + n) / 2;
-    const P = (p) => [W / 2 + (p[1] - cx) * k * sc, box.y + box.h / 2 - (p[0] - cy) * sc];
+    const box = { x: 60, y: 290, w: W - 120, h: H - 720 };
+    // zoom de mapa en el que cabe el recorrido (máx. 18) y escala fina para encajarlo
+    let z = 18;
+    while (z > 3 && (mx(e, z) - mx(w, z) > box.w || my(s, z) - my(n, z) > box.h)) z--;
+    const sc = Math.min(2, box.w / Math.max(1, mx(e, z) - mx(w, z)), box.h / Math.max(1, my(s, z) - my(n, z)));
+    const cx = (mx(w, z) + mx(e, z)) / 2, cy = (my(n, z) + my(s, z)) / 2;
+    const P = (p) => [W / 2 + (mx(p[1], z) - cx) * sc, box.y + box.h / 2 + (my(p[0], z) - cy) * sc];
+    // teselas que cubren todo el vídeo
+    const x0 = cx - (W / 2) / sc, x1 = cx + (W / 2) / sc, y0 = cy - (box.y + box.h / 2) / sc, y1 = cy + (H - box.y - box.h / 2) / sc;
+    const tiles = [];
+    for (let tx = Math.floor(x0 / 256); tx <= Math.floor(x1 / 256); tx++) for (let ty = Math.floor(y0 / 256); ty <= Math.floor(y1 / 256); ty++) {
+      if (ty < 0 || ty >= 2 ** z) continue;
+      tiles.push({ url: `https://tile.openstreetmap.org/${z}/${((tx % 2 ** z) + 2 ** z) % 2 ** z}/${ty}.png`, x: W / 2 + (tx * 256 - cx) * sc, y: box.y + box.h / 2 + (ty * 256 - cy) * sc, s: 256 * sc });
+    }
     const path = []; let acc = 0;
     segs.forEach((sg, si) => sg.forEach((p, i) => { if (i) acc += dist(sg[i - 1], p); path.push({ p: P(p), d: acc, start: i === 0 && si > 0 }); }));
     const bg = [];
-    const mS = s - spanY * 0.6, mN = n + spanY * 0.6, mW = w - (e - w) * 0.6, mE = e + (e - w) * 0.6;
+    const spanY = n - s, spanX = e - w;
+    const mS = s - spanY * 0.8 - 0.002, mN = n + spanY * 0.8 + 0.002, mW = w - spanX * 0.8 - 0.002, mE = e + spanX * 0.8 + 0.002;
     for (const line of Object.values(opts.geo || {})) {
       const a = line[0];
       if (a && a[0] > mS && a[0] < mN && a[1] > mW && a[1] < mE) bg.push(line.map(P));
       if (bg.length > 6000) break;
     }
-    return { path, total: acc, bg };
+    return { path, total: acc, bg, tiles };
+  }
+  // descarga las teselas del mapa (si no hay conexión, el vídeo sale igual con tus calles pintadas de fondo)
+  function loadTiles(sc) {
+    return Promise.all(sc.tiles.map((t) => new Promise((res) => {
+      const im = new Image(); im.crossOrigin = 'anonymous';
+      const to = setTimeout(() => res(), 8000);
+      im.onload = () => { clearTimeout(to); t.img = im; res(); };
+      im.onerror = () => { clearTimeout(to); res(); };
+      im.src = t.url;
+    })));
   }
   function draw(ctx, sc, t, walk, opts, A) {
     const color = opts.color || '#e4572e';
     const g = ctx.createLinearGradient(0, 0, 0, H);
     g.addColorStop(0, '#111827'); g.addColorStop(1, '#0b1220');
     ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+    // mapa de calles de fondo, en tono oscuro
+    if (sc.tiles.some((t) => t.img)) {
+      ctx.save(); ctx.filter = 'invert(1) hue-rotate(180deg) brightness(.85) contrast(1.05) saturate(.35)';
+      for (const t of sc.tiles) if (t.img) ctx.drawImage(t.img, t.x, t.y, t.s + 0.5, t.s + 0.5);
+      ctx.restore();
+      // velo arriba y abajo para que se lean los textos
+      const vt = ctx.createLinearGradient(0, 0, 0, 330); vt.addColorStop(0, 'rgba(11,18,32,.95)'); vt.addColorStop(1, 'rgba(11,18,32,0)');
+      ctx.fillStyle = vt; ctx.fillRect(0, 0, W, 330);
+      const vb = ctx.createLinearGradient(0, H - 420, 0, H); vb.addColorStop(0, 'rgba(11,18,32,0)'); vb.addColorStop(.35, 'rgba(11,18,32,.9)'); vb.addColorStop(1, 'rgba(11,18,32,.97)');
+      ctx.fillStyle = vb; ctx.fillRect(0, H - 420, W, 420);
+      ctx.fillStyle = 'rgba(160,170,190,.6)'; ctx.font = '500 16px system-ui, sans-serif'; ctx.textAlign = 'left'; ctx.fillText('© OpenStreetMap', 60, H - 40);
+    }
     ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-    ctx.strokeStyle = 'rgba(148,163,184,.22)'; ctx.lineWidth = 3;
+    ctx.strokeStyle = (opts.color || '#e4572e') + '55'; ctx.lineWidth = 4;
     for (const l of sc.bg) { ctx.beginPath(); l.forEach((q, i) => (i ? ctx.lineTo(q[0], q[1]) : ctx.moveTo(q[0], q[1]))); ctx.stroke(); }
     const upto = sc.total * Math.min(1, t);
     let head = sc.path[0].p;
@@ -259,6 +367,7 @@ ${segs.map((s) => `<LineString><tessellate>1</tessellate><altitudeMode>clampToGr
 
   // ---------------- Ventana de detalle ----------------
   async function open(walk, opts = {}) {
+    walk = Object.assign({}, walk, { track: snapTrack(walk.track, opts.geo) });
     const P = points(walk);
     if (P.pts.length < 2) { alert('Este paseo no tiene recorrido guardado.'); return; }
     close();
@@ -310,6 +419,9 @@ ${segs.map((s) => `<LineString><tessellate>1</tessellate><altitudeMode>clampToGr
     // vídeo
     const sc = scene(walk, opts);
     const cv = body.querySelector('canvas'), ctx = cv.getContext('2d'), msg = body.querySelector('.rp-msg');
+    msg.textContent = 'Cargando el mapa…';
+    await loadTiles(sc);
+    msg.textContent = '';
     let t0 = performance.now(), raf = null, recording = false;
     const loop = (now) => {
       if (!document.body.contains(cv)) return;

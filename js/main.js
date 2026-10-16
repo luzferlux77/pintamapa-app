@@ -336,8 +336,16 @@
           for (const id of r.pieces) { const pc = W.pieces[id]; if (pc) { if (S().painted[pc.id]) G.repass(pc); else G.paintPiece(pc, aura); } }
           paintAround(p, [p[0] - lastP[0], (p[1] - lastP[1]) * Math.cos(p[0] * Math.PI / 180)]);
           G.addWalk(r.len); session.st.walked += r.len; walkAnchor = p.slice();
+          // el recorrido guarda el camino real por las calles (no una diagonal), con la hora repartida a lo largo del hueco
           const tr = session.track || (session.track = []);
-          tr.push(trackPt(p, now));
+          const way = (r.path || []).concat([p]);
+          let acc = 0;
+          for (let i = 0; i < way.length; i++) {
+            if (i) acc += PM.geo.dist(way[i - 1], way[i]);
+            const lt = tr[tr.length - 1];
+            if (i < way.length - 1 && lt && PM.geo.dist(lt, way[i]) < 8) continue;
+            tr.push(trackPt(way[i], lastT + (now - lastT) * Math.min(1, acc / Math.max(1, r.len))));
+          }
         }
       }
       if (!routed && !jump && d > 0.01 && d < 400) {
@@ -377,14 +385,14 @@
     for (const q of via) if (PM.geo.dist(pts[pts.length - 1], q) > 35 && PM.geo.dist(q, b) > 35) pts.push(q);
     if (pts.length < 2) return null;
     pts.push(b);
-    let len = 0; const pieces = [];
+    let len = 0; const pieces = [], path = [];
     for (let i = 0; i < pts.length - 1; i++) {
       const dl = PM.geo.dist(pts[i], pts[i + 1]);
       const r = W.route(pts[i], pts[i + 1], Math.max(dl * 2.2, dl + 200));
       if (!r) return null;
-      len += r.len; pieces.push(...r.pieces);
+      len += r.len; pieces.push(...r.pieces); path.push(...(r.path || []));
     }
-    return { len, pieces, via: true };
+    return { len, pieces, path, via: true };
   }
 
   function nearestLandmark(p) {
@@ -1287,6 +1295,48 @@
     html += `<div class="mission chest ${d.chest ? 'done' : ''}"><div class="mt">🎁 Cofre diario: completa las 3<span>+1000</span></div></div>`;
     openSheet('🎯 Misiones de hoy', html);
   }
+
+  // Tocar el nivel: por qué tienes ese nivel, cuánto falta, de dónde vienen tus puntos y la escalera de rangos
+  function panelLevel() {
+    const s = S(), lp = G.levelProgress();
+    const nf = PM.fmtNum;
+    const from = PM.xpForLevel(lp.level), to = PM.xpForLevel(lp.level + 1);
+    const LBL = { paint: '🖌️ Pintar calles nuevas', landmark: '📸 Capturar lugares', revisit: '🔁 Volver a lugares', conquest: '🚩 Conquistar barrios',
+      perfect: '💯 Barrios al 100 %', city: '👑 Conquistar ciudades', mission: '🎯 Misiones diarias', chest: '🎁 Cofre diario', set: '🗂️ Colecciones',
+      photo: '📷 Fotos de cromos', can: '🪣 Botes (antiguos)', otros: '✨ Otros' };
+    const by = Object.assign({}, s.xpBy || {});
+    const known = Object.values(by).reduce((a, b) => a + b, 0);
+    if (s.xp - known > 0) by.antes = s.xp - known;   // puntos de antes de que se registrara el desglose
+    LBL.antes = '🕰️ Antes de esta versión';
+    const rows = Object.entries(by).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]);
+    const ladder = [{ name: 'Niveles 1–99', icon: '⭐', from: 1 }, ...PM.LEVEL_TIERS.map((t, i) => ({ name: t.name + ' 1–100', icon: t.icon, from: 100 + i * 100, color: t.color }))];
+    openSheet(`${lp.tier ? lp.tier.icon : '⭐'} Nivel ${lp.label}`, `
+      <div class="lvl-big"><b style="${lp.tier ? 'color:' + lp.tier.color : ''}">${lp.short}</b><div><h2>Nivel ${lp.label}</h2><p class="muted">${nf(s.xp)} puntos en total</p></div></div>
+      <div class="bar big"><i style="width:${(lp.pct * 100).toFixed(1)}%"></i></div>
+      <p>${lp.max ? '🏆 ¡Has llegado al nivel máximo!' : `Te faltan <b>${nf(lp.need - lp.cur)} puntos</b> para el nivel <b>${lp.nextLabel}</b>.`}</p>
+      <h4>¿Por qué este nivel?</h4>
+      <p class="muted">Tu nivel depende solo de tus <b>puntos totales</b>. El nivel ${lp.label} empieza en ${nf(from)} puntos${lp.max ? '' : ` y el ${lp.nextLabel} en ${nf(to)}`}. Cada nivel pide algo más que el anterior.</p>
+      <h4>De dónde vienen tus puntos</h4>
+      ${rows.map(([k, v]) => `<div class="xprow"><span>${LBL[k] || k}</span><b>${nf(v)}</b><div class="bar"><i style="width:${(v / Math.max(1, s.xp) * 100).toFixed(1)}%"></i></div></div>`).join('') || '<p class="muted">Aún no tienes puntos: ¡sal a pintar!</p>'}
+      <h4>Cómo ganar más puntos</h4>
+      <ul class="xphow">
+        <li>🖌️ <b>Pintar calle nueva</b>: 10 pts cada 12 m · el combo multiplica hasta ×3 · junto a un monumento ×2</li>
+        <li>📸 <b>Capturar un lugar</b>: 100 (común) · 200 (raro) · 300 (épico) · 500 (legendario)</li>
+        <li>🔁 <b>Volver a un lugar</b> (cada día): +20 % de sus puntos</li>
+        <li>🚩 <b>Conquistar un barrio</b> (80 %): +2.000 · al 100 %: +1.000 más</li>
+        <li>👑 <b>Conquistar una ciudad</b> (80 %): +25.000</li>
+        <li>🎯 <b>Misiones del día</b> y 🎁 cofre al completarlas todas: +1.000</li>
+        <li>🗂️ <b>Colecciones</b>: 300 · 1.000 · 3.000 · 📷 tu foto en un cromo</li>
+      </ul>
+      <h4>Escalera de niveles</h4>
+      <div class="ladder">${ladder.map((r, i) => {
+        const nextFrom = ladder[i + 1] ? ladder[i + 1].from : PM.LEVEL_MAX + 1;
+        const here = lp.level >= r.from && lp.level < nextFrom, done = lp.level >= nextFrom;
+        return `<div class="${here ? 'here' : done ? 'done' : ''}"><span style="${r.color ? 'color:' + r.color : ''}">${r.icon}</span><b>${r.name}</b><small>${done ? '✓' : here ? 'estás aquí' : 'desde ' + nf(PM.xpForLevel(r.from)) + ' pts'}</small></div>`;
+      }).join('')}</div>`);
+  }
+  $('#hud .lvl').addEventListener('click', panelLevel);
+  $('#hud .xp').addEventListener('click', panelLevel);
 
   function panelAchievements() {
     const s = S();

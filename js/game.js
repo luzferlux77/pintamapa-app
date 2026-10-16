@@ -135,6 +135,8 @@ PM.game = (function () {
   function addXP(n, reason) {
     const before = level();
     S().xp += Math.round(n);
+    const by = S().xpBy || (S().xpBy = {});   // de dónde vienen tus puntos (para explicar tu nivel)
+    by[reason || 'otros'] = (by[reason || 'otros'] || 0) + Math.round(n);
     const after = level();
     PM.state.save();
     emit('xp', { n, reason });
