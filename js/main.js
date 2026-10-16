@@ -1283,6 +1283,7 @@
 
   function showLandmarkInfo(lm) {
     const got = S().landmarks[lm.id];
+    if (got) { PM.cards.open(lm.id); return; }   // conquistado: se abre su carta directamente
     const r = W.RARITY[lm.rarity];
     const d = PM.geo.dist(pos, lm.pos);
     openSheet(lm.emoji + ' ' + (got ? lm.name : '???'), `
