@@ -1,8 +1,8 @@
 {
-  "version": "0.5.3",
-  "notes": "Holograma de las cartas más sutil y realista",
+  "version": "0.5.4",
+  "notes": "Vídeo del paseo: solo el recorrido de ese paseo, sin lo pintado otros días",
   "native": 3,
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.5.3/pintamapa-web-0.5.3.zip",
-  "checksum": "10716ebc14198241866074dd050a98289cd4041ad09e21d1432a1be11abb67f5",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.5.3/PintaMapa-v0.5.3.apk"
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.5.4/pintamapa-web-0.5.4.zip",
+  "checksum": "330e49552f0c49b2cb91fe614ff217958c6f713c4424631ca88dc431a4cf95b6",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.5.4/PintaMapa-v0.5.4.apk"
 }
