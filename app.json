@@ -1,8 +1,8 @@
 {
-  "version": "0.6.4",
-  "notes": "Cartas en mazos por ciudad (app y web): toca un mazo para desplegarlo, sin scroll infinito; los logros que llegan juntos se agrupan en un aviso",
+  "version": "0.6.5",
+  "notes": "Los mazos de cartas ya se cierran al volver a tocarlos",
   "native": 3,
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.4/pintamapa-web-0.6.4.zip",
-  "checksum": "c570b22a5ac22a8ffecedc85b8ae69d29d22532f37ec8573bb70ca0f756be76a",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.4/PintaMapa-v0.6.4.apk"
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.5/pintamapa-web-0.6.5.zip",
+  "checksum": "76135a434a5f0e500afc012047cf1b922ff4464cc4c2ef0866baee16924a7c43",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.5/PintaMapa-v0.6.5.apk"
 }
