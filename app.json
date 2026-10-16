@@ -1,8 +1,8 @@
 {
-  "version": "0.6.11",
-  "notes": "Captura múltiple: si hay varios lugares juntos (castillo, palacio, monumento…), a los 10 s se conquistan todos; sus cartas nuevas salen una tras otra",
+  "version": "0.6.12",
+  "notes": "Al tocar en el mapa un lugar conquistado se abre su carta",
   "native": 3,
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.11/pintamapa-web-0.6.11.zip",
-  "checksum": "eae289daae13e599deb8e3deb6d33aeb60aa0234c7210f786d4394f01854ef89",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.11/PintaMapa-v0.6.11.apk"
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.12/pintamapa-web-0.6.12.zip",
+  "checksum": "528adce5963c4a920792c3b64a136d0fad37f59098e191fe79dc8a91fa9c4f14",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.12/PintaMapa-v0.6.12.apk"
 }
