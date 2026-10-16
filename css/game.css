@@ -395,3 +395,13 @@ html, body { font-size: 15.5px; font-family: system-ui, -apple-system, "Segoe UI
 .ladder > div span { font-size: 20px; } .ladder small { color: var(--muted); font-size: 12.5px; }
 .ladder .here { border: 2px solid var(--accent); background: rgba(31, 95, 191, .07); } .ladder .here small { color: var(--accent); font-weight: 700; }
 .ladder .done { opacity: .6; }
+
+/* --- MapLibre --- */
+.maplibregl-ctrl-bottom-left { bottom: calc(132px + var(--safe-bottom)) !important; }
+.maplibregl-ctrl-attrib { font-size: 10px; background: rgba(255,255,255,.7) !important; }
+body.dark .maplibregl-ctrl-attrib { background: rgba(0,0,0,.5) !important; color: #aaa; }
+.player .pring, .player .aring { position: absolute; left: 50%; top: 50%; border-radius: 50%; transform: translate(-50%, -50%); pointer-events: none; }
+.player .pring { width: var(--pr, 60px); height: var(--pr, 60px); border: 1px solid rgba(255,255,255,.55); background: rgba(255,255,255,.06); box-shadow: 0 0 0 1px rgba(0,0,0,.08); }
+.player .aring { width: var(--ar, 120px); height: var(--ar, 120px); border: 2px dashed #ffb700; opacity: 0; transition: opacity .3s; }
+.player .aring.on { opacity: .85; }
+.maplibregl-marker { will-change: transform; }

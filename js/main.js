@@ -29,58 +29,87 @@
     { name: 'Ciudad Demo (sin internet)', p: [39.6025, -3.0035], demo: true },
   ];
 
-  // ---------------- Mapa ----------------
+  // ---------------- Mapa (MapLibre: mapa vectorial con estilo propio, dibujado por la tarjeta gráfica) ----------------
+  // Mapa base de OpenFreeMap (datos de OpenStreetMap, gratis y sin clave). Encima, capas propias: calles jugables,
+  // lo pintado (con intensidad por pasadas), contornos de barrio, zonas evitadas y halos de conquista.
   const start = S().lastPos || HOME;
-  const map = L.map('map', { zoomControl: false, attributionControl: true, preferCanvas: true,
-    rotate: true, bearing: 0, rotateControl: false, touchRotate: false, shiftKeyRotate: false, compassBearing: false,
-    touchZoom: 'center', scrollWheelZoom: 'center', doubleClickZoom: 'center' })
-    .setView(start, 17);
-  // Teselas estándar de OSM oscurecidas por CSS (prototipo; para la Play Store usar un proveedor con clave)
-  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    maxZoom: 19, className: 'dark-tiles',
-    attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-  }).addTo(map);
-  const renderer = L.canvas({ padding: 0.5 });
-
-  const layers = { avoid: L.layerGroup().addTo(map), barrios: L.layerGroup().addTo(map), tiles: L.layerGroup().addTo(map), lm: L.layerGroup().addTo(map), cans: L.layerGroup().addTo(map) };
-  const tileLayers = {};  // key -> {base, glow, core, rect, flag, paintedPts}
+  const STYLE = { light: 'https://tiles.openfreemap.org/styles/positron', dark: 'https://tiles.openfreemap.org/styles/dark' };
+  const ll = (p) => [p[1], p[0]];   // el juego usa [lat, lon]; MapLibre, [lon, lat]
+  let curStyle = S().theme === 'dark' ? 'dark' : 'light';
+  const map = new maplibregl.Map({ container: 'map', style: STYLE[curStyle], center: ll(start), zoom: 17, attributionControl: false,
+    dragRotate: false, pitchWithRotate: false, touchPitch: false, maxPitch: 60, fadeDuration: 0 });
+  map.touchZoomRotate.disableRotation();
+  map.addControl(new maplibregl.AttributionControl({ compact: true, customAttribution: '© OpenStreetMap · OpenFreeMap' }), 'bottom-left');
+  let mapReady = false;
+  const FC = (features) => ({ type: 'FeatureCollection', features });
+  const lineF = (pts, props) => ({ type: 'Feature', properties: props || {}, geometry: { type: 'LineString', coordinates: pts.map(ll) } });
+  const circlePoly = (c, r, props) => {
+    const out = [];
+    for (let i = 0; i <= 48; i++) { const a = i / 48 * 2 * Math.PI; out.push(ll(PM.geo.offset(c, Math.cos(a) * r, Math.sin(a) * r))); }
+    return { type: 'Feature', properties: props || {}, geometry: { type: 'Polygon', coordinates: [out] } };
+  };
+  const SRC = ['pm-streets', 'pm-painted', 'pm-barrios', 'pm-avoid', 'pm-halos'];
+  const srcData = {}; SRC.forEach((id) => (srcData[id] = FC([])));
+  function setSrc(id, fc) { srcData[id] = fc; const src = mapReady && map.getSource(id); if (src) src.setData(fc); }
+  // grosor según el zoom (las salidas pueden depender de datos: p. ej. la intensidad de la pasada)
+  const zw = (a, b, c, f) => ['interpolate', ['exponential', 1.6], ['zoom'], 13, f ? ['*', a, f] : a, 17, f ? ['*', b, f] : b, 20, f ? ['*', c, f] : c];
+  const paintExpr = () => ['match', ['get', 'h'], 1, heatColor(1), 2, heatColor(2), 3, heatColor(3), paintColor()];
+  function addOverlay() {
+    for (const id of SRC) if (!map.getSource(id)) map.addSource(id, { type: 'geojson', data: srcData[id], tolerance: 0.25 });
+    const firstSym = (map.getStyle().layers || []).find((l) => l.type === 'symbol');   // lo pintado, por debajo de los nombres de calle
+    const add = (l, top) => { if (!map.getLayer(l.id)) map.addLayer(l, top ? undefined : firstSym && firstSym.id); };
+    const round = { 'line-cap': 'round', 'line-join': 'round' };
+    add({ id: 'pm-avoid-fill', type: 'fill', source: 'pm-avoid', paint: { 'fill-color': '#6b7280', 'fill-opacity': 0.18 } });
+    add({ id: 'pm-avoid-line', type: 'line', source: 'pm-avoid', paint: { 'line-color': '#6b7280', 'line-width': 2, 'line-dasharray': [3, 3] } });
+    add({ id: 'pm-streets', type: 'line', source: 'pm-streets', filter: ['!=', ['get', 't'], 1], layout: round, paint: { 'line-color': '#8a93a6', 'line-opacity': 0.5, 'line-width': zw(1, 3, 7) } });
+    add({ id: 'pm-trails', type: 'line', source: 'pm-streets', filter: ['==', ['get', 't'], 1], paint: { 'line-color': '#9a8a66', 'line-opacity': 0.85, 'line-width': zw(0.8, 2.2, 4), 'line-dasharray': [1.5, 2] } });
+    add({ id: 'pm-glow', type: 'line', source: 'pm-painted', layout: round, paint: { 'line-color': paintColor(), 'line-opacity': 0.22, 'line-width': zw(4, 14, 30), 'line-blur': zw(2, 6, 12) } });
+    add({ id: 'pm-paint', type: 'line', source: 'pm-painted', layout: round, paint: { 'line-color': paintExpr(), 'line-width': zw(1.6, 5, 11, ['+', 1, ['*', 0.2, ['get', 'h']]]) } });
+    add({ id: 'pm-halo-fill', type: 'fill', source: 'pm-halos', paint: { 'fill-color': paintColor(), 'fill-opacity': 0.16 } });
+    add({ id: 'pm-halo-line', type: 'line', source: 'pm-halos', paint: { 'line-color': paintColor(), 'line-opacity': 0.7, 'line-width': 2 } });
+    add({ id: 'pm-barrio-cur', type: 'line', source: 'pm-barrios', filter: ['==', ['get', 'c'], 0], paint: { 'line-color': '#5b6478', 'line-opacity': 0.8, 'line-width': 2.5, 'line-dasharray': [3, 3] } }, true);
+    add({ id: 'pm-barrio-conq', type: 'line', source: 'pm-barrios', filter: ['==', ['get', 'c'], 1], paint: { 'line-color': paintColor(), 'line-opacity': 0.75, 'line-width': ['case', ['==', ['get', 'cur'], 1], 3, 2] } }, true);
+  }
+  map.on('style.load', () => { mapReady = true; addOverlay(); });
+  // créditos plegados (botón ⓘ): ocupan mucho en el móvil
+  map.once('idle', () => { const a = document.querySelector('.maplibregl-ctrl-attrib'); if (a) a.classList.remove('maplibregl-compact-show'); });
+  // marcador HTML (lugares, banderas, etiquetas)
+  function htmlMarker(p, html, opts = {}) {
+    const el = document.createElement('div');
+    el.innerHTML = html;
+    if (opts.onClick) el.addEventListener('click', (e) => { e.stopPropagation(); opts.onClick(); });
+    if (opts.z) el.style.zIndex = opts.z;
+    return new maplibregl.Marker({ element: el, anchor: opts.anchor || 'center' }).setLngLat(ll(p)).addTo(map);
+  }
 
   function paintColor() { return S().color; }
   function applyTheme() {
     const dark = S().theme === 'dark';   // claro por defecto
     document.body.classList.toggle('dark', dark);
     document.querySelector('meta[name=theme-color]').setAttribute('content', dark ? '#0d0f17' : '#f4f6fb');
+    const want = dark ? 'dark' : 'light';
+    if (want !== curStyle) { curStyle = want; mapReady = false; map.setStyle(STYLE[want]); }   // al cargar el estilo se vuelven a poner las capas
   }
   applyTheme();
 
-  function removeTileLayers(key) {
-    const tl = tileLayers[key];
-    if (!tl) return;
-    ['base', 'trailBase', 'glow', 'core', 'rect', 'flag'].forEach((n) => tl[n] && tl[n].remove());
-    (tl.heat || []).forEach((h) => h.remove());
-    delete tileLayers[key];
-  }
-  // force: redibujar (p. ej. al pasar de carga parcial a barrio completo)
-  function renderTile(key, force) {
-    if (force === true) removeTileLayers(key);
+  // Calles jugables y lo pintado: todo en dos capas (se reconstruyen como mucho cada 0,4 s mientras pintas)
+  const rendered = new Set();
+  let streetsDirty = false, paintedDirty = false, lastPaintFlush = 0;
+  function renderTile(key) {
     const t = W.tiles[key];
-    if (!t || !(t.loaded || t.partial) || tileLayers[key]) return;
-    const streets = t.pieces.filter((p) => !p.trail).map((p) => p.pts), trails = t.pieces.filter((p) => p.trail).map((p) => p.pts);
-    const painted = t.pieces.filter((p) => S().painted[p.id]);
-    const lv = (p) => heatLevel(p.id);
-    const tl = { paintedPts: painted.filter((p) => !lv(p)).map((p) => p.pts), glowPts: painted.map((p) => p.pts) };
-    if (t.pieces.length) {
-      tl.base = L.polyline(streets, { renderer, color: '#6b7690', weight: 4, opacity: 0.8, interactive: false }).addTo(layers.tiles);
-      // senderos y caminos: discontinuos (se pintan, pero no cuentan para el % de conquista)
-      if (trails.length) tl.trailBase = L.polyline(trails, { renderer, color: '#9a8a66', weight: 2.5, opacity: 0.85, dashArray: '3 6', interactive: false }).addTo(layers.tiles);
-      tl.glow = L.polyline(tl.glowPts, { renderer, color: paintColor(), weight: 14, opacity: 0.22, lineCap: 'round', interactive: false }).addTo(layers.tiles);
-      tl.core = L.polyline(tl.paintedPts, { renderer, color: paintColor(), weight: 5, opacity: 1, lineCap: 'round', interactive: false }).addTo(layers.tiles);
-      // tus calles de siempre: cuantas más veces pasas, más intenso y grueso el trazo
-      tl.heat = [1, 2, 3].map((l) => L.polyline(painted.filter((p) => lv(p) === l).map((p) => p.pts),
-        { renderer, color: heatColor(l), weight: 5 + l, opacity: 1, lineCap: 'round', interactive: false }).addTo(layers.tiles));
-    }
-    tileLayers[key] = tl;
+    if (!t || !(t.loaded || t.partial)) return;
+    rendered.add(key); streetsDirty = true; paintedDirty = true;
     refreshFlag(key);
+  }
+  function rebuildStreets() {
+    const f = [];
+    for (const k of rendered) for (const p of W.tiles[k].pieces) f.push(lineF(p.pts, p.trail ? { t: 1 } : null));
+    setSrc('pm-streets', FC(f));
+  }
+  function rebuildPainted() {
+    const f = [], painted = S().painted;
+    for (const k of rendered) for (const p of W.tiles[k].pieces) if (painted[p.id]) f.push(lineF(p.pts, { h: heatLevel(p.id) }));
+    setSrc('pm-painted', FC(f));
   }
 
   // ---------- Barrios reales: contorno del barrio donde estás y de los conquistados, con bandera ----------
@@ -98,8 +127,6 @@
   function avoidChanged() {
     PM.state.save();
     W.setAvoid(S().avoid);
-    for (const id in canMarkers) { canMarkers[id].remove(); delete canMarkers[id]; }
-    renderCans();
     setTimeout(renderBarrios, 400);   // tras recalcular los barrios
   }
   function addAvoid(z) {
@@ -134,48 +161,40 @@
       <button class="btn on" id="av-del" style="width:100%">Quitar: que vuelva a contar</button>`);
     $('#av-del').addEventListener('click', () => removeAvoid(z.id));
   }
+  let avoidMarkers = [];
   function renderAvoid() {
-    layers.avoid.clearLayers();
-    const label = (p, txt, z) => L.marker(p, { icon: L.divIcon({ className: '', html: `<div class="avoidlbl">🚫 ${txt}</div>`, iconSize: [10, 10], iconAnchor: [5, 5] }) })
-      .on('click', () => askRemoveAvoid(z)).addTo(layers.avoid);
+    avoidMarkers.forEach((m) => m.remove()); avoidMarkers = [];
+    const f = [];
+    const label = (p, txt, z) => avoidMarkers.push(htmlMarker(p, `<div class="avoidlbl">🚫 ${txt}</div>`, { onClick: () => askRemoveAvoid(z) }));
     for (const z of S().avoid) {
-      if (z.type === 'circle') {
-        L.circle(z.c, { renderer, radius: z.r, color: '#6b7280', weight: 2, dashArray: '6 6', fillColor: '#6b7280', fillOpacity: 0.2 })
-          .on('click', (e) => { L.DomEvent.stopPropagation(e); askRemoveAvoid(z); }).addTo(layers.avoid);
-        label(z.c, '', z);
-      } else {
+      if (z.type === 'circle') { f.push(circlePoly(z.c, z.r)); label(z.c, '', z); }
+      else {
         const B = W.barrios[z.id];
-        if (B && B.segs) L.polyline(B.segs, { renderer, color: '#6b7280', weight: 5, opacity: 0.6, dashArray: '2 8', interactive: false }).addTo(layers.avoid);
+        if (B && B.segs) B.segs.forEach((sg) => f.push(lineF(sg)));
         if (B && B.pos) label(B.pos, z.name, z);
       }
     }
+    setSrc('pm-avoid', FC(f));
   }
 
+  let flagMarkers = [];
   function renderBarrios() {
     renderAvoid();
-    layers.barrios.clearLayers();
+    flagMarkers.forEach((m) => m.remove()); flagMarkers = [];
+    const f = [];
     for (const B of Object.values(W.barrios)) {
       const conq = !!S().conqueredB[B.id], cur = B.id === curBarrio;
-      if (B.segs && (cur || conq)) {
-        L.polyline(B.segs, { renderer, color: conq ? paintColor() : '#5b6478', weight: cur ? 3 : 2, opacity: cur ? 0.85 : 0.6,
-          dashArray: conq ? null : '6 8', interactive: false }).addTo(layers.barrios);
-      }
-      if (conq && B.pos) {
-        L.marker(B.pos, { icon: L.divIcon({ className: '', html: `<div class="flag">🚩</div>`, iconSize: [30, 30], iconAnchor: [6, 28] }), interactive: false })
-          .addTo(layers.barrios);
-      }
+      if (B.segs && (cur || conq)) B.segs.forEach((sg) => f.push(lineF(sg, { c: conq ? 1 : 0, cur: cur ? 1 : 0 })));
+      if (conq && B.pos) flagMarkers.push(htmlMarker(B.pos, '<div class="flag">🚩</div>', { anchor: 'bottom-left' }));
     }
+    setSrc('pm-barrios', FC(f));
   }
 
-  const dirtyTiles = new Set();
-  const rerenderTiles = new Set();
   function flushPaint() {
-    dirtyTiles.forEach((k) => {
-      const tl = tileLayers[k];
-      if (tl && tl.core) { tl.core.setLatLngs(tl.paintedPts); tl.glow.setLatLngs(tl.glowPts); }
-    });
-    dirtyTiles.clear();
-    if (rerenderTiles.size && !document.hidden) { rerenderTiles.forEach((k) => renderTile(k, true)); rerenderTiles.clear(); }
+    if (document.hidden) return;
+    const now = performance.now();
+    if (streetsDirty) { streetsDirty = false; rebuildStreets(); }
+    if (paintedDirty && now - lastPaintFlush > 400) { paintedDirty = false; lastPaintFlush = now; rebuildPainted(); }
   }
   // intensidad del trazo según las pasadas: 1 vez = normal · 2-3 · 4-6 · 7+ = tu ruta habitual
   function heatLevel(id) { const n = (S().heat || {})[id] || 1; return n >= 7 ? 3 : n >= 4 ? 2 : n >= 2 ? 1 : 0; }
@@ -186,35 +205,30 @@
   }
 
   function recolorAll() {
-    for (const k in tileLayers) {
-      const tl = tileLayers[k];
-      if (tl.core) { tl.core.setStyle({ color: paintColor() }); tl.glow.setStyle({ color: paintColor() }); }
-      (tl.heat || []).forEach((h, i) => h.setStyle({ color: heatColor(i + 1) }));
+    if (mapReady) {
+      const c = paintColor();
+      [['pm-glow', 'line-color', c], ['pm-paint', 'line-color', paintExpr()], ['pm-halo-fill', 'fill-color', c], ['pm-halo-line', 'line-color', c], ['pm-barrio-conq', 'line-color', c]]
+        .forEach(([l, prop, v]) => map.getLayer(l) && map.setPaintProperty(l, prop, v));
     }
     renderBarrios();
-    for (const id in lmHalos) lmHalos[id].setStyle({ color: paintColor(), fillColor: paintColor() });
     document.documentElement.style.setProperty('--paint', paintColor());
   }
+  map.on('style.load', () => recolorAll());
 
   // Monumentos. Los conquistados (visitados) quedan para siempre en el mapa con tu color, bandera y halo de territorio.
   const lmMarkers = {}, lmHalos = {};
-  function lmIcon(lm) {
+  function lmHTML(lm) {
     const got = !!S().landmarks[lm.id];
-    return L.divIcon({
-      className: '',
-      html: got ? `<div class="lm conq r-${lm.rarity}"><span>${lm.emoji}</span><i class="lmflag">🚩</i></div>`
-                : `<div class="lm r-${lm.rarity}"><span>${lm.emoji}</span></div>`,
-      iconSize: [40, 40], iconAnchor: [20, 20],
-    });
+    return got ? `<div class="lm conq r-${lm.rarity}"><span>${lm.emoji}</span><i class="lmflag">🚩</i></div>`
+               : `<div class="lm r-${lm.rarity}"><span>${lm.emoji}</span></div>`;
   }
   function placeLandmark(lm) {
     const got = !!S().landmarks[lm.id];
-    if (lmMarkers[lm.id]) lmMarkers[lm.id].setIcon(lmIcon(lm));
-    else lmMarkers[lm.id] = L.marker(lm.pos, { icon: lmIcon(lm), zIndexOffset: got ? 500 : 0 })
-      .on('click', () => showLandmarkInfo(lm)).addTo(layers.lm);
+    if (lmMarkers[lm.id]) lmMarkers[lm.id].getElement().innerHTML = lmHTML(lm);
+    else lmMarkers[lm.id] = htmlMarker(lm.pos, lmHTML(lm), { onClick: () => showLandmarkInfo(lm), z: got ? 2 : 1 });
     if (got && !lmHalos[lm.id]) {
-      lmHalos[lm.id] = L.circle(lm.pos, { renderer, radius: (lm.capR || PM.capRadius(lm.kind)) + 10, color: paintColor(), weight: 2, opacity: 0.7,
-        fillColor: paintColor(), fillOpacity: 0.18, interactive: false }).addTo(layers.lm);
+      lmHalos[lm.id] = circlePoly(lm.pos, (lm.capR || PM.capRadius(lm.kind)) + 10);
+      setSrc('pm-halos', FC(Object.values(lmHalos)));
     }
   }
   function renderLandmarks() {
@@ -230,29 +244,22 @@
     }
   }
 
-  // Botes de pintura
+  // Botes de pintura (ya no salen; se deja el hueco por compatibilidad)
   const canMarkers = {};
-  function renderCans() {
-    return;   // ya no hay botes de pintura en el mapa
-    for (const id in W.cans) {
-      if (canMarkers[id] || S().cansTaken[id]) continue;
-      const c = W.cans[id];
-      if (W.isAvoided(c.pos)) continue;   // en tus zonas a evitar no salen botes
-      canMarkers[id] = L.marker(c.pos, {
-        icon: L.divIcon({ className: '', html: `<div class="can ${c.kind}">🪣</div>`, iconSize: [30, 30], iconAnchor: [15, 15] }),
-        interactive: false,
-      }).addTo(layers.cans);
-    }
-  }
+  function renderCans() {}
 
-  // Jugador
+  // Jugador: punto con tu color, flecha de rumbo, anillo de pintura (alcance del pincel) y anillo dorado de captura
   let pos = start.slice();
-  const player = L.marker(pos, {
-    icon: L.divIcon({ className: '', html: '<div class="player"><div class="pulse"></div><div class="arrow"></div><div class="dot">🖌️</div></div>', iconSize: [44, 44], iconAnchor: [22, 22] }),
-    zIndexOffset: 1000, interactive: false,
-  }).addTo(map);
-  const paintCircle = L.circle(pos, { renderer, radius: PAINT_RADIUS, color: '#fff', weight: 1, opacity: 0.35, fillOpacity: 0.05, interactive: false }).addTo(map);
-  const auraCircle = L.circle(pos, { renderer, radius: CAPTURE_RADIUS, color: '#ffb700', weight: 2, dashArray: '3 6', opacity: 0, fill: false, interactive: false }).addTo(map);
+  const playerEl = document.createElement('div');
+  playerEl.innerHTML = '<div class="player"><div class="pring"></div><div class="aring"></div><div class="pulse"></div><div class="arrow"></div><div class="dot">🖌️</div></div>';
+  const player = new maplibregl.Marker({ element: playerEl }).setLngLat(ll(pos)).addTo(map);
+  const auraEl = playerEl.querySelector('.aring');
+  function sizeRings() {
+    const mpp = 40075016.686 * Math.cos(map.getCenter().lat * Math.PI / 180) / (512 * Math.pow(2, map.getZoom()));
+    playerEl.style.setProperty('--pr', (PAINT_RADIUS * 2 / mpp).toFixed(1) + 'px');
+    playerEl.style.setProperty('--ar', (CAPTURE_RADIUS * 2 / mpp).toFixed(1) + 'px');
+  }
+  map.on('zoom', sizeRings); sizeRings();
 
   // ---------------- Movimiento y lógica de pintura ----------------
   let mode = PM.profile === 'real' ? 'gps' : 'sim';   // perfil real = GPS; perfil prueba = simulación
@@ -266,20 +273,22 @@
   // El centro es el de la zona visible (entre el panel de arriba y el de abajo). Entre lecturas del GPS
   // el punto se desliza suave. Si arrastras el mapa para mirar, vuelve solo a los 8 s.
   let disp = null, anim = null, recenterTimer = null;
-  function viewCenterPx() {
+  // zona visible entre el panel de arriba y el de abajo (se recalcula como mucho 2 veces por segundo)
+  let padCache = { t: 0, v: null };
+  function viewPadding() {
+    if (padCache.v && performance.now() - padCache.t < 500) return padCache.v;
     const r = map.getContainer().getBoundingClientRect();
     const top = Math.max(0, $('#hud').getBoundingClientRect().bottom - r.top);
     const sb = $('#session').getBoundingClientRect(), nb = $('#nav').getBoundingClientRect();
-    const bottom = Math.min(sb.height ? sb.top : r.bottom, nb.height ? nb.top : r.bottom) - r.top;
-    return L.point(r.width / 2, bottom > top + 100 ? (top + bottom) / 2 : r.height / 2);
+    const bottom = Math.max(0, r.bottom - Math.min(sb.height ? sb.top : r.bottom, nb.height ? nb.top : r.bottom));
+    padCache = { t: performance.now(), v: r.height - top - bottom > 100 ? { top, bottom, left: 0, right: 0 } : { top: 0, bottom: 0, left: 0, right: 0 } };
+    return padCache.v;
   }
   function camera() {
     if (!follow || !disp || document.hidden) return;
-    const want = viewCenterPx(), pt = map.latLngToContainerPoint(disp);
-    const dx = pt.x - want.x, dy = pt.y - want.y;
-    if (Math.abs(dx) > 0.5 || Math.abs(dy) > 0.5) map.panBy([dx, dy], { animate: false });
+    map.jumpTo({ center: ll(disp), padding: viewPadding() });
   }
-  function drawPlayer() { player.setLatLng(disp); paintCircle.setLatLng(disp); auraCircle.setLatLng(disp); camera(); }
+  function drawPlayer() { player.setLngLat(ll(disp)); camera(); }
   function showAt(p, smooth) {
     if (!disp || !smooth || PM.geo.dist(disp, p) > 300) { disp = p.slice(); anim = null; drawPlayer(); return; }
     anim = { from: disp.slice(), to: p.slice(), start: performance.now(), dur: 900 };
@@ -295,7 +304,7 @@
 
   function teleport(p) {
     pos = p.slice(); lastP = null; walkAnchor = null;
-    map.setView(pos, Math.max(16, map.getZoom() || 17)); follow = true;
+    map.jumpTo({ center: ll(pos), zoom: Math.max(16, map.getZoom() || 17), padding: viewPadding() }); follow = true;
     showAt(pos, false);
     onMove(pos, true);
   }
@@ -452,7 +461,7 @@
       const d = PM.geo.dist(pos, c.pos);
       if (d < canD) { canD = d; can = c; }
     }
-    const arrow = (t) => `<i class="rarrow" style="transform:rotate(${bearingTo(pos, t) + map.getBearing()}deg)">➤</i>`;
+    const arrow = (t) => `<i class="rarrow" style="transform:rotate(${bearingTo(pos, t) - map.getBearing()}deg)">➤</i>`;
     const parts = [];
     if (lm && lmD < 1500) parts.push(`${lm.emoji} ${PM.fmtDist(lmD)} ${arrow(lm.pos)}`);
     $('#radar').innerHTML = parts.length ? '🎯 ' + parts.join(' · ') : '';
@@ -502,8 +511,7 @@
   function checkLandmarksAndCans(p, visible = true, t = Date.now()) {
     const n = nearestLandmark(p);
     nearCache = { t: performance.now(), v: n };
-    if (visible) auraCircle.setLatLng(p);
-    auraCircle.setStyle({ opacity: n.d <= AURA_RADIUS ? 0.8 : 0 });
+    auraEl.classList.toggle('on', n.d <= AURA_RADIUS);
     $('#aura').classList.toggle('show', n.d <= AURA_RADIUS);
     if (n.lm && n.d <= AURA_RADIUS) $('#aura').textContent = `✨ Aura de ${n.lm.kind.toLowerCase()} · pintura x2`;
     checkDwell(p, t, visible);
@@ -540,9 +548,11 @@
   window.addEventListener('keyup', (e) => { keys[e.key.toLowerCase()] = false; });
 
   map.on('click', (e) => {
-    if (avoidEdit) { askAvoid([e.latlng.lat, e.latlng.lng]); return; }
+    const p = [e.lngLat.lat, e.lngLat.lng];
+    if (avoidEdit) { askAvoid(p); return; }
+    const z = S().avoid.find((a) => a.type === 'circle' && PM.geo.dist(p, a.c) <= a.r);
+    if (z && mode !== 'sim') { askRemoveAvoid(z); return; }
     if (mode !== 'sim') return;
-    const p = [e.latlng.lat, e.latlng.lng];
     if (e.originalEvent.ctrlKey || e.originalEvent.metaKey) { teleport(p); return; }
     target = p;
     follow = true;
@@ -550,7 +560,7 @@
   map.on('dragstart', () => { follow = false; $('#btn-center').classList.add('show'); clearTimeout(recenterTimer); });
   map.on('dragend', () => { clearTimeout(recenterTimer); recenterTimer = setTimeout(recenter, 8000); });
   map.on('zoomend', () => camera());
-  window.addEventListener('resize', () => camera());
+  window.addEventListener('resize', () => { padCache.t = 0; camera(); });
 
   // Joystick táctil (modo simulación en el móvil)
   (function joystick() {
@@ -656,13 +666,12 @@
 
   function applyBearing(force) {
     const now = performance.now();
-    const want = orient === 'heading' ? -heading : 0;
+    const want = orient === 'heading' ? heading : 0;
     const cur = map.getBearing();
     const diff = Math.abs((((want - cur) % 360) + 540) % 360 - 180);
-    // girar el mapa redibuja todas las calles: se limita a cambios de >3° y como mucho ~7 veces/seg
-    if (force || (diff > 1.5 && now - lastBearingT > 90)) { map.setBearing(want); lastBearingT = now; camera(); }
-    const el = document.querySelector('.player .arrow');
-    if (el) el.style.transform = `rotate(${heading + map.getBearing()}deg)`;
+    if (force || (diff > 0.4 && now - lastBearingT > 33)) { map.setBearing(want); lastBearingT = now; }
+    const el = playerEl.querySelector('.arrow');
+    if (el) el.style.transform = `rotate(${heading - map.getBearing()}deg)`;
   }
 
   function setOrient(o) {
@@ -672,6 +681,7 @@
     headingTarget = heading;
     compassSync();
     applyBearing(true);
+    map.easeTo({ pitch: o === 'heading' ? 45 : 0, duration: 600 });
     camera();
     $('#btn-orient').innerHTML = o === 'heading' ? '<span>➤</span><small>rumbo</small>' : '<span>N</span><small>norte</small>';
     $('#btn-orient').classList.toggle('on', o === 'heading');
@@ -682,7 +692,7 @@
   });
 
   // Gancho de pruebas (consola del navegador): PM.debug.walkTo([lat, lon]), PM.debug.setPace(0..4)
-  PM.debug = { walkTo(p) { target = p; follow = true; }, setPace(i) { pace = i; turbo = false; }, get pos() { return pos.slice(); },
+  PM.debug = { map, walkTo(p) { target = p; follow = true; }, setPace(i) { pace = i; turbo = false; }, get pos() { return pos.slice(); },
     get bearing() { return map.getBearing(); }, get heading() { return heading; },
     // avanza el juego n fotogramas a mano (pruebas con la pestaña oculta, donde el navegador congela la animación)
     frames(n, ms = 50) { let t = lastFrame; for (let i = 0; i < n; i++) { t += ms; loop(t, true); } } };
@@ -1070,7 +1080,7 @@
   }
 
   function floatText(txt, cls = '') {
-    const pt = map.latLngToContainerPoint(pos);
+    const pt = map.project(ll(pos));
     const el = document.createElement('div');
     el.className = 'float ' + cls;
     el.textContent = txt;
@@ -1081,7 +1091,7 @@
   }
 
   function splat() {
-    const pt = map.latLngToContainerPoint(pos);
+    const pt = map.project(ll(pos));
     for (let i = 0; i < 5; i++) {
       const d = document.createElement('div');
       d.className = 'drop';
@@ -1132,13 +1142,12 @@
     if (ev === 'xp' && session) { session.st.pts += d.n; persistSession(); }
     switch (ev) {
       case 'repass': {
-        if ([2, 4, 7].includes(d.n)) rerenderTiles.add(d.piece.tile);   // cambia de intensidad: redibujar
+        if ([2, 4, 7].includes(d.n)) paintedDirty = true;   // cambia de intensidad: redibujar
         if (session) { session.st.repassed = (session.st.repassed || 0) + d.piece.len; }
         break;
       }
       case 'painted': {
-        const tl = tileLayers[d.piece.tile];
-        if (tl) { tl.paintedPts.push(d.piece.pts); tl.glowPts.push(d.piece.pts); dirtyTiles.add(d.piece.tile); }
+        paintedDirty = true;
         if (session) { session.st.painted += d.piece.len; session.st.pieces++; session.st.bestCombo = Math.max(session.st.bestCombo, d.combo); }
         const now = performance.now();
         if (!document.hidden && now - splatThrottle > 120) {
@@ -1208,7 +1217,7 @@
 
   W.onChange((ev, d) => {
     if (ev === 'barrios') { hudB.dirty = true; renderBarrios(); return; }
-    if (ev === 'migrated') { Object.keys(tileLayers).forEach((k) => renderTile(k, true)); return; }
+    if (ev === 'migrated') { paintedDirty = true; return; }
     if (ev === 'loaded' || ev === 'partial') {
       d.tiles.forEach((k) => renderTile(k, true));
       renderLandmarks(); renderCans();
