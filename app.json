@@ -1,8 +1,8 @@
 {
-  "version": "0.5.5",
-  "notes": "Correcciones: ya no pinta sin paseo en marcha; 'Kingdom Hall'/'Freedom Park' ya no salen como catedral; logro Peregrino cuenta iglesias; la racha cuenta al salir a pintar (no al abrir la app); revisitas una vez al día; importar reloj espera a las calles; lugares duplicados; más fluidez y menos batería (barrio, ciudad, radar); vídeo de paseos largos sin bloqueos",
+  "version": "0.5.6",
+  "notes": "Reverso de las cartas: el fondo son las calles reales alrededor del lugar, con el sello encima de su ubicación",
   "native": 3,
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.5.5/pintamapa-web-0.5.5.zip",
-  "checksum": "e7d2af3b1332d9f70283c4715f1e82854d34693337a94fc5de86c2d1deabb2a0",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.5.5/PintaMapa-v0.5.5.apk"
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.5.6/pintamapa-web-0.5.6.zip",
+  "checksum": "d82e2b78fbfb74579342d40c5f777a6caa029257b04bed4b6f1cbe5d7789010d",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.5.6/PintaMapa-v0.5.6.apk"
 }
