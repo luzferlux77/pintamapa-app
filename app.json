@@ -1,8 +1,8 @@
 {
-  "version": "0.4.0",
-  "notes": "Lugares emblemáticos de todo el mundo (Wikidata: palacios, torres, patrimonio), hospitales, bomberos y museos; sin iglesias evangélicas ni parques pequeños; senderos (no cuentan para el %); sin botes de pintura; trazo más intenso en tus calles habituales; niveles 1-99 y rangos Bronce→Master; 265 logros; estadísticas de paseo tipo Strava con altitud, vídeo del recorrido y exportar GPX/TCX/KML/KMZ/GeoJSON/CSV; importar paseos de reloj; cartas por ciudad y tu foto también en la web; descripción de 4 líneas sin cortes; reverso más legible; orientación y huecos de GPS mejorados; carga inicial de 150 m; interfaz más sobria; móvil solo perfil real",
+  "version": "0.4.1",
+  "notes": "Icono de perfil: silueta de una cabeza",
   "native": 3,
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.4.0/pintamapa-web-0.4.0.zip",
-  "checksum": "2f0e6593b77f3265ad47d2902e3fb3ee63f4c7567adafb84c9e0592eec881192",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.4.0/PintaMapa-v0.4.0.apk"
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.4.1/pintamapa-web-0.4.1.zip",
+  "checksum": "2cd22aeee5a882955e922c44d1f696936da6433b7e845914af3685ffaba13637",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.4.1/PintaMapa-v0.4.1.apk"
 }
