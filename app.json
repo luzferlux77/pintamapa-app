@@ -1,8 +1,8 @@
 {
-  "version": "0.6.15",
-  "notes": "Mapa siempre en 2D y mucho más fluido al arrastrar; senderos y caminos de parque se pintan bien; radio de conquista mayor en estadios",
+  "version": "0.6.16",
+  "notes": "Mapa de Mi progreso (web) también fijo en 2D: ya no se inclina",
   "native": 3,
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.15/pintamapa-web-0.6.15.zip",
-  "checksum": "80e6daf601901b20cb51d5479f710551cd1170663d53c37c89d957296bc52e84",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.15/PintaMapa-v0.6.15.apk"
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.16/pintamapa-web-0.6.16.zip",
+  "checksum": "6c8f03e52b140d7b48c050d04ac0ea808aa3c2998092462ee84946caafd8ad2b",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.16/PintaMapa-v0.6.16.apk"
 }
