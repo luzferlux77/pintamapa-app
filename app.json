@@ -1,8 +1,8 @@
 {
-  "version": "0.6.16",
-  "notes": "Mapa de Mi progreso (web) también fijo en 2D: ya no se inclina",
+  "version": "0.6.17",
+  "notes": "Mi progreso: resumen nuevo, más completo y visual (nivel, esta semana, último paseo, territorio, colección, próximos objetivos)",
   "native": 3,
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.16/pintamapa-web-0.6.16.zip",
-  "checksum": "6c8f03e52b140d7b48c050d04ac0ea808aa3c2998092462ee84946caafd8ad2b",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.16/PintaMapa-v0.6.16.apk"
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.17/pintamapa-web-0.6.17.zip",
+  "checksum": "08c4178aa7ade3fd8c3cdc7712179647cd6a09aaeae9a05bd9dfa23a968ea2fe",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.17/PintaMapa-v0.6.17.apk"
 }
