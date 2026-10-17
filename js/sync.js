@@ -103,7 +103,8 @@ PM.cloud = (function () {
         try { await write(base + 'partida.json', await encrypt(key, merged), remote && remote.sha, 'progreso', token); }
         catch (e) { if (e.status === 409 || e.status === 422) continue; throw e; }   // otro móvil escribió a la vez
         const cur = PM.state.data;
-        PM.state.replace(Object.assign({}, merged, { session: cur.session, pendingGeo: cur.pendingGeo, syncedAt: Date.now() }));
+        // se vuelve a fusionar con lo actual: lo pintado durante la subida (segundos) no se pierde
+        PM.state.replace(Object.assign({}, PM.merge(merged, cur), { session: cur.session, pendingGeo: cur.pendingGeo, syncedAt: Date.now() }));
         break;
       }
       const pend = PM.state.data.pendingGeo || {};

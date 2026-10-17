@@ -37,8 +37,21 @@
   const ll = (p) => [p[1], p[0]];   // el juego usa [lat, lon]; MapLibre, [lon, lat]
   let curStyle = S().theme === 'dark' ? 'dark' : 'light';
   const map = new maplibregl.Map({ container: 'map', style: STYLE[curStyle], center: ll(start), zoom: 17, attributionControl: false,
-    dragRotate: false, pitchWithRotate: false, touchPitch: false, maxPitch: 60, fadeDuration: 0 });
+    dragRotate: false, pitchWithRotate: false, touchPitch: false, maxPitch: 60, fadeDuration: 0,
+    pixelRatio: Math.min(2, window.devicePixelRatio || 1) });   // a más de 2× no se nota y cuesta mucho al móvil
+  // ¿el dedo está moviendo el mapa? (mientras, ni la brújula ni la cámara lo mueven: si no, se pelean y va a tirones)
+  let userGesture = false, gestureEnd = 0;
+  map.on('movestart', (e) => { if (e.originalEvent) userGesture = true; });
+  map.on('moveend', (e) => { if (userGesture) { userGesture = false; gestureEnd = performance.now(); } });
+  const gestureBusy = () => userGesture || performance.now() - gestureEnd < 400;
+  // edificios 3D solo con el mapa inclinado (modo rumbo): de frente no se ven y son lo más pesado de dibujar
+  function set3D(on) {
+    if (!mapReady) return;
+    for (const l of map.getStyle().layers || []) if (l.type === 'fill-extrusion') map.setLayoutProperty(l.id, 'visibility', on ? 'visible' : 'none');
+  }
   map.touchZoomRotate.disableRotation();
+  // si el hueco del mapa cambia de tamaño (pantalla de inicio, giro, teclado…), el mapa se reajusta
+  if (window.ResizeObserver) new ResizeObserver(() => { map.resize(); padCache.t = 0; }).observe(map.getContainer());
   map.addControl(new maplibregl.AttributionControl({ compact: true, customAttribution: '© OpenStreetMap · OpenFreeMap' }), 'bottom-left');
   let mapReady = false;
   const FC = (features) => ({ type: 'FeatureCollection', features });
@@ -70,7 +83,7 @@
     add({ id: 'pm-barrio-cur', type: 'line', source: 'pm-barrios', filter: ['==', ['get', 'c'], 0], paint: { 'line-color': '#5b6478', 'line-opacity': 0.8, 'line-width': 2.5, 'line-dasharray': [3, 3] } }, true);
     add({ id: 'pm-barrio-conq', type: 'line', source: 'pm-barrios', filter: ['==', ['get', 'c'], 1], paint: { 'line-color': paintColor(), 'line-opacity': 0.75, 'line-width': ['case', ['==', ['get', 'cur'], 1], 3, 2] } }, true);
   }
-  map.on('style.load', () => { mapReady = true; PM.mapStyle.enhance(map, curStyle); addOverlay(); });
+  map.on('style.load', () => { mapReady = true; PM.mapStyle.enhance(map, curStyle); addOverlay(); set3D(orient === 'heading'); });
   // créditos plegados (botón ⓘ): ocupan mucho en el móvil
   map.once('idle', () => { const a = document.querySelector('.maplibregl-ctrl-attrib'); if (a) a.classList.remove('maplibregl-compact-show'); });
   // marcador HTML (lugares, banderas, etiquetas)
@@ -95,12 +108,29 @@
   // Calles jugables y lo pintado: todo en dos capas (se reconstruyen como mucho cada 0,4 s mientras pintas)
   const rendered = new Set();
   let streetsDirty = false, paintedDirty = false, lastPaintFlush = 0;
+  let paintedF = [], paintedAdd = false;   // lo pintado ya convertido (al pintar solo se añade el tramo nuevo)
+  // solo se dibujan las zonas a menos de VIEW_R celdas (~3 km) de lo que estás mirando: aunque hayas viajado, el mapa no se carga
+  const VIEW_R = 3;
+  function nearView(key) {
+    const c = map.getCenter(), [i, j] = key.split('_').map(Number);
+    return Math.abs(i - Math.floor(c.lat / W.TILE)) <= VIEW_R && Math.abs(j - Math.floor(c.lng / W.TILE)) <= VIEW_R;
+  }
   function renderTile(key) {
     const t = W.tiles[key];
-    if (!t || !(t.loaded || t.partial)) return;
+    if (!t || !(t.loaded || t.partial) || !nearView(key)) return;
     rendered.add(key); streetsDirty = true; paintedDirty = true;
     refreshFlag(key);
   }
+  // al terminar de mover el mapa: entran las zonas cercanas cargadas y salen las lejanas
+  function refreshView() {
+    let changed = false;
+    for (const k of [...rendered]) if (!nearView(k)) { rendered.delete(k); changed = true; }
+    for (const k in W.tiles) if (!rendered.has(k) && (W.tiles[k].loaded || W.tiles[k].partial) && nearView(k)) { rendered.add(k); changed = true; }
+    if (changed) { streetsDirty = true; paintedDirty = true; }
+    renderLandmarks();
+  }
+  map.on('moveend', () => { clearTimeout(viewTimer); viewTimer = setTimeout(refreshView, 250); });
+  let viewTimer = null;
   function rebuildStreets() {
     const f = [];
     for (const k of rendered) for (const p of W.tiles[k].pieces) f.push(lineF(p.pts, p.trail ? { t: 1 } : null));
@@ -109,6 +139,7 @@
   function rebuildPainted() {
     const f = [], painted = S().painted;
     for (const k of rendered) for (const p of W.tiles[k].pieces) if (painted[p.id]) f.push(lineF(p.pts, { h: heatLevel(p.id) }));
+    paintedF = f;
     setSrc('pm-painted', FC(f));
   }
 
@@ -194,7 +225,8 @@
     if (document.hidden) return;
     const now = performance.now();
     if (streetsDirty) { streetsDirty = false; rebuildStreets(); }
-    if (paintedDirty && now - lastPaintFlush > 400) { paintedDirty = false; lastPaintFlush = now; rebuildPainted(); }
+    if (paintedDirty && now - lastPaintFlush > 400) { paintedDirty = false; paintedAdd = false; lastPaintFlush = now; rebuildPainted(); }
+    else if (paintedAdd && now - lastPaintFlush > 400) { paintedAdd = false; lastPaintFlush = now; setSrc('pm-painted', FC(paintedF)); }
   }
   // intensidad del trazo según las pasadas: 1 vez = normal · 2-3 · 4-6 · 7+ = tu ruta habitual
   function heatLevel(id) { const n = (S().heat || {})[id] || 1; return n >= 7 ? 3 : n >= 4 ? 2 : n >= 2 ? 1 : 0; }
@@ -222,25 +254,34 @@
     return got ? `<div class="lm conq r-${lm.rarity}"><span>${lm.emoji}</span><i class="lmflag">🚩</i></div>`
                : `<div class="lm r-${lm.rarity}"><span>${lm.emoji}</span></div>`;
   }
+  const lmState = {};   // id -> 'got' | 'new' (para no rehacer el icono si no ha cambiado)
   function placeLandmark(lm) {
-    const got = !!S().landmarks[lm.id];
-    if (lmMarkers[lm.id]) lmMarkers[lm.id].getElement().innerHTML = lmHTML(lm);
+    const got = !!S().landmarks[lm.id], st = got ? 'got' : 'new';
+    if (lmMarkers[lm.id]) { if (lmState[lm.id] !== st) lmMarkers[lm.id].getElement().innerHTML = lmHTML(lm); }
     else lmMarkers[lm.id] = htmlMarker(lm.pos, lmHTML(lm), { onClick: () => showLandmarkInfo(lm), z: got ? 2 : 1 });
+    lmState[lm.id] = st;
     if (got && !lmHalos[lm.id]) {
       lmHalos[lm.id] = circlePoly(lm.pos, (lm.capR || PM.capRadius(lm.kind)) + 10);
       setSrc('pm-halos', FC(Object.values(lmHalos)));
     }
   }
   function renderLandmarks() {
+    const c = map.getCenter(), cen = [c.lat, c.lng], R = 4500;   // solo los que están a menos de ~4,5 km de lo que miras
+    const near = (p) => p && PM.geo.dist(p, cen) < R;
     for (const id in W.landmarks) {
       const rec = S().landmarks[id];
       if (rec && !rec.pos) { rec.pos = W.landmarks[id].pos; PM.state.save(); }
-      placeLandmark(W.landmarks[id]);
+      if (near(W.landmarks[id].pos)) placeLandmark(W.landmarks[id]);
     }
     // conquistados guardados en tu partida (estén o no cargados ahora): siempre visibles
     for (const [id, rec] of Object.entries(S().landmarks)) {
-      if (lmMarkers[id] || !rec.pos) continue;
+      if (lmMarkers[id] || !near(rec.pos)) continue;
       placeLandmark(Object.assign({ id, points: 0 }, rec));
+    }
+    // los que han quedado lejos: fuera (vuelven al acercarte)
+    for (const id of Object.keys(lmMarkers)) {
+      const p = (W.landmarks[id] || S().landmarks[id] || {}).pos;
+      if (!near(p)) { lmMarkers[id].remove(); delete lmMarkers[id]; delete lmState[id]; }
     }
   }
 
@@ -285,7 +326,7 @@
     return padCache.v;
   }
   function camera() {
-    if (!follow || !disp || document.hidden) return;
+    if (!follow || !disp || document.hidden || gestureBusy()) return;
     map.jumpTo({ center: ll(disp), padding: viewPadding() });
   }
   function drawPlayer() { player.setLngLat(ll(disp)); camera(); }
@@ -676,7 +717,7 @@
     const want = orient === 'heading' ? heading : 0;
     const cur = map.getBearing();
     const diff = Math.abs((((want - cur) % 360) + 540) % 360 - 180);
-    if (force || (diff > 0.4 && now - lastBearingT > 33)) { map.setBearing(want); lastBearingT = now; }
+    if (force || (diff > 0.4 && now - lastBearingT > 33 && !gestureBusy())) { map.setBearing(want); lastBearingT = now; }
     const el = playerEl.querySelector('.arrow');
     if (el) el.style.transform = `rotate(${heading - map.getBearing()}deg)`;
   }
@@ -689,6 +730,7 @@
     compassSync();
     applyBearing(true);
     map.easeTo({ pitch: o === 'heading' ? 45 : 0, duration: 600 });
+    set3D(o === 'heading');
     camera();
     $('#btn-orient').innerHTML = o === 'heading' ? '<span>➤</span><small>rumbo</small>' : '<span>N</span><small>norte</small>';
     $('#btn-orient').classList.toggle('on', o === 'heading');
@@ -831,9 +873,13 @@
 
   // ---------------- Sesiones de paseo: empezar / pausar / reanudar / finalizar ----------------
   let session = S().session || null;   // sobrevive a cerrar la app
-  if (session && !session.paused) {     // si la app se cerró en marcha, al reabrir queda en pausa
-    session.elapsed += Math.max(0, (session.lastSeen || session.resumedAt) - session.resumedAt);
-    session.paused = true;
+  let autoResumed = false;
+  if (session && !session.paused) {
+    if (Date.now() - (session.lastSeen || 0) < 10 * 60000) autoResumed = true;   // Android la cerró hace poco: el paseo sigue solo
+    else {                                                                          // hace mucho: queda en pausa
+      session.elapsed += Math.max(0, (session.lastSeen || session.resumedAt) - session.resumedAt);
+      session.paused = true;
+    }
   }
   const newSessionStats = () => ({ walked: 0, painted: 0, pts: 0, pieces: 0, captures: 0, cans: 0, bestCombo: 0, conquests: 0 });
 
@@ -925,6 +971,8 @@
     st.textContent = `🚶 ${PM.fmtDist(session.st.walked)} · 🖌️ ${PM.fmtDist(session.st.painted)} · +${PM.fmtNum(session.st.pts)}`;
   }
   setInterval(updateSessionInfo, 1000);
+  // copia en la nube cada 10 min mientras paseas (si Android cierra la app, no se pierde lo pintado)
+  setInterval(() => { if (session && !session.paused) PM.sync.auto(); }, 10 * 60000);
 
   function showSummary(s) {
     const st = s.st, min = s.elapsed / 60000;
@@ -947,8 +995,10 @@
   }
 
   // Detalle de un paseo (estadísticas tipo Strava, vídeo y exportar GPX/KML/KMZ…)
-  function openWalk(w) {
+  async function openWalk(w) {
     if (!w) return;
+    const keys = [...new Set((w.track || []).filter(Boolean).map((q) => W.tileKeyOf(q[0], q[1])))].filter((k) => !(W.tiles[k] && W.tiles[k].loaded));
+    if (keys.length && keys.length <= 40) { toast('🗺️ Cargando las calles del recorrido…', 'info', 2000); await W.ensureKeys(keys); }
     const geo = {};
     for (const id in S().painted) { const pc = W.pieces[id]; if (pc) geo[id] = pc.pts; }
     PM.replay.open(w, { geo, color: paintColor(), player: PM.player && PM.player.name });
@@ -1164,7 +1214,7 @@
         break;
       }
       case 'painted': {
-        paintedDirty = true;
+        paintedF.push(lineF(d.piece.pts, { h: 0 })); paintedAdd = true;   // solo el tramo nuevo
         if (session) { session.st.painted += d.piece.len; session.st.pieces++; session.st.bestCombo = Math.max(session.st.bestCombo, d.combo); }
         const now = performance.now();
         if (!document.hidden && now - splatThrottle > 120) {
@@ -1242,6 +1292,7 @@
     if (ev === 'barrios') { hudB.dirty = true; renderBarrios(); return; }
     if (ev === 'migrated') { paintedDirty = true; return; }
     if (ev === 'named') { if (PM.fillLandmarkCities(S())) PM.state.save(); return; }
+    if (ev === 'lmRemoved') { if (lmMarkers[d.id]) { lmMarkers[d.id].remove(); delete lmMarkers[d.id]; delete lmState[d.id]; } return; }
     if (ev === 'loaded' || ev === 'partial') {
       d.tiles.forEach((k) => renderTile(k, true));
       renderLandmarks(); renderCans();
@@ -1577,6 +1628,7 @@
     }
     if (!PM.player) { showNewBox(true); return; }
     $('#intro').classList.remove('show');
+    setTimeout(() => map.resize(), 50);
     PM.sound._ctx();
     G.ensureDaily();
     if (PM.fillLandmarkCities(S())) PM.state.save();   // lugares conquistados sin ciudad: se completa
@@ -1607,7 +1659,8 @@
         document.body.appendChild(el);
       }, 2500);
     }
-    setTimeout(() => toast(session ? '⏸ Tienes un paseo en pausa: pulsa ▶ para reanudar' :
+    if (autoResumed && session && !session.paused) { if (session.track && session.track.length) session.track.push(null); PM.update.hold(); }
+    setTimeout(() => toast(autoResumed && session && !session.paused ? '▶ Tu paseo sigue: la app se había cerrado, seguimos pintando' : session ? '⏸ Tienes un paseo en pausa: pulsa ▶ para reanudar' :
       isNative ? '📡 Pulsa «Empezar a pintar» y sal a la calle' : '🕹️ Pulsa «Empezar a pintar» y muévete con WASD o clic', 'info', 4500), 600);
   }
   $('#start').addEventListener('click', () => begin(true));

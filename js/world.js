@@ -108,6 +108,8 @@ PM.world = (function () {
     const important = !!(tags.wikipedia || tags.wikidata || tags._wp || tags.heritage);
     if (/plaque|stolperstein|blue_plaque|bench/.test(tags.memorial || '') && !(tags.wikipedia || tags.wikidata || tags._wp)) return;   // placas: solo con Wikipedia
     // iglesias evangélicas / pentecostales / testigos…: no (sí las demás religiones y templos del mundo)
+    const evangelical = tags.amenity === 'place_of_worship' && /evangel|pentecost|baptist|adventist|jehovah|protestant/i.test(tags.denomination || '');
+    if (evangelical && landmarks[el.type[0] + el.id]) { removeLandmark(el.type[0] + el.id); return; }
     if (tags.amenity === 'place_of_worship' && (/evangel|pentecost|baptist|adventist|jehovah|protestant|neo/i.test(tags.denomination || '')
       || /evang[eè]li|pentecost|bautista|baptist|adventista|filad[eè]lfia|sal[oó]n del reino|kingdom hall|testigos de jehov|centro cristiano|comunidad cristiana|ministerio|iglesia de dios|asamblea de dios|cuerpo de cristo|betel|el shaddai|nueva vida|elim\b/i.test(tags.name))) return;
     const c = classify(tags);
@@ -157,6 +159,14 @@ PM.world = (function () {
     if (lmBatch) lmBatch.push(lm); else commitLandmarks([lm]);
   }
 
+  function removeLandmark(id) {
+    const lm = landmarks[id];
+    if (!lm || (PM.state && PM.state.data.landmarks[id])) return;   // lo ya conquistado se respeta
+    delete landmarks[id];
+    const cell = Math.floor(lm.pos[0] / GRID) + ':' + Math.floor(lm.pos[1] / GRID);
+    if (lmGrid[cell]) lmGrid[cell] = lmGrid[cell].filter((x) => x !== lm);
+    emit('lmRemoved', { id });
+  }
   function nearbyAccepted(pos) {
     const ci = Math.floor(pos[0] / GRID), cj = Math.floor(pos[1] / GRID), out = [];
     for (let di = -1; di <= 1; di++) for (let dj = -1; dj <= 1; dj++) out.push(...(lmGrid[(ci + di) + ':' + (cj + dj)] || []));
@@ -209,6 +219,7 @@ PM.world = (function () {
     for (const lm of list) {
       if (landmarks[lm.id] || skip.has(lm)) continue;
       if (nearbyAccepted(lm.pos).some((o) => o.name === lm.name && PM.geo.dist(o.pos, lm.pos) < 80)) continue;
+      if (lm.kind === 'Estación' && !lm.wiki && !lm.wd && [...list, ...nearbyAccepted(lm.pos)].some((o) => o.kind === 'Parque' && PM.geo.dist(o.pos, lm.pos) < 500 && sameName(o.name, lm.name))) continue;
       if (!lm.principal) {
         const clash = nearbyAccepted(lm.pos).some((o) => PM.geo.dist(o.pos, lm.pos) < (o.townhall ? TOWNHALL_GAP : MIN_GAP));
         if (clash) continue;

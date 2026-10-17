@@ -405,3 +405,9 @@ body.dark .maplibregl-ctrl-attrib { background: rgba(0,0,0,.5) !important; color
 .player .aring { width: var(--ar, 120px); height: var(--ar, 120px); border: 2px dashed #ffb700; opacity: 0; transition: opacity .3s; }
 .player .aring.on { opacity: .85; }
 .maplibregl-marker { will-change: transform; }
+
+/* --- fluidez al mover el mapa en el móvil: marcadores sin animaciones ni sombras difuminadas --- */
+.lm, .lm.r-raro, .lm.r-epico, .lm.r-legendario { animation: none !important; box-shadow: 0 1px 3px rgba(0,0,0,.25) !important; }
+.lm.conq { box-shadow: 0 0 0 3px var(--paint) !important; }
+.lm.conq span, .lmflag, .flag { filter: none !important; text-shadow: 0 1px 2px rgba(0,0,0,.35); }
+.maplibregl-marker { contain: layout style; }

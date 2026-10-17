@@ -218,7 +218,8 @@ PM.vtiles = (function () {
   async function fetchBox(s, w, n, e) {
     const tiles = [];
     for (let X = tx(w); X <= tx(e); X++) for (let Y = ty(n); Y <= ty(s); Y++) tiles.push([X, Y]);
-    const got = await Promise.all(tiles.map(([X, Y]) => fetchAny(X, Y)));
+    // si un trozo falla, se reintenta solo ese (una vez, al segundo); los demás no se tiran
+    const got = await Promise.all(tiles.map(([X, Y]) => fetchAny(X, Y).catch(() => new Promise((r) => setTimeout(r, 1200)).then(() => fetchAny(X, Y)))));
     return { els: got.flatMap((g) => g.els), src: [...new Set(got.map((g) => g.src))].join('+') };
   }
 
