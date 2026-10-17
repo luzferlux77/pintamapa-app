@@ -1005,10 +1005,10 @@
   setInterval(() => { if (session && !session.paused) PM.sync.auto(); }, 10 * 60000);
 
   function showSummary(s) {
-    const st = s.st, min = s.elapsed / 60000;
+    const st = s.st, movMs = PM.movingMs(s), min = movMs / 60000;   // velocidad con el tiempo en movimiento (como Strava)
     const kmh = min > 0 ? (st.walked / 1000) / (min / 60) : 0;
     openSheet('🏁 Paseo terminado', `
-      <p class="muted">${new Date(s.start).toLocaleString('es-ES', { dateStyle: 'medium', timeStyle: 'short' })} · duración ${fmtTime(s.elapsed)}</p>
+      <p class="muted">${new Date(s.start).toLocaleString('es-ES', { dateStyle: 'medium', timeStyle: 'short' })} · ${fmtTime(movMs)} en movimiento${movMs < s.elapsed - 60000 ? ` (total ${fmtTime(s.elapsed)})` : ''}</p>
       <div class="stats">
         <div><b>${PM.fmtDist(st.walked)}</b><small>caminados</small></div>
         <div><b>${PM.fmtDist(st.painted)}</b><small>calles nuevas</small></div>
@@ -1036,7 +1036,7 @@
   function panelWalks() {
     const ws = (S().walks || []).slice().reverse();
     openSheet('🥾 Mis paseos', (ws.length ? ws.map((w, i) => `<div class="mission walk-row" data-i="${i}"><div class="mt">${new Date(w.start).toLocaleString('es-ES', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}<span>${PM.fmtDist(w.st.walked || 0)} ›</span></div>
-      <small>⏱ ${fmtTime(w.elapsed)} · 🖌️ ${PM.fmtDist(w.st.painted || 0)} nuevas · +${PM.fmtNum(w.st.pts || 0)} pts${w.imported ? ' · ⌚ importado' : ''}</small></div>`).join('')
+      <small>⏱ ${fmtTime(PM.movingMs(w))} · 🖌️ ${PM.fmtDist(w.st.painted || 0)} nuevas · +${PM.fmtNum(w.st.pts || 0)} pts${w.imported ? ' · ⌚ importado' : ''}</small></div>`).join('')
       : '<p class="muted">Aún no hay paseos de más de 2 minutos.</p>') +
       `<h4>⌚ Paseo grabado con un reloj</h4><p class="muted">¿Saliste solo con el reloj (Garmin, Apple Watch, Wear OS, Polar, Suunto…)? Exporta la actividad como <b>GPX</b> o <b>TCX</b> desde su app y súbela aquí: se pintan sus calles igual que andando con el móvil.</p>
       <button class="btn" id="imp-gpx">📂 Importar GPX / TCX</button><p class="muted" id="imp-msg"></p>`);

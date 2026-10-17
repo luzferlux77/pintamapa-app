@@ -164,3 +164,24 @@ PM.ensureCountries = async function (s, cityPos) {
   }
   return changed;
 };
+
+// Tiempo EN MOVIMIENTO de un paseo (como Strava): solo cuentan los tramos a más de 0,5 m/s;
+// los semáforos, las fotos y los ratos parado no bajan el ritmo. Paseos sin hora en el recorrido: el tiempo total.
+PM._movCache = new WeakMap();
+PM.movingMs = function (w) {
+  if (!w) return 0;
+  if (PM._movCache.has(w)) return PM._movCache.get(w);
+  let mv = 0, prev = null;
+  for (const q of w.track || []) {
+    if (!q) { prev = null; continue; }
+    if (prev && q[2] != null && prev[2] != null) {
+      const dt = q[2] - prev[2], dd = PM.geo.dist(prev, q);
+      if (dt > 0 && dt < 120 && dd / dt > 0.5) mv += dt;
+    }
+    prev = q;
+  }
+  mv *= 1000;
+  const r = mv >= 60000 ? Math.min(mv, w.elapsed || mv) : (w.elapsed || 0);
+  PM._movCache.set(w, r);
+  return r;
+};

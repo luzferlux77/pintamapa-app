@@ -246,6 +246,7 @@
     const pace = (ms, m) => { if (!m || m < 50) return '—'; const s = ms / 1000 / (m / 1000); return Math.floor(s / 60) + ':' + String(Math.round(s % 60)).padStart(2, '0') + ' /km'; };
     const dayKey = (t) => { const d = new Date(t); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
     const RAR = PM.world.RARITY;
+    const mov = (w) => PM.movingMs(w);
     const RAR_C = { comun: '#9aa4b2', raro: '#3fa9ff', epico: '#b65cff', legendario: '#ffb700' };
 
     // ---------------- acceso ----------------
@@ -284,6 +285,7 @@
       const s = data.save, st = s.stats || {};
       const walks = (s.walks || []).filter((w) => (w.elapsed || 0) >= MIN_WALK).sort((a, b) => b.start - a.start);
       const totMs = walks.reduce((a, w) => a + w.elapsed, 0);
+      const movMs = walks.reduce((a, w) => a + PM.movingMs(w), 0);   // en movimiento (para ritmo y velocidad, como Strava)
       const wWalked = walks.reduce((a, w) => a + (w.st.walked || 0), 0);
       const wPainted = walks.reduce((a, w) => a + (w.st.painted || 0), 0);
       const days = {};
@@ -295,7 +297,7 @@
       const hours = new Array(24).fill(0), wdays = new Array(7).fill(0);
       walks.forEach((w) => { const d = new Date(w.start); hours[d.getHours()] += (w.st.walked || 0) / 1000; wdays[(d.getDay() + 6) % 7] += (w.st.walked || 0) / 1000; });
       const rec = (f) => walks.slice().sort((a, b) => f(b) - f(a))[0];
-      const fastest = walks.filter((w) => (w.st.walked || 0) > 300).sort((a, b) => (a.elapsed / a.st.walked) - (b.elapsed / b.st.walked))[0];
+      const fastest = walks.filter((w) => (w.st.walked || 0) > 300).sort((a, b) => (mov(a) / a.st.walked) - (mov(b) / b.st.walked))[0];
       const bestDay = Object.entries(days).sort((a, b) => b[1].painted - a[1].painted)[0];
       // ciudades
       const byCity = {};
@@ -312,7 +314,7 @@
       const perDay = painted30 / 30;
       const lms = Object.entries(s.landmarks || {}).map(([id, v]) => Object.assign({ id }, v));
       const LI = PM.levelInfo(s.xp), lvl = LI.level;
-      A = { s, st, walks, totMs, wWalked, wPainted, days, maxStreak, hours, wdays, cities, perDay, activeDays30, painted30, lms, lvl, LI,
+      A = { s, st, walks, totMs, movMs, wWalked, wPainted, days, maxStreak, hours, wdays, cities, perDay, activeDays30, painted30, lms, lvl, LI,
         longest: rec((w) => w.st.walked || 0), topPts: rec((w) => w.st.pts || 0), fastest, bestDay,
         eff: (st.walkedM || 0) > 0 ? Math.min(1, (st.paintedM || 0) / st.walkedM) : 0 };   // pintar ambas aceras de una avenida puede dar más de lo andado
     }
@@ -580,7 +582,7 @@
     }
     // ritmo por paseo (min/km), con media
     function paceLine(ws) {
-      const W = 400, H = 110, pb = 16, vals = ws.map((w) => w.elapsed / 60000 / (w.st.walked / 1000));
+      const W = 400, H = 110, pb = 16, vals = ws.map((w) => PM.movingMs(w) / 60000 / (w.st.walked / 1000));
       const mn = Math.min(...vals) * 0.9, mx = Math.max(...vals) * 1.05, X = (i) => 10 + i * (W - 20) / (ws.length - 1), Y = (v) => 8 + (mx - v) / (mx - mn || 1) * (H - pb - 14);   // lento arriba, rápido abajo
       const avg = vals.reduce((a, v) => a + v, 0) / vals.length;
       let svg = `<svg viewBox="0 0 ${W} ${H}" width="100%" style="display:block"><line x1="0" x2="${W}" y1="${Y(avg).toFixed(1)}" y2="${Y(avg).toFixed(1)}" stroke="#d1d5db" stroke-dasharray="4 4"/>
@@ -598,7 +600,7 @@
 
     function drawPanel() {
       const P = $('#panel');
-      const { s, st, walks, totMs, wWalked, days, cities, lms } = A;
+      const { s, st, walks, totMs, movMs, wWalked, days, cities, lms } = A;
       let h = '';
       if (tab === 'res') {
         const DAY = 86400000, now0 = new Date(); now0.setHours(0, 0, 0, 0);
@@ -621,7 +623,7 @@
         // ---- esta semana (lunes a domingo) frente a la anterior ----
         const mon = now0.getTime() - ((now0.getDay() + 6) % 7) * DAY;
         const wk = (t0) => { const ws = walks.filter((w) => w.start >= t0 && w.start < t0 + 7 * DAY);
-          return { ws, walked: ws.reduce((a, w) => a + (w.st.walked || 0), 0), painted: ws.reduce((a, w) => a + (w.st.painted || 0), 0), ms: ws.reduce((a, w) => a + w.elapsed, 0) }; };
+          return { ws, walked: ws.reduce((a, w) => a + (w.st.walked || 0), 0), painted: ws.reduce((a, w) => a + (w.st.painted || 0), 0), ms: ws.reduce((a, w) => a + mov(w), 0) }; };
         const W0 = wk(mon), W1 = wk(mon - 7 * DAY);
         const dd = (x, y) => !y ? (x ? '<span class="dl up">nuevo</span>' : '') : (() => { const d = (x - y) / y * 100; return `<span class="dl ${d >= 0 ? 'up' : 'down'}">${d >= 0 ? '▲' : '▼'} ${Math.abs(d).toFixed(0)} %</span>`; })();
         const wd = ['L', 'M', 'X', 'J', 'V', 'S', 'D'].map((l, i) => { const k = dayKey(mon + i * DAY), d = days[k]; return { l, w: d ? d.walked / 1000 : 0, p: d ? d.painted / 1000 : 0, today: mon + i * DAY === now0.getTime(), fut: mon + i * DAY > now0.getTime() }; });
@@ -642,8 +644,8 @@
           ${tile('🚶', km(st.walkedM || 0) + ' km', 'caminados')}
           ${tile('🧭', Math.round(eff * 100) + ' %', 'de lo andado, nuevo', eff >= 0.7 ? 'explorador' : '')}
           ${tile('🗓️', walks.length, 'paseos (≥ 2 min)')}
-          ${tile('⏱️', dur(totMs), 'en la calle')}
-          ${tile('⚡', pace(totMs, wWalked), 'ritmo medio')}
+          ${tile('⏱️', dur(movMs), 'en movimiento', 'total ' + dur(totMs))}
+          ${tile('⚡', pace(movMs, wWalked), 'ritmo medio', movMs ? ((wWalked / 1000) / (movMs / 3600000)).toFixed(1) + ' km/h' : '')}
           ${tile('🔥', st.streak || 0, 'racha actual', 'máx. ' + A.maxStreak + ' días')}
           ${tile('✖️', 'x' + (st.bestCombo || 0), 'mejor combo')}
           ${tile('⭐', st.walkedM ? PM.fmtNum(Math.round((s.xp || 0) / (st.walkedM / 1000))) : 0, 'puntos por km')}
@@ -653,9 +655,9 @@
         const lw = walks[0];
         if (lw) h += `<div class="card lastw" data-wi="0"><h3>Último paseo <span>toca para verlo en el mapa</span></h3>
           <div class="lw">${thumb(lw)}<div class="lw-txt"><b>${new Date(lw.start).toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' })}</b>
-            <small>${new Date(lw.start).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })} · ${dur(lw.elapsed)}</small>
+            <small>${new Date(lw.start).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })} · ${dur(mov(lw))} en movimiento${mov(lw) < lw.elapsed - 60000 ? ' (total ' + dur(lw.elapsed) + ')' : ''}</small>
             <div class="lw-g"><div><b>${dist(lw.st.walked)}</b><small>andados</small></div><div><b>${dist(lw.st.painted)}</b><small>nuevos</small></div>
-              <div><b>${pace(lw.elapsed, lw.st.walked)}</b><small>ritmo</small></div><div><b>+${PM.fmtNum(lw.st.pts || 0)}</b><small>puntos</small></div></div></div></div></div>`;
+              <div><b>${pace(mov(lw), lw.st.walked)}</b><small>ritmo</small></div><div><b>+${PM.fmtNum(lw.st.pts || 0)}</b><small>puntos</small></div></div></div></div></div>`;
 
         // ---- territorio: ciudades en anillos ----
         const top = cities.slice(0, 3);
@@ -701,7 +703,7 @@
         const recRow = (ic, l, v, w) => `<div class="rec" ${w ? `data-wi="${walks.indexOf(w)}"` : ''}><span>${ic}</span><div><small>${l}</small><b>${v}</b></div><em>${when(w)}</em></div>`;
         h += `<div class="card"><h3>Récords <span>toca uno para verlo</span></h3><div class="recs">
           ${A.longest ? recRow('🥾', 'Paseo más largo', dist(A.longest.st.walked), A.longest) : ''}
-          ${A.fastest ? recRow('⚡', 'Paseo más rápido', pace(A.fastest.elapsed, A.fastest.st.walked), A.fastest) : ''}
+          ${A.fastest ? recRow('⚡', 'Paseo más rápido', pace(mov(A.fastest), A.fastest.st.walked), A.fastest) : ''}
           ${A.topPts ? recRow('⭐', 'Más puntos', '+' + PM.fmtNum(A.topPts.st.pts || 0), A.topPts) : ''}
           ${A.bestDay ? `<div class="rec"><span>📅</span><div><small>Mejor día</small><b>${dist(A.bestDay[1].painted)}</b></div><em>${new Date(A.bestDay[0] + 'T12:00').toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}</em></div>` : ''}
           <div class="rec"><span>🔥</span><div><small>Racha más larga</small><b>${A.maxStreak} días</b></div></div>
@@ -717,13 +719,13 @@
         const from = Date.now() - spanMs, prevFrom = from - spanMs;
         const inP = walks.filter((w) => w.start >= from), inPrev = walks.filter((w) => w.start >= prevFrom && w.start < from);
         const sum = (ws, f) => ws.reduce((a, w) => a + (f(w) || 0), 0);
-        const agg = (ws) => ({ walked: sum(ws, (w) => w.st.walked), painted: sum(ws, (w) => w.st.painted), ms: sum(ws, (w) => w.elapsed), pts: sum(ws, (w) => w.st.pts), n: ws.length, days: new Set(ws.map((w) => dayKey(w.start))).size });
+        const agg = (ws) => ({ walked: sum(ws, (w) => w.st.walked), painted: sum(ws, (w) => w.st.painted), ms: sum(ws, (w) => mov(w)), pts: sum(ws, (w) => w.st.pts), n: ws.length, days: new Set(ws.map((w) => dayKey(w.start))).size });
         const cur = agg(inP), prv = agg(inPrev);
         const delta = (a, b) => actPeriod === 'all' || !b ? '' : (() => { const d = (a - b) / b * 100; return `<span class="dl ${d >= 0 ? 'up' : 'down'}">${d >= 0 ? '▲' : '▼'} ${Math.abs(d).toFixed(0)} %</span>`; })();
         const tile = (v, l, d) => `<div class="kpi"><b>${v}</b><small>${l}</small>${d ? `<div>${d}</div>` : ''}</div>`;
         h += `<div class="seg act-seg">${Object.entries(PER).map(([k, v]) => `<button class="${k === actPeriod ? 'on' : ''}" data-per="${k}">${v.name}</button>`).join('')}</div>`;
         h += `<div class="kpis">${tile(dist(cur.walked), 'andados', delta(cur.walked, prv.walked))}${tile(dist(cur.painted), 'calles nuevas', delta(cur.painted, prv.painted))}
-          ${tile(dur(cur.ms), 'en la calle', delta(cur.ms, prv.ms))}${tile(cur.days, 'días activos', delta(cur.days, prv.days))}
+          ${tile(dur(cur.ms), 'en movimiento', delta(cur.ms, prv.ms))}${tile(cur.days, 'días activos', delta(cur.days, prv.days))}
           ${tile(cur.n, 'paseos', delta(cur.n, prv.n))}${tile(PM.fmtNum(Math.round(cur.pts)), 'puntos', delta(cur.pts, prv.pts))}</div>`;
         // ---- gráfico de área: andado y pintado por día / semana / mes ----
         const buckets = [];
@@ -753,13 +755,13 @@
         const timed = walks.filter((w) => (w.st.walked || 0) > 500 && (w.track || []).some((q) => q && q[2] != null));
         const best = (f, ws = walks) => ws.slice().sort((x, y) => f(y) - f(x))[0];
         const rLong = best((w) => w.st.walked || 0), rPaint = best((w) => w.st.painted || 0), rTime = best((w) => w.elapsed || 0), rPts = best((w) => w.st.pts || 0);
-        const rFast = timed.slice().sort((x, y) => x.elapsed / x.st.walked - y.elapsed / y.st.walked)[0];
+        const rFast = timed.slice().sort((x, y) => mov(x) / x.st.walked - mov(y) / y.st.walked)[0];
         const when = (w) => w ? new Date(w.start).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' }) : '';
         const recRow = (ic, l, v, w) => `<div class="rec" ${w ? `data-wi="${walks.indexOf(w)}"` : ''}><span>${ic}</span><div><small>${l}</small><b>${v}</b></div><em>${when(w)}</em></div>`;
         h += `<div class="card"><h3>Récords <span>toca uno para verlo</span></h3><div class="recs">
           ${rLong ? recRow('🥾', 'Paseo más largo', dist(rLong.st.walked), rLong) : ''}${rPaint ? recRow('🖌️', 'Más calles nuevas', dist(rPaint.st.painted), rPaint) : ''}
           ${rTime ? recRow('⏱️', 'Más tiempo', dur(rTime.elapsed), rTime) : ''}${rPts ? recRow('⭐', 'Más puntos', '+' + PM.fmtNum(rPts.st.pts || 0), rPts) : ''}
-          ${rFast ? recRow('⚡', 'Ritmo más rápido', pace(rFast.elapsed, rFast.st.walked), rFast) : ''}
+          ${rFast ? recRow('⚡', 'Ritmo más rápido', pace(mov(rFast), rFast.st.walked), rFast) : ''}
           ${A.bestDay ? `<div class="rec"><span>📅</span><div><small>Mejor día</small><b>${dist(A.bestDay[1].painted)} pintados</b></div><em>${new Date(A.bestDay[0] + 'T12:00').toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}</em></div>` : ''}
           </div></div>`;
         // ---- ritmo por paseo (solo paseos con hora en cada punto) ----
@@ -789,7 +791,7 @@
         h += `<div class="card" style="padding:8px"><h3 style="padding:8px 8px 0">${calDay ? new Date(calDay + 'T12:00').toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' }) : 'Paseos'} <span>${dayList.length ? dayList.length + ' paseo' + (dayList.length > 1 ? 's' : '') + ' · toca uno para verlo en el mapa' : ''}</span></h3>` + (dayList.length ? dayList.map((i) => walks[i]).map((w) => [w, walks.indexOf(w)]).map(([w, i]) => `
           <div class="walk" data-i="${i}"><b>${new Date(w.start).toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric', month: 'short' })} · ${new Date(w.start).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}</b>
           <div class="pts">+${PM.fmtNum(w.st.pts || 0)}</div>
-          <small>⏱ ${dur(w.elapsed)} · 🚶 ${dist(w.st.walked)} · 🖌️ ${dist(w.st.painted)} nuevos · ⚡ ${pace(w.elapsed, w.st.walked)} · 📸 ${w.st.captures || 0}${w.st.conquests ? ' · 🚩 ' + w.st.conquests : ''}${w.imported ? ' · ⌚' : ''}</small>
+          <small>⏱ ${dur(mov(w))}${mov(w) < w.elapsed - 60000 ? ' (total ' + dur(w.elapsed) + ')' : ''} · 🚶 ${dist(w.st.walked)} · 🖌️ ${dist(w.st.painted)} nuevos · ⚡ ${pace(mov(w), w.st.walked)} · 📸 ${w.st.captures || 0}${w.st.conquests ? ' · 🚩 ' + w.st.conquests : ''}${w.imported ? ' · ⌚' : ''}</small>
           <button class="wdet" data-w="${i}">📊 Estadísticas, vídeo y exportar</button></div>`).join('')
           : `<div class="empty">${walks.length ? 'Toca un día pintado del calendario para ver sus paseos.' : 'Aún no hay paseos de más de 2 minutos.'}</div>`) + '</div>';
       }
