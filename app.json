@@ -1,8 +1,8 @@
 {
-  "version": "0.6.14",
-  "notes": "Arreglos de la batería de pruebas: el cambio de tema claro/oscuro ya no borra lo pintado del mapa; la vista inclinada del modo rumbo se aplica bien; «Mi progreso» se ve entera en el móvil (no se sale por la derecha y caben los botones)",
+  "version": "0.6.15",
+  "notes": "Mapa siempre en 2D y mucho más fluido al arrastrar; senderos y caminos de parque se pintan bien; radio de conquista mayor en estadios",
   "native": 3,
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.14/pintamapa-web-0.6.14.zip",
-  "checksum": "b24445e22f28abf2477d20d6a018bab1d90d00b3e3b319c0f3556fbf1c93a785",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.14/PintaMapa-v0.6.14.apk"
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.15/pintamapa-web-0.6.15.zip",
+  "checksum": "80e6daf601901b20cb51d5479f710551cd1170663d53c37c89d957296bc52e84",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.15/PintaMapa-v0.6.15.apk"
 }
