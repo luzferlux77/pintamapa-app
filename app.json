@@ -1,8 +1,8 @@
 {
-  "version": "0.6.17",
-  "notes": "Mi progreso: resumen nuevo, más completo y visual (nivel, esta semana, último paseo, territorio, colección, próximos objetivos)",
+  "version": "0.6.18",
+  "notes": "Ritmo y velocidad con el tiempo en movimiento, como Strava (las paradas no cuentan)",
   "native": 3,
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.17/pintamapa-web-0.6.17.zip",
-  "checksum": "08c4178aa7ade3fd8c3cdc7712179647cd6a09aaeae9a05bd9dfa23a968ea2fe",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.17/PintaMapa-v0.6.17.apk"
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.18/pintamapa-web-0.6.18.zip",
+  "checksum": "16ee39b2642ddbf42519c915405a92c8cc1c986094380b90d9a3b3950cae3c2c",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.18/PintaMapa-v0.6.18.apk"
 }
