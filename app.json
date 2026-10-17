@@ -1,8 +1,8 @@
 {
-  "version": "0.6.13",
-  "notes": "Mapa más fluido al moverlo y hacer zoom (sin animaciones en los iconos, 3D solo en modo rumbo, resolución ajustada, sin pelea con la brújula); solo se dibuja la zona que miras; lo pintado se añade sin recalcular todo; el paseo sigue solo si Android cerró la app hace menos de 10 min; copia en la nube cada 10 min durante el paseo; mapa más robusto si falla un trozo; vídeo de paseos antiguos con todas sus calles; más filtros de lugares",
+  "version": "0.6.14",
+  "notes": "Arreglos de la batería de pruebas: el cambio de tema claro/oscuro ya no borra lo pintado del mapa; la vista inclinada del modo rumbo se aplica bien; «Mi progreso» se ve entera en el móvil (no se sale por la derecha y caben los botones)",
   "native": 3,
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.13/pintamapa-web-0.6.13.zip",
-  "checksum": "7e18983cbdc12511c271ea421e3375c8de1eedf62573437a93e42125fc6acb9e",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.13/PintaMapa-v0.6.13.apk"
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.14/pintamapa-web-0.6.14.zip",
+  "checksum": "b24445e22f28abf2477d20d6a018bab1d90d00b3e3b319c0f3556fbf1c93a785",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.14/PintaMapa-v0.6.14.apk"
 }
