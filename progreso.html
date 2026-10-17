@@ -123,6 +123,40 @@
     .lmc .ph { height: 80px; background: #e9ebf0 center / cover; display: grid; place-items: center; font-size: 30px; }
     .lmc div.t { padding: 6px 8px; font-size: 12px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; background: #fff; }
     svg text { font-family: Inter, sans-serif; }
+    /* resumen */
+    .hero { border-radius: var(--r); padding: 18px; color: #fff; box-shadow: var(--shadow);
+      background: radial-gradient(120% 140% at 0% 0%, color-mix(in srgb, var(--paint) 88%, #fff) 0%, var(--paint) 45%, color-mix(in srgb, var(--paint) 55%, #111827) 100%); }
+    .hero-top { display: flex; gap: 16px; align-items: center; }
+    .hero .ring2 circle:first-child { stroke: rgba(255,255,255,.25); } .hero .ring2 circle + circle { stroke: #fff; } .hero .ring2 text { fill: #fff; }
+    .hero-txt { flex: 1; min-width: 0; } .hero-txt > small { display: block; opacity: .85; font-size: 12px; } .hero-txt > b { display: block; font-size: 22px; font-weight: 800; letter-spacing: -.3px; margin: 1px 0 6px; }
+    .hero-bar { height: 7px; border-radius: 99px; background: rgba(255,255,255,.25); overflow: hidden; margin-bottom: 6px; } .hero-bar i { display: block; height: 100%; background: #fff; border-radius: 99px; }
+    .hero-nums { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 16px; }
+    .hero-nums div { background: rgba(255,255,255,.14); border-radius: 12px; padding: 10px 8px; text-align: center; }
+    .hero-nums b { display: block; font-size: 19px; font-weight: 800; font-variant-numeric: tabular-nums; } .hero-nums small { font-size: 11px; opacity: .9; }
+    .hero-since { display: block; margin-top: 12px; font-size: 12px; opacity: .85; }
+    .wk3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 12px; }
+    .wk3 b { display: block; font-size: 18px; font-weight: 800; font-variant-numeric: tabular-nums; } .wk3 small { display: block; color: var(--muted); font-size: 11.5px; }
+    .wkbars { display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; height: 110px; align-items: end; }
+    .wkbars div { display: flex; flex-direction: column; align-items: center; gap: 4px; height: 100%; }
+    .wkbars span { position: relative; flex: 1; width: 100%; max-width: 34px; background: #f3f4f7; border-radius: 8px; overflow: hidden; }
+    .wkbars span i, .wkbars span em { position: absolute; left: 0; right: 0; bottom: 0; border-radius: 8px; } .wkbars span i { background: #c7d2fe; } .wkbars span em { background: var(--paint); }
+    .wkbars small { font-size: 11px; color: var(--muted); font-weight: 600; } .wkbars .today small { color: var(--text); font-weight: 800; } .wkbars .fut span { opacity: .45; }
+    .kpi .ki { float: right; font-size: 16px; opacity: .9; }
+    .lastw { cursor: pointer; } .lastw:hover { box-shadow: 0 0 0 2px var(--paint), var(--shadow); }
+    .lw { display: flex; gap: 14px; align-items: center; } .lw-map { flex: none; border-radius: 12px; background: #f6f7fa; }
+    div.lw-map { width: 132px; height: 100px; display: grid; place-items: center; font-size: 28px; }
+    .lw-txt { flex: 1; min-width: 0; } .lw-txt > b { display: block; font-size: 14.5px; } .lw-txt > b::first-letter { text-transform: uppercase; } .lw-txt > small { color: var(--muted); font-size: 12px; }
+    .lw-g { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 10px; margin-top: 8px; } .lw-g b { display: block; font-size: 14px; font-variant-numeric: tabular-nums; } .lw-g small { color: var(--muted); font-size: 11px; }
+    .terr { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; text-align: center; } .terr b { display: block; font-size: 13px; margin-top: 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .terr small { color: var(--muted); font-size: 11px; }
+    .more { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; } .more span { background: #f3f4f7; border-radius: 99px; padding: 4px 10px; font-size: 12px; color: var(--muted); }
+    .coll { display: flex; gap: 16px; align-items: center; }
+    .stackbar { display: flex; height: 12px; border-radius: 99px; overflow: hidden; margin-top: 14px; gap: 2px; }
+    .legend { flex-wrap: wrap; }
+    .goal { display: flex; gap: 10px; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--line); } .goal:last-child { border-bottom: 0; }
+    .goal > span { font-size: 22px; width: 30px; text-align: center; } .goal > div { flex: 1; min-width: 0; } .goal b { font-size: 13.5px; } .goal small { display: block; color: var(--muted); font-size: 11.5px; }
+    .goal em { font-style: normal; font-weight: 800; font-size: 13px; color: var(--paint); width: 40px; text-align: right; }
+    .eq { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; } .eq div { background: #f8f9fc; border-radius: 12px; padding: 10px 12px; }
+    .eq span { font-size: 20px; } .eq b { display: block; font-size: 18px; font-weight: 800; } .eq small { color: var(--muted); font-size: 11.5px; }
     .empty { color: var(--muted); font-size: 13.5px; text-align: center; padding: 18px 8px; }
     @media (max-width: 980px) {
       #app { grid-template-columns: minmax(0, 1fr); grid-template-rows: 64px 55vh auto; height: auto; }
@@ -130,6 +164,7 @@
       aside > *, .card { min-width: 0; max-width: 100%; }
       html, body { overflow-x: hidden; }
       .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .hero-nums { grid-template-columns: repeat(2, 1fr); } .wk3 b { font-size: 15px; } .lw-map { width: 104px; height: 80px; }
       .grid2, .recs { grid-template-columns: minmax(0, 1fr) !important; }
       #synced { display: none; }
       header { gap: 8px; padding: 0 10px; } header .logo { font-size: 19px !important; } .who-txt small { display: none; }
@@ -279,7 +314,7 @@
       const LI = PM.levelInfo(s.xp), lvl = LI.level;
       A = { s, st, walks, totMs, wWalked, wPainted, days, maxStreak, hours, wdays, cities, perDay, activeDays30, painted30, lms, lvl, LI,
         longest: rec((w) => w.st.walked || 0), topPts: rec((w) => w.st.pts || 0), fastest, bestDay,
-        eff: (st.walkedM || 0) > 0 ? (st.paintedM || 0) / st.walkedM : 0 };
+        eff: (st.walkedM || 0) > 0 ? Math.min(1, (st.paintedM || 0) / st.walkedM) : 0 };   // pintar ambas aceras de una avenida puede dar más de lo andado
     }
 
     function header() {
@@ -426,6 +461,26 @@
       }
       return svg + '</svg>';
     }
+    // anillo de progreso (0..1) con texto en medio
+    function ring(p, size, sw, color, label) {
+      const r = (size - sw) / 2, c = 2 * Math.PI * r, v = Math.max(0, Math.min(1, p || 0));
+      return `<svg class="ring2" viewBox="0 0 ${size} ${size}" width="${size}" height="${size}"><circle cx="${size / 2}" cy="${size / 2}" r="${r}" fill="none" stroke="#eef0f4" stroke-width="${sw}"/>
+        <circle cx="${size / 2}" cy="${size / 2}" r="${r}" fill="none" stroke="${color}" stroke-width="${sw}" stroke-linecap="${v > 0.02 ? 'round' : 'butt'}" stroke-dasharray="${(c * v).toFixed(1)} ${c.toFixed(1)}" transform="rotate(-90 ${size / 2} ${size / 2})"/>
+        <text x="50%" y="50%" dominant-baseline="central" text-anchor="middle" fill="#111827">${label}</text></svg>`;
+    }
+    // miniatura del recorrido de un paseo
+    function thumb(w) {
+      const segs = splitTrack(w.track), W = 132, H = 100, pad = 8;
+      if (!segs.length) return `<div class="lw-map empty">🗺️</div>`;
+      let a = 90, b = -90, c = 180, d = -180;
+      segs.forEach((sg) => sg.forEach((q) => { a = Math.min(a, q[0]); b = Math.max(b, q[0]); c = Math.min(c, q[1]); d = Math.max(d, q[1]); }));
+      const k = Math.cos((a + b) / 2 * Math.PI / 180), sx = (d - c) * k || 1e-6, sy = (b - a) || 1e-6, sc = Math.min((W - pad * 2) / sx, (H - pad * 2) / sy);
+      const ox = (W - sx * sc) / 2, oy = (H - sy * sc) / 2;
+      const P = (q) => (ox + (q[1] - c) * k * sc).toFixed(1) + ',' + (oy + (b - q[0]) * sc).toFixed(1);
+      const first = segs[0][0], lastS = segs[segs.length - 1], last = lastS[lastS.length - 1];
+      return `<svg class="lw-map" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}">${segs.map((sg) => `<polyline points="${sg.map(P).join(' ')}" fill="none" stroke="var(--paint)" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>`).join('')}
+        <circle cx="${P(first).split(',')[0]}" cy="${P(first).split(',')[1]}" r="4" fill="#10b981" stroke="#fff" stroke-width="1.5"/><circle cx="${P(last).split(',')[0]}" cy="${P(last).split(',')[1]}" r="4" fill="#111827" stroke="#fff" stroke-width="1.5"/></svg>`;
+    }
     function donut(parts) {
       const tot = parts.reduce((a, p) => a + p.v, 0) || 1;
       let a0 = -Math.PI / 2, svg = '<svg viewBox="0 0 120 120" width="120" height="120">';
@@ -546,32 +601,111 @@
       const { s, st, walks, totMs, wWalked, days, cities, lms } = A;
       let h = '';
       if (tab === 'res') {
+        const DAY = 86400000, now0 = new Date(); now0.setHours(0, 0, 0, 0);
+        const LI = A.LI, tierC = LI.tier ? LI.tier.color : 'var(--paint)';
+        const nB = Object.keys(s.conqueredB || {}).length, nC = Object.keys(s.citiesWon || {}).length;
+        const firstT = walks.length ? Math.min(...walks.map((w) => w.start)) : null;
+        // ---- cabecera: nivel, puntos y lo más importante de un vistazo ----
+        h += `<div class="hero" style="--tc:${tierC}">
+          <div class="hero-top">${ring(LI.pct, 92, 9, tierC, `<tspan font-size="${LI.short.length > 4 ? 15 : 24}" font-weight="900">${esc(LI.short)}</tspan>`)}
+            <div class="hero-txt"><small>${LI.tier ? LI.tier.icon + ' ' : ''}Nivel</small><b>${esc(LI.label)}</b>
+              <div class="hero-bar"><i style="width:${(LI.pct * 100).toFixed(1)}%"></i></div>
+              <small>${LI.max ? '¡Nivel máximo!' : `${PM.fmtNum(LI.cur)} / ${PM.fmtNum(LI.need)} pts · faltan <b>${PM.fmtNum(LI.need - LI.cur)}</b> para el ${esc(LI.nextLabel)}`}</small></div></div>
+          <div class="hero-nums">
+            <div><b>${km(st.paintedM || 0)}</b><small>km pintados</small></div>
+            <div><b>${lms.length}</b><small>monumentos</small></div>
+            <div><b>${nB}</b><small>barrios 🚩</small></div>
+            <div><b>${PM.fmtNum(s.xp || 0)}</b><small>puntos</small></div></div>
+          ${firstT ? `<small class="hero-since">Pintando desde el ${new Date(firstT).toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' })} · ${Object.keys(days).length} días en la calle${nC ? ` · 👑 ${nC} ciudad${nC > 1 ? 'es' : ''}` : ''}</small>` : ''}</div>`;
+
+        // ---- esta semana (lunes a domingo) frente a la anterior ----
+        const mon = now0.getTime() - ((now0.getDay() + 6) % 7) * DAY;
+        const wk = (t0) => { const ws = walks.filter((w) => w.start >= t0 && w.start < t0 + 7 * DAY);
+          return { ws, walked: ws.reduce((a, w) => a + (w.st.walked || 0), 0), painted: ws.reduce((a, w) => a + (w.st.painted || 0), 0), ms: ws.reduce((a, w) => a + w.elapsed, 0) }; };
+        const W0 = wk(mon), W1 = wk(mon - 7 * DAY);
+        const dd = (x, y) => !y ? (x ? '<span class="dl up">nuevo</span>' : '') : (() => { const d = (x - y) / y * 100; return `<span class="dl ${d >= 0 ? 'up' : 'down'}">${d >= 0 ? '▲' : '▼'} ${Math.abs(d).toFixed(0)} %</span>`; })();
+        const wd = ['L', 'M', 'X', 'J', 'V', 'S', 'D'].map((l, i) => { const k = dayKey(mon + i * DAY), d = days[k]; return { l, w: d ? d.walked / 1000 : 0, p: d ? d.painted / 1000 : 0, today: mon + i * DAY === now0.getTime(), fut: mon + i * DAY > now0.getTime() }; });
+        const wmax = Math.max(0.5, ...wd.map((x) => x.w));
+        h += `<div class="card"><h3>Esta semana <span>vs. la anterior</span></h3>
+          <div class="wk3"><div><b>${dist(W0.walked)}</b><small>andados</small>${dd(W0.walked, W1.walked)}</div>
+            <div><b>${dist(W0.painted)}</b><small>calles nuevas</small>${dd(W0.painted, W1.painted)}</div>
+            <div><b>${dur(W0.ms)}</b><small>${W0.ws.length} paseo${W0.ws.length === 1 ? '' : 's'}</small>${dd(W0.ms, W1.ms)}</div></div>
+          <div class="wkbars">${wd.map((x) => `<div class="${x.today ? 'today' : ''} ${x.fut ? 'fut' : ''}" title="${x.w.toFixed(2)} km andados · ${x.p.toFixed(2)} km nuevos">
+            <span><i style="height:${(x.w / wmax * 100).toFixed(0)}%"></i><em style="height:${(Math.min(x.p, x.w || x.p) / wmax * 100).toFixed(0)}%"></em></span><small>${x.l}</small></div>`).join('')}</div>
+          <div class="legend"><span><i style="background:#c7d2fe"></i>andado</span><span><i style="background:var(--paint)"></i>calles nuevas</span></div></div>`;
+
+        // ---- cifras clave con icono ----
+        const eff = Math.min(1, A.eff);
+        const tile = (ic, v, l, extra, hl) => `<div class="kpi ${hl ? 'hl' : ''}"><span class="ki">${ic}</span><b>${v}</b><small>${l}</small>${extra ? `<div><em>${extra}</em></div>` : ''}</div>`;
         h += `<div class="kpis">
-          ${kpi(km(st.paintedM || 0) + ' km', 'calles pintadas', '', true)}
-          ${kpi(km(st.walkedM || 0) + ' km', 'caminados')}
-          ${kpi(Math.round(A.eff * 100) + ' %', 'calle nueva por km', A.eff > 0.7 ? 'explorador' : '')}
-          ${kpi(walks.length, 'paseos (≥ 2 min)')}
-          ${kpi(dur(totMs), 'en la calle')}
-          ${kpi(pace(totMs, wWalked), 'ritmo medio')}
-          ${kpi(totMs ? ((wWalked / 1000) / (totMs / 3600000)).toFixed(1) + ' km/h' : '—', 'velocidad media')}
-          ${kpi(PM.fmtNum(s.xp || 0), 'puntos')}
-          ${kpi((st.walkedM ? Math.round((s.xp || 0) / (st.walkedM / 1000)) : 0), 'puntos por km')}
-          ${kpi('🔥 ' + (st.streak || 0), 'racha actual', 'máx. ' + A.maxStreak + ' días')}
-          ${kpi('x' + (st.bestCombo || 0), 'mejor combo')}
-          ${kpi(Object.keys(days).length, 'días activos')}
+          ${tile('🖌️', km(st.paintedM || 0) + ' km', 'calles pintadas', '', true)}
+          ${tile('🚶', km(st.walkedM || 0) + ' km', 'caminados')}
+          ${tile('🧭', Math.round(eff * 100) + ' %', 'de lo andado, nuevo', eff >= 0.7 ? 'explorador' : '')}
+          ${tile('🗓️', walks.length, 'paseos (≥ 2 min)')}
+          ${tile('⏱️', dur(totMs), 'en la calle')}
+          ${tile('⚡', pace(totMs, wWalked), 'ritmo medio')}
+          ${tile('🔥', st.streak || 0, 'racha actual', 'máx. ' + A.maxStreak + ' días')}
+          ${tile('✖️', 'x' + (st.bestCombo || 0), 'mejor combo')}
+          ${tile('⭐', st.walkedM ? PM.fmtNum(Math.round((s.xp || 0) / (st.walkedM / 1000))) : 0, 'puntos por km')}
         </div>`;
-        // proyección y análisis
+
+        // ---- último paseo con su recorrido ----
+        const lw = walks[0];
+        if (lw) h += `<div class="card lastw" data-wi="0"><h3>Último paseo <span>toca para verlo en el mapa</span></h3>
+          <div class="lw">${thumb(lw)}<div class="lw-txt"><b>${new Date(lw.start).toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' })}</b>
+            <small>${new Date(lw.start).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })} · ${dur(lw.elapsed)}</small>
+            <div class="lw-g"><div><b>${dist(lw.st.walked)}</b><small>andados</small></div><div><b>${dist(lw.st.painted)}</b><small>nuevos</small></div>
+              <div><b>${pace(lw.elapsed, lw.st.walked)}</b><small>ritmo</small></div><div><b>+${PM.fmtNum(lw.st.pts || 0)}</b><small>puntos</small></div></div></div></div></div>`;
+
+        // ---- territorio: ciudades en anillos ----
+        const top = cities.slice(0, 3);
+        h += `<div class="card"><h3>Tu territorio <span>conquista = 80 %</span></h3>${top.length ? `<div class="terr">${top.map((c) => `<div>
+            ${ring(c.tot ? Math.min(1, c.pct / 0.8) : 0, 86, 8, c.won ? '#f59e0b' : 'var(--paint)', `<tspan font-size="14" font-weight="800">${c.tot ? (c.pct * 100).toFixed(c.pct < 0.1 ? 1 : 0) + '%' : '?'}</tspan>`)}
+            <b>${c.won ? '👑 ' : ''}${esc(c.c)}</b><small>${dist(c.m)}${c.tot ? ' de ' + dist(c.tot) : ''}</small></div>`).join('')}</div>` : '<div class="empty">Aún sin ciudades.</div>'}
+          ${cities.length > 3 ? `<div class="more">${cities.slice(3).map((c) => `<span>${c.won ? '👑 ' : ''}${esc(c.c)} · ${c.tot ? (c.pct * 100).toFixed(2) + ' %' : dist(c.m)}</span>`).join('')}</div>` : ''}
+          <div class="row" style="margin-top:8px"><span>🚩 Barrios conquistados</span><b>${nB}</b></div></div>`;
+
+        // ---- colección: monumentos por rareza y logros ----
+        const byR = ['legendario', 'epico', 'raro', 'comun'].map((r) => ({ r, v: lms.filter((l) => l.rarity === r).length, c: RAR_C[r] }));
+        const ach = PM.game.ACHIEVEMENTS, gotA = s.achievements || {}, nA = Object.keys(ach).length, gA = Object.keys(gotA).filter((k) => ach[k]).length;
+        const photos = Object.keys(s.cardPhotos || {}).length;
+        h += `<div class="card"><h3>Colección</h3>
+          <div class="coll">${ring(nA ? gA / nA : 0, 86, 8, '#10b981', `<tspan font-size="15" font-weight="800">${gA}</tspan>`)}<div style="flex:1;min-width:0">
+            <div class="row" style="padding-top:0"><span>🏆 Logros</span><b>${gA} / ${nA}</b></div>
+            <div class="row"><span>🃏 Cartas</span><b>${lms.length}</b></div>
+            <div class="row"><span>📸 Con tu foto</span><b>${photos}</b></div></div></div>
+          ${lms.length ? `<div class="stackbar">${byR.filter((x) => x.v).map((x) => `<i style="flex:${x.v};background:${x.c}" title="${RAR[x.r].label}: ${x.v}"></i>`).join('')}</div>
+          <div class="legend">${byR.map((x) => `<span><i style="background:${x.c}"></i>${RAR[x.r].label} ${x.v}</span>`).join('')}</div>` : ''}</div>`;
+
+        // ---- próximos objetivos ----
+        const next = Object.entries(ach).filter(([id, a]) => !gotA[id] && a.prog).map(([id, a]) => ({ a, p: a.prog(s) })).filter((x) => x.p > 0 && x.p < 1)
+          .sort((x, y) => y.p - x.p).filter((x, i, arr) => arr.findIndex((z) => z.a.icon === x.a.icon && z.a.name.split(' ')[0] === x.a.name.split(' ')[0]) === i).slice(0, 4);
+        const goalRow = (ic, t, sub, pct) => `<div class="goal"><span>${ic}</span><div><b>${t}</b><small>${sub}</small><div class="pbar"><i style="width:${(pct * 100).toFixed(1)}%"></i></div></div><em>${Math.floor(pct * 100)}%</em></div>`;
+        h += `<div class="card"><h3>Próximos objetivos</h3>
+          ${LI.max ? '' : goalRow('⬆️', 'Nivel ' + esc(LI.nextLabel), `faltan ${PM.fmtNum(LI.need - LI.cur)} pts`, LI.pct)}
+          ${next.map((x) => goalRow(x.a.icon, esc(x.a.name), esc(x.a.desc), x.p)).join('')}</div>`;
+
+        // ---- análisis ----
         h += `<div class="card"><h3>Análisis <span>últimos 30 días</span></h3>${insights()}</div>`;
-        h += `<div class="card"><h3>Ciudades <span>objetivo 80 %</span></h3>${cities.length ? cities.map((c) => `
-          <div style="margin-bottom:12px"><div class="row" style="border:0;padding:0"><b>${c.won ? '👑 ' : ''}${esc(c.c)}</b><b>${c.tot ? (c.pct * 100).toFixed(2) + ' %' : dist(c.m)}</b></div>
-          <div class="pbar"><i style="width:${Math.min(100, c.pct * 100)}%"></i><em></em></div>
-          <small class="muted">${dist(c.m)} de ${c.tot ? dist(c.tot) : '?'}${c.tot ? ' · faltan ' + dist(Math.max(0, c.tot * 0.8 - c.m)) + ' para conquistarla' : ''}</small></div>`).join('') : '<div class="empty">Aún sin ciudades.</div>'}</div>`;
-        h += `<div class="card"><h3>Récords</h3>
-          <div class="row"><span>🏃 Paseo más largo</span><b>${A.longest ? dist(A.longest.st.walked) : '—'}</b></div>
-          <div class="row"><span>⚡ Paseo más rápido</span><b>${A.fastest ? pace(A.fastest.elapsed, A.fastest.st.walked) : '—'}</b></div>
-          <div class="row"><span>⭐ Más puntos en un paseo</span><b>${A.topPts ? '+' + PM.fmtNum(A.topPts.st.pts) : '—'}</b></div>
-          <div class="row"><span>📅 Mejor día</span><b>${A.bestDay ? dist(A.bestDay[1].painted) + ' · ' + new Date(A.bestDay[0]).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' }) : '—'}</b></div>
-          <div class="row"><span>🔥 Racha más larga</span><b>${A.maxStreak} días</b></div></div>`;
+
+        // ---- equivalencias ----
+        const wk_ = (st.walkedM || 0) / 1000;
+        if (wk_ > 0) h += `<div class="card"><h3>En otras palabras</h3><div class="eq">
+          <div><span>🏃</span><b>${(wk_ / 42.195).toFixed(wk_ < 42 ? 2 : 1)}</b><small>maratones</small></div>
+          <div><span>🏟️</span><b>${PM.fmtNum(Math.round(wk_ * 1000 / 400))}</b><small>vueltas a una pista de atletismo</small></div>
+          <div><span>👣</span><b>${PM.fmtNum(Math.round(wk_ * 1000 / 0.75))}</b><small>pasos</small></div>
+          <div><span>🍫</span><b>${PM.fmtNum(Math.round(wk_ * 55 / 230))}</b><small>tabletas de chocolate quemadas</small></div></div></div>`;
+
+        // ---- récords ----
+        const when = (w) => w ? new Date(w.start).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' }) : '';
+        const recRow = (ic, l, v, w) => `<div class="rec" ${w ? `data-wi="${walks.indexOf(w)}"` : ''}><span>${ic}</span><div><small>${l}</small><b>${v}</b></div><em>${when(w)}</em></div>`;
+        h += `<div class="card"><h3>Récords <span>toca uno para verlo</span></h3><div class="recs">
+          ${A.longest ? recRow('🥾', 'Paseo más largo', dist(A.longest.st.walked), A.longest) : ''}
+          ${A.fastest ? recRow('⚡', 'Paseo más rápido', pace(A.fastest.elapsed, A.fastest.st.walked), A.fastest) : ''}
+          ${A.topPts ? recRow('⭐', 'Más puntos', '+' + PM.fmtNum(A.topPts.st.pts || 0), A.topPts) : ''}
+          ${A.bestDay ? `<div class="rec"><span>📅</span><div><small>Mejor día</small><b>${dist(A.bestDay[1].painted)}</b></div><em>${new Date(A.bestDay[0] + 'T12:00').toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}</em></div>` : ''}
+          <div class="rec"><span>🔥</span><div><small>Racha más larga</small><b>${A.maxStreak} días</b></div></div>
+          <div class="rec"><span>✖️</span><div><small>Mejor combo</small><b>x${st.bestCombo || 0}</b></div></div></div></div>`;
       }
       if (tab === 'act') {
         // ---- periodo elegido y el anterior (para comparar) ----
@@ -690,7 +824,7 @@
       }, 'tcggrid');
       P.querySelectorAll('.walk').forEach((el) => el.addEventListener('click', () => showWalk(walks[+el.dataset.i], el)));
       P.querySelectorAll('[data-per]').forEach((b) => b.addEventListener('click', () => { actPeriod = b.dataset.per; drawPanel(); }));
-      P.querySelectorAll('.rec[data-wi]').forEach((r) => r.addEventListener('click', () => showWalk(walks[+r.dataset.wi])));
+      P.querySelectorAll('.rec[data-wi], .lastw[data-wi]').forEach((r) => r.addEventListener('click', () => showWalk(walks[+r.dataset.wi])));
       P.querySelectorAll('.calnav').forEach((b) => b.addEventListener('click', () => { calMonth = new Date(calMonth.getFullYear(), calMonth.getMonth() + +b.dataset.m, 1); drawPanel(); }));
       P.querySelectorAll('.cd.on').forEach((b) => b.addEventListener('click', () => {
         calDay = b.dataset.day; drawPanel();

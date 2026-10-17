@@ -457,7 +457,8 @@ PM.game = (function () {
       const id = prefix + '_' + t;
       if (ACHIEVEMENTS[id]) return;
       ACHIEVEMENTS[id] = { name: typeof name === 'function' ? name(t, i) : name + ' ' + ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI', 'XII', 'XIII', 'XIV', 'XV'][i],
-        desc: desc(t), icon, check: (s) => value(s) >= t };
+        desc: desc(t), icon, check: (s) => value(s) >= t,
+        prog: (s) => { try { return Math.max(0, Math.min(1, (value(s) || 0) / t)); } catch (e) { return 0; } }, goal: t, value };   // progreso (panel «Mi progreso»)
     });
   }
   const lmList = (s) => Object.values(s.landmarks || {});
