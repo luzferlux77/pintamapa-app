@@ -313,7 +313,7 @@
       const color = s.color || '#2563eb';
       if (!map) {
         map = new maplibregl.Map({ container: 'bigmap', style: PM.mapStyle.URL.light, center: [2.07386, 41.35763], zoom: 14,
-          attributionControl: false, dragRotate: false, pitchWithRotate: false });
+          attributionControl: false, dragRotate: false, pitchWithRotate: false, touchPitch: false, maxPitch: 0 });   // siempre en 2D desde arriba
         map.touchZoomRotate.disableRotation();
         map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'bottom-right');
         map.addControl(new maplibregl.AttributionControl({ compact: true, customAttribution: '© OpenStreetMap · OpenFreeMap' }), 'bottom-left');
