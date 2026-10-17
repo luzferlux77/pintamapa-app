@@ -101,7 +101,7 @@
     document.body.classList.toggle('dark', dark);
     document.querySelector('meta[name=theme-color]').setAttribute('content', dark ? '#0d0f17' : '#f4f6fb');
     const want = dark ? 'dark' : 'light';
-    if (want !== curStyle) { curStyle = want; mapReady = false; map.setStyle(STYLE[want]); }   // al cargar el estilo se vuelven a poner las capas
+    if (want !== curStyle) { curStyle = want; mapReady = false; map.setStyle(STYLE[want], { diff: false }); }   // carga limpia: así salta 'style.load' y se vuelven a poner las capas
   }
   applyTheme();
 
@@ -675,6 +675,11 @@
   document.addEventListener('visibilitychange', compassSync);
   window.addEventListener('deviceorientation', (e) => { if (e.webkitCompassHeading != null) onCompass(e); });
   // cada fotograma: girar poco a poco hacia el rumbo (sin saltos)
+  let pitchTarget = 0;
+  function stepPitch(dt) {
+    const p = map.getPitch(), d = pitchTarget - p;
+    if (Math.abs(d) > 0.3 && !gestureBusy()) map.setPitch(p + d * Math.min(1, dt * 5));
+  }
   function stepHeading(dt) {
     // brújula (hacia donde apunta el móvil) si la hay; si no, el rumbo del GPS / de la marcha
     const walkingNow = mode === 'gps' && speed > 0.6 && Date.now() - Math.max(lastMoveT, lastCourseT) < 6000;
@@ -729,7 +734,7 @@
     headingTarget = heading;
     compassSync();
     applyBearing(true);
-    map.easeTo({ pitch: o === 'heading' ? 45 : 0, duration: 600 });
+    pitchTarget = o === 'heading' ? 45 : 0;   // se inclina poco a poco en cada fotograma (compatible con la cámara que te sigue)
     set3D(o === 'heading');
     camera();
     $('#btn-orient').innerHTML = o === 'heading' ? '<span>➤</span><small>rumbo</small>' : '<span>N</span><small>norte</small>';
@@ -784,6 +789,7 @@
     }
     stepDisplay(now);
     stepHeading(dt);
+    stepPitch(dt);
     G.tickCombo(Date.now());
     flushPaint();
     if (!manual) requestAnimationFrame(loop);

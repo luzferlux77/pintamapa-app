@@ -125,8 +125,19 @@
     svg text { font-family: Inter, sans-serif; }
     .empty { color: var(--muted); font-size: 13.5px; text-align: center; padding: 18px 8px; }
     @media (max-width: 980px) {
-      #app { grid-template-columns: 1fr; grid-template-rows: 64px 55vh auto; height: auto; }
-      aside { border-left: 0; overflow: visible; }
+      #app { grid-template-columns: minmax(0, 1fr); grid-template-rows: 64px 55vh auto; height: auto; }
+      aside { border-left: 0; overflow: visible; min-width: 0; padding: 12px; }
+      aside > *, .card { min-width: 0; max-width: 100%; }
+      html, body { overflow-x: hidden; }
+      .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .grid2, .recs { grid-template-columns: minmax(0, 1fr) !important; }
+      #synced { display: none; }
+      header { gap: 8px; padding: 0 10px; } header .logo { font-size: 19px !important; } .who-txt small { display: none; }
+      .hbtn { padding: 6px 9px !important; font-size: 12.5px !important; white-space: nowrap; }
+      header .ring { width: 38px !important; height: 38px !important; }
+      #reload, header a.hbtn { font-size: 0 !important; } #reload::before { content: '↻'; font-size: 17px; } header a.hbtn::before { content: '🕹️'; font-size: 16px; }
+      .who-txt b { max-width: 90px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block; }
+      .layers { right: 90px; flex-wrap: nowrap; overflow-x: auto; }
       .who-txt small { display: none; }
     }
   </style>
