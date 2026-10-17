@@ -44,7 +44,15 @@
   let userGesture = false, gestureEnd = 0;
   map.on('movestart', (e) => { if (e.originalEvent) userGesture = true; });
   map.on('moveend', (e) => { if (userGesture) { userGesture = false; gestureEnd = performance.now(); } });
-  const gestureBusy = () => userGesture || performance.now() - gestureEnd < 400;
+  // dedos sobre el mapa: mientras haya alguno (sobre todo al hacer pinza) la cámara que te sigue NO toca el mapa;
+  // si lo hiciera cortaría el gesto a medias y el zoom costaría mucho
+  let touching = 0;
+  const tcont = map.getCanvasContainer();
+  tcont.addEventListener('touchstart', (e) => { touching = e.touches.length; }, { passive: true });
+  const tEnd = (e) => { touching = e.touches.length; if (!touching) gestureEnd = performance.now(); };
+  tcont.addEventListener('touchend', tEnd, { passive: true });
+  tcont.addEventListener('touchcancel', tEnd, { passive: true });
+  const gestureBusy = () => touching > 0 || userGesture || performance.now() - gestureEnd < 400;
   // edificios 3D solo con el mapa inclinado (modo rumbo): de frente no se ven y son lo más pesado de dibujar
   function set3D(on) {
     if (!mapReady) return;
@@ -54,6 +62,7 @@
   // si el hueco del mapa cambia de tamaño (pantalla de inicio, giro, teclado…), el mapa se reajusta
   if (window.ResizeObserver) new ResizeObserver(() => { map.resize(); padCache.t = 0; }).observe(map.getContainer());
   map.addControl(new maplibregl.AttributionControl({ compact: true, customAttribution: '© OpenStreetMap · OpenFreeMap' }), 'bottom-left');
+  map.once('load', () => { const at = map.getContainer().querySelector('.maplibregl-ctrl-attrib'); if (at) at.classList.remove('maplibregl-compact-show'); });
   let mapReady = false;
   const FC = (features) => ({ type: 'FeatureCollection', features });
   const lineF = (pts, props) => ({ type: 'Feature', properties: props || {}, geometry: { type: 'LineString', coordinates: pts.map(ll) } });
@@ -363,7 +372,13 @@
     if (t >= 1) anim = null;
     drawPlayer();
   }
-  function recenter() { clearTimeout(recenterTimer); follow = true; $('#btn-center').classList.remove('show'); camera(); }
+  function recenter() { clearTimeout(recenterTimer); follow = true; $('#btn-center').classList.remove('show'); zoomAround(); camera(); }
+  // siguiéndote, la pinza y la rueda acercan/alejan alrededor de TI (centro), sin desplazar el mapa
+  function zoomAround() {
+    const o = follow ? { around: 'center' } : undefined;
+    map.touchZoomRotate.enable(o); map.touchZoomRotate.disableRotation(); map.scrollZoom.enable(o);
+  }
+  zoomAround();
 
   function teleport(p) {
     pos = p.slice(); lastP = null; walkAnchor = null;
@@ -627,9 +642,10 @@
     if (mode !== 'sim') return;
     if (e.originalEvent.ctrlKey || e.originalEvent.metaKey) { teleport(p); return; }
     target = p;
-    follow = true;
+    follow = true; zoomAround();
   });
-  map.on('dragstart', () => { follow = false; $('#btn-center').classList.add('show'); clearTimeout(recenterTimer); });
+  map.on('dragstart', () => { if (touching >= 2 && follow) return;   // pinza siguiéndote: es zoom, no te dejo de seguir
+    follow = false; zoomAround(); $('#btn-center').classList.add('show'); clearTimeout(recenterTimer); });
   map.on('dragend', () => { clearTimeout(recenterTimer); recenterTimer = setTimeout(recenter, 8000); });
   map.on('zoomend', () => camera());
   window.addEventListener('resize', () => { padCache.t = 0; camera(); });
@@ -1666,6 +1682,9 @@
     if (!PM.player) { showNewBox(true); return; }
     $('#intro').classList.remove('show');
     setTimeout(() => map.resize(), 50);
+    // la pantalla de inicio pudo dejar la página desplazada (móviles bajos): el juego siempre pegado arriba
+    const unscroll = () => { if (document.body.scrollTop) document.body.scrollTop = 0; if (document.documentElement.scrollTop) document.documentElement.scrollTop = 0; };
+    unscroll(); document.body.addEventListener('scroll', unscroll, { passive: true }); window.addEventListener('scroll', unscroll, { passive: true });
     PM.sound._ctx();
     G.ensureDaily();
     if (PM.fillLandmarkCities(S())) PM.state.save();   // lugares conquistados sin ciudad: se completa

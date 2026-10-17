@@ -67,7 +67,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
 #combo span { font-size: 11px; letter-spacing: 2px; font-weight: 700; color: var(--text); }
 
 /* Jugador */
-.player { position: relative; width: 44px; height: 44px; }
+.player { position: relative; width: 44px; height: 44px; pointer-events: none; }   /* el dedo pasa al mapa (pinza encima de ti) */
 .player .dot { position: absolute; inset: 7px; border-radius: 50%; background: var(--paint); display: grid; place-items: center; font-size: 17px;
   border: 3px solid #fff; box-shadow: 0 0 16px var(--paint); }
 .player .pulse { position: absolute; inset: 0; border-radius: 50%; background: var(--paint); opacity: .4; animation: pulse 1.6s infinite; }
@@ -411,3 +411,13 @@ body.dark .maplibregl-ctrl-attrib { background: rgba(0,0,0,.5) !important; color
 .lm.conq { box-shadow: 0 0 0 3px var(--paint) !important; }
 .lm.conq span, .lmflag, .flag { filter: none !important; text-shadow: 0 1px 2px rgba(0,0,0,.35); }
 .maplibregl-marker { contain: layout style; }
+
+/* Igual en cualquier móvil: el tamaño de letra del sistema no descuadra la app; textos largos del marcador en una línea */
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+#city, #barrio-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#hud > * { min-width: 0; }
+/* pantallas estrechas (o con «tamaño de pantalla» grande en Ajustes) */
+@media (max-width: 350px) {
+  html, body { font-size: 14px; }
+  #nav button, #nav a { font-size: 11px; }
+}
