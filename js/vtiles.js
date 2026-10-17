@@ -93,7 +93,7 @@ PM.vtiles = (function () {
     if (/^(primary|secondary|tertiary)$/.test(c)) return c + (ramp ? '_link' : '');
     if (c === 'minor') return 'residential';
     if (c === 'track') return 'track';
-    if (c === 'path') return s === 'pedestrian' ? 'pedestrian' : s === 'path' || s === 'bridleway' ? s : null;
+    if (c === 'path') return s === 'pedestrian' ? 'pedestrian' : s === 'path' || s === 'bridleway' || s === 'footway' ? s : null;   // footway: el juego descarta las aceras
     return null;   // autopistas, servicio, aceras, carriles bici, escaleras, tren…: fuera
   }
   // OpenMapTiles: clase/subclase de punto de interés → etiquetas de OSM (las que entiende el juego)
@@ -124,7 +124,7 @@ PM.vtiles = (function () {
   }
   // esquema Shortbread (OSM oficial y VersaTiles): "kind" ya es el valor de OSM
   function sbHighway(p) {
-    const k = p.kind, ok = /^(primary|secondary|tertiary|residential|unclassified|living_street|pedestrian|road|track|path|bridleway)$/.test(k);
+    const k = p.kind, ok = /^(primary|secondary|tertiary|residential|unclassified|living_street|pedestrian|road|track|path|bridleway|footway)$/.test(k);
     return ok ? (p.link && /^(primary|secondary|tertiary)$/.test(k) ? k + '_link' : k) : null;
   }
   const SB_KEYS = ['amenity', 'tourism', 'historic', 'leisure', 'man_made', 'sport', 'religion', 'railway', 'building'];

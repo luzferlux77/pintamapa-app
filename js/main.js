@@ -5,6 +5,7 @@
   const isNative = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
 
   const PAINT_RADIUS = 14;      // m: margen para el error del GPS (calle por la que vas)
+  const TRAIL_RADIUS = 20;      // m: en senderos (GPS peor entre árboles)
   const PAINT_CORE = 5;         // m: parado o sin dirección conocida, se pinta solo lo que pisas
   const WIDE_RADIUS = 40;       // m: en avenidas anchas basta una acera para pintar ambas calzadas
   const CAPTURE_RADIUS = 30;    // m: hay que estar así de cerca de un monumento…
@@ -37,8 +38,8 @@
   const ll = (p) => [p[1], p[0]];   // el juego usa [lat, lon]; MapLibre, [lon, lat]
   let curStyle = S().theme === 'dark' ? 'dark' : 'light';
   const map = new maplibregl.Map({ container: 'map', style: STYLE[curStyle], center: ll(start), zoom: 17, attributionControl: false,
-    dragRotate: false, pitchWithRotate: false, touchPitch: false, maxPitch: 60, fadeDuration: 0,
-    pixelRatio: Math.min(2, window.devicePixelRatio || 1) });   // a más de 2× no se nota y cuesta mucho al móvil
+    dragRotate: false, pitchWithRotate: false, touchPitch: false, maxPitch: 0, pitch: 0, fadeDuration: 0, renderWorldCopies: false,
+    pixelRatio: Math.min(1.75, window.devicePixelRatio || 1) });   // a más de 2× no se nota y cuesta mucho al móvil
   // ¿el dedo está moviendo el mapa? (mientras, ni la brújula ni la cámara lo mueven: si no, se pelean y va a tirones)
   let userGesture = false, gestureEnd = 0;
   map.on('movestart', (e) => { if (e.originalEvent) userGesture = true; });
@@ -61,7 +62,7 @@
     for (let i = 0; i <= 48; i++) { const a = i / 48 * 2 * Math.PI; out.push(ll(PM.geo.offset(c, Math.cos(a) * r, Math.sin(a) * r))); }
     return { type: 'Feature', properties: props || {}, geometry: { type: 'Polygon', coordinates: [out] } };
   };
-  const SRC = ['pm-streets', 'pm-painted', 'pm-barrios', 'pm-avoid', 'pm-halos'];
+  const SRC = ['pm-streets', 'pm-painted', 'pm-barrios', 'pm-avoid', 'pm-halos', 'pm-lms'];
   const srcData = {}; SRC.forEach((id) => (srcData[id] = FC([])));
   function setSrc(id, fc) { srcData[id] = fc; const src = mapReady && map.getSource(id); if (src) src.setData(fc); }
   // grosor según el zoom (las salidas pueden depender de datos: p. ej. la intensidad de la pasada)
@@ -81,9 +82,11 @@
     add({ id: 'pm-halo-fill', type: 'fill', source: 'pm-halos', paint: { 'fill-color': paintColor(), 'fill-opacity': 0.16 } });
     add({ id: 'pm-halo-line', type: 'line', source: 'pm-halos', paint: { 'line-color': paintColor(), 'line-opacity': 0.7, 'line-width': 2 } });
     add({ id: 'pm-barrio-cur', type: 'line', source: 'pm-barrios', filter: ['==', ['get', 'c'], 0], paint: { 'line-color': '#5b6478', 'line-opacity': 0.8, 'line-width': 2.5, 'line-dasharray': [3, 3] } }, true);
+    add({ id: 'pm-lms', type: 'symbol', source: 'pm-lms', layout: { 'icon-image': ['get', 'icon'], 'icon-allow-overlap': true, 'icon-ignore-placement': true,
+      'symbol-sort-key': ['get', 'z'], 'icon-size': ['interpolate', ['linear'], ['zoom'], 12, 0.55, 15, 0.85, 17, 1] } }, true);
     add({ id: 'pm-barrio-conq', type: 'line', source: 'pm-barrios', filter: ['==', ['get', 'c'], 1], paint: { 'line-color': paintColor(), 'line-opacity': 0.75, 'line-width': ['case', ['==', ['get', 'cur'], 1], 3, 2] } }, true);
   }
-  map.on('style.load', () => { mapReady = true; PM.mapStyle.enhance(map, curStyle); addOverlay(); set3D(orient === 'heading'); });
+  map.on('style.load', () => { mapReady = true; PM.mapStyle.enhance(map, curStyle); iconMade.clear(); addOverlay(); set3D(false); flushLandmarks(true); });
   // créditos plegados (botón ⓘ): ocupan mucho en el móvil
   map.once('idle', () => { const a = document.querySelector('.maplibregl-ctrl-attrib'); if (a) a.classList.remove('maplibregl-compact-show'); });
   // marcador HTML (lugares, banderas, etiquetas)
@@ -111,29 +114,33 @@
   let paintedF = [], paintedAdd = false;   // lo pintado ya convertido (al pintar solo se añade el tramo nuevo)
   // solo se dibujan las zonas a menos de VIEW_R celdas (~3 km) de lo que estás mirando: aunque hayas viajado, el mapa no se carga
   const VIEW_R = 3;
-  function nearView(key) {
+  function nearView(key, r = VIEW_R) {
     const c = map.getCenter(), [i, j] = key.split('_').map(Number);
-    return Math.abs(i - Math.floor(c.lat / W.TILE)) <= VIEW_R && Math.abs(j - Math.floor(c.lng / W.TILE)) <= VIEW_R;
+    return Math.abs(i - Math.floor(c.lat / W.TILE)) <= r && Math.abs(j - Math.floor(c.lng / W.TILE)) <= r;
   }
+  const tileFeat = {};   // zona -> calles ya convertidas (al volver a dibujar no se rehacen)
   function renderTile(key) {
     const t = W.tiles[key];
     if (!t || !(t.loaded || t.partial) || !nearView(key)) return;
+    delete tileFeat[key];
     rendered.add(key); streetsDirty = true; paintedDirty = true;
     refreshFlag(key);
   }
   // al terminar de mover el mapa: entran las zonas cercanas cargadas y salen las lejanas
   function refreshView() {
     let changed = false;
-    for (const k of [...rendered]) if (!nearView(k)) { rendered.delete(k); changed = true; }
+    for (const k of [...rendered]) if (!nearView(k, VIEW_R + 2)) { rendered.delete(k); changed = true; }   // margen: no se rehace al cruzar un borde
     for (const k in W.tiles) if (!rendered.has(k) && (W.tiles[k].loaded || W.tiles[k].partial) && nearView(k)) { rendered.add(k); changed = true; }
     if (changed) { streetsDirty = true; paintedDirty = true; }
-    renderLandmarks();
   }
   map.on('moveend', () => { clearTimeout(viewTimer); viewTimer = setTimeout(refreshView, 250); });
   let viewTimer = null;
   function rebuildStreets() {
     const f = [];
-    for (const k of rendered) for (const p of W.tiles[k].pieces) f.push(lineF(p.pts, p.trail ? { t: 1 } : null));
+    for (const k of rendered) {
+      if (!tileFeat[k]) tileFeat[k] = W.tiles[k].pieces.map((p) => lineF(p.pts, p.trail ? { t: 1 } : null));
+      for (const x of tileFeat[k]) f.push(x);
+    }
     setSrc('pm-streets', FC(f));
   }
   function rebuildPainted() {
@@ -243,47 +250,62 @@
         .forEach(([l, prop, v]) => map.getLayer(l) && map.setPaintProperty(l, prop, v));
     }
     renderBarrios();
+    if (typeof flushLandmarks === 'function') flushLandmarks(true);   // los conquistados llevan tu color
     document.documentElement.style.setProperty('--paint', paintColor());
   }
   map.on('style.load', () => recolorAll());
 
   // Monumentos. Los conquistados (visitados) quedan para siempre en el mapa con tu color, bandera y halo de territorio.
-  const lmMarkers = {}, lmHalos = {};
-  function lmHTML(lm) {
-    const got = !!S().landmarks[lm.id];
-    return got ? `<div class="lm conq r-${lm.rarity}"><span>${lm.emoji}</span><i class="lmflag">🚩</i></div>`
-               : `<div class="lm r-${lm.rarity}"><span>${lm.emoji}</span></div>`;
+  // Se dibujan como CAPA del mapa (iconos generados una vez y pintados por la tarjeta gráfica), no como cientos de
+  // elementos sueltos que el móvil tendría que recolocar en cada fotograma al arrastrar: así el mapa va fluido.
+  const lmHalos = {}, lmIndex = {};   // id -> { lm, got }
+  const RCOL = { comun: '#9aa4b2', raro: '#3fa9ff', epico: '#b65cff', legendario: '#ffb700' };
+  const iconMade = new Set();
+  function lmIcon(lm, got) {
+    const key = 'pmi-' + (got ? 'g' + paintColor() : 'n') + '-' + lm.rarity + '-' + (lm.emoji || '');
+    if (iconMade.has(key) && map.hasImage(key)) return key;
+    const k = 2, size = 46 * k, cx = size / 2, r = 17 * k;
+    const c = document.createElement('canvas'); c.width = size; c.height = size;
+    const x = c.getContext('2d');
+    x.beginPath(); x.arc(cx, cx, r, 0, 2 * Math.PI);
+    x.fillStyle = got ? paintColor() : '#ffffff'; x.fill();
+    x.lineWidth = 3 * k; x.strokeStyle = got ? '#ffffff' : (RCOL[lm.rarity] || '#9aa4b2'); x.stroke();
+    if (got) { x.beginPath(); x.arc(cx, cx, r + 3 * k, 0, 2 * Math.PI); x.lineWidth = 2.5 * k; x.strokeStyle = paintColor(); x.stroke(); }
+    x.textAlign = 'center'; x.textBaseline = 'middle';
+    x.font = `${19 * k}px "Noto Color Emoji","Apple Color Emoji","Segoe UI Emoji",sans-serif`;
+    x.fillText(lm.emoji || '📍', cx, cx + 1 * k);
+    if (got) { x.font = `${13 * k}px "Noto Color Emoji","Apple Color Emoji","Segoe UI Emoji",sans-serif`; x.fillText('🚩', size - 9 * k, 9 * k); }
+    try { if (map.hasImage(key)) map.removeImage(key); map.addImage(key, x.getImageData(0, 0, size, size), { pixelRatio: k }); iconMade.add(key); } catch (e) {}
+    return key;
   }
-  const lmState = {};   // id -> 'got' | 'new' (para no rehacer el icono si no ha cambiado)
+  let lmDirty = false;
   function placeLandmark(lm) {
-    const got = !!S().landmarks[lm.id], st = got ? 'got' : 'new';
-    if (lmMarkers[lm.id]) { if (lmState[lm.id] !== st) lmMarkers[lm.id].getElement().innerHTML = lmHTML(lm); }
-    else lmMarkers[lm.id] = htmlMarker(lm.pos, lmHTML(lm), { onClick: () => showLandmarkInfo(lm), z: got ? 2 : 1 });
-    lmState[lm.id] = st;
+    const got = !!S().landmarks[lm.id], prev = lmIndex[lm.id];
+    if (!prev || prev.got !== got) lmDirty = true;
+    lmIndex[lm.id] = { lm, got };
     if (got && !lmHalos[lm.id]) {
       lmHalos[lm.id] = circlePoly(lm.pos, (lm.capR || PM.capRadius(lm.kind)) + 10);
       setSrc('pm-halos', FC(Object.values(lmHalos)));
     }
   }
+  function flushLandmarks(force) {
+    if (!(lmDirty || force) || !mapReady) return;
+    lmDirty = false;
+    setSrc('pm-lms', FC(Object.values(lmIndex).map(({ lm, got }) => ({ type: 'Feature',
+      properties: { id: lm.id, icon: lmIcon(lm, got), z: got ? 1 : 0 }, geometry: { type: 'Point', coordinates: ll(lm.pos) } }))));
+  }
   function renderLandmarks() {
-    const c = map.getCenter(), cen = [c.lat, c.lng], R = 4500;   // solo los que están a menos de ~4,5 km de lo que miras
-    const near = (p) => p && PM.geo.dist(p, cen) < R;
     for (const id in W.landmarks) {
       const rec = S().landmarks[id];
       if (rec && !rec.pos) { rec.pos = W.landmarks[id].pos; PM.state.save(); }
-      if (near(W.landmarks[id].pos)) placeLandmark(W.landmarks[id]);
+      placeLandmark(W.landmarks[id]);
     }
     // conquistados guardados en tu partida (estén o no cargados ahora): siempre visibles
-    for (const [id, rec] of Object.entries(S().landmarks)) {
-      if (lmMarkers[id] || !near(rec.pos)) continue;
-      placeLandmark(Object.assign({ id, points: 0 }, rec));
-    }
-    // los que han quedado lejos: fuera (vuelven al acercarte)
-    for (const id of Object.keys(lmMarkers)) {
-      const p = (W.landmarks[id] || S().landmarks[id] || {}).pos;
-      if (!near(p)) { lmMarkers[id].remove(); delete lmMarkers[id]; delete lmState[id]; }
-    }
+    for (const [id, rec] of Object.entries(S().landmarks)) if (!lmIndex[id] && rec.pos) placeLandmark(Object.assign({ id, points: 0 }, rec));
+    flushLandmarks();
   }
+  // tocar un lugar del mapa
+  map.on('click', 'pm-lms', (e) => { const it = e.features && lmIndex[e.features[0].properties.id]; if (it) showLandmarkInfo(it.lm); });
 
   // Botes de pintura (ya no salen; se deja el hueco por compatibilidad)
   const canMarkers = {};
@@ -468,7 +490,8 @@
     for (const piece of W.piecesNear(p, WIDE_RADIUS)) {
       const done = S().painted[piece.id];
       const dist = PM.geo.distToPolyline(p, piece.pts);
-      if (dist > (piece.wide ? WIDE_RADIUS : PAINT_RADIUS)) continue;
+      // senderos: el GPS va peor entre árboles y los caminos serpentean → más margen de distancia y de ángulo
+      if (dist > (piece.wide ? WIDE_RADIUS : piece.trail ? TRAIL_RADIUS : PAINT_RADIUS)) continue;
       // Sin dirección conocida (parado, primera lectura): solo lo que pisas. Con dirección: solo tramos
       // que van en tu misma dirección (al pasar por un cruce no se pinta el arranque de la calle lateral).
       let ok = !hl && dist <= PAINT_CORE;
@@ -477,7 +500,7 @@
         const v = [b[0] - a[0], (b[1] - a[1]) * Math.cos(a[0] * Math.PI / 180)];
         const vl = Math.hypot(v[0], v[1]);
         // lejos (otra calzada de una avenida) se exige ir casi paralelo: < ~30°; cerca basta < ~53°
-        ok = vl > 0 && Math.abs((v[0] * heading[0] + v[1] * heading[1]) / (vl * hl)) >= (dist > PAINT_RADIUS ? 0.85 : 0.6);
+        ok = vl > 0 && Math.abs((v[0] * heading[0] + v[1] * heading[1]) / (vl * hl)) >= (piece.trail ? 0.4 : dist > PAINT_RADIUS ? 0.85 : 0.6);
       }
       if (ok) { if (done) G.repass(piece); else G.paintPiece(piece, aura); }
     }
@@ -596,6 +619,7 @@
   window.addEventListener('keyup', (e) => { keys[e.key.toLowerCase()] = false; });
 
   map.on('click', (e) => {
+    if (mapReady && map.getLayer('pm-lms') && map.queryRenderedFeatures(e.point, { layers: ['pm-lms'] }).length) return;   // tocó un lugar
     const p = [e.lngLat.lat, e.lngLat.lng];
     if (avoidEdit) { askAvoid(p); return; }
     const z = S().avoid.find((a) => a.type === 'circle' && PM.geo.dist(p, a.c) <= a.r);
@@ -734,8 +758,8 @@
     headingTarget = heading;
     compassSync();
     applyBearing(true);
-    pitchTarget = o === 'heading' ? 45 : 0;   // se inclina poco a poco en cada fotograma (compatible con la cámara que te sigue)
-    set3D(o === 'heading');
+    pitchTarget = 0;   // siempre en 2D desde arriba (más claro y más fluido)
+    set3D(false);
     camera();
     $('#btn-orient').innerHTML = o === 'heading' ? '<span>➤</span><small>rumbo</small>' : '<span>N</span><small>norte</small>';
     $('#btn-orient').classList.toggle('on', o === 'heading');
@@ -1095,11 +1119,18 @@
 
   // ---------------- HUD ----------------
   let hudB = { p: null, b: null, dirty: true };
+  // el marcador solo toca la pantalla si algo cambió (reescribirlo 4 veces por segundo obliga al móvil a recolocar
+  // toda la interfaz y el mapa da tirones al arrastrarlo)
+  const hudCache = new Map();
+  const hudSet = (key, el, fn, v) => { if (hudCache.get(key) === v) return; hudCache.set(key, v); fn(typeof el === 'string' ? $(el) : el, v); };
+  const setT = (sel, v) => hudSet('t' + sel, sel, (e, x) => { e.textContent = x; }, String(v));
+  const setW = (sel, v) => hudSet('w' + sel, sel, (e, x) => { e.style.width = x; }, String(v));
+  const setH = (el, v) => hudSet('h' + el.id, el, (e, x) => { e.innerHTML = x; }, String(v));
   function updateHUD() {
     const lp = G.levelProgress();
-    $('#lvl').textContent = lp.short; $('#lvl').title = 'Nivel ' + lp.label; $('#lvl').style.color = lp.tier ? lp.tier.color : '';
-    $('#xpbar i').style.width = (lp.pct * 100).toFixed(1) + '%';
-    $('#xptext').textContent = `${PM.fmtNum(S().xp)} pts · v${PM.VERSION.app}`;
+    setT('#lvl', lp.short); hudSet('lvlc', '#lvl', (e, x) => { e.title = 'Nivel ' + lp.label; e.style.color = x; }, lp.tier ? lp.tier.color : '');
+    setW('#xpbar i', (lp.pct * 100).toFixed(1) + '%');
+    setT('#xptext', `${PM.fmtNum(S().xp)} pts · v${PM.VERSION.app}`);
     const t = W.tiles[curTile];
     if (t && (t.loaded || t.partial) && (!hudB.p || hudB.dirty || PM.geo.dist(hudB.p, pos) > 8)) hudB = { p: pos.slice(), b: W.barrioAt(pos), dirty: false };
     const bq = t && (t.loaded || t.partial) ? hudB.b : null;
@@ -1108,27 +1139,27 @@
       if (bq && bq.id !== curBarrio) { curBarrio = bq.id; W.ensureBarrio(bq.id); renderBarrios(); }
       const done = B && W.barrioComplete(bq.id);
       const pr = B ? G.barrioProgress(bq.id) : 0;
-      $('#barrio-name').textContent = (bq && S().conqueredB[bq.id] ? '🚩 ' : '') + ((B && B.name) || (bq && bq.name) || t.name || 'Barrio sin explorar');
+      setT('#barrio-name', (bq && S().conqueredB[bq.id] ? '🚩 ' : '') + ((B && B.name) || (bq && bq.name) || t.name || 'Barrio sin explorar'));
       const avoidedB = bq && S().avoid.some((z) => z.type === 'barrio' && z.id === bq.id);
-      $('#barrio-pct').textContent = avoidedB ? '🚫 evitado' : !B ? '' : !done ? 'calculando…' : B.total ? (pr * 100).toFixed(1) + ' %' : 'sin calles';
-      $('#barrio-bar i').style.width = (pr * 100).toFixed(1) + '%';
+      setT('#barrio-pct', avoidedB ? '🚫 evitado' : !B ? '' : !done ? 'calculando…' : B.total ? (pr * 100).toFixed(1) + ' %' : 'sin calles');
+      setW('#barrio-bar i', (pr * 100).toFixed(1) + '%');
       if (t.city) {
         const cp = G.cityProgress(t.city);
-        $('#city').textContent = `${S().citiesWon[t.city] ? '👑 ' : '🏙️ '}${t.city} · ${(cp.pct * 100).toFixed(cp.pct < 0.01 ? 2 : 1)} %` +
-          (cp.real ? ` de ${PM.fmtDist(cp.total)} de calles` : ' (midiendo ciudad…)');
-      } else $('#city').textContent = '🏙️ Localizando ciudad…';
+        setT('#city', `${S().citiesWon[t.city] ? '👑 ' : '🏙️ '}${t.city} · ${(cp.pct * 100).toFixed(cp.pct < 0.01 ? 2 : 1)} %` +
+          (cp.real ? ` de ${PM.fmtDist(cp.total)} de calles` : ' (midiendo ciudad…)'));
+      } else setT('#city', '🏙️ Localizando ciudad…');
     } else {
-      $('#barrio-name').textContent = 'Cargando calles…';
-      $('#barrio-pct').textContent = '';
-      $('#barrio-bar i').style.width = '0%';
+      setT('#barrio-name', 'Cargando calles…');
+      setT('#barrio-pct', '');
+      setW('#barrio-bar i', '0%');
     }
     const c = G.combo;
     const cb = $('#combo');
     cb.classList.toggle('show', c >= 3);
-    cb.innerHTML = `<b>x${G.comboMult().toFixed(2).replace(/\.?0+$/, '')}</b><span>COMBO ${c}</span>`;
+    setH(cb, `<b>x${G.comboMult().toFixed(2).replace(/\.?0+$/, '')}</b><span>COMBO ${c}</span>`);
     const gl = G.goldenLeft();
     $('#golden').classList.toggle('show', gl > 0);
-    $('#golden').textContent = `✨ Pintura dorada x3 · ${Math.ceil(gl / 1000)} s`;
+    setT('#golden', `✨ Pintura dorada x3 · ${Math.ceil(gl / 1000)} s`);
   }
   setInterval(updateHUD, 250);
 
@@ -1238,7 +1269,7 @@
       case 'captured': {
         const lm = d.lm;
         if (session && d.first) session.st.captures++;
-        placeLandmark(lm);
+        placeLandmark(lm); flushLandmarks();
         if (d.first) {
           cardQueue.push([lm.id, d.pts]); showNextCard();   // varias capturas a la vez: una carta detrás de otra
           PM.sound.capture(); PM.vibrate([60, 40, 120]);
@@ -1280,7 +1311,7 @@
         break;
       case 'photo':
         toast(`📸 ¡Cromo con foto propia! +${d.bonus} pts`, 'gold', 3500);
-        if (lmMarkers[d.id]) placeLandmark(W.landmarks[d.id] || Object.assign({ id: d.id }, S().landmarks[d.id]));
+        if (lmIndex[d.id]) { placeLandmark(W.landmarks[d.id] || Object.assign({ id: d.id }, S().landmarks[d.id])); flushLandmarks(); }
         break;
       case 'achievement':   // los que llegan juntos se agrupan en un solo aviso
         achQueue.push(d.a);
@@ -1298,7 +1329,7 @@
     if (ev === 'barrios') { hudB.dirty = true; renderBarrios(); return; }
     if (ev === 'migrated') { paintedDirty = true; return; }
     if (ev === 'named') { if (PM.fillLandmarkCities(S())) PM.state.save(); return; }
-    if (ev === 'lmRemoved') { if (lmMarkers[d.id]) { lmMarkers[d.id].remove(); delete lmMarkers[d.id]; delete lmState[d.id]; } return; }
+    if (ev === 'lmRemoved') { if (lmIndex[d.id]) { delete lmIndex[d.id]; flushLandmarks(true); } return; }
     if (ev === 'loaded' || ev === 'partial') {
       d.tiles.forEach((k) => renderTile(k, true));
       renderLandmarks(); renderCans();

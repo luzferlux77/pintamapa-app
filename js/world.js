@@ -1,6 +1,7 @@
 // PintaMapa — el mundo: barrios (celdas), calles troceadas en tramos, monumentos, botes de pintura
 // Radio de captura según el sitio: los estadios son enormes (su centro está dentro del campo, donde no se puede entrar)
-PM.capRadius = (kind) => ({ Estadio: 120, 'Campo de fútbol': 50, Parque: 45 })[kind] || 30;
+// radio de conquista: en los estadios grandes no se puede entrar, basta con rodearlos por fuera
+PM.capRadius = (kind, big) => (kind === 'Estadio' && big ? 240 : ({ Estadio: 200, 'Campo de fútbol': 70, Parque: 45 })[kind]) || 30;
 
 PM.world = (function () {
   const TILE = 0.01;          // tamaño de barrio en grados (~1.1 km x 0.8 km en España)
@@ -155,7 +156,7 @@ PM.world = (function () {
       principal: !/^(Estación|Parada de tranvía)$/.test(c.kind) && (c.kind === 'Ayuntamiento' || /^(Catedral|Basílica|Castillo|Estadio|Palacio|Museo)$/.test(c.kind)
         || (c.kind === 'Ermita / Monasterio' && important)
         || (tags._wp ? tags._wp >= 2 : (wiki || (!!tags.heritage && !green)))),
-      capR: PM.capRadius(c.kind) };
+      capR: PM.capRadius(c.kind, wiki || wp >= 2) };
     if (lmBatch) lmBatch.push(lm); else commitLandmarks([lm]);
   }
 
@@ -435,7 +436,7 @@ PM.world = (function () {
   // ---------------- Caché local de barrios (IndexedDB) ----------------
   // Cada barrio se descarga una vez y se guarda 30 días: menos datos móviles, menos batería y arranque instantáneo.
   const CACHE_DAYS = 90;
-  const CACHE_V = 8;   // súbelo si cambia lo que se descarga (p. ej. nuevos tipos de puntos): fuerza a renovar la caché
+  const CACHE_V = 9;   // súbelo si cambia lo que se descarga (p. ej. nuevos tipos de puntos): fuerza a renovar la caché
   const cache = (function () {
     let dbp = null;
     function db() {
@@ -793,7 +794,7 @@ PM.world = (function () {
     if (demoMode) return null;
     const c = await cache.get(k);
     if (!(c && c.v >= 4 && Date.now() - c.t < CACHE_DAYS * 86400000)) return null;
-    if (c.src && c.v < 8) return null;          // de mapas vectoriales sin estaciones/paradas: se vuelve a pedir (tarda 1 s)
+    if (c.src && c.v < 9) return null;          // de mapas vectoriales sin caminos de parque/estaciones: se vuelve a pedir (tarda 1 s)
     if (c.v < 8) c.extrasMiss = true;           // los extras de Overpass se completan con los tipos nuevos
     if (c.v < 6) c.wdMiss = true;   // guardado antes de Wikidata: se completa en segundo plano
     if (c.wdMiss || c.extrasMiss) setTimeout(() => completeTile(k, c), 3000);
@@ -873,20 +874,49 @@ PM.world = (function () {
     return per;
   }
 
+  // Tramos de un camino peatonal que van a más de 11 m de cualquier calle (20 m en avenidas) (los de al lado de una calle son aceras)
+  function offStreetRuns(geom) {
+    const dense = [];
+    for (let i = 0; i < geom.length - 1; i++) {
+      const n = Math.max(1, Math.ceil(PM.geo.dist(geom[i], geom[i + 1]) / 5));
+      for (let k = 0; k < n; k++) dense.push(PM.geo.lerp(geom[i], geom[i + 1], k / n));
+    }
+    dense.push(geom[geom.length - 1]);
+    const runs = [];
+    let cur = [];
+    const close = () => {
+      let len = 0;
+      for (let i = 1; i < cur.length; i++) len += PM.geo.dist(cur[i - 1], cur[i]);
+      if (len >= 15) runs.push(cur);
+      cur = [];
+    };
+    for (const q of dense) {
+      const nearStreet = piecesNear(q, 20).some((pc) => !pc.trail && (pc.wide || PM.geo.distToPolyline(q, pc.pts) <= 11));   // avenidas: aceras más lejos
+      if (nearStreet) { if (cur.length) close(); } else cur.push(q);
+    }
+    if (cur.length) close();
+    return runs;
+  }
+
   // Mete elementos en el mundo (calles troceadas en los barrios aceptados + monumentos)
   function ingest(elements, accept) {
     lmBatch = [];
-    const newPieces = [];
+    const newPieces = [], footways = [];
     const seen = new Set();
     for (const el of elements) {
       if (seen.has(el.type + el.id)) continue;
       seen.add(el.type + el.id);
+      if (el.type === 'way' && el.tags && el.tags.highway === 'footway' && el.geometry) { footways.push(el); continue; }
       if (el.type === 'way' && el.geometry && el.tags && el.tags.highway && (HW_RE.test(el.tags.highway) || isTrailTags(el.tags))) {
         const trail = !HW_RE.test(el.tags.highway);
         const geom = el.geometry.map((g) => [g.lat, g.lon]);
         legacyFrom(el, geom);
         newPieces.push(...addWay('w' + el.id, geom, accept, !trail && isWide(el.tags), trail));
       } else if (el.tags && !noteBarrio(el)) addLandmark(el);
+    }
+    for (const el of footways) {
+      const geom = el.geometry.map((g) => [g.lat, g.lon]);
+      offStreetRuns(geom).forEach((run, n) => newPieces.push(...addWay('w' + el.id + 'f' + n, run, accept, false, true)));
     }
     commitLandmarks(lmBatch); lmBatch = null;
     migrate(newPieces);

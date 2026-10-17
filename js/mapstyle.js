@@ -35,27 +35,12 @@ PM.mapStyle = (function () {
         if (re.test(l.id) && prop.startsWith(l.type + '-')) { try { map.setPaintProperty(l.id, prop, val); } catch (e) {} }
       }
     }
-    // edificios en 3D (desde el zoom 15): el de Liberty se recolorea; en el oscuro se añade
-    const ext = layers.find((l) => l.type === 'fill-extrusion');
-    if (ext) {
-      try { map.setPaintProperty(ext.id, 'fill-extrusion-color', BLD[theme]); map.setPaintProperty(ext.id, 'fill-extrusion-opacity', 0.85); } catch (e) {}
-    } else {
-      const src = Object.keys(style.sources).find((k) => style.sources[k].type === 'vector');
-      const firstSym = layers.find((l) => l.type === 'symbol');
-      if (src) try {
-        map.addLayer({ id: 'pm-bld3d', type: 'fill-extrusion', source: src, 'source-layer': 'building', minzoom: 15,
-          paint: { 'fill-extrusion-color': BLD[theme], 'fill-extrusion-opacity': 0.8,
-            'fill-extrusion-height': ['coalesce', ['get', 'render_height'], 8], 'fill-extrusion-base': ['coalesce', ['get', 'render_min_height'], 0] } },
-        firstSym && firstSym.id);
-      } catch (e) {}
+    // Mapa siempre en 2D desde arriba: sin edificios 3D (son lo más pesado de dibujar y daban tirones al arrastrar).
+    // Los edificios se ven planos a cualquier zoom.
+    for (const l of layers) {
+      if (l.type === 'fill-extrusion') { try { map.removeLayer(l.id); } catch (e) {} }
+      else if (l.type === 'fill' && /^building/.test(l.id)) { try { map.setLayerZoomRange(l.id, l.minzoom || 13, 24); map.setPaintProperty(l.id, 'fill-color', BLD[theme]); } catch (e) {} }
     }
-    // luz y cielo (se notan en la vista inclinada)
-    try { map.setLight({ anchor: 'viewport', color: '#ffffff', intensity: theme === 'dark' ? 0.25 : 0.4, position: [1.4, 210, 35] }); } catch (e) {}
-    try {
-      map.setSky(theme === 'dark'
-        ? { 'sky-color': '#0b1220', 'horizon-color': '#1b2638', 'fog-color': '#121822', 'sky-horizon-blend': 0.6, 'horizon-fog-blend': 0.7, 'fog-ground-blend': 0.6 }
-        : { 'sky-color': '#bcdcf5', 'horizon-color': '#f4f0e8', 'fog-color': '#f4f0e8', 'sky-horizon-blend': 0.5, 'horizon-fog-blend': 0.6, 'fog-ground-blend': 0.5 });
-    } catch (e) {}
   }
   return { URL, enhance };
 })();

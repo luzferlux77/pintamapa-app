@@ -117,7 +117,7 @@ body.sim #joy { display: block; }
 @media (hover: hover) and (pointer: fine) { body.sim #joy { opacity: .5; } }
 
 /* Navegación */
-#nav { position: absolute; z-index: 600; left: 0; right: 0; bottom: 0; display: flex; background: var(--panel); border-top: 1px solid var(--line); padding-bottom: var(--safe-bottom); backdrop-filter: blur(8px); }
+#nav { position: absolute; z-index: 600; left: 0; right: 0; bottom: 0; display: flex; background: var(--panel); border-top: 1px solid var(--line); padding-bottom: var(--safe-bottom); }
 #nav button { flex: 1; background: none; border: none; padding: 8px 0 9px; font-size: 11px; color: var(--muted); display: flex; flex-direction: column; align-items: center; gap: 2px; }
 #nav button span { font-size: 22px; }
 #nav button:active { color: var(--text); transform: scale(.94); }

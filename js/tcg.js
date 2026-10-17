@@ -200,7 +200,7 @@ PM.tcg = (function () {
             <div class="tcg-band">${esc(d.kind || '')}${d.city ? ' · ' + esc(d.city) : ''}</div>
             <div class="tcg-stats">
               <div><i>⏱</i><b>10 s</b><small>captura</small></div>
-              <div><i>📍</i><b>${PM.capRadius ? PM.capRadius(d.kind) : 30} m</b><small>radio</small></div>
+              <div><i>📍</i><b>${d.capR || (PM.capRadius ? PM.capRadius(d.kind) : 30)} m</b><small>radio</small></div>
               <div><i>✨</i><b>×2</b><small>aura 80 m</small></div>
               <div><i>💎</i><b>${R.sym}</b><small>${esc(R.name.toLowerCase())}</small></div>
             </div>
