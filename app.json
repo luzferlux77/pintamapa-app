@@ -1,8 +1,8 @@
 {
-  "version": "0.6.12",
-  "notes": "Al tocar en el mapa un lugar conquistado se abre su carta",
+  "version": "0.6.13",
+  "notes": "Mapa más fluido al moverlo y hacer zoom (sin animaciones en los iconos, 3D solo en modo rumbo, resolución ajustada, sin pelea con la brújula); solo se dibuja la zona que miras; lo pintado se añade sin recalcular todo; el paseo sigue solo si Android cerró la app hace menos de 10 min; copia en la nube cada 10 min durante el paseo; mapa más robusto si falla un trozo; vídeo de paseos antiguos con todas sus calles; más filtros de lugares",
   "native": 3,
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.12/pintamapa-web-0.6.12.zip",
-  "checksum": "528adce5963c4a920792c3b64a136d0fad37f59098e191fe79dc8a91fa9c4f14",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.12/PintaMapa-v0.6.12.apk"
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.13/pintamapa-web-0.6.13.zip",
+  "checksum": "7e18983cbdc12511c271ea421e3375c8de1eedf62573437a93e42125fc6acb9e",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.13/PintaMapa-v0.6.13.apk"
 }
