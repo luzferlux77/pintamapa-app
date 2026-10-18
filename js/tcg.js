@@ -267,6 +267,23 @@ PM.tcg = (function () {
   }
 
   // ---------------- Vista grande ----------------
+  // ⓘ artículo de Wikipedia del lugar (en el idioma que tenga; si solo hay Wikidata, su página en español)
+  const INFO_ICON = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9.5"/><path d="M12 11v6"/><circle cx="12" cy="7.6" r="0.6" fill="currentColor"/></svg>';
+  function wikiUrl(d) {
+    if (d.wiki) {
+      const m = String(d.wiki).match(/^([a-z-]{2,12}):(.+)$/);
+      const lang = m ? m[1] : 'es', title = m ? m[2] : d.wiki;
+      return `https://${lang}.wikipedia.org/wiki/${encodeURIComponent(title.replace(/ /g, '_'))}`;
+    }
+    if (d.wd && /^Q\d+$/.test(d.wd)) return `https://www.wikidata.org/wiki/Special:GoToLinkedPage?site=eswiki&itemid=${d.wd}`;
+    return null;
+  }
+  // abre fuera de la app (en el navegador del móvil)
+  function openExternal(url) {
+    const Br = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Browser;
+    if (Br && Br.open) { Br.open({ url }).catch(() => window.open(url, '_blank')); return; }
+    const a = document.createElement('a'); a.href = url; a.target = '_blank'; a.rel = 'noopener'; document.body.appendChild(a); a.click(); a.remove();
+  }
   function open(d, opts = {}) {
     let ov = document.getElementById('tcg-view');
     if (!ov) { ov = document.createElement('div'); ov.id = 'tcg-view'; document.body.appendChild(ov); }
@@ -278,6 +295,7 @@ PM.tcg = (function () {
     <div class="tcg-actions">
       ${btn('flip', '↻', 'Girar')}
       ${(opts.actions || []).map((a, i) => { const m = String(a.label).match(/^(\S+)\s+(.*)$/); return btn('', m ? m[1] : '★', m ? m[2] : a.label, a.primary, i); }).join('')}
+      ${wikiUrl(d) ? btn('wiki', INFO_ICON, 'Info') : ''}
       ${btn('png', SHARE_ICON, 'Compartir')}
       ${btn('close', '✕', 'Cerrar')}
     </div>`;
@@ -288,6 +306,17 @@ PM.tcg = (function () {
     ov.querySelector('[data-a=flip]').addEventListener('click', () => ctl.flip());
     ov.querySelector('[data-a=close]').addEventListener('click', close);
     ov.querySelector('[data-a=png]').addEventListener('click', () => download(d));
+    const wb = ov.querySelector('[data-a=wiki]');
+    if (wb) {
+      // solo Wikidata: se busca en qué idioma hay artículo (español, catalán, inglés… el primero que exista)
+      if (!d.wiki && d.wd && !d._wikiUrl) fetch(`https://www.wikidata.org/w/api.php?action=wbgetentities&ids=${d.wd}&props=sitelinks/urls&format=json&origin=*`)
+        .then((r) => r.json()).then((j) => {
+          const sl = ((j.entities || {})[d.wd] || {}).sitelinks || {};
+          const pick = ['eswiki', 'cawiki', 'glwiki', 'euwiki', 'enwiki', 'frwiki', 'itwiki', 'ptwiki', 'dewiki'].find((k) => sl[k]) || Object.keys(sl).find((k) => /wiki$/.test(k) && !/commons|species/.test(k));
+          d._wikiUrl = pick ? sl[pick].url : `https://www.wikidata.org/wiki/${d.wd}`;
+        }).catch(() => {});
+      wb.addEventListener('click', () => openExternal(d._wikiUrl || wikiUrl(d)));
+    }
     (opts.actions || []).forEach((a, i) => ov.querySelector(`[data-x="${i}"]`).addEventListener('click', a.on));
     ov.onclick = (e) => { if (e.target === ov) close(); };
     if ((d.wiki || d.wd) && (!d.text || d.text.length < 350)) {

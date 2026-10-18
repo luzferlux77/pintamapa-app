@@ -334,7 +334,7 @@ details.howto ol { padding-left: 18px; line-height: 1.6; }
 .cv-actions .btn { background: #fff; color: #1a1d29; } .cv-actions .btn.on { background: var(--paint); color: #fff; }
 .cv-hint { color: #fff; font-size: 13px; max-width: 320px; text-align: center; margin: 0; opacity: .9; }
 /* Editor de foto */
-#foto-editor { position: fixed; inset: 0; z-index: 1160; display: grid; place-items: center; background: rgba(10,10,25,.85); }
+#foto-editor { position: fixed; inset: 0; z-index: 3200; display: grid; place-items: center; background: rgba(10,10,25,.85); }
 .fe-in { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 16px; color: #fff; }
 .fe-in h3 { margin: 0; }
 .fe-prev { position: relative; width: min(70vw, 300px); aspect-ratio: 3 / 4; border-radius: 14px; overflow: hidden; border: 5px solid #fff; box-shadow: 0 8px 30px rgba(0,0,0,.5); }

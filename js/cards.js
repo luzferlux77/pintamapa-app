@@ -245,9 +245,10 @@ PM.cards = (function () {
     let cur = 'holo';
     const ov = document.createElement('div');
     ov.id = 'foto-editor';
-    ov.innerHTML = `<div class="fe-in"><h3>Elige el filtro de tu cromo</h3><div class="fe-prev"><canvas></canvas><div class="holo"></div></div>
+    // se abre ENCIMA de la carta, con el filtro ya puesto: un toque en «Usar foto» y listo (cambiar el filtro es opcional)
+    ov.innerHTML = `<div class="fe-in"><h3>Tu foto para el cromo</h3><div class="fe-prev"><canvas></canvas><div class="holo"></div></div>
       <div class="fe-filters">${FILTERS.map((f) => `<button class="btn ${f.id === cur ? 'on' : ''}" data-f="${f.id}">${f.name}</button>`).join('')}</div>
-      <div class="cv-actions"><button class="btn" id="fe-cancel">Cancelar</button><button class="btn on" id="fe-save">💾 Guardar cromo</button></div></div>`;
+      <div class="cv-actions"><button class="btn" id="fe-cancel">Cancelar</button><button class="btn" id="fe-again">📸 Otra</button><button class="btn on" id="fe-save">✓ Usar foto</button></div></div>`;
     document.body.appendChild(ov);
     const cv = ov.querySelector('canvas');
     const draw = () => { const out = applyFilter(crop, cur); cv.width = out.width; cv.height = out.height; cv.getContext('2d').drawImage(out, 0, 0); };
@@ -256,6 +257,7 @@ PM.cards = (function () {
       cur = b.dataset.f; ov.querySelectorAll('[data-f]').forEach((x) => x.classList.toggle('on', x === b)); draw();
     }));
     $('#fe-cancel').addEventListener('click', () => ov.remove());
+    $('#fe-again').addEventListener('click', () => { ov.remove(); editPhoto(id, after); });
     $('#fe-save').addEventListener('click', async () => {
       await putPhoto(id, cv.toDataURL('image/jpeg', 0.82));
       const first = !S().cardPhotos[id];
