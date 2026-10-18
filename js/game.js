@@ -496,6 +496,13 @@ PM.game = (function () {
   serie('fotos', '📷', [5, 25, 50, 100], 'Fotógrafo', (t) => `${t} cromos con foto propia`, (s) => Object.keys(s.cardPhotos || {}).length);
   serie('fiel', '🔁', [5, 10, 25], 'Fiel', (t) => `Visita ${t} veces el mismo lugar`, (s) => Math.max(0, ...lmList(s).map((v) => v.visits || 1)));
   serie('colec', '🗂️', [1, 3, 5, 10], 'Colecciones', (t) => `Completa ${t} colecci${t > 1 ? 'ones' : 'ón'}`, (s) => Object.keys(s.setsDone || {}).length);
+  // tu perro
+  const petOf = (s) => s.pet || {};
+  serie('perro', '🐶', [1, 5, 10, 25, 50, 100, 250, 500, 1000], 'Mejor amigo', (t) => `Pasea ${t} km con tu perro`, (s) => km(s.stats.walkedM || 0) * (s.pet ? 1 : 0));
+  serie('trucos', '🦴', [1, 10, 50, 100, 250, 500], 'Domador', (t) => `Tu perro hace ${t} truco${t > 1 ? 's' : ''}`, (s) => petOf(s).tricks || 0);
+  serie('perrofeliz', '💖', [1, 7, 30, 100, 365], 'Perro feliz', (t) => `${t} día${t > 1 ? 's' : ''} con los 3 corazones de tu perro`, (s) => petOf(s).fullDays || 0);
+  serie('razas', '🐕', [3, 6, 10], 'Amante de los perros', (t) => `Prueba ${t} razas de perro`, (s) => (petOf(s).breeds || []).length);
+  serie('look', '🎀', [3, 7, 13], 'Perro con estilo', (t) => `Desbloquea ${t} accesorios para tu perro`, (s) => [5, 10, 15, 20, 30, 40, 60, 80, 100, 120, 150, 200, 250].filter((n) => Object.keys(s.achievements || {}).length >= n).length);
   serie('sendero', '🌲', [1, 5, 10, 25], 'Senderista', (t) => `Pinta ${t} km de senderos y caminos`, (s) => km(s.stats.trailM || 0));
   serie('puntos', '🏆', [10000, 50000, 100000, 250000, 500000, 1000000, 2000000, 5000000], 'Puntos', (t) => `Consigue ${PM.fmtNum ? PM.fmtNum(t) : t} puntos`, (s) => s.xp || 0);
 

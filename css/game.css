@@ -605,3 +605,29 @@ input.sw { appearance: none; -webkit-appearance: none; width: 42px !important; h
 input.sw::after { content: ''; position: absolute; left: 3px; top: 3px; width: 18px; height: 18px; border-radius: 50%; background: #fff; transition: .2s; box-shadow: 0 1px 2px rgba(0,0,0,.2); }
 input.sw:checked { background: var(--accent, #2563eb); } input.sw:checked::after { left: 21px; }
 .pf-danger { text-align: center; margin: 6px 0 4px; }
+
+/* perro: cambiar de raza, trucos y accesorios activables */
+.pet-stage { width: 100%; display: flex; flex-direction: column; align-items: center; }
+.pet-swap { position: absolute; right: 8px; top: 8px; width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--line); background: var(--panel); font-size: 18px; cursor: pointer; box-shadow: var(--shadow); z-index: 2; }
+.pet-swap:active { transform: rotate(180deg); }
+.pet-tricks, .pet-gear { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 8px; }
+.pet-tricks button, .pet-gear button { border: 0; background: var(--bg, #f4f6fb); border-radius: 12px; padding: 8px 6px; text-align: center; color: inherit; font: inherit; opacity: .5; }
+.pet-tricks button.on, .pet-gear button.on, .pet-gear button.own { opacity: 1; cursor: pointer; }
+.pet-tricks button.on { box-shadow: inset 0 0 0 1px var(--line); }
+.pet-gear button.on { box-shadow: inset 0 0 0 2px var(--accent, #2563eb); }
+.pet-tricks span, .pet-gear button span { font-size: 22px; display: block; } .pet-tricks b, .pet-gear button b { display: block; font-size: 12px; } .pet-tricks small, .pet-gear button small { font-size: 10.5px; color: var(--muted); }
+.pet-big.trick-dance { animation: t-dance 2s ease-in-out; }
+@keyframes t-dance { 10%, 50%, 90% { transform: scale(var(--k,1)) translateX(-10px) rotate(-8deg); } 30%, 70% { transform: scale(var(--k,1)) translateX(10px) rotate(8deg); } }
+.pet-big.trick-moon { animation: t-moon 2s linear; }
+@keyframes t-moon { 0% { transform: scale(var(--k,1)) translateX(30px); } 50% { transform: scale(var(--k,1)) translateX(-30px) skewX(-8deg); } 100% { transform: scale(var(--k,1)) translateX(0); } }
+.pet-big.trick-sleep { animation: t-sleep 2.1s ease; }
+@keyframes t-sleep { 20%, 85% { transform: scale(var(--k,1)) translateY(18px) rotate(85deg); } }
+.pet-big.trick-rocket { animation: t-rocket 2.1s ease-in-out; }
+@keyframes t-rocket { 15% { transform: scale(var(--k,1)) translateY(6px); } 50% { transform: scale(var(--k,1)) translateY(-160px) rotate(-10deg); } 51% { transform: scale(var(--k,1)) translateY(160px); } 100% { transform: scale(var(--k,1)) translateY(0); } }
+.pet-stage { overflow: hidden; }
+.dog .dog-wings path { transform-box: fill-box; transform-origin: 100% 60%; animation: flap 1.2s ease-in-out infinite; }
+.dog .dog-wings path + path { transform-origin: 0 60%; }
+@keyframes flap { 50% { transform: rotate(-12deg); } }
+.dog .dog-ball { animation: ball 1.6s ease-in-out infinite; }
+@keyframes ball { 50% { transform: translateY(-6px); } }
+.dog .dog-wings path + path { animation-name: flap2; } @keyframes flap2 { 50% { transform: rotate(12deg); } }
