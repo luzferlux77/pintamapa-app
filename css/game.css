@@ -20,7 +20,7 @@
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 body.dark {
   --bg: #0d0f17; --panel: rgba(20, 23, 34, 0.92); --line: rgba(255, 255, 255, 0.1); --text: #f1f3f9; --muted: #9aa3b5;
-  --card: var(--card); --sheet: var(--sheet); --btn: var(--btn); --track: rgba(255,255,255,.12); --mapbg: #11131b;
+  --card: #1d2130; --sheet: #141722; --btn: #262b3b; --track: rgba(255,255,255,.12); --mapbg: #11131b;   /* antes se referían a sí mismas y las ventanas salían transparentes */
   --introbg: radial-gradient(circle at 50% 30%, #2a1030, var(--bg) 70%); --cardbg: linear-gradient(160deg, #23283a, #12141d);
   --shadow: none;
 }
