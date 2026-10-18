@@ -1,8 +1,8 @@
 {
-  "version": "0.6.27",
-  "notes": "Tu perro camina contigo en el mapa, huesos escondidos con accesorios exclusivos, animación de conquista, rangos de barrio, cartas brillantes y vídeo de tu semana",
+  "version": "0.6.28",
+  "notes": "Tu perro en 3D estilo mascota de consola: su habitación, vida propia, mimos, premios, pelota y trucos en 3D",
   "native": 3,
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.27/pintamapa-web-0.6.27.zip",
-  "checksum": "b28dcc9add000d50cc3bfeaa2cb78a1a06c0d0ff9759b369e8b06e9e045db80d",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.27/PintaMapa-v0.6.27.apk"
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.28/pintamapa-web-0.6.28.zip",
+  "checksum": "b8c26d663c0bb826c1dba2f045cf5b4acee094cdf2adb31a6e7a33c50cfe63d5",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.28/PintaMapa-v0.6.28.apk"
 }
