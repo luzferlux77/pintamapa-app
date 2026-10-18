@@ -200,30 +200,42 @@ PM.world = (function () {
     const cell = Math.floor(lm.pos[0] / GRID) + ':' + Math.floor(lm.pos[1] / GRID);
     (lmGrid[cell] = lmGrid[cell] || []).push(lm);
   }
-  // ---------- Imprescindibles: en cada ciudad, los 6 lugares que no te puedes perder ----------
+  // ---------- Imprescindibles: en cada ciudad, los lugares que no te puedes perder ----------
+  // Mínimo 10 por ciudad; en las grandes, tantos como lugares de verdad importantes tenga (hasta 30).
   // Importancia: en cuántas Wikipedias del mundo aparece (lo más fiable), rareza, artículo propio y si es principal.
-  // Nunca estaciones, paradas, hospitales ni parques/plazas normales.
-  const MUST_N = 6;
+  // Nunca estaciones, paradas, hospitales ni cementerios. Si un pueblo no llega a 10 lugares muy conocidos,
+  // se completa con los siguientes mejores (patrimonio, plazas o parques con historia…).
+  const MUST_MIN = 10, MUST_MAX = 30;
   const MUST_NO = /^(Estación|Parada de tranvía|Hospital|Bomberos|Arte urbano|Memorial|Comercio emblemático|Biblioteca|Mercado)$/;
   const RANKV = { comun: 0, raro: 1, epico: 2, legendario: 3 };
+  // devuelve [puntuación, nivel]: nivel 2 = muy importante, 1 = importante, 0 = de relleno (solo si faltan para llegar a 10)
   function mustScore(lm) {
-    if (MUST_NO.test(lm.kind)) return -1;
-    if (/cementeri|cementiri|panteó|panteón|tanatori|cemetery/i.test(lm.name || '')) return -1;
-    if ((lm.kind === 'Parque' || lm.kind === 'Plaza' || lm.kind === 'Fuente') && (lm.wp || 0) < 8) return -1;
-    const wp = lm.wp || 0;
-    if (wp < 3 && RANKV[lm.rarity] < 2 && !lm.wiki) return -1;
-    return wp * 4 + RANKV[lm.rarity] * 12 + (lm.wiki || lm.wd ? 6 : 0) + (lm.principal ? 4 : 0) + (lm.prio || 0) * 0.05;
+    if (MUST_NO.test(lm.kind)) return null;
+    if (/cementeri|cementiri|panteó|panteón|tanatori|cemetery/i.test(lm.name || '')) return null;
+    const wp = lm.wp || 0, rk = RANKV[lm.rarity] || 0;
+    if (lm.kind === 'Campo de fútbol' && wp < 3) return null;
+    if (!lm.wiki && !lm.wd && rk < 1 && wp < 1) return null;   // el relleno también tiene que ser algo conocido
+    const sc = wp * 4 + rk * 12 + (lm.wiki || lm.wd ? 6 : 0) + (lm.principal ? 4 : 0) + (lm.prio || 0) * 0.05;
+    const green = lm.kind === 'Parque' || lm.kind === 'Plaza' || lm.kind === 'Fuente';
+    const tier = wp >= 8 || rk >= 3 ? 2 : (!green || wp >= 8) && (wp >= 3 || rk >= 2 || lm.wiki) ? 1 : 0;
+    return [sc, tier];
   }
   function updateMustSee() {
     const byCity = {};
     for (const id in landmarks) {
       const lm = landmarks[id], city = api.cityAt(lm.pos);
       if (!city) continue;
-      const sc = mustScore(lm);
-      if (sc >= 0) (byCity[city] = byCity[city] || []).push([lm, sc]);
+      const r = mustScore(lm);
+      if (r) (byCity[city] = byCity[city] || []).push([lm, r[0], r[1]]);
     }
     const must = new Set();
-    for (const list of Object.values(byCity)) list.sort((a, b) => b[1] - a[1]).slice(0, MUST_N).forEach(([lm]) => must.add(lm.id));
+    for (const list of Object.values(byCity)) {
+      // primero los importantes (nivel 2 y 1) y luego el relleno, cada grupo por puntuación
+      list.sort((a, b) => (Math.min(1, b[2]) - Math.min(1, a[2])) || b[1] - a[1]);
+      const top = list.filter((x) => x[2] === 2).length;   // los muy conocidos marcan el tamaño de la ciudad
+      const n = Math.max(MUST_MIN, Math.min(MUST_MAX, top));
+      list.slice(0, n).forEach(([lm]) => must.add(lm.id));
+    }
     let changed = false;
     for (const id in landmarks) { const m = must.has(id); if (!!landmarks[id].must !== m) { landmarks[id].must = m; changed = true; } }
     return changed;

@@ -383,7 +383,7 @@ PM.cards = (function () {
           <div class="must-city"><div class="mc-h"><b>${esc(c)}</b><span>${g}/${L.length}${g >= L.length ? ' 🏆' : ''}</span></div><div class="bar"><i style="width:${Math.round(g / Math.max(1, L.length) * 100)}%"></i></div>
           <div class="must-grid">${L.map((x) => { const got = !!s.landmarks[x.id], u = PM.emojiURL(x.emoji); return `<button class="must-it ${got ? 'got' : ''}" data-go="${esc(x.id)}">
             <span class="mi-ic">${u ? `<img src="${u}" alt="">` : (x.emoji || '📍')}</span><b>${esc(x.name)}</b><small>${got ? '✓ conseguido' : '📍 ver en el mapa'}</small></button>`; }).join('')}</div></div>`).join('')
-          : '<p class="muted">Aún no se han cargado imprescindibles. Abre el mapa de una ciudad y aparecerán aquí sus 6 lugares que no te puedes perder.</p>';
+          : '<p class="muted">Aún no se han cargado imprescindibles. Abre el mapa de una ciudad y aparecerán aquí los lugares que no te puedes perder (al menos 10 por ciudad).</p>';
       } else {
         const bc = Object.entries(s.barrioCards || {}).sort((a, b) => b[1].t - a[1].t);
         html += bc.length ? '<div class="cromos">' + bc.map(([id, b]) => barrioCardHTML(b)).join('') + '</div>'

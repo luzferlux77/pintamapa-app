@@ -512,8 +512,8 @@ PM.game = (function () {
   serie('colec', '🗂️', [1, 3, 5, 10], 'Colecciones', (t) => `Completa ${t} colecci${t > 1 ? 'ones' : 'ón'}`, (s) => Object.keys(s.setsDone || {}).length);
   serie('brillo', '✨', [1, 3, 5, 10, 25], 'Cazador de brillos', (t) => t === 1 ? 'Consigue una carta brillante' : `Consigue ${t} cartas brillantes`, (s) => s.stats.shiny || 0);
   serie('imprescindible', '⭐', [1, 5, 10, 25, 50, 100], 'Viajero', (t) => t === 1 ? 'Captura un lugar imprescindible' : `Captura ${t} lugares imprescindibles`, (s) => lmList(s).filter((v) => v.must).length);
-  serie('imprescindible_ciudad', '🗺️', [1, 3, 5, 10], 'Turista experto', (t) => `Captura todos los imprescindibles de ${t} ciudad${t > 1 ? 'es' : ''}`, (s) => {
-    const by = {}; lmList(s).forEach((v) => { if (v.must && v.city) by[v.city] = (by[v.city] || 0) + 1; }); return Object.values(by).filter((n) => n >= 6).length; });
+  serie('imprescindible_ciudad', '🗺️', [1, 3, 5, 10], 'Turista experto', (t) => `Captura 10 imprescindibles de ${t} ciudad${t > 1 ? 'es' : ''}`, (s) => {
+    const by = {}; lmList(s).forEach((v) => { if (v.must && v.city) by[v.city] = (by[v.city] || 0) + 1; }); return Object.values(by).filter((n) => n >= 10).length; });
   const rankN = (s, r) => Object.values(s.barrioRank || {}).filter((v) => v >= r).length;
   serie('plata', '🥈', [1, 3, 5, 10, 25], 'Barrio de plata', (t) => `${t} barrio${t > 1 ? 's' : ''} en rango Plata (80 %)`, (s) => rankN(s, 1));
   serie('oro', '🥇', [1, 3, 5, 10], 'Barrio de oro', (t) => `${t} barrio${t > 1 ? 's' : ''} en rango Oro (90 %)`, (s) => rankN(s, 2));
