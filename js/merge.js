@@ -40,6 +40,8 @@
     for (const [k, v] of Object.entries(b.barrioRank || {})) out.barrioRank[k] = Math.max(out.barrioRank[k] ?? -1, v);
     out.cityRank = Object.assign({}, a.cityRank);
     for (const [k, v] of Object.entries(b.cityRank || {})) out.cityRank[k] = Math.max(out.cityRank[k] ?? -1, v);
+    delete out.pet; delete out.bones; delete out.mystery;   // funciones retiradas: no se guardan ni vuelven de la nube
+    out.barrioRankT = Object.assign({}, a.barrioRankT || {}); for (const [k, v] of Object.entries(b.barrioRankT || {})) out.barrioRankT[k] = Object.assign({}, out.barrioRankT[k] || {}, v);
     out.avoidRemoved = Object.assign({}, a.avoidRemoved || {}, b.avoidRemoved || {});
     const av = {};
     [...(a.avoid || []), ...(b.avoid || [])].forEach((z) => { if (!out.avoidRemoved[z.id]) av[z.id] = z; });

@@ -208,10 +208,10 @@ PM.cards = (function () {
     const img = await imageFor(id);
     const all = Object.keys(S().landmarks);
     const lm = PM.world.landmarks[id] || {};
-    return { id, shiny: !!rec.shiny, must: !!rec.must, name: rec.name, kind: rec.kind, emoji: rec.emoji, rarity: rec.rarity, city: rec.city, barrio: rec.barrio, t: rec.t, visits: rec.visits, pos: rec.pos || lm.pos, color: S().color,
+    return { id, capR: lm.capR, shiny: !!rec.shiny, must: !!rec.must, name: rec.name, kind: rec.kind, emoji: rec.emoji, rarity: rec.rarity, city: rec.city, barrio: rec.barrio, t: rec.t, visits: rec.visits, pos: rec.pos || lm.pos, color: S().color,
       wiki: rec.wiki || lm.wiki, wd: rec.wd || lm.wd,
       img: img && img.src, own: !!(img && img.own), text: info.text, credit: img && img.own ? 'Foto: ' + (PM.player ? PM.player.name : 'tuya') : info.credit,
-      points: 100 * ((PM.world.RARITY[rec.rarity] || {}).mult || 1) * (rec.must ? 2 : 1), number: number(id), total: all.length, player: PM.player && PM.player.name };
+      points: 100 * ((PM.world.RARITY[rec.rarity] || {}).mult || 1) * (rec.must ? 2 : 1) * (rec.shiny ? 2 : 1), number: number(id), total: all.length, player: PM.player && PM.player.name };
   }
 
   async function open(id, opts = {}) {

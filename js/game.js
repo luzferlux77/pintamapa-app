@@ -325,7 +325,7 @@ PM.game = (function () {
     }
     if (now - rec.last > REVISIT_MS) {
       rec.last = now; rec.visits++;
-      const pts = Math.round(lm.points * 0.2);
+      const pts = Math.round(lm.points * (rec.must ? 2 : 1) * (rec.shiny ? 2 : 1) * 0.2);   // lo mismo que dice su carta
       addXP(pts, 'revisit');
       emit('captured', { lm, first: false, pts });
       return true;

@@ -410,7 +410,7 @@
       fit();
       setTimeout(() => map.resize(), 60);
       const st = A.st;
-      $('#mapstats').innerHTML = [[dist(st.paintedM), 'pintados'], [lms.length, 'monumentos'], [Object.keys(s.conqueredB || {}).length, 'barrios 🚩']]
+      $('#mapstats').innerHTML = [[dist(st.paintedM), 'pintados'], [lms.length, 'lugares'], [Object.keys(s.conqueredB || {}).length, 'barrios 🚩']]
         .map(([b, t]) => `<div class="mapstat"><b>${b}</b><small>${t}</small></div>`).join('');
     }
     // ---------------- carta coleccionable (estilo TCG) ----------------
@@ -418,7 +418,7 @@
       const s = A.s, v = s.landmarks[id], info = (s.cardInfo || {})[id] || {};
       const order = Object.keys(s.landmarks).sort((a, b) => s.landmarks[a].t - s.landmarks[b].t);
       return { id, shiny: !!v.shiny, must: !!v.must, name: v.name, kind: v.kind, emoji: v.emoji, rarity: v.rarity, city: v.city, barrio: v.barrio, t: v.t, visits: v.visits, wiki: v.wiki, wd: v.wd, pos: v.pos, color: s.color,
-        img: info.img, text: info.text, credit: info.credit, points: 100 * ((RAR[v.rarity] || {}).mult || 1) * (v.must ? 2 : 1),
+        img: info.img, text: info.text, credit: info.credit, points: 100 * ((RAR[v.rarity] || {}).mult || 1) * (v.must ? 2 : 1) * (v.shiny ? 2 : 1),
         number: order.indexOf(id) + 1, total: order.length, player: s.player || creds.user };
     }
     const photoCache = {};
@@ -619,7 +619,7 @@
               <small>${LI.max ? '¡Nivel máximo!' : `${PM.fmtNum(LI.cur)} / ${PM.fmtNum(LI.need)} pts · faltan <b>${PM.fmtNum(LI.need - LI.cur)}</b> para el ${esc(LI.nextLabel)}`}</small></div></div>
           <div class="hero-nums">
             <div><b>${km(st.paintedM || 0)}</b><small>km pintados</small></div>
-            <div><b>${lms.length}</b><small>monumentos</small></div>
+            <div><b>${lms.length}</b><small>lugares</small></div>
             <div><b>${nB}</b><small>barrios 🚩</small></div>
             <div><b>${PM.fmtNum(s.xp || 0)}</b><small>puntos</small></div></div>
           ${firstT ? `<small class="hero-since">Pintando desde el ${new Date(firstT).toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' })} · ${Object.keys(days).length} día${Object.keys(days).length === 1 ? '' : 's'} en la calle${nC ? ` · 👑 ${nC} ciudad${nC > 1 ? 'es' : ''}` : ''}</small>` : ''}</div>`;

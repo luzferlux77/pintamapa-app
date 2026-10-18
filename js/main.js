@@ -232,7 +232,7 @@
 
   let flagMarkers = [];
   // ---------------- Rangos de barrio: bronce 60 % (conquista) · plata 80 % · oro 90 % · leyenda (100 % y todos sus lugares) ----------------
-  const RANKS = PM.RANKS.map((r, i) => Object.assign({}, r, { min: [PM.RANK_MIN.barrio[0], PM.RANK_MIN.barrio[1], PM.RANK_MIN.barrio[2], 0.999][i], pts: [0, 1000, 1500, 3000][i] }));
+  const RANKS = PM.RANKS.map((r, i) => Object.assign({}, r, { min: [PM.RANK_MIN.barrio[0], PM.RANK_MIN.barrio[1], PM.RANK_MIN.barrio[2], 0.995][i], pts: [0, 1000, 1500, 3000][i] }));
   function rankOf(id) {
     const s = S(), r = (s.barrioRank || {})[id];
     if (r != null) return r;
@@ -249,7 +249,7 @@
     const cur = rankOf(id);
     let want = 0;
     for (let i = 1; i < 3; i++) if (pr >= RANKS[i].min) want = i;
-    if (pr >= 0.999 && cur < 3 && Date.now() - legendT > 10000) { legendT = Date.now(); if (barrioPlacesDone(id)) want = 3; }
+    if (pr >= 0.995 && cur < 3 && Date.now() - legendT > 10000) { legendT = Date.now(); if (barrioPlacesDone(id)) want = 3; }
     if (want <= cur) { if ((s.barrioRank || {})[id] == null) { (s.barrioRank = s.barrioRank || {})[id] = cur; PM.state.save(); } return; }
     (s.barrioRank = s.barrioRank || {})[id] = want;
     const rt = (s.barrioRankT = s.barrioRankT || {})[id] = s.barrioRankT[id] || {}; for (let i = cur + 1; i <= want; i++) rt[i] = rt[i] || Date.now();
@@ -1177,7 +1177,7 @@
         <div><b>${PM.fmtDist(st.walked)}</b><small>caminados</small></div>
         <div><b>${PM.fmtDist(st.painted)}</b><small>calles nuevas</small></div>
         <div><b>+${PM.fmtNum(st.pts)}</b><small>puntos</small></div>
-        <div><b>${st.captures}</b><small>monumentos</small></div>
+        <div><b>${st.captures}</b><small>lugares</small></div>
         <div><b>${PM.fmtDist(st.repassed || 0)}</b><small>repasados 🔥</small></div>
         <div><b>x${st.bestCombo}</b><small>mejor combo</small></div>
       </div>
@@ -1768,7 +1768,7 @@
     const from = PM.xpForLevel(lp.level), to = PM.xpForLevel(lp.level + 1);
     const LBL = { paint: '🖌️ Pintar calles nuevas', landmark: '📸 Capturar lugares', revisit: '🔁 Volver a lugares', conquest: '🚩 Conquistar barrios',
       perfect: '💯 Barrios al 100 %', city: '👑 Conquistar ciudades', mission: '🎯 Misiones diarias', chest: '🎁 Cofre diario', set: '🗂️ Colecciones',
-      photo: '📷 Fotos de cromos', rank: '🏅 Rangos de barrio', shiny: '✨ Cartas brillantes', can: '🪣 Botes (antiguos)', otros: '✨ Otros' };
+      photo: '📷 Fotos de cromos', rank: '🏅 Rangos de barrio', shiny: '✨ Cartas brillantes', can: '🪣 Botes (antiguos)', bones: '🦴 Huesos (antiguos)', mystery: '🕵️ Calles misteriosas (antiguas)', otros: '✨ Otros' };
     const by = Object.assign({}, s.xpBy || {});
     const known = Object.values(by).reduce((a, b) => a + b, 0);
     if (s.xp - known > 0) by.antes = s.xp - known;   // puntos de antes de que se registrara el desglose
@@ -1787,8 +1787,9 @@
       <ul class="xphow">
         <li>🖌️ <b>Pintar calle nueva</b>: 10 pts cada 12 m · el combo multiplica hasta ×3 · junto a un monumento ×2</li>
         <li>📸 <b>Capturar un lugar</b>: 100 (común) · 200 (raro) · 300 (épico) · 500 (legendario)</li>
+        <li>⭐ <b>Imprescindibles</b> de cada ciudad: valen el doble · ✨ <b>carta brillante</b> (1 de cada 50): el doble otra vez</li>
         <li>🔁 <b>Volver a un lugar</b> (cada día): +20 % de sus puntos</li>
-        <li>🚩 <b>Conquistar un barrio</b> (60 %, bronce): +2.000 · plata (80 %) +1.000 · oro (90 %) +1.500 · al 100 %: +1.000 más</li>
+        <li>🚩 <b>Conquistar un barrio</b> (60 %, bronce): +2.000 · plata (80 %) +1.000 · oro (90 %) +1.500 · al 100 %: +1.000 · 🏆 leyenda (100 % y todos sus lugares): +3.000</li>
         <li>👑 <b>Conquistar una ciudad</b> (70 %, bronce): +25.000 · plata (80 %) +10.000 · oro (90 %) +15.000</li>
         <li>🎯 <b>Misiones del día</b> y 🎁 cofre al completarlas todas: +1.000</li>
         <li>🗂️ <b>Colecciones</b>: 300 · 1.000 · 3.000 · 📷 tu foto en un cromo</li>
@@ -1885,7 +1886,7 @@
         ${tile('⏱️', dur(D.movAll), 'en movimiento')}${tile('⚡', pace(D.movAll, D.sum(D.walks, (w) => w.st.walked)), 'ritmo medio')}${tile('📆', Object.keys(D.days).length, 'días activos')}
         ${tile('🌲', PM.fmtDist(st.trailM || 0), 'senderos')}${tile('♻️', Object.keys(s.heat || {}).length, 'tramos repetidos')}${tile('👣', PM.fmtNum(Math.round((st.walkedM || 0) / 0.75)), 'pasos aprox.')}</div>`);
       html += card('🏆 Conquistas', `<div class="pf-grid">
-        ${tile('🚩', Object.keys(s.conqueredB || {}).length, 'barrios', 'cit')}${tile('👑', Object.keys(s.citiesWon || {}).length, 'ciudades', 'cit')}${tile('🏛️', D.lms.length, 'monumentos', 'album')}
+        ${tile('🚩', Object.keys(s.conqueredB || {}).length, 'barrios', 'cit')}${tile('👑', Object.keys(s.citiesWon || {}).length, 'ciudades', 'cit')}${tile('🏛️', D.lms.length, 'lugares', 'album')}
         ${tile('🏅', D.nAch + '/' + Object.keys(G.ACHIEVEMENTS).length, 'logros', 'ach')}${tile('📸', Object.keys(s.cardPhotos || {}).length, 'cartas con foto', 'album')}${tile('🗂️', Object.keys(s.setsDone || {}).length, 'colecciones', 'album')}</div>
         ${D.lms.length ? `<div class="pf-rar">${D.byR.filter((x) => x.n).map((x) => `<i style="flex:${x.n};background:${RC[x.r]}"></i>`).join('')}</div>
         <div class="pf-leg">${D.byR.map((x) => `<span><i style="background:${RC[x.r]}"></i>${W.RARITY[x.r].label} ${x.n}</span>`).join('')}</div>` : ''}`);
@@ -1992,7 +1993,7 @@
         document.querySelectorAll('#off-dl, #off-dl2').forEach((b) => { b.disabled = true; });
         try {
           msg.textContent = '⬇️ Descargando calles del juego…';
-          const keys = []; const ti = Math.floor(pos[0] / W.TILE), tj = Math.floor(pos[1] / W.TILE), n = Math.ceil(km / 1.0);
+          const keys = []; const ti = Math.floor(pos[0] / W.TILE), tj = Math.floor(pos[1] / W.TILE), n = km <= 3 ? 2 : 3;   // calles del juego: 25 o 49 zonas (más dejaría el móvil sin memoria)
           for (let i = -n; i <= n; i++) for (let j = -n; j <= n; j++) keys.push((ti + i) + '_' + (tj + j));
           await W.ensureKeys(keys).catch(() => {});
           const tot = await PM.mapStyle.prefetch(pos, km, curStyle, (d, t) => { msg.textContent = `⬇️ Descargando mapa… ${Math.round(d / t * 100)} % (${d}/${t})`; });
