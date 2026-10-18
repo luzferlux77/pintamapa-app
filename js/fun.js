@@ -314,7 +314,7 @@ PM.fun = (function () {
       if (p3) { p3.destroy(); p3 = null; }
       const room = $('#pet-room');
       const alive = () => document.body.contains(room) && $('#sheet').classList.contains('show');
-      const lookOf = () => { const st = petState(); return { breed: BREEDS[st.p.breed] || BREEDS.mestizo, gear: st.gear, color: S().color }; };
+      const lookOf = () => { const st = petState(); return { breed: Object.assign({ key: st.p.breed }, BREEDS[st.p.breed] || BREEDS.mestizo), gear: st.gear, color: S().color }; };
       const ctl = PM.pet3d.mount(room, {
         look: lookOf(), color: S().color, night: night(), face: st0.M.face, baseFace: () => petState().M.face,
         onSay: (t) => say(t, true), onBurst: (ch, n) => burst(room, ch, n),
