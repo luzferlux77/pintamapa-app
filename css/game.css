@@ -581,3 +581,23 @@ input.sw:checked { background: var(--accent, #2563eb); } input.sw:checked::after
 .toast:not(.out) { animation: rise .28s cubic-bezier(.2,.9,.3,1); }
 #nav button { transition: transform .15s; } #nav button:active { transform: scale(.92); }
 @media (prefers-reduced-motion: reduce) { #sheet.show .body > *, #celebrate.show .in, #tcg-view.show, #tcg-view.show .tcg-stage-wrap, .toast, .hm-card { animation: none !important; } }
+
+/* ===== Póster (botón) ===== */
+.pf-week.pf-poster { background: linear-gradient(120deg, #0f766e, #2563eb); }
+
+/* ===== Historial del barrio ===== */
+#hud .barrio { cursor: pointer; }
+.bh-head { display: flex; gap: 14px; align-items: center; margin-bottom: 12px; }
+.bh-sil { flex: none; width: 120px; height: 120px; border-radius: 18px; background: var(--card); box-shadow: inset 0 0 0 3px var(--rk); display: grid; place-items: center; overflow: hidden; }
+.bh-empty { font-size: 40px; opacity: .5; }
+.bh-t { flex: 1; min-width: 0; } .bh-t > small { display: block; color: var(--muted); font-size: 12.5px; } .bh-t > small:first-child { color: var(--rk); font-weight: 800; }
+.bh-t > b { display: block; font-size: 21px; line-height: 1.15; margin: 2px 0 8px; }
+.bh-pct { position: relative; height: 10px; border-radius: 99px; background: var(--line); margin-bottom: 5px; } .bh-pct i { display: block; height: 100%; border-radius: 99px; background: var(--rk); }
+.bh-pct em { position: absolute; top: -2px; bottom: -2px; width: 2px; background: var(--text); opacity: .35; }
+.bh-stats { margin-bottom: 4px; }
+.bh-tl { position: relative; margin: 6px 0 4px 14px; padding-left: 18px; border-left: 2px dashed var(--line); }
+.bh-ev { position: relative; display: flex; gap: 10px; align-items: flex-start; padding: 7px 0; }
+.bh-ev > span { position: absolute; left: -34px; top: 5px; width: 30px; height: 30px; border-radius: 50%; background: var(--sheet); display: grid; place-items: center; font-size: 17px; box-shadow: 0 0 0 2px var(--line); }
+.bh-ev b { display: block; font-size: 14px; } .bh-ev small { color: var(--muted); font-size: 12px; }
+.bh-best { width: 100%; border: 0; background: var(--card); border-radius: 14px; padding: 10px 12px; font: inherit; color: inherit; text-align: left; cursor: pointer; }
+.bh-row { cursor: pointer; }

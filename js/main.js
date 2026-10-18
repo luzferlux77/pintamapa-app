@@ -252,6 +252,7 @@
     if (pr >= 0.999 && cur < 3 && Date.now() - legendT > 10000) { legendT = Date.now(); if (barrioPlacesDone(id)) want = 3; }
     if (want <= cur) { if ((s.barrioRank || {})[id] == null) { (s.barrioRank = s.barrioRank || {})[id] = cur; PM.state.save(); } return; }
     (s.barrioRank = s.barrioRank || {})[id] = want;
+    const rt = (s.barrioRankT = s.barrioRankT || {})[id] = s.barrioRankT[id] || {}; for (let i = cur + 1; i <= want; i++) rt[i] = rt[i] || Date.now();
     const R = RANKS[want];
     if (R.pts) G.addXP(R.pts, 'rank');
     PM.state.save();
@@ -1615,6 +1616,86 @@
     }
   }
 
+  // ---------------- Historial del barrio ----------------
+  // Cuándo lo empezaste, cuándo lo conquistaste y cada rango, cuánto tardaste, sus lugares y tu mejor paseo allí.
+  function barrioInfo(id) {
+    const s = S(), B = W.barrios[id], card = (s.barrioCards || {})[id];
+    const name = (B && B.name) || (card && card.name) || (s.barrioNames || {})[id] || 'Barrio';
+    // caja del barrio: la de sus calles cargadas o la de su cromo
+    let box = B && B.bbox ? B.bbox.slice() : null;
+    if (!box && card && card.lines) { let a = 90, b = -90, l = 180, r = -180; card.lines.forEach((ln) => ln.forEach((q) => { a = Math.min(a, q[0]); b = Math.max(b, q[0]); l = Math.min(l, q[1]); r = Math.max(r, q[1]); })); box = [a, l, b, r]; }
+    const inBarrio = (q) => {
+      if (!box || q[0] < box[0] || q[0] > box[2] || q[1] < box[1] || q[1] > box[3]) return false;
+      if (B) { const bb = W.barrioAt(q); return !!bb && bb.id === id; }
+      return true;
+    };
+    // paseos que pasaron por él (con cuántos puntos dentro)
+    const walks = [];
+    for (const w of s.walks || []) {
+      let n = 0; const tr = w.track || [];
+      for (let i = 0; i < tr.length; i += 3) if (tr[i] && inBarrio(tr[i])) n++;
+      if (n >= 2) walks.push([w, n]);
+    }
+    walks.sort((x, y) => x[0].start - y[0].start);
+    const best = walks.slice().sort((x, y) => y[1] - x[1])[0];
+    const first = walks[0] ? walks[0][0].start : null;
+    const conq = (s.conqueredB || {})[id] || null;
+    const rk = conq ? rankOf(id) : -1, rt = (s.barrioRankT || {})[id] || {};
+    const pr = B && W.barrioComplete(id) ? G.barrioProgress(id) : null;
+    let paintedM = 0, totalM = B ? B.total : 0;
+    if (B) for (const pc of B.pieces) if (!pc.trail && s.painted[pc.id]) paintedM += pc.len;
+    const places = Object.entries(s.landmarks || {}).filter(([, v]) => v.barrio === name).map(([lid, v]) => Object.assign({ id: lid }, v)).sort((a, b) => a.t - b.t);
+    const totalPlaces = Object.values(W.landmarks).filter((l) => { const bb = B && W.barrioAt(l.pos); return bb && bb.id === id; }).length;
+    return { id, name, B, card, box, walks, best, first, conq, rk, rt, pr, paintedM, totalM, places, totalPlaces, perfect: (s.perfectB || {})[id] };
+  }
+  function showBarrioHistory(id) {
+    if (!id) return;
+    const I = barrioInfo(id), s = S();
+    const fmtD = (t) => new Date(t).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' });
+    const span = (a, b) => { const d = Math.max(0, Math.round((b - a) / 86400000)); return d === 0 ? 'el mismo día' : d === 1 ? 'en 1 día' : `en ${d} días`; };
+    // línea de tiempo
+    const ev = [];
+    if (I.first) ev.push([I.first, '🎨', 'Primer paseo por el barrio', I.walks[0] ? PM.fmtDist(I.walks[0][0].st.walked || 0) + ' andados ese día' : '']);
+    I.places.slice(0, 6).forEach((p) => ev.push([p.t, p.emoji || '📍', `Capturaste ${esc(p.name)}`, p.must ? '⭐ imprescindible' : (W.RARITY[p.rarity] || {}).label || '']));
+    if (I.conq) ev.push([I.conq, '🥉', 'Conquistado · Bronce', I.first && I.first <= I.conq ? 'Lo conseguiste ' + span(I.first, I.conq) + ' después de empezar' : '60 % de sus calles']);
+    [[1, '🥈', 'Rango Plata', '80 % de sus calles'], [2, '🥇', 'Rango Oro', '90 % de sus calles'], [3, '🏆', 'Rango Leyenda', '100 % y todos sus lugares']].forEach(([r, ic, t, d]) => { if (I.rt[r]) ev.push([I.rt[r], ic, t, d]); else if (I.rk >= r && r < 3 && !I.rt[r]) ev.push([null, ic, t, d + ' (antes de guardar fechas)']); });
+    if (I.perfect) ev.push([I.perfect, '💯', 'Pintado al 100 %', 'Todas sus calles']);
+    ev.sort((a, b) => (a[0] || 9e15) - (b[0] || 9e15));
+    const pctTxt = I.pr != null ? (I.pr * 100).toFixed(1) + ' %' : '—';
+    const next = I.pr == null ? null : I.conq ? PM.RANK_MIN.barrio[I.rk + 1] : PM.CONQ.barrio;
+    const R = I.rk >= 0 ? PM.RANKS[I.rk] : null;
+    let html = `<div class="bh-head" style="--rk:${R ? R.color : 'var(--accent)'}">
+        <div class="bh-sil">${barrioSilhouette(I)}</div>
+        <div class="bh-t"><small>${R ? R.ic + ' ' + R.name : I.pr != null ? 'En conquista' : 'Barrio'}</small><b>${esc(I.name)}</b>
+          <div class="bh-pct"><i style="width:${I.pr != null ? Math.min(100, I.pr * 100).toFixed(1) : 0}%"></i><em style="left:60%"></em><em style="left:80%"></em><em style="left:90%"></em></div>
+          <small>${pctTxt} pintado${next && I.pr != null && I.pr < next ? ` · ${Math.round((next - I.pr) * 100)} % para ${I.conq ? PM.RANKS[I.rk + 1].name.toLowerCase() : 'conquistarlo'}` : ''}</small></div></div>
+      <div class="pf-grid bh-stats">
+        <div class="pf-tile"><span>🖌️</span><b>${I.B ? PM.fmtDist(I.paintedM) : '—'}</b><small>de ${I.B ? PM.fmtDist(I.totalM) : '?'}</small></div>
+        <div class="pf-tile"><span>🥾</span><b>${I.walks.length}</b><small>paseos por él</small></div>
+        <div class="pf-tile"><span>🏛️</span><b>${I.places.length}${I.totalPlaces ? '/' + I.totalPlaces : ''}</b><small>lugares</small></div>
+      </div>`;
+    html += `<h4>Su historia</h4><div class="bh-tl">${ev.length ? ev.map(([t, ic, tt, d]) => `<div class="bh-ev"><span>${ic}</span><div><b>${tt}</b><small>${t ? fmtD(t) : ''}${d ? (t ? ' · ' : '') + d : ''}</small></div></div>`).join('') : '<p class="muted">Aún no has pasado por aquí. ¡Empieza su historia!</p>'}</div>`;
+    if (I.best) { const w = I.best[0]; html += `<h4>Tu mejor paseo aquí</h4><button class="pf-rec bh-best" data-walk="${w.id}"><span>🥇</span><div><small>${fmtD(w.start)} · ${PM.fmtDist(w.st.walked || 0)} · +${PM.fmtNum(w.st.pts || 0)} pts</small><b>Ver estadísticas y vídeo</b></div><em>›</em></button>`; }
+    openSheet('🏘️ ' + I.name, html);
+    const bb = document.querySelector('.bh-best'); if (bb) bb.addEventListener('click', () => openWalk(S().walks.find((w) => w.id === bb.dataset.walk)));
+  }
+  // dibujo del barrio: sus calles (gris) y lo que has pintado (tu color); sin calles cargadas, la silueta del cromo
+  function barrioSilhouette(I) {
+    const S0 = 120, pad = 8, lines = [], s = S();
+    if (I.B) for (const pc of I.B.pieces) lines.push([pc.pts, !!s.painted[pc.id], pc.trail]);
+    else if (I.card && I.card.lines) I.card.lines.forEach((l) => lines.push([l, true]));
+    if (!lines.length) return '<div class="bh-empty">🏘️</div>';
+    let a = 90, b = -90, l = 180, r = -180;
+    lines.forEach(([pts]) => pts.forEach((q) => { a = Math.min(a, q[0]); b = Math.max(b, q[0]); l = Math.min(l, q[1]); r = Math.max(r, q[1]); }));
+    const k = Math.cos((a + b) / 2 * Math.PI / 180), sx = Math.max(1e-6, (r - l) * k), sy = Math.max(1e-6, b - a), sc = (S0 - pad * 2) / Math.max(sx, sy);
+    const ox = (S0 - sx * sc) / 2, oy = (S0 - sy * sc) / 2;
+    const P = (q) => (ox + (q[1] - l) * k * sc).toFixed(1) + ',' + (oy + (b - q[0]) * sc).toFixed(1);
+    const grey = lines.filter((x) => !x[1]).map(([pts, , tr]) => `<polyline points="${pts.map(P).join(' ')}" stroke="${tr ? '#c8b98f' : '#cbd2dc'}" stroke-width="${tr ? 0.8 : 1.2}" fill="none" stroke-linecap="round"/>`).join('');
+    const col = lines.filter((x) => x[1]).map(([pts]) => `<polyline points="${pts.map(P).join(' ')}" stroke="${s.color}" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`).join('');
+    return `<svg viewBox="0 0 ${S0} ${S0}" width="${S0}" height="${S0}">${grey}${col}</svg>`;
+  }
+  $('#hud .barrio').addEventListener('click', () => showBarrioHistory(curBarrio));
+
   // ---------------- Copia de seguridad en archivo ----------------
   async function exportBackup() {
     const s = S(), msg = $('#bk-msg');
@@ -1796,6 +1877,7 @@
 
     if (profTab === 'res') {
       html += `<button class="pf-week" id="pf-week"><span>📽️</span><div><b>Tu semana en vídeo</b><small>Resumen animado de los últimos 7 días para compartir</small></div><em>▶</em></button>`;
+      html += `<button class="pf-week pf-poster" id="pf-poster"><span>🖼️</span><div><b>Póster de tu mapa</b><small>Tu ciudad pintada en alta resolución, para imprimir o compartir</small></div><em>▶</em></button>`;
       html += card('📅 Esta semana', `<div class="pf-grid">${tile('🚶', PM.fmtDist(D.sum(D.wk, (w) => w.st.walked)), 'andados')}${tile('🖌️', PM.fmtDist(D.sum(D.wk, (w) => w.st.painted)), 'calles nuevas')}${tile('⏱️', dur(D.movWk), 'en movimiento')}</div>`,
         `${D.wk.length} paseo${D.wk.length === 1 ? '' : 's'}`);
       html += card('📈 En total', `<div class="pf-grid">
@@ -1835,7 +1917,7 @@
           <div class="bar"><i style="width:${Math.min(100, cp.pct / PM.CONQ.city * 100)}%"></i></div>
           <small>${PM.fmtDist(cp.painted)} de ${cp.total ? PM.fmtDist(cp.total) : '?'} · ${(() => { const rk = PM.rankFor('city', cp.pct), nx = PM.RANK_MIN.city[rk + 1]; return (rk >= 0 ? `${PM.RANKS[rk].ic} ${PM.RANKS[rk].name} · ` : '') + (nx ? 'faltan ' + (cp.total ? PM.fmtDist(Math.max(0, cp.total * nx - cp.painted)) : '?') + ` para ${Math.round(nx * 100)} %` : '¡oro conseguido!'); })()}</small></div>`).join('') : '<p class="muted">Sal a pintar y aquí verás tus ciudades.</p>', 'conquista 70 % · plata 80 · oro 90');
       const bc = Object.entries(s.barrioCards || {}).map(([id, v]) => Object.assign({ id }, v)).sort((x, y) => y.t - x.t);
-      html += card('🏅 Barrios conquistados', bc.length ? bc.map((b) => { const rk = b.id != null ? rankOf(b.id) : 0; return `<div class="row"><span>${RANKS[rk].ic} ${esc(b.name)} <small class="muted">· ${RANKS[rk].name}</small></span><small class="muted">${new Date(b.t).toLocaleDateString('es-ES')}</small></div>`; }).join('') : '<p class="muted">Pinta el 60 % de las calles de un barrio para conquistarlo (80 % plata, 90 % oro).</p>', bc.length || '');
+      html += card('🏅 Barrios conquistados', bc.length ? bc.map((b) => { const rk = b.id != null ? rankOf(b.id) : 0; return `<div class="row bh-row" data-bid="${esc(b.id)}"><span>${RANKS[rk].ic} ${esc(b.name)} <small class="muted">· ${RANKS[rk].name}</small></span><small class="muted">${new Date(b.t).toLocaleDateString('es-ES')} ›</small></div>`; }).join('') : '<p class="muted">Pinta el 60 % de las calles de un barrio para conquistarlo (80 % plata, 90 % oro).</p>', bc.length || '');
     }
     if (profTab === 'aj') {
       if (PM.isNative && PM.profile === 'real') {
@@ -1873,11 +1955,13 @@
     if (S().avatar) { const d = document.createElement('button'); d.className = 'av-del'; d.textContent = 'Quitar foto'; d.addEventListener('click', () => { FUN.removeAvatar(); panelProfile(); }); $('.av-wrap').appendChild(d); }
     $('#pf-lvl').addEventListener('click', panelLevel);
     $('#pf-week') && $('#pf-week').addEventListener('click', () => PM.wrapped && PM.wrapped.open({ S, W }));
+    $('#pf-poster') && $('#pf-poster').addEventListener('click', () => PM.poster && PM.poster.open({ S, W }));
     const go = { walks: panelWalks, album: panelAlbum, ach: panelAchievements, week: () => PM.wrapped && PM.wrapped.open({ S, W }), cit: () => { profTab = 'cit'; panelProfile(); } };
     document.querySelectorAll('.pf-quick [data-go]').forEach((b) => b.addEventListener('click', () => go[b.dataset.go]()));
     document.querySelectorAll('.pf-tile[data-act]').forEach((b) => b.addEventListener('click', () => go[b.dataset.act]()));
     document.querySelectorAll('.pf-tabs [data-tab]').forEach((b) => b.addEventListener('click', () => { profTab = b.dataset.tab; panelProfile(); }));
     document.querySelectorAll('.pf-rec[data-walk]').forEach((r) => r.addEventListener('click', () => openWalk(S().walks.find((w) => w.id === r.dataset.walk))));
+    document.querySelectorAll('.bh-row[data-bid]').forEach((r) => r.addEventListener('click', () => showBarrioHistory(r.dataset.bid)));
     // pestañas
     document.querySelectorAll('.color:not([disabled])').forEach((b) => b.addEventListener('click', () => {
       s.color = b.dataset.c; PM.state.save(); recolorAll(); panelProfile();
