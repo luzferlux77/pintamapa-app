@@ -1,8 +1,8 @@
 {
-  "version": "0.6.34",
-  "notes": "Imprescindibles: los 6 lugares que no te puedes perder de cada ciudad, con icono y marco especial y el doble de puntos",
-  "native": 3,
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.34/pintamapa-web-0.6.34.zip",
-  "checksum": "de7e280b63ef3ed8dcdc1c999f0267ea939c45568a7058502783aec9d51bcf8d",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.34/PintaMapa-v0.6.34.apk"
+  "version": "0.6.35",
+  "notes": "Inicio nuevo, imprescindibles en el álbum, logros agrupados, iconos iguales en todos los móviles, transiciones, copia de seguridad, mapa sin conexión, paseos comprimidos, pruebas automáticas, GPS que ahorra batería y avisos",
+  "native": 4,
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.35/pintamapa-web-0.6.35.zip",
+  "checksum": "5cfb45bf2c1e08d8c775625ab901031bf708cf824bd64ce41686f0a56684e742",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.35/PintaMapa-v0.6.35.apk"
 }
