@@ -1,8 +1,8 @@
 {
-  "version": "0.6.39",
-  "notes": "Revisión: puntos de carta coherentes (imprescindible/brillante), leyenda alcanzable, radio real en la carta, textos y nombres unificados, descarga sin conexión más ligera",
+  "version": "0.6.40",
+  "notes": "Nuevo tipo de lugar: estudios de televisión (TV3, RTVE…) con radio amplio de 200 m",
   "native": 4,
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.39/pintamapa-web-0.6.39.zip",
-  "checksum": "aa3b08c95a6308268964aa4f4d250d60a90dbc02d6695a38475dced9c6b4fd69",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.39/PintaMapa-v0.6.39.apk"
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.40/pintamapa-web-0.6.40.zip",
+  "checksum": "1f4b771d0c915b584b924f453e61c99e7f8005c18cdea8524fa91aba944c96a9",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.40/PintaMapa-v0.6.40.apk"
 }
