@@ -1,8 +1,8 @@
 {
-  "version": "0.6.38",
-  "notes": "Historial de cada barrio y póster de tu mapa pintado (A4, 300 ppp, tres estilos)",
+  "version": "0.6.39",
+  "notes": "Revisión: puntos de carta coherentes (imprescindible/brillante), leyenda alcanzable, radio real en la carta, textos y nombres unificados, descarga sin conexión más ligera",
   "native": 4,
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.38/pintamapa-web-0.6.38.zip",
-  "checksum": "a579a2e29ecd0887b7abb2bbde70bb6673d654e931793fd927a5b9592c1d6027",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.38/PintaMapa-v0.6.38.apk"
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.39/pintamapa-web-0.6.39.zip",
+  "checksum": "aa3b08c95a6308268964aa4f4d250d60a90dbc02d6695a38475dced9c6b4fd69",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.39/PintaMapa-v0.6.39.apk"
 }
