@@ -1,8 +1,8 @@
 {
-  "version": "0.6.28",
-  "notes": "Tu perro en 3D estilo mascota de consola: su habitación, vida propia, mimos, premios, pelota y trucos en 3D",
+  "version": "0.6.29",
+  "notes": "Perro 3D realista: pelaje de verdad, anatomía de cachorro, ojos con iris y párpados, mandíbula que jadea, luz física",
   "native": 3,
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.28/pintamapa-web-0.6.28.zip",
-  "checksum": "b8c26d663c0bb826c1dba2f045cf5b4acee094cdf2adb31a6e7a33c50cfe63d5",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.28/PintaMapa-v0.6.28.apk"
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.29/pintamapa-web-0.6.29.zip",
+  "checksum": "9abefe6f98a6ae7f96b8af62e450fb48064a4adb653b3f482095108fc16ab3ca",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.29/PintaMapa-v0.6.29.apk"
 }
