@@ -1,8 +1,8 @@
 {
-  "version": "0.6.24",
-  "notes": "Perro con 10 razas y trucos animados; perfil rediseñado con pestañas; todo en una fila; fuera la calle misteriosa",
+  "version": "0.6.25",
+  "notes": "Perro: botón para cambiar de raza, 12 trucos que se desbloquean paseando, 13 accesorios que puedes poner y quitar, nuevos logros de perro",
   "native": 3,
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.24/pintamapa-web-0.6.24.zip",
-  "checksum": "a8a7038d4609be37651f47ab94fbf3b55476ef4d91a45a663e932b47e2ad0642",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.24/PintaMapa-v0.6.24.apk"
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.25/pintamapa-web-0.6.25.zip",
+  "checksum": "a99ac767f124f37b5309c2b39d5430629430fcb430fe3c7d330f13783b9ef694",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.25/PintaMapa-v0.6.25.apk"
 }
