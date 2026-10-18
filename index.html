@@ -17,20 +17,19 @@
   <header id="hud">
     <div class="top">
       <div class="lvl"><span id="lvl">1</span></div>
-      <div class="xp"><div id="xpbar" class="bar"><i></i></div><small id="xptext">0 pts</small></div>
+      <div class="xp" hidden><div id="xpbar" class="bar"><i></i></div><small id="xptext">0 pts</small></div>
+      <div class="barrio">
+        <div class="bl"><b id="barrio-name">Cargando…</b><span id="barrio-pct"></span></div>
+        <div id="barrio-bar" class="bar big"><i></i><em title="Objetivo de conquista: 80 %"></em></div>
+        <small id="city">🏙️ Localizando ciudad…</small>
+      </div>
       <button id="modebtn" class="chip">🕹️ Simulación</button>
-    </div>
-    <div class="barrio">
-      <div class="bl"><b id="barrio-name">Cargando…</b><span id="barrio-pct"></span></div>
-      <div id="barrio-bar" class="bar big"><i></i><em title="Objetivo de conquista: 80 %"></em></div>
-      <small id="city">🏙️ Localizando ciudad…</small>
     </div>
   </header>
 
   <div id="badges">
     <div id="mystery" class="badge mystery" role="button"></div>
     <div id="speed" class="badge">🧍 0.0 km/h</div>
-    <div id="gps" class="badge">📡 Buscando GPS…</div>
     <div id="aura" class="badge aura"></div>
     <div id="radar" class="badge"></div>
     <div id="capture" class="badge capture"></div>
@@ -41,6 +40,7 @@
   <div id="toasts"></div>
 
   <button id="btn-center" class="fab">🎯</button>
+  <div id="gps" class="badge" role="img"></div>
   <button id="btn-pet" aria-label="Tu perro"></button>
   <div id="pet-say"></div>
   <button id="btn-orient" class="fab orient"><span>N</span><small>norte</small></button>

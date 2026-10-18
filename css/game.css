@@ -485,3 +485,24 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 #gps.gps-ok { color: #16a34a; border-color: #86efac; } #gps.gps-ok .g-r2 { opacity: .35; }
 #gps.gps-weak { color: #d97706; border-color: #fcd34d; } #gps.gps-weak .g-r2 { opacity: .25; }
 #gps.gps-off { color: #9ca3af; } #gps.gps-off .g-r1, #gps.gps-off .g-r2 { opacity: .3; }
+
+/* GPS en la fila de arriba a la derecha (junto al perro, rumbo y evitar) */
+#gps.gpsi { position: absolute; z-index: 500; right: 166px; top: calc(160px + var(--safe-top)); width: 36px; height: 36px; padding: 0; border-radius: 50%;
+  display: none; align-items: center; justify-content: center; flex-direction: column; gap: 0; line-height: 1; background: var(--panel); }
+#gps.gpsi.show { display: flex; }
+#gps.gpsi svg { width: 20px; height: 20px; }
+#gps.gpsi small { font-size: 8.5px; margin-top: -1px; }
+#gps.gpsi.gps-weak svg { width: 15px; height: 15px; }
+#badges { right: 210px; }
+
+/* Cabecera en UNA fila: nivel + barrio (la barra de puntos se ve tocando el nivel). Todo lo de debajo sube. */
+#hud .xp { display: none !important; }
+#hud .top { align-items: center; }
+#hud .top .barrio { flex: 1; min-width: 0; margin-top: 0; }
+#hud .top .lvl { flex: none; }
+#hud .top #modebtn { flex: none; align-self: flex-start; }
+#badges { top: calc(106px + var(--safe-top)); }
+.fab.orient, .fab.avoidbtn, #btn-pet { top: calc(102px + var(--safe-top)); }
+#gps.gpsi { top: calc(106px + var(--safe-top)); }
+#pet-say { top: calc(156px + var(--safe-top)); }
+#combo { top: calc(212px + var(--safe-top)); }
