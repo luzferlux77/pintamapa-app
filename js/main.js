@@ -62,7 +62,9 @@
   // si el hueco del mapa cambia de tamaño (pantalla de inicio, giro, teclado…), el mapa se reajusta
   if (window.ResizeObserver) new ResizeObserver(() => { map.resize(); padCache.t = 0; }).observe(map.getContainer());
   map.addControl(new maplibregl.AttributionControl({ compact: true, customAttribution: '© OpenStreetMap · OpenFreeMap' }), 'bottom-left');
-  map.once('load', () => { const at = map.getContainer().querySelector('.maplibregl-ctrl-attrib'); if (at) at.classList.remove('maplibregl-compact-show'); });
+  // aviso de © plegado (MapLibre lo despliega solo al cargar y al cambiar de tamaño, y en el móvil tapa el mapa); se abre tocando la ⓘ
+  const foldAttrib = () => setTimeout(() => { const at = map.getContainer().querySelector('.maplibregl-ctrl-attrib'); if (at) at.classList.remove('maplibregl-compact-show'); }, 0);
+  map.once('load', foldAttrib); map.on('resize', foldAttrib);
   let mapReady = false;
   const FC = (features) => ({ type: 'FeatureCollection', features });
   const lineF = (pts, props) => ({ type: 'Feature', properties: props || {}, geometry: { type: 'LineString', coordinates: pts.map(ll) } });
@@ -138,7 +140,7 @@
   // al terminar de mover el mapa: entran las zonas cercanas cargadas y salen las lejanas
   function refreshView() {
     let changed = false;
-    for (const k of [...rendered]) if (!nearView(k, VIEW_R + 2)) { rendered.delete(k); changed = true; }   // margen: no se rehace al cruzar un borde
+    for (const k of [...rendered]) if (!nearView(k, VIEW_R + 2)) { rendered.delete(k); delete tileFeat[k]; changed = true; }   // margen: no se rehace al cruzar un borde
     for (const k in W.tiles) if (!rendered.has(k) && (W.tiles[k].loaded || W.tiles[k].partial) && nearView(k)) { rendered.add(k); changed = true; }
     if (changed) { streetsDirty = true; paintedDirty = true; }
   }
@@ -502,8 +504,9 @@
     if (now - nearCache.t > 500) nearCache = { t: now, v: nearestLandmark(p) };
     const aura = nearCache.v.d <= AURA_RADIUS;
     const hl = heading ? Math.hypot(heading[0], heading[1]) : 0;
+    // 1) candidatas: cerca y en tu dirección
+    const cand = [];
     for (const piece of W.piecesNear(p, WIDE_RADIUS)) {
-      const done = S().painted[piece.id];
       const dist = PM.geo.distToPolyline(p, piece.pts);
       // senderos: el GPS va peor entre árboles y los caminos serpentean → más margen de distancia y de ángulo
       if (dist > (piece.wide ? WIDE_RADIUS : piece.trail ? TRAIL_RADIUS : PAINT_RADIUS)) continue;
@@ -517,7 +520,18 @@
         // lejos (otra calzada de una avenida) se exige ir casi paralelo: < ~30°; cerca basta < ~53°
         ok = vl > 0 && Math.abs((v[0] * heading[0] + v[1] * heading[1]) / (vl * hl)) >= (piece.trail ? 0.4 : dist > PAINT_RADIUS ? 0.85 : 0.6);
       }
-      if (ok) { if (done) G.repass(piece); else G.paintPiece(piece, aura); }
+      // cruces: el arranque de la calle lateral justo en la esquina se pinta un poquito (si lo pisas)
+      if (!ok && hl && piece.len < 8 && dist <= 5) ok = true;
+      if (ok) cand.push([piece, dist]);
+    }
+    // 2) solo la calle por la que vas: la más cercana y las que estén casi igual de cerca (margen para el GPS).
+    //    Así no se pintan calles paralelas a 12-14 m que no pisas (antes se pintaba bastante más de lo andado).
+    //    Las avenidas anchas siguen pintando ambas calzadas.
+    let best = Infinity;
+    for (const [pc, d] of cand) if (!pc.wide && d < best) best = d;
+    for (const [piece, dist] of cand) {
+      if (!piece.wide && dist > best + 7 && !(piece.len < 8 && dist <= 5)) continue;
+      if (S().painted[piece.id]) G.repass(piece); else G.paintPiece(piece, aura);
     }
   }
 

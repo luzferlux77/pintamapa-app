@@ -618,7 +618,7 @@
             <div><b>${lms.length}</b><small>monumentos</small></div>
             <div><b>${nB}</b><small>barrios 🚩</small></div>
             <div><b>${PM.fmtNum(s.xp || 0)}</b><small>puntos</small></div></div>
-          ${firstT ? `<small class="hero-since">Pintando desde el ${new Date(firstT).toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' })} · ${Object.keys(days).length} días en la calle${nC ? ` · 👑 ${nC} ciudad${nC > 1 ? 'es' : ''}` : ''}</small>` : ''}</div>`;
+          ${firstT ? `<small class="hero-since">Pintando desde el ${new Date(firstT).toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' })} · ${Object.keys(days).length} día${Object.keys(days).length === 1 ? '' : 's'} en la calle${nC ? ` · 👑 ${nC} ciudad${nC > 1 ? 'es' : ''}` : ''}</small>` : ''}</div>`;
 
         // ---- esta semana (lunes a domingo) frente a la anterior ----
         const mon = now0.getTime() - ((now0.getDay() + 6) % 7) * DAY;

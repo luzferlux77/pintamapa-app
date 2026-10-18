@@ -392,7 +392,7 @@ ${segs.map((s) => `<LineString><tessellate>1</tessellate><altitudeMode>clampToGr
         ${tile('Distancia', fmtKm(A.dTot))}
         ${tile('Tiempo en movimiento', fmtT(A.moving), 'total ' + fmtT(A.elapsed))}
         ${tile('Ritmo medio', fmtPace(A.avgPace))}
-        ${tile('Velocidad media', (A.avgV * 3.6).toFixed(1).replace('.', ',') + ' km/h', 'máx. ' + (A.maxV * 3.6).toFixed(1).replace('.', ',') + ' km/h')}
+        ${tile('Velocidad media', (A.avgV * 3.6).toFixed(1).replace('.', ',') + ' km/h', A.maxV > 0 ? 'máx. ' + (A.maxV * 3.6).toFixed(1).replace('.', ',') + ' km/h' : '')}
         ${tile('Desnivel positivo', A.hasEle ? '+' + Math.round(A.up) + ' m' : '—', A.hasEle ? '−' + Math.round(A.down) + ' m negativo' : '')}
         ${tile('Altitud', A.hasEle ? Math.round(A.minE) + '–' + Math.round(A.maxE) + ' m' : '—', A.hasEle ? 'mín. – máx.' : '')}
         ${tile('Pasos', '≈ ' + A.steps.toLocaleString('es-ES'), 'estimados')}
