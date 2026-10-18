@@ -1,8 +1,8 @@
 {
-  "version": "0.6.22",
-  "notes": "Perro junto al botón de rumbo; GPS como icono animado al buscar y fijo con señal, junto a la velocidad",
+  "version": "0.6.23",
+  "notes": "Cabecera más limpia: nivel y barrio en una fila; GPS, perro, rumbo y evitar en la misma fila",
   "native": 3,
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.22/pintamapa-web-0.6.22.zip",
-  "checksum": "3c084d12c6e84f990e4ef0d77f91a653120b0f3612e9ce45f1a9d0454f83549f",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.22/PintaMapa-v0.6.22.apk"
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.23/pintamapa-web-0.6.23.zip",
+  "checksum": "7f61dc356b50ff7dd8d640ea56b7230b870c091000a2a77edb03acbb7f0c49db",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.23/PintaMapa-v0.6.23.apk"
 }
