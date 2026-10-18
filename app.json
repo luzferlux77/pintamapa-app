@@ -1,8 +1,8 @@
 {
-  "version": "0.6.26",
-  "notes": "Tema oscuro: ventanas ya no transparentes y tarjetas del perfil legibles",
+  "version": "0.6.27",
+  "notes": "Tu perro camina contigo en el mapa, huesos escondidos con accesorios exclusivos, animación de conquista, rangos de barrio, cartas brillantes y vídeo de tu semana",
   "native": 3,
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.26/pintamapa-web-0.6.26.zip",
-  "checksum": "e5345d9fef523166e74d657dc98eec6a7c7d641164bc10963b43597178ada2db",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.26/PintaMapa-v0.6.26.apk"
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.27/pintamapa-web-0.6.27.zip",
+  "checksum": "b28dcc9add000d50cc3bfeaa2cb78a1a06c0d0ff9759b369e8b06e9e045db80d",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.27/PintaMapa-v0.6.27.apk"
 }
