@@ -496,7 +496,6 @@ PM.game = (function () {
   serie('fotos', '📷', [5, 25, 50, 100], 'Fotógrafo', (t) => `${t} cromos con foto propia`, (s) => Object.keys(s.cardPhotos || {}).length);
   serie('fiel', '🔁', [5, 10, 25], 'Fiel', (t) => `Visita ${t} veces el mismo lugar`, (s) => Math.max(0, ...lmList(s).map((v) => v.visits || 1)));
   serie('colec', '🗂️', [1, 3, 5, 10], 'Colecciones', (t) => `Completa ${t} colecci${t > 1 ? 'ones' : 'ón'}`, (s) => Object.keys(s.setsDone || {}).length);
-  serie('detective', '🕵️', [1, 5, 10, 25, 50, 100], 'Detective', (t) => t === 1 ? 'Encuentra tu primera calle misteriosa' : `Encuentra ${t} calles misteriosas`, (s) => s.stats.mystery || 0);
   serie('sendero', '🌲', [1, 5, 10, 25], 'Senderista', (t) => `Pinta ${t} km de senderos y caminos`, (s) => km(s.stats.trailM || 0));
   serie('puntos', '🏆', [10000, 50000, 100000, 250000, 500000, 1000000, 2000000, 5000000], 'Puntos', (t) => `Consigue ${PM.fmtNum ? PM.fmtNum(t) : t} puntos`, (s) => s.xp || 0);
 

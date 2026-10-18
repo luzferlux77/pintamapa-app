@@ -506,3 +506,102 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 #gps.gpsi { top: calc(106px + var(--safe-top)); }
 #pet-say { top: calc(156px + var(--safe-top)); }
 #combo { top: calc(212px + var(--safe-top)); }
+
+/* TODO en una fila: etiquetas (velocidad, radar…) a la izquierda; GPS, perro, rumbo y evitar a la derecha */
+#badges { top: calc(104px + var(--safe-top)); right: 186px; min-height: 40px; flex-wrap: wrap; align-content: center; }
+#badges .badge { font-size: 11.5px; padding: 4px 8px; }
+.fab.orient, .fab.avoidbtn, #btn-pet { width: 40px; height: 40px; top: calc(104px + var(--safe-top)); }
+.fab.avoidbtn { right: 14px; } .fab.orient { right: 58px; } #btn-pet { right: 102px; padding: 2px; }
+.fab.orient small, .fab.avoidbtn small { font-size: 8.5px; }
+.fab.orient span { font-size: 15px; } .fab.avoidbtn span { font-size: 14px; }
+#gps.gpsi { right: 146px; top: calc(107px + var(--safe-top)); width: 34px; height: 34px; }
+#pet-say { top: calc(154px + var(--safe-top)); }
+#pet-say::after { right: 100px; }
+.pet-mys { display: flex; align-items: center; gap: 6px; width: 100%; margin: 4px 0 12px; padding: 10px 12px; border-radius: 12px; border: 1px solid #c4b5fd; background: #f5f3ff;
+  color: #4c1d95; font: inherit; font-size: 13.5px; text-align: left; cursor: pointer; }
+.pet-mys span { margin-left: auto; font-weight: 700; color: #7c3aed; white-space: nowrap; }
+
+/* fila única: velocidad y radar sin saltar de línea (solo la captura en curso baja a una segunda línea) */
+#badges { flex-wrap: nowrap; gap: 4px; }
+#badges:has(#capture.show) { flex-wrap: wrap; }
+#badges .badge { font-size: 11px; padding: 4px 7px; flex: none; }
+#badges #radar { flex: 0 1 auto; min-width: 0; }
+
+/* ===== Perro: animaciones ===== */
+.dog .dog-eyes { transform-box: fill-box; transform-origin: center; animation: blink 4.2s infinite; }
+@keyframes blink { 0%, 93%, 100% { transform: scaleY(1); } 96% { transform: scaleY(.1); } }
+.dog.live .dog-ear-l { transform-box: fill-box; transform-origin: 80% 20%; }
+.dog.wag1 .dog-ear-l, .dog.wag2 .dog-ear-l { animation: earwig 2.6s ease-in-out infinite; }
+@keyframes earwig { 0%, 80%, 100% { transform: rotate(0); } 88% { transform: rotate(-10deg); } 94% { transform: rotate(4deg); } }
+.dog .dog-torso { transform-box: fill-box; transform-origin: 50% 100%; animation: breathe 3.2s ease-in-out infinite; }
+@keyframes breathe { 50% { transform: scale(1.025, 1.04); } }
+.dog.wag2 .dog-tongue { transform-box: fill-box; transform-origin: 50% 0; animation: pant .35s ease-in-out infinite alternate; }
+@keyframes pant { to { transform: scaleY(1.35); } }
+.pet-big .dog .dog-head { transform-box: fill-box; transform-origin: 50% 90%; animation: tilt 7s ease-in-out infinite; }
+@keyframes tilt { 0%, 70%, 100% { transform: rotate(0); } 76%, 86% { transform: rotate(-9deg); } }
+.mood-paseando .pet-big .dog-paw-l { animation: step .4s ease-in-out infinite alternate; }
+.mood-paseando .pet-big .dog-paw-r { animation: step .4s ease-in-out infinite alternate-reverse; }
+@keyframes step { to { transform: translateY(-3px); } }
+.pet-stage { position: relative; padding-top: 10px; }
+.pet-shadow { width: 90px; height: 10px; margin: -6px auto 0; border-radius: 50%; background: rgba(0,0,0,.12); }
+.pet-hint { display: block; text-align: center; font-size: 11.5px; }
+.pet-big { position: relative; }
+.pet-big.trick-jump { animation: t-jump .6s ease; }
+@keyframes t-jump { 35% { transform: scale(var(--k,1)) translateY(-26px) scaleY(1.05); } 70% { transform: scale(var(--k,1)) translateY(0) scaleY(.92); } }
+.pet-big.trick-spin { animation: t-spin .8s ease-in-out; }
+@keyframes t-spin { to { transform: scale(var(--k,1)) rotate(360deg); } }
+.pet-big.trick-shake { animation: t-shake .7s ease; }
+@keyframes t-shake { 15%, 45%, 75% { transform: scale(var(--k,1)) rotate(-8deg); } 30%, 60%, 90% { transform: scale(var(--k,1)) rotate(8deg); } }
+.pet-big.trick-flip { animation: t-flip .9s ease-in-out; }
+@keyframes t-flip { 40% { transform: scale(var(--k,1)) translateY(-34px) rotate(-180deg); } 80% { transform: scale(var(--k,1)) translateY(0) rotate(-360deg); } }
+.pet-big.trick-beg { animation: t-beg 1.2s ease-in-out; }
+@keyframes t-beg { 25%, 75% { transform: scale(var(--k,1)) translateY(-10px) rotate(-6deg); } 50% { transform: scale(var(--k,1)) translateY(-12px) rotate(6deg); } }
+.pet-big.trick-bark { animation: t-bark .5s ease 2; }
+@keyframes t-bark { 30% { transform: scale(calc(var(--k,1) * 1.1)); } }
+.pet-big.trick-hearts { animation: t-jump .6s ease; }
+.pet-big.trick-dig { animation: t-dig .25s ease-in-out 4; transform-origin: 50% 100%; }
+@keyframes t-dig { 50% { transform: scale(var(--k,1)) rotate(-12deg) translateY(4px); } }
+.pet-fx { position: absolute; top: 30%; font-size: 20px; pointer-events: none; animation: fxup 1.4s ease-out forwards; }
+@keyframes fxup { from { opacity: 1; transform: translate(0, 0) scale(.6); } to { opacity: 0; transform: translate(var(--dx), -90px) scale(1.2); } }
+.pet-z { position: absolute; left: 62%; top: 18%; font-weight: 800; color: #94a3b8; font-size: 16px; animation: zz 2.6s ease-in-out infinite; }
+.pet-z.z2 { animation-delay: .9s; font-size: 20px; } .pet-z.z3 { animation-delay: 1.8s; font-size: 24px; }
+@keyframes zz { 0% { opacity: 0; transform: translate(0, 10px); } 30% { opacity: 1; } 100% { opacity: 0; transform: translate(26px, -40px); } }
+#btn-pet.trick-jump { animation: b-jump .6s ease; } @keyframes b-jump { 40% { transform: translateY(-14px); } }
+#btn-pet.trick-spin { animation: b-spin .8s ease; } @keyframes b-spin { to { transform: rotate(360deg); } }
+#btn-pet.trick-shake { animation: t-shake .7s ease; }
+.pet-breeds { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
+.pet-breeds button { border: 2px solid transparent; background: var(--bg, #f4f6fb); border-radius: 12px; padding: 4px 2px 5px; cursor: pointer; color: inherit; }
+.pet-breeds button.on { border-color: var(--accent, #2563eb); background: var(--panel); }
+.pet-breeds svg { width: 100%; height: auto; display: block; }
+.pet-breeds small { display: block; font-size: 9.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+@media (prefers-reduced-motion: reduce) { .dog *, .pet-big, #btn-pet { animation: none !important; } }
+
+/* ===== Perfil ===== */
+.pf-head { display: flex; gap: 14px; align-items: flex-start; }
+.pf-who { flex: 1; min-width: 0; } .pf-who h2 { margin: 0; font-size: 20px; }
+.pf-lvl { margin: 4px 0 6px; border: 0; background: var(--bg, #f4f6fb); border-radius: 99px; padding: 4px 10px; font: 700 13px system-ui, sans-serif; color: var(--accent, #2563eb); cursor: pointer; }
+.pf-xp { height: 7px; border-radius: 99px; background: var(--line); overflow: hidden; } .pf-xp i { display: block; height: 100%; background: var(--accent, #2563eb); border-radius: 99px; }
+.pf-who small { display: block; color: var(--muted); font-size: 12px; margin-top: 4px; } .pf-since { font-size: 11.5px !important; }
+.pf-quick { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 14px 0 12px; }
+.pf-quick button { border: 1px solid var(--line); background: var(--card, #fff); border-radius: 14px; padding: 8px 4px; font: 600 12px system-ui, sans-serif; color: inherit; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pf-quick button span { display: block; font-size: 20px; margin-bottom: 2px; }
+.pf-tabs { display: flex; gap: 4px; background: var(--bg, #eef0f4); padding: 4px; border-radius: 12px; position: sticky; top: -1px; z-index: 2; margin-bottom: 12px; }
+.pf-tabs button { flex: 1; border: 0; background: transparent; padding: 8px 4px; border-radius: 9px; font: 600 13px system-ui, sans-serif; color: var(--muted); cursor: pointer; }
+.pf-tabs button.on { background: var(--panel, #fff); color: var(--text); box-shadow: 0 1px 3px rgba(0,0,0,.1); }
+.pf-card { background: var(--card, #fff); border: 1px solid var(--line); border-radius: 16px; padding: 12px; margin-bottom: 12px; }
+.pf-card h5 { margin: 0 0 10px; font-size: 14px; display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.pf-card h5 span { font-size: 11.5px; font-weight: 500; color: var(--muted); }
+.pf-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.pf-tile { background: var(--bg, #f4f6fb); border-radius: 12px; padding: 8px 6px; text-align: center; min-width: 0; }
+.pf-tile[data-act] { cursor: pointer; } .pf-tile[data-act]:active { transform: scale(.97); }
+.pf-tile span { font-size: 16px; } .pf-tile b { display: block; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .pf-tile small { color: var(--muted); font-size: 11px; }
+.pf-rar { display: flex; gap: 2px; height: 9px; border-radius: 99px; overflow: hidden; margin-top: 12px; }
+.pf-leg { display: flex; flex-wrap: wrap; gap: 4px 10px; margin-top: 6px; font-size: 11.5px; color: var(--muted); } .pf-leg i { display: inline-block; width: 8px; height: 8px; border-radius: 3px; margin-right: 4px; }
+.pf-rec { display: flex; align-items: center; gap: 10px; padding: 9px 4px; border-bottom: 1px solid var(--line); } .pf-rec:last-child { border-bottom: 0; }
+.pf-rec[data-walk] { cursor: pointer; } .pf-rec > span { font-size: 20px; width: 28px; text-align: center; }
+.pf-rec div { flex: 1; min-width: 0; } .pf-rec small { display: block; color: var(--muted); font-size: 12px; } .pf-rec b { font-size: 15px; } .pf-rec em { font-style: normal; font-size: 11.5px; color: var(--muted); white-space: nowrap; }
+.pf-card .row { display: flex; justify-content: space-between; align-items: center; padding: 8px 2px; }
+input.sw { appearance: none; -webkit-appearance: none; width: 42px !important; height: 24px; border-radius: 99px; background: var(--line); position: relative; cursor: pointer; transition: .2s; margin: 0; padding: 0; border: 0; }
+input.sw::after { content: ''; position: absolute; left: 3px; top: 3px; width: 18px; height: 18px; border-radius: 50%; background: #fff; transition: .2s; box-shadow: 0 1px 2px rgba(0,0,0,.2); }
+input.sw:checked { background: var(--accent, #2563eb); } input.sw:checked::after { left: 21px; }
+.pf-danger { text-align: center; margin: 6px 0 4px; }
