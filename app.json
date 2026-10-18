@@ -1,8 +1,8 @@
 {
-  "version": "0.6.21",
-  "notes": "Nuevo: calle misteriosa del día, tu perro Pincel y foto de perfil personalizada",
+  "version": "0.6.22",
+  "notes": "Perro junto al botón de rumbo; GPS como icono animado al buscar y fijo con señal, junto a la velocidad",
   "native": 3,
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.21/pintamapa-web-0.6.21.zip",
-  "checksum": "c303a38f1e46f6b2eee5285031a8aed9d2d2847ee0da4f674ce3c3416071b6cc",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.21/PintaMapa-v0.6.21.apk"
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.22/pintamapa-web-0.6.22.zip",
+  "checksum": "3c084d12c6e84f990e4ef0d77f91a653120b0f3612e9ce45f1a9d0454f83549f",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.22/PintaMapa-v0.6.22.apk"
 }
