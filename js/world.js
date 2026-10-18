@@ -200,6 +200,34 @@ PM.world = (function () {
     const cell = Math.floor(lm.pos[0] / GRID) + ':' + Math.floor(lm.pos[1] / GRID);
     (lmGrid[cell] = lmGrid[cell] || []).push(lm);
   }
+  // ---------- Imprescindibles: en cada ciudad, los 6 lugares que no te puedes perder ----------
+  // Importancia: en cuántas Wikipedias del mundo aparece (lo más fiable), rareza, artículo propio y si es principal.
+  // Nunca estaciones, paradas, hospitales ni parques/plazas normales.
+  const MUST_N = 6;
+  const MUST_NO = /^(Estación|Parada de tranvía|Hospital|Bomberos|Arte urbano|Memorial|Comercio emblemático|Biblioteca|Mercado)$/;
+  const RANKV = { comun: 0, raro: 1, epico: 2, legendario: 3 };
+  function mustScore(lm) {
+    if (MUST_NO.test(lm.kind)) return -1;
+    if (/cementeri|cementiri|panteó|panteón|tanatori|cemetery/i.test(lm.name || '')) return -1;
+    if ((lm.kind === 'Parque' || lm.kind === 'Plaza' || lm.kind === 'Fuente') && (lm.wp || 0) < 8) return -1;
+    const wp = lm.wp || 0;
+    if (wp < 3 && RANKV[lm.rarity] < 2 && !lm.wiki) return -1;
+    return wp * 4 + RANKV[lm.rarity] * 12 + (lm.wiki || lm.wd ? 6 : 0) + (lm.principal ? 4 : 0) + (lm.prio || 0) * 0.05;
+  }
+  function updateMustSee() {
+    const byCity = {};
+    for (const id in landmarks) {
+      const lm = landmarks[id], city = api.cityAt(lm.pos);
+      if (!city) continue;
+      const sc = mustScore(lm);
+      if (sc >= 0) (byCity[city] = byCity[city] || []).push([lm, sc]);
+    }
+    const must = new Set();
+    for (const list of Object.values(byCity)) list.sort((a, b) => b[1] - a[1]).slice(0, MUST_N).forEach(([lm]) => must.add(lm.id));
+    let changed = false;
+    for (const id in landmarks) { const m = must.has(id); if (!!landmarks[id].must !== m) { landmarks[id].must = m; changed = true; } }
+    return changed;
+  }
   function commitLandmarks(list) {
     // iglesias principales que ya estaban descartadas de antes y ahora tienen su ayuntamiento: entran
     for (const c of markMainChurches(list)) if (!landmarks[c.id] && !list.includes(c)) accept(c);
@@ -1151,8 +1179,8 @@ PM.world = (function () {
     return out;
   }
 
-  return {
-    TILE, RARITY, tiles, pieces, landmarks, cans,
+  const api = {
+    TILE, RARITY, tiles, pieces, landmarks, cans, updateMustSee,
     tileKeyOf, tileBounds, ensureAround, piecesNear, onChange,
     barrios, barrioAt: barrioOf, barrioComplete, route, setAvoid, isAvoided, addLegacyGeo, ensureKeys,
     cityAt(p) { const t = tiles[tileKeyOf(p[0], p[1])]; return (t && t.city) || (PM.state && (PM.state.data.tileNames[tileKeyOf(p[0], p[1])] || {}).city) || null; },
@@ -1168,4 +1196,5 @@ PM.world = (function () {
     isDemo: () => demoMode,
     setDemo: (v) => { demoMode = v; },
   };
+  return api;
 })();

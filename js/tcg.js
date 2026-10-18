@@ -185,13 +185,13 @@ PM.tcg = (function () {
     const w = WEAK[hash(d.id) % WEAK.length], r = RES[hash(d.id + 'r') % RES.length];
     const pts = d.points || 100, revisit = Math.round(pts * 0.2);
     const energy = (n) => `<span class="tcg-en">${('<i style="background:' + T.orb + '"></i>').repeat(n)}</span>`;
-    return `<div class="tcg r-${d.rarity || 'comun'} t-${tk} ${opts.mini ? 'mini' : ''} ${d.shiny ? 'shiny' : ''}" style="--orb:${T.orb};--c1:${T.c1};--c2:${T.c2};--holo:${R.holo}" data-id="${esc(d.id)}">
+    return `<div class="tcg r-${d.rarity || 'comun'} t-${tk} ${opts.mini ? 'mini' : ''} ${d.shiny ? 'shiny' : ''} ${d.must ? 'must' : ''}" style="--orb:${T.orb};--c1:${T.c1};--c2:${T.c2};--holo:${R.holo}" data-id="${esc(d.id)}">
       <div class="tcg-rot">
         <div class="tcg-face tcg-front">
           <div class="tcg-inner">
             <div class="tcg-top">
               <div class="tcg-stage"><span>${esc(T.name)} · ${esc(R.name)}</span><span class="tcg-code">${code(d)}</span></div>
-              ${d.shiny ? '<div class="tcg-shinytag">✨ BRILLANTE</div>' : ''}
+              ${d.shiny || d.must ? `<div class="tcg-shinytag ${d.must ? 'musttag' : ''}">${d.must ? '⭐ IMPRESCINDIBLE' : ''}${d.must && d.shiny ? ' · ' : ''}${d.shiny ? '✨ BRILLANTE' : ''}</div>` : ''}
               <div class="tcg-title"><b>${esc(d.name)}</b><span class="tcg-hp"><small>PTS</small>${pts}<i class="tcg-orb">${d.emoji || '📍'}</i></span></div>
             </div>
             <div class="tcg-art">
@@ -438,6 +438,10 @@ PM.tcg = (function () {
     animation: shinysweep 3.2s linear infinite; }
   @keyframes shinysweep { from { background-position: 120% 0; } to { background-position: -40% 0; } }
   .tcg.shiny .tcg-glitter { opacity: .9 !important; }
+  /* IMPRESCINDIBLE: marco rojo y dorado, estrella y cinta (vale el doble) */
+  .tcg.must { box-shadow: 0 0 0 .22em #f59e0b, 0 0 0 .42em #b91c1c, 0 0 1.6em rgba(245,158,11,.55); }
+  .tcg.must .tcg-front::after { content: '⭐'; position: absolute; z-index: 7; right: .35em; bottom: .3em; font-size: 1.15em; filter: drop-shadow(0 1px 2px rgba(0,0,0,.4)); }
+  .tcg-shinytag.musttag { background: linear-gradient(90deg, #991b1b, #f59e0b, #991b1b); color: #fff; text-shadow: 0 1px 1px rgba(0,0,0,.35); }
   .tcg-shinytag { position: absolute; z-index: 6; left: 50%; top: -.55em; transform: translateX(-50%); background: linear-gradient(90deg, #b45309, #facc15, #b45309);
     color: #1a1200; font-weight: 900; font-size: .62em; letter-spacing: .12em; padding: .18em .8em; border-radius: 99px; box-shadow: 0 2px 6px rgba(0,0,0,.3); white-space: nowrap; }
   .tcg.mini .tcg-shinytag { font-size: .55em; }

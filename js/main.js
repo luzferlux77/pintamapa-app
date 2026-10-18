@@ -354,11 +354,18 @@
   const RCOL = { comun: '#9aa4b2', raro: '#3fa9ff', epico: '#b65cff', legendario: '#ffb700' };
   const iconMade = new Set();
   function lmIcon(lm, got) {
-    const key = 'pmi-' + (got ? 'g' + paintColor() : 'n') + '-' + lm.rarity + '-' + (lm.emoji || '');
+    const must = !!(lm.must || (S().landmarks[lm.id] || {}).must);
+    const key = 'pmi-' + (got ? 'g' + paintColor() : 'n') + '-' + lm.rarity + '-' + (lm.emoji || '') + (must ? '-m' : '');
     if (iconMade.has(key) && map.hasImage(key)) return key;
-    const k = 2, size = 46 * k, cx = size / 2, r = 17 * k;
+    const k = 2, size = (must ? 56 : 46) * k, cx = size / 2, r = (must ? 19 : 17) * k;
     const c = document.createElement('canvas'); c.width = size; c.height = size;
     const x = c.getContext('2d');
+    // imprescindible: doble aro dorado con brillo
+    if (must) {
+      x.save(); x.shadowColor = 'rgba(250,204,21,.9)'; x.shadowBlur = 8 * k;
+      x.beginPath(); x.arc(cx, cx, r + 6 * k, 0, 2 * Math.PI); x.fillStyle = '#facc15'; x.fill(); x.restore();
+      x.beginPath(); x.arc(cx, cx, r + 3.4 * k, 0, 2 * Math.PI); x.fillStyle = '#b45309'; x.fill();
+    }
     x.beginPath(); x.arc(cx, cx, r, 0, 2 * Math.PI);
     x.fillStyle = got ? paintColor() : '#ffffff'; x.fill();
     x.lineWidth = 3 * k; x.strokeStyle = got ? '#ffffff' : (RCOL[lm.rarity] || '#9aa4b2'); x.stroke();
@@ -367,6 +374,7 @@
     x.font = `${19 * k}px "Noto Color Emoji","Apple Color Emoji","Segoe UI Emoji",sans-serif`;
     x.fillText(lm.emoji || '📍', cx, cx + 1 * k);
     if (got) { x.font = `${13 * k}px "Noto Color Emoji","Apple Color Emoji","Segoe UI Emoji",sans-serif`; x.fillText('🚩', size - 9 * k, 9 * k); }
+    if (must) { x.font = `${14 * k}px "Noto Color Emoji","Apple Color Emoji","Segoe UI Emoji",sans-serif`; x.fillText('⭐', 9 * k, 9 * k); }
     try { if (map.hasImage(key)) map.removeImage(key); map.addImage(key, x.getImageData(0, 0, size, size), { pixelRatio: k }); iconMade.add(key); } catch (e) {}
     return key;
   }
@@ -384,7 +392,7 @@
     if (!(lmDirty || force) || !mapReady) return;
     lmDirty = false;
     setSrc('pm-lms', FC(Object.values(lmIndex).map(({ lm, got }) => ({ type: 'Feature',
-      properties: { id: lm.id, icon: lmIcon(lm, got), z: got ? 1 : 0 }, geometry: { type: 'Point', coordinates: ll(lm.pos) } }))));
+      properties: { id: lm.id, icon: lmIcon(lm, got), z: (got ? 1 : 0) + (lm.must ? 2 : 0) }, geometry: { type: 'Point', coordinates: ll(lm.pos) } }))));
   }
   function renderLandmarks() {
     for (const id in W.landmarks) {
@@ -392,6 +400,7 @@
       if (rec && !rec.pos) { rec.pos = W.landmarks[id].pos; PM.state.save(); }
       placeLandmark(W.landmarks[id]);
     }
+    if (W.updateMustSee()) lmDirty = true;   // imprescindibles de cada ciudad
     // conquistados guardados en tu partida (estén o no cargados ahora): siempre visibles
     for (const [id, rec] of Object.entries(S().landmarks)) if (!lmIndex[id] && rec.pos) placeLandmark(Object.assign({ id, points: 0 }, rec));
     flushLandmarks();
@@ -1473,7 +1482,7 @@
   W.onChange((ev, d) => {
     if (ev === 'barrios') { hudB.dirty = true; renderBarrios(); return; }
     if (ev === 'migrated') { paintedDirty = true; return; }
-    if (ev === 'named') { if (PM.fillLandmarkCities(S())) PM.state.save(); return; }
+    if (ev === 'named') { if (PM.fillLandmarkCities(S())) PM.state.save(); if (W.updateMustSee()) { lmDirty = true; flushLandmarks(); } return; }
     if (ev === 'lmRemoved') { if (lmIndex[d.id]) { delete lmIndex[d.id]; flushLandmarks(true); } return; }
     if (ev === 'loaded' || ev === 'partial') {
       d.tiles.forEach((k) => renderTile(k, true));
@@ -1520,7 +1529,8 @@
     const r = W.RARITY[lm.rarity];
     const d = PM.geo.dist(pos, lm.pos);
     openSheet(lm.emoji + ' ' + (got ? lm.name : '???'), `
-      <p><span class="pill" style="background:${r.color}">${r.label}</span> ${lm.kind} · ${lm.points} pts</p>
+      ${lm.must ? `<p class="must-pill">⭐ <b>Imprescindible</b> de ${W.cityAt(lm.pos) || 'esta ciudad'} · vale el doble</p>` : ''}
+      <p><span class="pill" style="background:${r.color}">${r.label}</span> ${lm.kind} · ${lm.points * (lm.must ? 2 : 1)} pts</p>
       <p>${got ? `Capturado el ${new Date(got.t).toLocaleDateString('es-ES')} · ${got.visits} visita(s)` :
         `Está a <b>${PM.fmtDist(d)}</b>. Acércate a menos de ${lm.capR || CAPTURE_RADIUS} m y quédate ${CAPTURE_SECONDS} s para capturarlo.`}</p>
       ${!got ? '<p class="muted">Pista: ' + lm.name.replace(/[^\s]/g, (ch, i) => (i % 3 === 0 ? ch : '•')) + '</p>' : ''}`);

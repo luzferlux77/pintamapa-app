@@ -522,3 +522,4 @@ input.sw:checked { background: var(--accent, #2563eb); } input.sw:checked::after
 #barrio-bar { position: relative; }
 #barrio-bar::before, #barrio-bar::after { content: ''; position: absolute; top: -2px; bottom: -2px; width: 2px; border-radius: 2px; z-index: 1; }
 #barrio-bar::before { left: 80%; background: #a8b0bd; } #barrio-bar::after { left: 90%; background: #eab308; }
+.must-pill { display: inline-block; margin: 0 0 8px; padding: 6px 12px; border-radius: 99px; background: linear-gradient(90deg, #991b1b, #f59e0b); color: #fff; font-size: 13px; }
