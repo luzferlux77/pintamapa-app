@@ -1,8 +1,8 @@
 {
-  "version": "0.6.20",
-  "notes": "Revisión: solo se pinta la calle por la que vas (sin paralelas, con un poco de cruce), aviso © plegado, detalles de estadísticas y memoria",
+  "version": "0.6.21",
+  "notes": "Nuevo: calle misteriosa del día, tu perro Pincel y foto de perfil personalizada",
   "native": 3,
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.20/pintamapa-web-0.6.20.zip",
-  "checksum": "dee46fdba2ac8790637e95d2ad11d3f95432b0cd8ddb7c4132f393396268a40c",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.20/PintaMapa-v0.6.20.apk"
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.21/pintamapa-web-0.6.21.zip",
+  "checksum": "c303a38f1e46f6b2eee5285031a8aed9d2d2847ee0da4f674ce3c3416071b6cc",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.21/PintaMapa-v0.6.21.apk"
 }
