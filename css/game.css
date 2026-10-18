@@ -421,3 +421,51 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
   html, body { font-size: 14px; }
   #nav button, #nav a { font-size: 11px; }
 }
+
+/* ===== Calle misteriosa ===== */
+#badges .badge.mystery { display: none; pointer-events: auto; cursor: pointer; border-color: #8b5cf6; color: #6d28d9; font-weight: 700; }
+#badges .badge.mystery.show { display: block; }
+.mys-temp { display: flex; flex-direction: column; align-items: center; padding: 14px; border-radius: 16px; margin-bottom: 12px; background: #eef2ff; }
+.mys-temp span { font-size: 40px; line-height: 1.1; } .mys-temp b { font-size: 20px; } .mys-temp small { color: var(--muted); }
+.mys-temp.k0, .mys-temp.k1 { background: #e0f2fe; } .mys-temp.k2 { background: #fef9c3; } .mys-temp.k3 { background: #ffedd5; } .mys-temp.k4 { background: #fee2e2; }
+.mys-hints { display: flex; flex-direction: column; gap: 8px; margin: 10px 0 14px; } .mys-hints div { background: var(--bg, #f4f6fb); border-radius: 12px; padding: 9px 12px; font-size: 14px; }
+.mys-done { font-size: 56px; text-align: center; }
+
+/* ===== Pincel, tu perro ===== */
+#btn-pet { position: absolute; z-index: 500; right: 14px; top: calc(208px + var(--safe-top)); width: 50px; height: 50px; padding: 3px; border-radius: 50%;
+  border: 1px solid var(--line); background: var(--panel); box-shadow: var(--shadow); cursor: pointer; }
+#btn-pet svg { width: 100%; height: 100%; display: block; }
+#btn-pet.mood-paseando { animation: petbob 1s ease-in-out infinite; border-color: var(--accent, #2563eb); }
+#btn-pet .pet-alert { position: absolute; top: -3px; right: -3px; width: 17px; height: 17px; border-radius: 50%; background: #ef4444; color: #fff; font: 800 11px/17px system-ui; font-style: normal; text-align: center; }
+@keyframes petbob { 50% { transform: translateY(-3px) rotate(-4deg); } }
+#pet-say { position: absolute; z-index: 520; right: 72px; top: calc(214px + var(--safe-top)); max-width: 190px; background: #fff; color: #111827; border-radius: 14px; padding: 8px 12px;
+  font-size: 13.5px; font-weight: 600; box-shadow: 0 6px 18px rgba(0,0,0,.16); opacity: 0; transform: translateX(8px) scale(.9); transition: .25s; pointer-events: none; }
+#pet-say::after { content: ''; position: absolute; right: -7px; top: 14px; border: 7px solid transparent; border-left-color: #fff; border-right: 0; }
+#pet-say.show { opacity: 1; transform: none; }
+.dog .dog-tail { transform-origin: 78px 104px; }
+.dog.wag1 .dog-tail { animation: wag 0.6s ease-in-out infinite alternate; }
+.dog.wag2 .dog-tail { animation: wag 0.25s ease-in-out infinite alternate; }
+@keyframes wag { from { transform: rotate(-14deg); } to { transform: rotate(18deg); } }
+.pet-card { display: flex; flex-direction: column; align-items: center; }
+.pet-big { transform: scale(var(--k, 1)); transform-origin: 50% 90%; cursor: pointer; }
+.pet-big.jump { animation: petjump .5s ease; }
+@keyframes petjump { 30% { transform: scale(var(--k, 1)) translateY(-18px); } 60% { transform: scale(var(--k, 1)) translateY(0); } }
+.mood-triste .pet-big, .mood-aburrido .pet-big { filter: saturate(.75); }
+.pet-name { display: flex; align-items: center; gap: 6px; margin-top: 4px; }
+.pet-name input { border: 0; border-bottom: 2px dashed var(--line); background: transparent; font: 800 22px system-ui, sans-serif; text-align: center; width: 180px; color: inherit; padding: 2px; }
+.pet-name input:focus { outline: none; border-bottom-color: var(--accent, #2563eb); }
+.pet-mood { margin-top: 4px; font-weight: 600; color: var(--muted); }
+.pet-hearts { display: flex; align-items: center; gap: 4px; margin-top: 8px; font-size: 24px; } .pet-hearts span { color: #e5e7eb; } .pet-hearts span.on { color: #ef4444; }
+.pet-hearts small { font-size: 12px; color: var(--muted); margin-left: 6px; }
+.pet-gear { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 8px; }
+.pet-gear div { background: var(--bg, #f4f6fb); border-radius: 12px; padding: 8px; text-align: center; opacity: .55; } .pet-gear div.on { opacity: 1; box-shadow: inset 0 0 0 2px var(--accent, #2563eb); }
+.pet-gear span { font-size: 24px; display: block; } .pet-gear b { display: block; font-size: 12px; } .pet-gear small { font-size: 11px; color: var(--muted); }
+
+/* ===== Foto de perfil ===== */
+.av-wrap { position: relative; display: flex; flex-direction: column; align-items: center; gap: 6px; flex: none; }
+.avatar.has-photo { background-size: cover; background-position: center; font-size: 0; }
+.av-wrap .avatar { cursor: pointer; }
+.av-edit { position: absolute; right: -4px; top: 40px; width: 28px; height: 28px; border-radius: 50%; border: 2px solid #fff; background: var(--accent, #2563eb); color: #fff; font-size: 13px; padding: 0; box-shadow: var(--shadow); }
+.av-del { border: 0; background: none; color: var(--muted); font-size: 11.5px; text-decoration: underline; padding: 0; }
+#nav-profile.has-avatar span svg { display: none; }
+#nav-profile.has-avatar span { display: block; width: 26px; height: 26px; margin: 0 auto; border-radius: 50%; background: var(--avatar) center / cover; box-shadow: 0 0 0 2px var(--panel), 0 0 0 3px var(--line); }

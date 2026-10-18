@@ -142,11 +142,11 @@ PM.cards = (function () {
   }
 
   // ---------------- Cámara ----------------
-  async function takePhoto() {
+  async function takePhoto(header) {
     const Cam = isNative && window.Capacitor.Plugins && window.Capacitor.Plugins.Camera;
     if (Cam) {
       const p = await Cam.getPhoto({ quality: 85, width: 1400, allowEditing: false, resultType: 'dataUrl', source: 'PROMPT', correctOrientation: true,
-        promptLabelHeader: 'Foto para el cromo', promptLabelPhoto: 'Elegir de la galería', promptLabelPicture: 'Hacer una foto', promptLabelCancel: 'Cancelar' });
+        promptLabelHeader: header || 'Foto para el cromo', promptLabelPhoto: 'Elegir de la galería', promptLabelPicture: 'Hacer una foto', promptLabelCancel: 'Cancelar' });
       return p.dataUrl;
     }
     return new Promise((res, rej) => {   // web: selector de archivo / cámara del navegador
@@ -414,5 +414,5 @@ PM.cards = (function () {
       <div class="pie"><b>${esc(b.name)}</b><small>${b.city ? esc(b.city) + ' · ' : ''}${new Date(b.t).toLocaleDateString('es-ES')}</small></div></div></div></div>`;
   }
 
-  return { open, close, album, fetchInfo, dataFor, SETS, setCount, getPhoto, FILTERS, _img: { loadImg, cropCard, applyFilter } };
+  return { open, close, album, fetchInfo, dataFor, SETS, setCount, getPhoto, takePhoto, FILTERS, _img: { loadImg, cropCard, applyFilter } };
 })();

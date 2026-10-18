@@ -38,6 +38,7 @@
       background: conic-gradient(var(--paint) calc(var(--p) * 1%), #f0f1f5 0); position: relative; }
     .ring::before { content: ''; position: absolute; inset: 4px; border-radius: 50%; background: #fff; }
     .ring b { position: relative; }
+    #avatar { width: 40px; height: 40px; border-radius: 50%; background: center / cover; box-shadow: 0 0 0 2px #fff, 0 0 0 3px var(--line); flex: none; }
     .who-txt b { display: block; font-size: 15px; } .who-txt small { color: var(--muted); font-size: 12px; }
     .grow { flex: 1; }
     .hbtn { border: 1px solid var(--line); background: #fff; border-radius: 10px; padding: 8px 12px; font-size: 13px; font-weight: 600; color: var(--text); text-decoration: none; }
@@ -324,6 +325,9 @@
       const p = LI.pct * 100;
       $('#ring').style.setProperty('--p', p.toFixed(1)); $('#lvl').textContent = LI.short; $('#lvl').style.color = LI.tier ? LI.tier.color : '';
       $('#name').textContent = s.player || creds.user;
+      let av = document.getElementById('avatar');   // tu foto de perfil (de la app)
+      if (s.avatar) { if (!av) { av = document.createElement('div'); av.id = 'avatar'; $('.who').insertBefore(av, $('.who-txt')); } av.style.backgroundImage = `url('${s.avatar}')`; }
+      else if (av) av.remove();
       $('#lvltext').textContent = `Nivel ${LI.label}${LI.tier ? ' ' + LI.tier.icon : ''} · ${PM.fmtNum(s.xp || 0)} pts · ` + (LI.max ? '¡nivel máximo!' : `faltan ${PM.fmtNum(LI.need - LI.cur)} para el ${LI.nextLabel}`);
       $('#synced').textContent = s.syncedAt ? 'Actualizado ' + new Date(s.syncedAt).toLocaleString('es-ES', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
       document.documentElement.style.setProperty('--paint', s.color || '#ff2e88');

@@ -33,6 +33,11 @@
     [...(a.walks || []), ...(b.walks || [])].forEach((w) => { walks[w.id] = w; });
     out.walks = Object.values(walks).filter((w) => (w.elapsed || 0) >= 120000).sort((x, y) => x.start - y.start);   // < 2 min: no cuentan
     if (a.daily && b.daily && a.daily.date > b.daily.date) out.daily = a.daily;
+    // calle misteriosa: la del día más reciente; el mismo día, la encontrada
+    if (a.mystery && b.mystery && (a.mystery.day > b.mystery.day || (a.mystery.day === b.mystery.day && a.mystery.found && !b.mystery.found))) out.mystery = a.mystery;
+    // foto de perfil: la más reciente (también si la quitaste)
+    const newer = (a.avatarT || 0) > (b.avatarT || 0) ? a : b;
+    if (newer.avatarT) { out.avatarT = newer.avatarT; if (newer.avatar) out.avatar = newer.avatar; else delete out.avatar; }
     out.avoidRemoved = Object.assign({}, a.avoidRemoved || {}, b.avoidRemoved || {});
     const av = {};
     [...(a.avoid || []), ...(b.avoid || [])].forEach((z) => { if (!out.avoidRemoved[z.id]) av[z.id] = z; });
