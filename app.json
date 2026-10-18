@@ -1,8 +1,8 @@
 {
-  "version": "0.6.25",
-  "notes": "Perro: botón para cambiar de raza, 12 trucos que se desbloquean paseando, 13 accesorios que puedes poner y quitar, nuevos logros de perro",
+  "version": "0.6.26",
+  "notes": "Tema oscuro: ventanas ya no transparentes y tarjetas del perfil legibles",
   "native": 3,
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.25/pintamapa-web-0.6.25.zip",
-  "checksum": "a99ac767f124f37b5309c2b39d5430629430fcb430fe3c7d330f13783b9ef694",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.25/PintaMapa-v0.6.25.apk"
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.26/pintamapa-web-0.6.26.zip",
+  "checksum": "e5345d9fef523166e74d657dc98eec6a7c7d641164bc10963b43597178ada2db",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.26/PintaMapa-v0.6.26.apk"
 }
