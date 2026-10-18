@@ -1,8 +1,8 @@
 {
-  "version": "0.6.32",
-  "notes": "Conquista: barrio al 60 % y ciudad al 70 %; rangos bronce/plata/oro con color (barrio 60/80/90, ciudad 70/80/90)",
+  "version": "0.6.33",
+  "notes": "Carta: botón Info a Wikipedia; foto del cromo más ágil (el editor sale encima de la carta)",
   "native": 3,
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.32/pintamapa-web-0.6.32.zip",
-  "checksum": "40bd4e72b21f4f92407273edc3f83a31bf969adf44e34fd530c3ce03fc4a844d",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.32/PintaMapa-v0.6.32.apk"
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.33/pintamapa-web-0.6.33.zip",
+  "checksum": "60b3732fbdf4e2f16ae46493a3eeb9862a9ca78ef32e78ae7a83e28f0cf03127",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.33/PintaMapa-v0.6.33.apk"
 }
