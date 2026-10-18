@@ -295,6 +295,8 @@ PM.game = (function () {
       s.landmarks[lm.id] = { t: now, last: now, visits: 1, name: lm.name, kind: lm.kind, emoji: lm.emoji, rarity: lm.rarity,
         pos: [+lm.pos[0].toFixed(6), +lm.pos[1].toFixed(6)], wiki: lm.wiki || null, wd: lm.wd || null,
         city: PM.world.cityAt(lm.pos), barrio: (PM.world.barrioAt(lm.pos) || {}).name || null };
+      // carta BRILLANTE: 1 de cada 50 capturas sale dorada (vale el doble)
+      if (Math.random() < 1 / 50) { s.landmarks[lm.id].shiny = 1; s.stats.shiny = (s.stats.shiny || 0) + 1; }
       setTimeout(checkSets, 100);
       s.stats.captures++;
       if (/^(Iglesia|Iglesia principal|Basílica|Catedral|Templo|Ermita \/ Monasterio)$/.test(lm.kind)) s.stats.churches++;
@@ -306,7 +308,8 @@ PM.game = (function () {
       if (s.stats.churches >= 3) unlock('peregrino');
       if (lm.kind === 'Ayuntamiento') unlock('alcalde');
       if (lm.rarity === 'legendario') unlock('leyenda');
-      emit('captured', { lm, first: true, pts: lm.points });
+      if (s.landmarks[lm.id].shiny) addXP(lm.points, 'shiny');
+      emit('captured', { lm, first: true, pts: lm.points * (s.landmarks[lm.id].shiny ? 2 : 1), shiny: !!s.landmarks[lm.id].shiny });
       return true;
     }
     if (now - rec.last > REVISIT_MS) {
@@ -496,11 +499,17 @@ PM.game = (function () {
   serie('fotos', '📷', [5, 25, 50, 100], 'Fotógrafo', (t) => `${t} cromos con foto propia`, (s) => Object.keys(s.cardPhotos || {}).length);
   serie('fiel', '🔁', [5, 10, 25], 'Fiel', (t) => `Visita ${t} veces el mismo lugar`, (s) => Math.max(0, ...lmList(s).map((v) => v.visits || 1)));
   serie('colec', '🗂️', [1, 3, 5, 10], 'Colecciones', (t) => `Completa ${t} colecci${t > 1 ? 'ones' : 'ón'}`, (s) => Object.keys(s.setsDone || {}).length);
+  serie('brillo', '✨', [1, 3, 5, 10, 25], 'Cazador de brillos', (t) => t === 1 ? 'Consigue una carta brillante' : `Consigue ${t} cartas brillantes`, (s) => s.stats.shiny || 0);
+  const rankN = (s, r) => Object.values(s.barrioRank || {}).filter((v) => v >= r).length;
+  serie('plata', '🥈', [1, 3, 5, 10, 25], 'Barrio de plata', (t) => `${t} barrio${t > 1 ? 's' : ''} en rango Plata (90 %)`, (s) => rankN(s, 1));
+  serie('oro', '🥇', [1, 3, 5, 10], 'Barrio de oro', (t) => `${t} barrio${t > 1 ? 's' : ''} en rango Oro (100 %)`, (s) => rankN(s, 2));
+  serie('leyendab', '🏆', [1, 3, 5], 'Leyenda del barrio', (t) => `${t} barrio${t > 1 ? 's' : ''} en rango Leyenda`, (s) => rankN(s, 3));
   // tu perro
   const petOf = (s) => s.pet || {};
   serie('perro', '🐶', [1, 5, 10, 25, 50, 100, 250, 500, 1000], 'Mejor amigo', (t) => `Pasea ${t} km con tu perro`, (s) => km(s.stats.walkedM || 0) * (s.pet ? 1 : 0));
   serie('trucos', '🦴', [1, 10, 50, 100, 250, 500], 'Domador', (t) => `Tu perro hace ${t} truco${t > 1 ? 's' : ''}`, (s) => petOf(s).tricks || 0);
   serie('perrofeliz', '💖', [1, 7, 30, 100, 365], 'Perro feliz', (t) => `${t} día${t > 1 ? 's' : ''} con los 3 corazones de tu perro`, (s) => petOf(s).fullDays || 0);
+  serie('huesos', '🦴', [1, 10, 50, 100, 250, 500], 'Rastreador', (t) => t === 1 ? 'Tu perro encuentra su primer hueso' : `Tu perro encuentra ${t} huesos`, (s) => petOf(s).bones || 0);
   serie('razas', '🐕', [3, 6, 10], 'Amante de los perros', (t) => `Prueba ${t} razas de perro`, (s) => (petOf(s).breeds || []).length);
   serie('look', '🎀', [3, 7, 13], 'Perro con estilo', (t) => `Desbloquea ${t} accesorios para tu perro`, (s) => [5, 10, 15, 20, 30, 40, 60, 80, 100, 120, 150, 200, 250].filter((n) => Object.keys(s.achievements || {}).length >= n).length);
   serie('sendero', '🌲', [1, 5, 10, 25], 'Senderista', (t) => `Pinta ${t} km de senderos y caminos`, (s) => km(s.stats.trailM || 0));

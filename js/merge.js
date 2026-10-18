@@ -36,6 +36,8 @@
     // foto de perfil: la más reciente (también si la quitaste)
     const newer = (a.avatarT || 0) > (b.avatarT || 0) ? a : b;
     if (newer.avatarT) { out.avatarT = newer.avatarT; if (newer.avatar) out.avatar = newer.avatar; else delete out.avatar; }
+    out.barrioRank = Object.assign({}, a.barrioRank);
+    for (const [k, v] of Object.entries(b.barrioRank || {})) out.barrioRank[k] = Math.max(out.barrioRank[k] ?? -1, v);
     out.avoidRemoved = Object.assign({}, a.avoidRemoved || {}, b.avoidRemoved || {});
     const av = {};
     [...(a.avoid || []), ...(b.avoid || [])].forEach((z) => { if (!out.avoidRemoved[z.id]) av[z.id] = z; });

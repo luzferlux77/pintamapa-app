@@ -185,12 +185,13 @@ PM.tcg = (function () {
     const w = WEAK[hash(d.id) % WEAK.length], r = RES[hash(d.id + 'r') % RES.length];
     const pts = d.points || 100, revisit = Math.round(pts * 0.2);
     const energy = (n) => `<span class="tcg-en">${('<i style="background:' + T.orb + '"></i>').repeat(n)}</span>`;
-    return `<div class="tcg r-${d.rarity || 'comun'} t-${tk} ${opts.mini ? 'mini' : ''}" style="--orb:${T.orb};--c1:${T.c1};--c2:${T.c2};--holo:${R.holo}" data-id="${esc(d.id)}">
+    return `<div class="tcg r-${d.rarity || 'comun'} t-${tk} ${opts.mini ? 'mini' : ''} ${d.shiny ? 'shiny' : ''}" style="--orb:${T.orb};--c1:${T.c1};--c2:${T.c2};--holo:${R.holo}" data-id="${esc(d.id)}">
       <div class="tcg-rot">
         <div class="tcg-face tcg-front">
           <div class="tcg-inner">
             <div class="tcg-top">
               <div class="tcg-stage"><span>${esc(T.name)} · ${esc(R.name)}</span><span class="tcg-code">${code(d)}</span></div>
+              ${d.shiny ? '<div class="tcg-shinytag">✨ BRILLANTE</div>' : ''}
               <div class="tcg-title"><b>${esc(d.name)}</b><span class="tcg-hp"><small>PTS</small>${pts}<i class="tcg-orb">${d.emoji || '📍'}</i></span></div>
             </div>
             <div class="tcg-art">
@@ -401,6 +402,16 @@ PM.tcg = (function () {
   .tcg-foil::after { content: ''; position: absolute; inset: 0; border-radius: inherit; mix-blend-mode: soft-light;
     background: linear-gradient(115deg, transparent 44%, rgba(255,255,255,.7) 50%, transparent 56%); background-size: 260% 260%; background-position: var(--mx) var(--my); }
   .tcg.flat .tcg-foil { opacity: .12; }
+  /* carta BRILLANTE: marco dorado, lámina dorada visible siempre y destellos que recorren la carta */
+  .tcg.shiny { box-shadow: 0 0 0 .18em #f5c542, 0 0 1.4em rgba(250,204,21,.65); }
+  .tcg.shiny .tcg-foil { opacity: calc(.32 + var(--hyp) * .5); mix-blend-mode: color-dodge;
+    background: linear-gradient(115deg, rgba(255,215,0,0) 20%, rgba(255,223,90,.55) 35%, rgba(255,255,255,.65) 45%, rgba(255,190,60,.55) 55%, rgba(255,215,0,0) 72%); background-size: 260% 260%;
+    animation: shinysweep 3.2s linear infinite; }
+  @keyframes shinysweep { from { background-position: 120% 0; } to { background-position: -40% 0; } }
+  .tcg.shiny .tcg-glitter { opacity: .9 !important; }
+  .tcg-shinytag { position: absolute; z-index: 6; left: 50%; top: -.55em; transform: translateX(-50%); background: linear-gradient(90deg, #b45309, #facc15, #b45309);
+    color: #1a1200; font-weight: 900; font-size: .62em; letter-spacing: .12em; padding: .18em .8em; border-radius: 99px; box-shadow: 0 2px 6px rgba(0,0,0,.3); white-space: nowrap; }
+  .tcg.mini .tcg-shinytag { font-size: .55em; }
   /* holograma del reverso: arcoíris muy suave que se desliza al mover la carta */
   .bk-holo { position: absolute; inset: 0; pointer-events: none; z-index: 3; border-radius: inherit; mix-blend-mode: overlay; opacity: calc(.04 + var(--hyp) * .2);
     background: linear-gradient(120deg, transparent 20%, rgba(255,80,170,.55) 32%, rgba(255,220,90,.5) 40%, rgba(80,255,190,.45) 48%, rgba(90,190,255,.55) 56%, rgba(190,110,255,.5) 64%, transparent 76%);

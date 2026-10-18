@@ -631,3 +631,34 @@ input.sw:checked { background: var(--accent, #2563eb); } input.sw:checked::after
 .dog .dog-ball { animation: ball 1.6s ease-in-out infinite; }
 @keyframes ball { 50% { transform: translateY(-6px); } }
 .dog .dog-wings path + path { animation-name: flap2; } @keyframes flap2 { 50% { transform: rotate(12deg); } }
+
+/* ===== Tu perro en el mapa ===== */
+.mapdog { pointer-events: none !important; width: calc(46px * var(--mds, 1)); height: calc(56px * var(--mds, 1)); position: relative; z-index: 3; }
+.mapdog .md-flip { position: absolute; inset: 0; transition: transform .25s; }
+.mapdog .md-body { position: absolute; inset: 0; transform-origin: 50% 100%; }
+.mapdog .md-body svg { width: 100%; height: 100%; display: block; filter: drop-shadow(0 2px 2px rgba(0,0,0,.25)); }
+.mapdog .md-shadow { position: absolute; left: 20%; right: 20%; bottom: -2px; height: 6px; border-radius: 50%; background: rgba(0,0,0,.18); }
+.md-walk .md-body { animation: mdwalk .38s ease-in-out infinite alternate; }
+@keyframes mdwalk { from { transform: translateY(0) rotate(-3deg); } to { transform: translateY(-3px) rotate(3deg); } }
+.md-walk .dog-paw-l { animation: step .19s ease-in-out infinite alternate; } .md-walk .dog-paw-r { animation: step .19s ease-in-out infinite alternate-reverse; }
+.md-run .md-body { animation: mdrun .22s ease-in-out infinite alternate; }
+@keyframes mdrun { from { transform: translateY(0) rotate(-6deg) scaleX(1.05); } to { transform: translateY(-6px) rotate(4deg); } }
+.md-run .dog-paw-l { animation: step .11s linear infinite alternate; } .md-run .dog-paw-r { animation: step .11s linear infinite alternate-reverse; }
+.md-sit .md-body { transform: scaleY(.94); }
+.md-sniff .md-body { animation: mdsniff .5s ease-in-out infinite alternate; }
+@keyframes mdsniff { from { transform: rotate(8deg) translateY(2px); } to { transform: rotate(14deg) translateY(4px); } }
+.mapdog.md-t-jump .md-body { animation: b-jump .6s ease !important; }
+.mapdog.md-t-spin .md-body { animation: b-spin .8s ease !important; }
+
+/* huesos de hoy en la ficha del perro */
+.pet-bones { display: flex; align-items: center; gap: 3px; margin-top: 8px; flex-wrap: wrap; justify-content: center; }
+.pet-bones span { font-size: 18px; filter: grayscale(1); opacity: .35; } .pet-bones span.on { filter: none; opacity: 1; }
+.pet-bones small { width: 100%; text-align: center; color: var(--muted); font-size: 12px; }
+
+/* medallas de rango sobre los barrios */
+.flag.rk1, .flag.rk2, .flag.rk3 { font-size: 22px; filter: drop-shadow(0 1px 2px rgba(0,0,0,.35)); }
+.flag.rk3 { animation: rkglow 1.6s ease-in-out infinite alternate; }
+@keyframes rkglow { to { filter: drop-shadow(0 0 6px #facc15); } }
+.pf-week { display: flex; align-items: center; gap: 12px; width: 100%; margin-bottom: 12px; padding: 12px 14px; border: 0; border-radius: 16px; cursor: pointer; text-align: left; color: #fff; font: inherit;
+  background: linear-gradient(120deg, var(--paint, #2563eb), #7c3aed); box-shadow: var(--shadow); }
+.pf-week span { font-size: 28px; } .pf-week div { flex: 1; } .pf-week b { display: block; font-size: 15px; } .pf-week small { font-size: 12px; opacity: .9; } .pf-week em { font-style: normal; font-size: 18px; }

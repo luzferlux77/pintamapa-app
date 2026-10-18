@@ -208,7 +208,7 @@ PM.cards = (function () {
     const img = await imageFor(id);
     const all = Object.keys(S().landmarks);
     const lm = PM.world.landmarks[id] || {};
-    return { id, name: rec.name, kind: rec.kind, emoji: rec.emoji, rarity: rec.rarity, city: rec.city, barrio: rec.barrio, t: rec.t, visits: rec.visits, pos: rec.pos || lm.pos, color: S().color,
+    return { id, shiny: !!rec.shiny, name: rec.name, kind: rec.kind, emoji: rec.emoji, rarity: rec.rarity, city: rec.city, barrio: rec.barrio, t: rec.t, visits: rec.visits, pos: rec.pos || lm.pos, color: S().color,
       wiki: rec.wiki || lm.wiki, wd: rec.wd || lm.wd,
       img: img && img.src, own: !!(img && img.own), text: info.text, credit: img && img.own ? 'Foto: ' + (PM.player ? PM.player.name : 'tuya') : info.credit,
       points: 100 * ((PM.world.RARITY[rec.rarity] || {}).mult || 1), number: number(id), total: all.length, player: PM.player && PM.player.name };
@@ -219,7 +219,7 @@ PM.cards = (function () {
     const show = async () => {
       const d = await dataFor(id);
       PM.tcg.open(d, {
-        badge: opts.isNew ? `¡Nueva carta! ${opts.pts ? '+' + opts.pts + ' pts' : ''}` : '',
+        badge: opts.isNew ? `${recOf(id).shiny ? '✨ ¡CARTA BRILLANTE! ✨' : '¡Nueva carta!'} ${opts.pts ? '+' + opts.pts + ' pts' : ''}` : '',
         actions: [{ label: d.own ? '📸 Cambiar foto' : d.img ? '📸 Tu foto' : '📸 Hazle la foto', primary: !d.img, on: () => editPhoto(id, show) }],
         onText: (t) => { const ci = S().cardInfo[id] || (S().cardInfo[id] = { t: Date.now() }); ci.text = t; delete ci.none; PM.state.save(); },
       });

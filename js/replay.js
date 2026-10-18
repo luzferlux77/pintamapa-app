@@ -547,5 +547,5 @@ ${segs.map((s) => `<LineString><tessellate>1</tessellate><altitudeMode>clampToGr
   #replay-view .rp-msg { color: #374151; font-size: 14px; margin: 0; min-height: 1.2em; }`;
   document.head.appendChild(st);
 
-  return { open, close, analyze: (w) => analyze(w, points(w)) };
+  return { open, close, save, analyze: (w) => analyze(w, points(w)) };
 })();

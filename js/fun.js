@@ -20,6 +20,11 @@ PM.fun = (function () {
     { id: 'capa', n: 150, name: 'Capa de superperro', ic: '🦸' },
     { id: 'corona', n: 200, name: 'Corona', ic: '👑' },
     { id: 'alas', n: 250, name: 'Alas de ángel', ic: '🪽' },
+    // exclusivos: se consiguen con los huesos que encuentra tu perro
+    { id: 'pajarita', b: 5, name: 'Pajarita', ic: '🎩' },
+    { id: 'vaquero', b: 15, name: 'Sombrero vaquero', ic: '🤠' },
+    { id: 'fiesta', b: 30, name: 'Gorro de fiesta', ic: '🥳' },
+    { id: 'dino', b: 60, name: 'Disfraz de dinosaurio', ic: '🦖' },
   ];
   const STAGES = [
     { km: 0, name: 'Cachorro', k: 0.82 }, { km: 10, name: 'Joven', k: 0.92 }, { km: 50, name: 'Adulto', k: 1 }, { km: 200, name: 'Veterano', k: 1.04 },
@@ -96,6 +101,9 @@ PM.fun = (function () {
       <ellipse class="dog-nose" cx="55" cy="60" rx="5.5" ry="4" fill="${b.noseLight ? '#111' : '#222'}"/>${mouth}
       ${g.has('gorra') && !g.has('corona') ? `<path d="M28 34 q27 -24 54 0 z" fill="${c}"/><path d="M76 33 q14 0 18 6 h-18 z" fill="${c}" opacity=".85"/><circle cx="55" cy="18" r="3" fill="#fff"/>` : ''}
       ${g.has('corona') ? '<path d="M38 28 l5 -14 l7 9 l5 -12 l5 12 l7 -9 l5 14 z" fill="#facc15" stroke="#b45309" stroke-width="1.5"/>' : ''}
+      ${g.has('dino') ? '<path d="M34 34 l5 -12 l5 10 l5 -13 l5 12 l5 -13 l5 12 l5 -11 l4 12" fill="#4ade80" stroke="#16a34a" stroke-width="1.5" stroke-linejoin="round"/>' : ''}
+      ${g.has('vaquero') && !g.has('corona') && !g.has('gorra') ? '<ellipse cx="55" cy="28" rx="34" ry="6" fill="#92400e"/><path d="M40 28 q0 -18 15 -18 q15 0 15 18 z" fill="#b45309"/><path d="M41 23 h28" stroke="#78350f" stroke-width="3"/>' : ''}
+      ${g.has('fiesta') && !g.has('corona') && !g.has('gorra') && !g.has('vaquero') ? `<path d="M60 28 l12 -24 l10 26 z" fill="${c}" stroke="#fff" stroke-width="1.5"/><circle cx="72" cy="4" r="4" fill="#facc15"/><circle cx="70" cy="18" r="1.8" fill="#fff"/><circle cx="76" cy="23" r="1.8" fill="#fff"/>` : ''}
       ${g.has('lazo') ? `<path d="M30 30 l-9 -7 l1 13 z M30 30 l9 -9 l2 12 z" fill="#f472b6"/><circle cx="30" cy="30" r="3" fill="#db2777"/>` : ''}
       ${g.has('cascos') ? `<path d="M27 50 q-2 -34 28 -36 q30 2 28 36" stroke="#111" stroke-width="5" fill="none"/><rect x="20" y="44" width="11" height="17" rx="5" fill="${c}"/><rect x="79" y="44" width="11" height="17" rx="5" fill="${c}"/>` : ''}
       ${g.has('gafas') ? '<rect x="33" y="44" width="18" height="11" rx="4" fill="#111" opacity=".92"/><rect x="59" y="44" width="18" height="11" rx="4" fill="#111" opacity=".92"/><path d="M51 49 h8" stroke="#111" stroke-width="2.5"/>' : ''}
@@ -113,6 +121,8 @@ PM.fun = (function () {
       ${g.has('botas') ? `<ellipse cx="41" cy="122" rx="8" ry="6" fill="${c}"/><ellipse cx="69" cy="122" rx="8" ry="6" fill="${c}"/>` : ''}
       ${g.has('mochila') ? `<rect x="72" y="92" width="14" height="18" rx="4" fill="${c}"/><rect x="74" y="98" width="10" height="6" rx="2" fill="#fff" opacity=".5"/>` : ''}
       ${g.has('pelota') ? '<g class="dog-ball"><circle cx="16" cy="121" r="7" fill="#d9f99d" stroke="#65a30d" stroke-width="1.5"/><path d="M10 117 q6 4 12 0 M10 125 q6 -4 12 0" stroke="#fff" stroke-width="1.3" fill="none"/></g>' : ''}
+      ${g.has('pajarita') ? `<path d="M55 86 l-11 -6 v12 z M55 86 l11 -6 v12 z" fill="${c}"/><circle cx="55" cy="86" r="3" fill="#111"/>` : ''}
+      ${g.has('dino') ? '<path d="M72 92 l6 -6 l2 8 l6 -5 l1 9" fill="#4ade80" stroke="#16a34a" stroke-width="1.2"/>' : ''}
       ${g.has('collar') ? '<path d="M36 82 q19 10 38 0" stroke="#dc2626" stroke-width="5" fill="none" stroke-linecap="round"/>' : ''}
       ${g.has('chapa') ? '<circle cx="55" cy="90" r="4.5" fill="#facc15" stroke="#b45309" stroke-width="1.2"/>' : ''}
       ${g.has('panuelo') ? `<path d="M38 82 q17 9 34 0 l-17 16 z" fill="${c}"/>` : ''}
@@ -156,7 +166,8 @@ PM.fun = (function () {
     function petState() {
       const s = S(), p = pet();
       const nAch = Object.keys(s.achievements || {}).length;
-      const owned = GEAR.filter((g) => nAch >= g.n).map((g) => g.id);
+      const bones = p.bones || 0;
+      const owned = GEAR.filter((g) => (g.b ? bones >= g.b : nAch >= g.n)).map((g) => g.id);
       const off = new Set(p.off || []);
       const gear = owned.filter((id) => !off.has(id));
       const km = (s.stats.walkedM || 0) / 1000;
@@ -168,7 +179,7 @@ PM.fun = (function () {
       // días con los 3 corazones (logro «Perro feliz»)
       if (hearts >= 3 && p.fullDay !== today()) { p.fullDay = today(); p.fullDays = (p.fullDays || 0) + 1; PM.state.save(); }
       const tricks = TRICKS.filter((t) => km >= t.km);
-      return { p, gear, owned, km, stage, hearts, wt, mood, M: MOODS[mood], nAch, next: GEAR.find((g) => nAch < g.n), tricks, nextTrick: TRICKS.find((t) => km < t.km) };
+      return { p, gear, owned, km, stage, hearts, wt, mood, M: MOODS[mood], nAch, next: GEAR.find((g) => g.n && nAch < g.n), nextBone: GEAR.find((g) => g.b && bones < g.b), bones, tricks, nextTrick: TRICKS.find((t) => km < t.km) };
     }
     const look = (st, extra) => Object.assign({ breed: st.p.breed, face: st.M.face, gear: st.gear, color: S().color, wag: st.M.wag }, extra || {});
     let petKey = '';
@@ -224,6 +235,12 @@ PM.fun = (function () {
       say(pickOne(t.say), true);
       PM.vibrate && PM.vibrate(t.c === 'bark' ? [30, 40, 30] : 20);
     }
+    function bonesLine() {
+      const b = S().bones;
+      if (!b || b.day !== today()) return '';
+      const got = b.list.filter((x) => x.got).length;
+      return `<div class="pet-bones">${b.list.map((x) => `<span class="${x.got ? 'on' : ''}">🦴</span>`).join('')}<small>${got}/${b.list.length} huesos hoy · ${got < b.list.length ? 'sal a pintar y tu perro los olfateará' : '¡todos encontrados!'}</small></div>`;
+    }
     function showPet() {
       const st = petState(), p = st.p;
       const nextStage = STAGES.find((x) => x.km > st.km);
@@ -237,6 +254,7 @@ PM.fun = (function () {
           <div class="pet-hearts">${[0, 1, 2].map((i) => `<span class="${i < st.hearts ? 'on' : ''}">❤</span>`).join('')}<small>${PM.fmtDist(st.wt)} hoy</small></div>
           <p class="muted" style="text-align:center;margin:4px 0 6px">${tip}</p>
           <small class="muted pet-hint">Tócalo y hará un truco 🐾</small>
+          ${bonesLine()}
         </div>
         <div class="pet-breed-box" id="pet-breed-box" ${p.breedChosen ? 'hidden' : ''}>
         <h4 style="margin:14px 0 8px">${p.breedChosen ? 'Cambiar de perro' : '¿Qué perro quieres?'}</h4>
@@ -250,8 +268,9 @@ PM.fun = (function () {
         <div class="pet-tricks">${TRICKS.map((t) => { const on = st.km >= t.km; return `<button class="${on ? 'on' : ''}" ${on ? `data-trick="${t.c}"` : 'disabled'}><span>${on ? t.ic : '🔒'}</span><b>${t.name}</b><small>${on ? 'toca para verlo' : t.km + ' km juntos'}</small></button>`; }).join('')}</div>
         ${st.nextTrick ? `<p class="muted" style="margin-top:8px">Próximo truco: <b>${st.nextTrick.name}</b> a los ${st.nextTrick.km} km (te faltan ${Math.max(0, st.nextTrick.km - st.km).toFixed(1)} km).</p>` : ''}
         <h4 style="margin:16px 0 8px">Accesorios <small class="muted">· se ganan con logros (${st.nAch}) · toca para ponérselo o quitárselo</small></h4>
-        <div class="pet-gear">${GEAR.map((g) => { const has = st.owned.includes(g.id), on = st.gear.includes(g.id); return `<button class="${has ? (on ? 'on' : 'own') : ''}" ${has ? `data-gear="${g.id}"` : 'disabled'}><span>${has ? g.ic : '🔒'}</span><b>${g.name}</b><small>${has ? (on ? 'puesto ✓' : 'guardado') : g.n + ' logros'}</small></button>`; }).join('')}</div>
-        ${st.next ? `<p class="muted" style="margin-top:10px">Siguiente: <b>${st.next.name}</b> con ${st.next.n} logros (te faltan ${st.next.n - st.nAch}).</p>` : ''}`);
+        <div class="pet-gear">${GEAR.map((g) => { const has = st.owned.includes(g.id), on = st.gear.includes(g.id); return `<button class="${has ? (on ? 'on' : 'own') : ''}" ${has ? `data-gear="${g.id}"` : 'disabled'}><span>${has ? g.ic : '🔒'}</span><b>${g.name}</b><small>${has ? (on ? 'puesto ✓' : 'guardado') : g.b ? g.b + ' huesos 🦴' : g.n + ' logros'}</small></button>`; }).join('')}</div>
+        ${st.next ? `<p class="muted" style="margin-top:10px">Siguiente: <b>${st.next.name}</b> con ${st.next.n} logros (te faltan ${st.next.n - st.nAch}).</p>` : ''}
+        ${st.nextBone ? `<p class="muted">🦴 Huesos encontrados: <b>${st.bones}</b> · el próximo exclusivo (${st.nextBone.name}) a los ${st.nextBone.b}.</p>` : `<p class="muted">🦴 Huesos encontrados: <b>${st.bones}</b>.</p>`}`);
       const inp = $('#pet-name');
       inp.addEventListener('change', () => { const v = inp.value.trim().slice(0, 16); if (v) { pet().name = v; PM.state.save(); $('#sheet h3').textContent = '🐶 ' + v; } });
       const big = document.querySelector('.pet-big');
@@ -312,9 +331,125 @@ PM.fun = (function () {
       b.style.setProperty('--avatar', S().avatar ? `url('${S().avatar}')` : 'none');
     }
 
+    // =============== TU PERRO EN EL MAPA ===============
+    // camina a tu lado (un poco por detrás), se sienta cuando paras, corre si aceleras y olfatea cerca de lugares y huesos
+    const map = ctx.map;
+    let md = null, mdPos = null, mdKey = '', mdState = '', mdFlipX = 1, mdLastPx = null;
+    function mapDogEl() {
+      const el = document.createElement('div'); el.className = 'mapdog';
+      el.innerHTML = '<div class="md-flip"><div class="md-body"></div></div><div class="md-shadow"></div>';
+      return el;
+    }
+    function frame(dt, p, headingDeg, speed) {
+      if (!p || !map) return;
+      const z = map.getZoom();
+      if (!md) { md = new maplibregl.Marker({ element: mapDogEl(), anchor: 'bottom' }).setLngLat([p[1], p[0]]).addTo(map); }
+      const el = md.getElement();
+      el.style.display = z < 14.3 ? 'none' : '';
+      if (z < 14.3) return;
+      const st = petState();
+      const key = st.p.breed + st.gear.join() + st.M.face + S().color;
+      if (key !== mdKey) { mdKey = key; el.querySelector('.md-body').innerHTML = dogSVG(look(st, { face: st.M.face === 'sad' ? 'normal' : st.M.face, wag: 2 })); }
+      // sitio: unos metros por detrás y a tu derecha
+      const h = (headingDeg || 0) * Math.PI / 180, back = 6, side = 3.5;
+      const tgt = PM.geo.offset(p, -Math.sin(h) * back + Math.cos(h) * side, -Math.cos(h) * back - Math.sin(h) * side);
+      if (!mdPos || PM.geo.dist(mdPos, tgt) > 80) mdPos = tgt.slice();
+      else mdPos = PM.geo.lerp(mdPos, tgt, Math.min(1, dt * (speed > 2.5 ? 4 : 2.4)));
+      md.setLngLat([mdPos[1], mdPos[0]]);
+      // mira hacia donde va (en pantalla)
+      const px = map.project([mdPos[1], mdPos[0]]).x;
+      if (mdLastPx != null && Math.abs(px - mdLastPx) > 0.6) mdFlipX = px < mdLastPx ? -1 : 1;
+      mdLastPx = px;
+      const lag = PM.geo.dist(mdPos, tgt);
+      let state = speed > 2.5 || lag > 12 ? 'run' : speed > 0.4 || lag > 2 ? 'walk' : 'sit';
+      if (sniffing && state !== 'run') state = 'sniff';
+      if (state !== mdState) { mdState = state; el.className = 'mapdog md-' + state; }
+      el.querySelector('.md-flip').style.transform = `scaleX(${mdFlipX})`;
+      el.style.setProperty('--mds', Math.max(0.65, Math.min(1.25, (z - 13.5) / 3.5)).toFixed(2));
+    }
+    function dogTrickOnMap(cls) {
+      if (!md) return;
+      const el = md.getElement(); el.classList.remove('md-t-jump', 'md-t-spin'); void el.offsetWidth; el.classList.add('md-t-' + cls);
+      setTimeout(() => el.classList.remove('md-t-' + cls), 900);
+    }
+
+    // =============== HUESOS ESCONDIDOS ===============
+    // cada día se esconden 5 huesos en calles sin pintar cerca de ti; tu perro los huele a 150 m y los coges al pasar (20 m)
+    const BONES_N = 5, SNIFF_R = 150, GET_R = 22;
+    let sniffing = false;
+    function bonesGen(pos) {
+      const s = S(), b = s.bones;
+      if (b && b.day === today() && PM.geo.dist(b.c, pos) < 3000) return b;
+      const W = ctx.W, cand = [];
+      for (const id in W.pieces) {
+        const pc = W.pieces[id];
+        if (pc.trail || pc.avoid || s.painted[id] || pc.len < 5) continue;
+        const d = PM.geo.dist(pc.mid, pos);
+        if (d >= 120 && d <= 750) cand.push(pc);
+      }
+      if (cand.length < BONES_N) return b && b.day === today() ? b : null;
+      const list = [];
+      for (let tries = 0; tries < 300 && list.length < BONES_N; tries++) {
+        const pc = cand[Math.floor(Math.random() * cand.length)];
+        if (list.some((x) => PM.geo.dist(x.pos, pc.mid) < 160)) continue;
+        list.push({ id: pc.id, pos: [+pc.mid[0].toFixed(6), +pc.mid[1].toFixed(6)], got: 0, seen: 0 });
+      }
+      s.bones = { day: today(), c: pos.slice(), list };
+      PM.state.save();
+      drawBones();
+      return s.bones;
+    }
+    function drawBones() {
+      const b = S().bones, f = [];
+      if (b && b.day === today()) for (const x of b.list) if (x.seen && !x.got) f.push({ type: 'Feature', properties: {}, geometry: { type: 'Point', coordinates: [x.pos[1], x.pos[0]] } });
+      ctx.setSrc('pm-bones', ctx.FC(f));
+    }
+    function bonesTick(pos) {
+      const b = S().bones;
+      sniffing = false;
+      if (!b || b.day !== today() || !ctx.inSession()) return;
+      let changed = false;
+      for (const x of b.list) {
+        if (x.got) continue;
+        const d = PM.geo.dist(pos, x.pos);
+        if (d <= SNIFF_R) sniffing = true;
+        if (d <= SNIFF_R && !x.seen) { x.seen = 1; changed = true; say('👃 ¡Huelo un hueso cerca! Mira el mapa 🦴', true); dogTrickOnMap('jump'); PM.vibrate && PM.vibrate([30, 60, 30]); }
+        if (d <= GET_R) {
+          x.got = Date.now(); changed = true;
+          const p = pet(); p.bones = (p.bones || 0) + 1;
+          ctx.G.addXP(50, 'bones');
+          const got = b.list.filter((y) => y.got).length;
+          toast(`🦴 ¡Hueso encontrado! +50 · ${got}/${b.list.length} hoy`, got === b.list.length ? 'gold' : 'ok', 3200);
+          say(got === b.list.length ? '¡Todos los huesos de hoy! ¡Eres el mejor! 🏆' : pickOne(['¡Ñam! ¡Un hueso! 🦴', '¡Lo encontré! 🦴', '¡Guau! ¡Otro hueso!']), true);
+          dogTrickOnMap('spin'); btnTrick('jump');
+          const nb = GEAR.find((g) => g.b === p.bones);
+          if (nb) setTimeout(() => toast(`🎁 ¡Accesorio exclusivo para tu perro: <b>${nb.name}</b>!`, 'gold', 4500), 1200);
+          ctx.G.checkAchievements();
+        }
+      }
+      if (changed) { PM.state.save(); drawBones(); }
+    }
+    function addLayers(add) {
+      if (!map.hasImage('pm-bone')) {
+        const k = 2, sz = 34 * k, cv = document.createElement('canvas'); cv.width = sz; cv.height = sz;
+        const x = cv.getContext('2d');
+        x.beginPath(); x.arc(sz / 2, sz / 2, 15 * k, 0, 2 * Math.PI); x.fillStyle = '#fff7ed'; x.fill(); x.lineWidth = 2.5 * k; x.strokeStyle = '#f59e0b'; x.stroke();
+        x.font = `${18 * k}px "Noto Color Emoji","Apple Color Emoji","Segoe UI Emoji",sans-serif`; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText('🦴', sz / 2, sz / 2 + k);
+        try { map.addImage('pm-bone', x.getImageData(0, 0, sz, sz), { pixelRatio: k }); } catch (e) {}
+      }
+      add({ id: 'pm-bones', type: 'symbol', source: 'pm-bones', layout: { 'icon-image': 'pm-bone', 'icon-allow-overlap': true, 'icon-ignore-placement': true,
+        'icon-size': ['interpolate', ['linear'], ['zoom'], 13, 0.6, 17, 1.05] } }, true);
+      drawBones();
+    }
+
     // =============== ciclo ===============
-    function tick() { drawPetBtn(); }
+    function tick() {
+      drawPetBtn();
+      const pos = ctx.getPos();
+      if (pos && Object.keys(ctx.W.pieces).length > 50) { bonesGen(pos); bonesTick(pos); }
+    }
     function onEvent(ev, d) {
+      if (ev === 'captured' || ev === 'levelup' || ev === 'conquered') dogTrickOnMap(ev === 'captured' ? 'jump' : 'spin');
       if (ev === 'start') { btnTrick('jump'); say(petState().mood === 'triste' ? '¡Por fin! ¡Te echaba de menos! 🐾' : '¡Guau! ¡Vamos a pintar! 🐾', true); }
       else if (ev === 'km') { btnTrick('spin'); say(`¡${d} km! Sigue, sigue 🐾`); }
       else if (ev === 'captured' && d.first) { btnTrick('jump'); say(pickOne(['¡Qué sitio más chulo!', '¡Otro para la colección! 🃏', '¡Guau, qué bonito!'])); }
@@ -329,7 +464,7 @@ PM.fun = (function () {
     }
     $('#btn-pet') && $('#btn-pet').addEventListener('click', showPet);
     refreshAvatar();
-    return { tick, onEvent, greet, say, showPet, avatarHTML, changeAvatar, removeAvatar, refreshAvatar };
+    return { tick, frame, addLayers, drawBones, onEvent, greet, say, showPet, avatarHTML, changeAvatar, removeAvatar, refreshAvatar };
   }
   return { create, dogSVG, dogHead, GEAR, BREEDS };
 })();

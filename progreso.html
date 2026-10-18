@@ -417,7 +417,7 @@
     function cardData(id) {
       const s = A.s, v = s.landmarks[id], info = (s.cardInfo || {})[id] || {};
       const order = Object.keys(s.landmarks).sort((a, b) => s.landmarks[a].t - s.landmarks[b].t);
-      return { id, name: v.name, kind: v.kind, emoji: v.emoji, rarity: v.rarity, city: v.city, barrio: v.barrio, t: v.t, visits: v.visits, wiki: v.wiki, wd: v.wd, pos: v.pos, color: s.color,
+      return { id, shiny: !!v.shiny, name: v.name, kind: v.kind, emoji: v.emoji, rarity: v.rarity, city: v.city, barrio: v.barrio, t: v.t, visits: v.visits, wiki: v.wiki, wd: v.wd, pos: v.pos, color: s.color,
         img: info.img, text: info.text, credit: info.credit, points: 100 * ((RAR[v.rarity] || {}).mult || 1),
         number: order.indexOf(id) + 1, total: order.length, player: s.player || creds.user };
     }

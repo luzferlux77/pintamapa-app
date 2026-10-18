@@ -73,7 +73,7 @@
     for (let i = 0; i <= 48; i++) { const a = i / 48 * 2 * Math.PI; out.push(ll(PM.geo.offset(c, Math.cos(a) * r, Math.sin(a) * r))); }
     return { type: 'Feature', properties: props || {}, geometry: { type: 'Polygon', coordinates: [out] } };
   };
-  const SRC = ['pm-streets', 'pm-painted', 'pm-barrios', 'pm-avoid', 'pm-halos', 'pm-lms'];
+  const SRC = ['pm-streets', 'pm-painted', 'pm-barrios', 'pm-avoid', 'pm-halos', 'pm-fx', 'pm-fxline', 'pm-bones', 'pm-lms'];
   let FUN = null;   // tu perro y foto de perfil (js/fun.js)
   const srcData = {}; SRC.forEach((id) => (srcData[id] = FC([])));
   function setSrc(id, fc) { srcData[id] = fc; const src = mapReady && map.getSource(id); if (src) src.setData(fc); }
@@ -94,6 +94,10 @@
     add({ id: 'pm-halo-fill', type: 'fill', source: 'pm-halos', paint: { 'fill-color': paintColor(), 'fill-opacity': 0.16 } });
     add({ id: 'pm-halo-line', type: 'line', source: 'pm-halos', paint: { 'line-color': paintColor(), 'line-opacity': 0.7, 'line-width': 2 } });
     add({ id: 'pm-barrio-cur', type: 'line', source: 'pm-barrios', filter: ['==', ['get', 'c'], 0], paint: { 'line-color': '#5b6478', 'line-opacity': 0.8, 'line-width': 2.5, 'line-dasharray': [3, 3] } }, true);
+    // efecto de conquista (ola de color + contorno brillante)
+    add({ id: 'pm-fx-fill', type: 'fill', source: 'pm-fx', paint: { 'fill-color': paintColor(), 'fill-opacity': ['get', 'o'] } });
+    add({ id: 'pm-fx-line', type: 'line', source: 'pm-fxline', layout: round, paint: { 'line-color': paintColor(), 'line-width': ['get', 'w'], 'line-opacity': ['get', 'o'], 'line-blur': 1.5 } }, true);
+    if (FUN) FUN.addLayers(add);
     add({ id: 'pm-lms', type: 'symbol', source: 'pm-lms', layout: { 'icon-image': ['get', 'icon'], 'icon-allow-overlap': true, 'icon-ignore-placement': true,
       'symbol-sort-key': ['get', 'z'], 'icon-size': ['interpolate', ['linear'], ['zoom'], 12, 0.55, 15, 0.85, 17, 1] } }, true);
     add({ id: 'pm-barrio-conq', type: 'line', source: 'pm-barrios', filter: ['==', ['get', 'c'], 1], paint: { 'line-color': paintColor(), 'line-opacity': 0.75, 'line-width': ['case', ['==', ['get', 'cur'], 1], 3, 2] } }, true);
@@ -228,6 +232,89 @@
   }
 
   let flagMarkers = [];
+  // ---------------- Rangos de barrio: bronce 80 % · plata 90 % · oro 100 % · leyenda (100 % y todos sus lugares) ----------------
+  const RANKS = [
+    { id: 'bronce', ic: '🥉', name: 'Bronce', min: 0.8, pts: 0 },
+    { id: 'plata', ic: '🥈', name: 'Plata', min: 0.9, pts: 1000 },
+    { id: 'oro', ic: '🥇', name: 'Oro', min: 0.999, pts: 500 },
+    { id: 'leyenda', ic: '🏆', name: 'Leyenda', min: 0.999, pts: 3000 },
+  ];
+  function rankOf(id) {
+    const s = S(), r = (s.barrioRank || {})[id];
+    if (r != null) return r;
+    return (s.perfectB || {})[id] ? 2 : 0;   // partidas de antes: conquistado = bronce; al 100 % = oro
+  }
+  let legendT = 0;
+  function barrioPlacesDone(id) {   // ¿tienes todos los lugares de este barrio?
+    const ids = Object.keys(W.landmarks).filter((k) => { const b = W.barrioAt(W.landmarks[k].pos); return b && b.id === id; });
+    return ids.length > 0 && ids.every((k) => S().landmarks[k]);
+  }
+  function checkRank(id, pr, B) {
+    const s = S();
+    if (!s.conqueredB[id]) return;
+    const cur = rankOf(id);
+    let want = 0;
+    for (let i = 1; i < 3; i++) if (pr >= RANKS[i].min) want = i;
+    if (want >= 2 && cur < 3 && Date.now() - legendT > 10000) { legendT = Date.now(); if (barrioPlacesDone(id)) want = 3; }
+    if (want <= cur) { if ((s.barrioRank || {})[id] == null) { (s.barrioRank = s.barrioRank || {})[id] = cur; PM.state.save(); } return; }
+    (s.barrioRank = s.barrioRank || {})[id] = want;
+    const R = RANKS[want];
+    if (R.pts) G.addXP(R.pts, 'rank');
+    PM.state.save();
+    renderBarrios();
+    conquestFX(id);
+    setTimeout(() => celebrate(`¡${B && B.name ? B.name : 'Barrio'}: rango ${R.name}!`, want === 3 ? `100 % pintado y todos sus lugares capturados. Eres leyenda del barrio. +${R.pts}` : `Has pintado el ${Math.round(R.min * 100)} % de sus calles. +${R.pts}`, R.ic), 1500);
+    if (FUN) FUN.onEvent('conquered', {});
+    G.checkAchievements();
+  }
+
+  // ---------------- Animación de conquista: ola de tu color desde ti por el barrio, contorno que brilla y fuegos artificiales ----------------
+  function conquestFX(id) {
+    const B = W.barrios[id];
+    if (!B || !mapReady) return;
+    const c = disp || pos;
+    let R = 400;
+    if (B.bbox) { const [s_, w_, n_, e_] = B.bbox; R = Math.max(...[[s_, w_], [s_, e_], [n_, w_], [n_, e_]].map((q) => PM.geo.dist(c, q))) + 40; }
+    R = Math.min(R, 2500);
+    try { map.setPaintProperty('pm-fx-fill', 'fill-color', paintColor()); map.setPaintProperty('pm-fx-line', 'line-color', paintColor()); } catch (e) {}
+    const segs = B.segs || [];
+    const t0 = performance.now(), DUR = 2600;
+    (function step(now) {
+      const t = Math.min(1, (now - t0) / DUR);
+      const e = 1 - Math.pow(1 - t, 3);
+      const wave = [circlePoly(c, Math.max(5, R * e), { o: 0.42 * (1 - t) }), circlePoly(c, Math.max(4, R * e * 0.85), { o: 0.18 * (1 - t) })];
+      setSrc('pm-fx', FC(t < 1 ? wave : []));
+      const pulse = Math.sin(t * Math.PI * 3);
+      setSrc('pm-fxline', FC(t < 1 ? segs.map((sg) => lineF(sg, { w: 3 + 9 * Math.abs(pulse), o: 0.9 * (1 - t * 0.6) })) : []));
+      if (t < 1) requestAnimationFrame(step);
+    })(t0);
+    fireworks();
+    PM.vibrate([80, 50, 80, 50, 200]);
+  }
+  function fireworks() {
+    const cv = $('#confetti'), cx = cv.getContext('2d');
+    cv.width = innerWidth; cv.height = innerHeight;
+    const cols = [paintColor(), '#facc15', '#22d3ee', '#f472b6', '#a3e635', '#ffffff'];
+    const rockets = [], sparks = [];
+    for (let i = 0; i < 6; i++) rockets.push({ x: innerWidth * (0.15 + Math.random() * 0.7), y: innerHeight + 10, vy: -(9 + Math.random() * 4), at: innerHeight * (0.18 + Math.random() * 0.3), d: i * 12, c: cols[i % cols.length] });
+    let f = 0;
+    (function frame() {
+      cx.clearRect(0, 0, cv.width, cv.height);
+      for (const r of rockets) {
+        if (r.done || f < r.d) continue;
+        r.y += r.vy; r.vy *= 0.985;
+        cx.fillStyle = '#fff'; cx.beginPath(); cx.arc(r.x, r.y, 2.5, 0, 7); cx.fill();
+        if (r.y <= r.at) { r.done = true; for (let k = 0; k < 46; k++) { const a = k / 46 * Math.PI * 2, v = 2 + Math.random() * 4; sparks.push({ x: r.x, y: r.y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, l: 1, c: r.c }); } }
+      }
+      for (const p of sparks) {
+        p.vy += 0.06; p.x += p.vx; p.y += p.vy; p.vx *= 0.98; p.l -= 0.014;
+        if (p.l <= 0) continue;
+        cx.globalAlpha = Math.max(0, p.l); cx.fillStyle = p.c; cx.beginPath(); cx.arc(p.x, p.y, 2.6, 0, 7); cx.fill(); cx.globalAlpha = 1;
+      }
+      if (f++ < 200) requestAnimationFrame(frame); else cx.clearRect(0, 0, cv.width, cv.height);
+    })();
+  }
+
   function renderBarrios() {
     renderAvoid();
     flagMarkers.forEach((m) => m.remove()); flagMarkers = [];
@@ -235,7 +322,7 @@
     for (const B of Object.values(W.barrios)) {
       const conq = !!S().conqueredB[B.id], cur = B.id === curBarrio;
       if (B.segs && (cur || conq)) B.segs.forEach((sg) => f.push(lineF(sg, { c: conq ? 1 : 0, cur: cur ? 1 : 0 })));
-      if (conq && B.pos) flagMarkers.push(htmlMarker(B.pos, '<div class="flag">🚩</div>', { anchor: 'bottom-left' }));
+      if (conq && B.pos) { const rk = rankOf(B.id); flagMarkers.push(htmlMarker(B.pos, `<div class="flag rk${rk}" title="${RANKS[rk].name}">${RANKS[rk].ic}</div>`, { anchor: 'bottom-left' })); }
     }
     setSrc('pm-barrios', FC(f));
   }
@@ -806,6 +893,17 @@
   FUN = PM.fun.create({ map, S, W, G, toast, openSheet, celebrate, setSrc, FC, ll, circlePoly, $,
     getPos: () => pos, inSession: () => !!(session && !session.paused), sessionWalked: () => (session ? session.st.walked : 0),
     lookAt: (c, z) => { follow = false; zoomAround(); $('#btn-center').classList.add('show'); clearTimeout(recenterTimer); recenterTimer = setTimeout(recenter, 20000); map.easeTo({ center: ll(c), zoom: z, duration: 900 }); } });
+  if (mapReady) { const fs = (map.getStyle().layers || []).find((x) => x.type === 'symbol'); FUN.addLayers((l, top) => { if (!map.getLayer(l.id)) map.addLayer(l, top ? undefined : fs && fs.id); }); }
+  // «Tu semana pintando»: el domingo y el lunes, una vez por semana, aviso para ver el resumen en vídeo
+  const openWeek = () => PM.wrapped && PM.wrapped.open({ S, W });
+  setTimeout(() => {
+    const d = new Date(), wk = d.getFullYear() + '-' + Math.floor((d - new Date(d.getFullYear(), 0, 1)) / 604800000);
+    if ((d.getDay() === 0 || d.getDay() === 1) && S().wrappedWeek !== wk && (S().walks || []).some((w) => w.start > Date.now() - 7 * 86400000)) {
+      S().wrappedWeek = wk; PM.state.save();
+      const el = toast('📽️ <b>¡Tu semana pintando está lista!</b> Toca para verla', 'gold', 8000);
+      el.style.pointerEvents = 'auto'; el.style.cursor = 'pointer'; el.addEventListener('click', openWeek);
+    }
+  }, 5000);
   let kmSaid = 0;
   setInterval(() => {
     if (document.hidden || !FUN) return;
@@ -820,6 +918,7 @@
     get bearing() { return map.getBearing(); }, get heading() { return heading; },
     // avanza el juego n fotogramas a mano (pruebas con la pestaña oculta, donde el navegador congela la animación)
     frames(n, ms = 50) { let t = lastFrame; for (let i = 0; i < n; i++) { t += ms; loop(t, true); } } };
+  PM.debug.fx = (id) => conquestFX(id || curBarrio);   // pruebas: animación de conquista
 
   let lastFrame = performance.now();
   function loop(now, manual) {
@@ -858,6 +957,7 @@
       } else if (speed > 0) { speed = 0; updateSpeedBadge(); }
     }
     stepDisplay(now);
+    if (FUN && disp && !document.hidden) FUN.frame(dt, disp, heading, speed);
     stepHeading(dt);
     stepPitch(dt);
     G.tickCombo(Date.now());
@@ -1195,7 +1295,8 @@
       if (bq && bq.id !== curBarrio) { curBarrio = bq.id; W.ensureBarrio(bq.id); renderBarrios(); }
       const done = B && W.barrioComplete(bq.id);
       const pr = B ? G.barrioProgress(bq.id) : 0;
-      setT('#barrio-name', (bq && S().conqueredB[bq.id] ? '🚩 ' : '') + ((B && B.name) || (bq && bq.name) || t.name || 'Barrio sin explorar'));
+      if (bq && B && S().conqueredB[bq.id]) checkRank(bq.id, pr, B);
+      setT('#barrio-name', (bq && S().conqueredB[bq.id] ? RANKS[rankOf(bq.id)].ic + ' ' : '') + ((B && B.name) || (bq && bq.name) || t.name || 'Barrio sin explorar'));
       const avoidedB = bq && S().avoid.some((z) => z.type === 'barrio' && z.id === bq.id);
       setT('#barrio-pct', avoidedB ? '🚫 evitado' : !B ? '' : !done ? 'calculando…' : B.total ? (pr * 100).toFixed(1) + ' %' : 'sin calles');
       setW('#barrio-bar i', (pr * 100).toFixed(1) + '%');
@@ -1229,6 +1330,7 @@
     while (box.children.length > 3) box.firstElementChild.remove();   // como mucho 3 avisos a la vez
     setTimeout(() => el.classList.add('out'), ms);
     setTimeout(() => el.remove(), ms + 400);
+    return el;
   }
 
   function floatText(txt, cls = '') {
@@ -1330,6 +1432,7 @@
         if (d.first) {
           cardQueue.push([lm.id, d.pts]); showNextCard();   // varias capturas a la vez: una carta detrás de otra
           PM.sound.capture(); PM.vibrate([60, 40, 120]);
+          if (d.shiny) { setTimeout(() => { confetti(); PM.sound.fanfare(); PM.vibrate([100, 60, 100, 60, 300]); }, 400); }
         } else toast(`${lm.emoji} Has vuelto a <b>${lm.name}</b> · +${d.pts}`, 'ok');
         break;
       }
@@ -1344,7 +1447,9 @@
         if (FUN) FUN.onEvent('conquered', d);
         if (session) session.st.conquests++;
         refreshFlag(d.key);
-        celebrate('¡Barrio conquistado!', `${d.name || 'Este barrio'} es tuyo: has pintado el 80 % de sus calles. +2000`, '🚩');
+        (S().barrioRank = S().barrioRank || {})[d.key] = 0; PM.state.save();
+        conquestFX(d.key);
+        setTimeout(() => celebrate('¡Barrio conquistado! 🥉', `${d.name || 'Este barrio'} es tuyo: has pintado el 80 % de sus calles. Rango Bronce. +2000 · Plata al 90 %, Oro al 100 %`, '🚩'), 1700);
         break;
       case 'perfect':
         toast(`💯 ¡${d.name} pintado al 100 %! +1000`, 'gold', 4000);
@@ -1485,7 +1590,7 @@
     const from = PM.xpForLevel(lp.level), to = PM.xpForLevel(lp.level + 1);
     const LBL = { paint: '🖌️ Pintar calles nuevas', landmark: '📸 Capturar lugares', revisit: '🔁 Volver a lugares', conquest: '🚩 Conquistar barrios',
       perfect: '💯 Barrios al 100 %', city: '👑 Conquistar ciudades', mission: '🎯 Misiones diarias', chest: '🎁 Cofre diario', set: '🗂️ Colecciones',
-      photo: '📷 Fotos de cromos', can: '🪣 Botes (antiguos)', otros: '✨ Otros' };
+      photo: '📷 Fotos de cromos', rank: '🏅 Rangos de barrio', bones: '🦴 Huesos de tu perro', shiny: '✨ Cartas brillantes', can: '🪣 Botes (antiguos)', otros: '✨ Otros' };
     const by = Object.assign({}, s.xpBy || {});
     const known = Object.values(by).reduce((a, b) => a + b, 0);
     if (s.xp - known > 0) by.antes = s.xp - known;   // puntos de antes de que se registrara el desglose
@@ -1575,6 +1680,7 @@
       <div class="pf-tabs">${[['res', 'Resumen'], ['rec', 'Récords'], ['cit', 'Ciudades'], ['aj', 'Ajustes']].map(([k, l]) => `<button data-tab="${k}" class="${profTab === k ? 'on' : ''}">${l}</button>`).join('')}</div>`;
 
     if (profTab === 'res') {
+      html += `<button class="pf-week" id="pf-week"><span>📽️</span><div><b>Tu semana en vídeo</b><small>Resumen animado de los últimos 7 días para compartir</small></div><em>▶</em></button>`;
       html += card('📅 Esta semana', `<div class="pf-grid">${tile('🚶', PM.fmtDist(D.sum(D.wk, (w) => w.st.walked)), 'andados')}${tile('🖌️', PM.fmtDist(D.sum(D.wk, (w) => w.st.painted)), 'calles nuevas')}${tile('⏱️', dur(D.movWk), 'en movimiento')}</div>`,
         `${D.wk.length} paseo${D.wk.length === 1 ? '' : 's'}`);
       html += card('📈 En total', `<div class="pf-grid">
@@ -1613,8 +1719,8 @@
       html += card('🏙️ Tus ciudades', cl.length ? cl.map(([c, cp]) => `<div class="mission"><div class="mt">${s.citiesWon[c] ? '👑' : '🏙️'} ${esc(c)}<span>${(cp.pct * 100).toFixed(2)} %</span></div>
           <div class="bar"><i style="width:${Math.min(100, cp.pct / 0.8 * 100)}%"></i></div>
           <small>${PM.fmtDist(cp.painted)} de ${cp.total ? PM.fmtDist(cp.total) : '?'} · ${s.citiesWon[c] ? '¡conquistada!' : 'faltan ' + (cp.total ? PM.fmtDist(Math.max(0, cp.total * 0.8 - cp.painted)) : '?') + ' para el 80 %'}</small></div>`).join('') : '<p class="muted">Sal a pintar y aquí verás tus ciudades.</p>', 'conquista = 80 %');
-      const bc = Object.values(s.barrioCards || {}).sort((x, y) => y.t - x.t);
-      html += card('🚩 Barrios conquistados', bc.length ? bc.map((b) => `<div class="row"><span>🚩 ${esc(b.name)}</span><small class="muted">${new Date(b.t).toLocaleDateString('es-ES')}</small></div>`).join('') : '<p class="muted">Pinta el 80 % de las calles de un barrio para conquistarlo.</p>', bc.length || '');
+      const bc = Object.entries(s.barrioCards || {}).map(([id, v]) => Object.assign({ id }, v)).sort((x, y) => y.t - x.t);
+      html += card('🏅 Barrios conquistados', bc.length ? bc.map((b) => { const rk = b.id != null ? rankOf(b.id) : 0; return `<div class="row"><span>${RANKS[rk].ic} ${esc(b.name)} <small class="muted">· ${RANKS[rk].name}</small></span><small class="muted">${new Date(b.t).toLocaleDateString('es-ES')}</small></div>`; }).join('') : '<p class="muted">Pinta el 80 % de las calles de un barrio para conquistarlo.</p>', bc.length || '');
     }
     if (profTab === 'aj') {
       if (PM.isNative && PM.profile === 'real') {
@@ -1649,6 +1755,7 @@
     $('.av-wrap .avatar') && $('.av-wrap .avatar').addEventListener('click', avEdit);
     if (S().avatar) { const d = document.createElement('button'); d.className = 'av-del'; d.textContent = 'Quitar foto'; d.addEventListener('click', () => { FUN.removeAvatar(); panelProfile(); }); $('.av-wrap').appendChild(d); }
     $('#pf-lvl').addEventListener('click', panelLevel);
+    $('#pf-week') && $('#pf-week').addEventListener('click', () => PM.wrapped && PM.wrapped.open({ S, W }));
     const go = { walks: panelWalks, album: panelAlbum, ach: panelAchievements, pet: () => FUN && FUN.showPet(), cit: () => { profTab = 'cit'; panelProfile(); } };
     document.querySelectorAll('.pf-quick [data-go]').forEach((b) => b.addEventListener('click', () => go[b.dataset.go]()));
     document.querySelectorAll('.pf-tile[data-act]').forEach((b) => b.addEventListener('click', () => go[b.dataset.act]()));
