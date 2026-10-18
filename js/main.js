@@ -169,17 +169,14 @@
   let curBarrio = null;
   let flagTimer = null;
   function refreshFlag() { clearTimeout(flagTimer); flagTimer = setTimeout(renderBarrios, 120); }
-  // ---------- Zonas a evitar (personales, privadas): fuera del % de barrio y ciudad ----------
+  // ---------- Zonas a evitar: función RETIRADA. Las zonas guardadas se conservan en la partida pero ya no se aplican
+  // (todas las calles cuentan para el %). El código se deja inerte por si se recupera algún día. ----------
+  const AVOID_ON = false;
   let avoidEdit = false;
-  function setAvoidEdit(on) {
-    avoidEdit = on;
-    $('#btn-avoid').classList.toggle('on', on);
-    if (on) toast('🚫 Toca en el mapa la zona o el barrio que prefieras evitar', 'info', 4000);
-  }
-  $('#btn-avoid').addEventListener('click', () => setAvoidEdit(!avoidEdit));
+  function setAvoidEdit(on) { avoidEdit = AVOID_ON && on; }
   function avoidChanged() {
     PM.state.save();
-    W.setAvoid(S().avoid);
+    W.setAvoid(AVOID_ON ? S().avoid : []);
     setTimeout(renderBarrios, 400);   // tras recalcular los barrios
   }
   function addAvoid(z) {
@@ -218,6 +215,7 @@
   function renderAvoid() {
     avoidMarkers.forEach((m) => m.remove()); avoidMarkers = [];
     const f = [];
+    if (!AVOID_ON) { setSrc('pm-avoid', FC(f)); return; }
     const label = (p, txt, z) => avoidMarkers.push(htmlMarker(p, `<div class="avoidlbl">🚫 ${txt}</div>`, { onClick: () => askRemoveAvoid(z) }));
     for (const z of S().avoid) {
       if (z.type === 'circle') { f.push(circlePoly(z.c, z.r)); label(z.c, '', z); }
@@ -630,7 +628,7 @@
     if (document.hidden || !session) { $('#radar').classList.remove('show'); return; }
     let lm = null, lmD = Infinity, can = null, canD = Infinity;
     for (const id in W.landmarks) {
-      if (S().landmarks[id] || (S().avoid.length && W.isAvoided(W.landmarks[id].pos))) continue;
+      if (S().landmarks[id] || (AVOID_ON && S().avoid.length && W.isAvoided(W.landmarks[id].pos))) continue;
       const d = PM.geo.dist(pos, W.landmarks[id].pos);
       if (d < lmD) { lmD = d; lm = W.landmarks[id]; }
     }
@@ -737,7 +735,7 @@
     if (mapReady && map.getLayer('pm-lms') && map.queryRenderedFeatures(e.point, { layers: ['pm-lms'] }).length) return;   // tocó un lugar
     const p = [e.lngLat.lat, e.lngLat.lng];
     if (avoidEdit) { askAvoid(p); return; }
-    const z = S().avoid.find((a) => a.type === 'circle' && PM.geo.dist(p, a.c) <= a.r);
+    const z = AVOID_ON && S().avoid.find((a) => a.type === 'circle' && PM.geo.dist(p, a.c) <= a.r);
     if (z && mode !== 'sim') { askRemoveAvoid(z); return; }
     if (mode !== 'sim') return;
     if (e.originalEvent.ctrlKey || e.originalEvent.metaKey) { teleport(p); return; }
@@ -1283,7 +1281,7 @@
       const pr = B ? G.barrioProgress(bq.id) : 0;
       if (bq && B && S().conqueredB[bq.id]) checkRank(bq.id, pr, B);
       setT('#barrio-name', (bq && S().conqueredB[bq.id] ? RANKS[rankOf(bq.id)].ic + ' ' : '') + ((B && B.name) || (bq && bq.name) || t.name || 'Barrio sin explorar'));
-      const avoidedB = bq && S().avoid.some((z) => z.type === 'barrio' && z.id === bq.id);
+      const avoidedB = AVOID_ON && bq && S().avoid.some((z) => z.type === 'barrio' && z.id === bq.id);
       setT('#barrio-pct', avoidedB ? '🚫 evitado' : !B ? '' : !done ? 'calculando…' : B.total ? (pr * 100).toFixed(1) + ' %' : 'sin calles');
       setW('#barrio-bar i', (pr * 100).toFixed(1) + '%');
       if (t.city) {
@@ -1722,8 +1720,6 @@
       html += card('⚙️ Preferencias', `
         <label class="row"><span>🔊 Sonido</span><input type="checkbox" class="sw" id="opt-sound" ${PM.sound.enabled ? 'checked' : ''}></label>
         <label class="row"><span>🌙 Tema oscuro</span><input type="checkbox" class="sw" id="opt-dark" ${s.theme === 'dark' ? 'checked' : ''}></label>`);
-      html += card('🚫 Zonas a evitar', (s.avoid && s.avoid.length ? s.avoid.map((z) => `<div class="mission"><div class="mt">🚫 ${z.type === 'barrio' ? esc(z.name) : 'Zona de ' + z.r + ' m'}<span><button class="btn av-rm" data-id="${z.id}">Quitar</button></span></div></div>`).join('')
-        : '<p class="muted">No tienes ninguna. Se añaden con el botón «evitar» del mapa; sus calles no cuentan para el %.</p>'));
       html += card('🥾 Paseos y reloj', `<p class="muted">Estadísticas, vídeo del recorrido, exportar a GPX/KML/KMZ e importar desde un reloj.</p>
         <button class="btn" id="opt-walks">🥾 Ver mis paseos (${D.walks.length})</button>`);
       html += card('🔄 Versión', `<p class="muted">PintaMapa <b>v${PM.VERSION.app}</b> · ${(PM.update.status() || {}).msg || 'Se busca actualización al abrir la app.'}</p>
@@ -1890,7 +1886,7 @@
     G.ensureDaily();
     if (PM.fillLandmarkCities(S())) PM.state.save();   // lugares conquistados sin ciudad: se completa
     recolorAll();
-    W.setAvoid(S().avoid);
+    W.setAvoid(AVOID_ON ? S().avoid : []);
     teleport(pos);
     setMode(mode);
     setOrient(orient);
