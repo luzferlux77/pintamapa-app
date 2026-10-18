@@ -1,8 +1,8 @@
 {
-  "version": "0.6.37",
-  "notes": "Correcciones: tiempo en movimiento de paseos comprimidos, aviso de imprescindible cerca, más iconos iguales en todos los móviles",
+  "version": "0.6.38",
+  "notes": "Historial de cada barrio y póster de tu mapa pintado (A4, 300 ppp, tres estilos)",
   "native": 4,
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.37/pintamapa-web-0.6.37.zip",
-  "checksum": "ed1dbf9cc35c59f3e4db14d933220688708eebcb8a03776e9249d6fbfb7be753",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.37/PintaMapa-v0.6.37.apk"
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.38/pintamapa-web-0.6.38.zip",
+  "checksum": "a579a2e29ecd0887b7abb2bbde70bb6673d654e931793fd927a5b9592c1d6027",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.38/PintaMapa-v0.6.38.apk"
 }
