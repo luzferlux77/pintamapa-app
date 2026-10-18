@@ -1599,7 +1599,7 @@
       const lm = W.landmarks[id];
       if (!lm.must || S().landmarks[id]) continue;
       const d = PM.geo.dist(p, lm.pos);
-      if (d <= 200 && once('must:' + id)) notify('⭐ Imprescindible cerca', `${lm.name} está a ${Math.round(d / 10) * 10} m. ¡Vale el doble!`);
+      if (d > 40 && d <= 200 && once('must:' + id)) notify('⭐ Imprescindible cerca', `${lm.name} está a ${Math.round(d / 10) * 10} m. ¡Vale el doble!`);
     }
   }
   // barrio a punto de conquistarse o de subir de rango (a menos de un 3 %)
@@ -2073,6 +2073,8 @@
     let before = 0, after = 0;
     for (const w of s.walks || []) {
       if (w.start > old || w.slim || !w.track || w.track.length < 40) continue;
+      // antes de quitar puntos se guarda lo que depende de ellos (tiempo en movimiento y distancia exacta)
+      w.mov = PM.movingMs(w); w.dist = w.dist || (w.st && w.st.walked) || 0;
       before += w.track.length; w.track = PM.simplifyTrack(w.track, 3); after += w.track.length; w.slim = 1;
     }
     s.compressT = Date.now();

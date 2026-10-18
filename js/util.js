@@ -170,13 +170,14 @@ PM.ensureCountries = async function (s, cityPos) {
 PM._movCache = new WeakMap();
 PM.movingMs = function (w) {
   if (!w) return 0;
+  if (w.mov) return w.mov;   // paseo comprimido: se guardó al comprimirlo
   if (PM._movCache.has(w)) return PM._movCache.get(w);
   let mv = 0, prev = null;
   for (const q of w.track || []) {
     if (!q) { prev = null; continue; }
     if (prev && q[2] != null && prev[2] != null) {
       const dt = q[2] - prev[2], dd = PM.geo.dist(prev, q);
-      if (dt > 0 && dt < 120 && dd / dt > 0.5) mv += dt;
+      if (dt > 0 && dt < (w.slim ? 1e9 : 120) && dd / dt > 0.5) mv += dt;   // comprimido: los puntos están más separados
     }
     prev = q;
   }
@@ -199,7 +200,7 @@ PM.RANK_MIN = { barrio: [0.6, 0.8, 0.9], city: [0.7, 0.8, 0.9] };
 PM.rankFor = (kind, pct) => { const m = PM.RANK_MIN[kind]; return pct >= m[2] ? 2 : pct >= m[1] ? 1 : pct >= m[0] ? 0 : -1; };
 
 // ---------- Iconos iguales en todos los móviles (Twemoji, CC-BY 4.0, dentro de la app) ----------
-PM.TWEMOJI = new Set('1f309 1f32c 1f333 1f393 1f3a8 1f3ad 1f3d9 1f3db 1f3df 1f3e5 1f3f0 1f3fa 1f4cd 1f4da 1f4dc 1f52d 1f54c 1f54d 1f5bc 1f5fb 1f5fc 1f5fd 1f5ff 1f689 1f68b 1f692 1f6a9 1f6d2 1f6d5 2615 26bd 26e9 26ea 26f2 2b50'.split(' '));
+PM.TWEMOJI = new Set('1f309 1f32c 1f333 1f393 1f3a8 1f3ad 1f3c6 1f3d9 1f3db 1f3df 1f3e5 1f3ed 1f3f0 1f3fa 1f451 1f4cd 1f4da 1f4dc 1f525 1f52d 1f54c 1f54d 1f58c 1f5bc 1f5fa 1f5fb 1f5fc 1f5fd 1f5ff 1f689 1f68b 1f692 1f6a9 1f6d2 1f6d5 1f947 1f948 2615 26bd 26e9 26ea 26f2 2728 2b50'.split(' '));
 PM.emojiCode = (e) => [...String(e || '')].map((c) => c.codePointAt(0).toString(16)).filter((h) => h !== 'fe0f').join('-');
 PM.emojiURL = (e) => { const c = PM.emojiCode(e); return PM.TWEMOJI.has(c) ? 'lib/twemoji/' + c + '.svg' : null; };
 PM._emojiImg = {};

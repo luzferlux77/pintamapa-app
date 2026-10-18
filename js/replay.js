@@ -138,8 +138,9 @@ PM.replay = (function () {
     for (let i = 1; i < pts.length; i++) {
       const a = pts[i - 1], b = pts[i], dt = b.t - a.t, dd = b.d - a.d;
       if (b.cut || dt <= 0) continue;
-      if (dd / dt > 0.5 && dt < 120) moving += dt;
+      if (dd / dt > 0.5 && dt < (walk.slim ? 1e9 : 120)) moving += dt;
     }
+    if (walk.mov) moving = walk.mov / 1000;   // paseo comprimido: el valor exacto se guardó antes de simplificarlo
     if (!moving) moving = elapsed;
     // velocidad máxima: en ventanas de >= 100 m (sin picos del GPS)
     for (let i = 0, j = 0; i < pts.length; i++) {
