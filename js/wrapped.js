@@ -27,12 +27,7 @@ PM.wrapped = (function () {
   }
   function loadImg(src) { return new Promise((r) => { if (!src) return r(null); const im = new Image(); im.onload = () => r(im); im.onerror = () => r(null); im.src = src; }); }
   async function assets(D) {
-    const pet = D.s.pet || {};
-    const svg = PM.fun.dogSVG({ breed: pet.breed, face: 'happy', color: D.color, wag: 0, gear: (PM.fun.GEAR || []).filter((g) => (g.b ? (pet.bones || 0) >= g.b : Object.keys(D.s.achievements || {}).length >= g.n) && !(pet.off || []).includes(g.id)).map((g) => g.id) })
-      .replace('<svg ', '<svg xmlns="http://www.w3.org/2000/svg" ');
-    const dog = await loadImg('data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg));
-    const avatar = await loadImg(D.s.avatar);
-    return { dog, avatar };
+    return { avatar: await loadImg(D.s.avatar) };
   }
 
   // ---------- dibujo ----------
@@ -56,10 +51,13 @@ PM.wrapped = (function () {
     }
     c.globalAlpha = 1;
   }
+  // tu foto de perfil en un círculo (o un pincel gigante) que bota
   function dogAt(c, A, x, y, size, t, bounce) {
-    if (!A.dog) return;
-    const b = bounce ? Math.abs(Math.sin(t * 6)) * 18 : 0;
-    c.drawImage(A.dog, x - size / 2, y - size * 1.2 - b, size, size * 1.2);
+    const b = bounce ? Math.abs(Math.sin(t * 5)) * 16 : 0, r = size * 0.42, cy = y - size * 0.6 - b;
+    if (A.avatar) {
+      c.save(); c.beginPath(); c.arc(x, cy, r, 0, 7); c.closePath(); c.fillStyle = '#fff'; c.shadowColor = 'rgba(0,0,0,.35)'; c.shadowBlur = 24; c.fill(); c.restore();
+      c.save(); c.beginPath(); c.arc(x, cy, r - 8, 0, 7); c.clip(); c.drawImage(A.avatar, x - r + 8, cy - r + 8, (r - 8) * 2, (r - 8) * 2); c.restore();
+    } else text(c, '🖌️', x, cy, size * 0.6);
   }
   // escena 1: portada
   function s1(c, t, D, A) {
@@ -138,7 +136,6 @@ PM.wrapped = (function () {
     confettiBits(c, t, D, 50);
     text(c, `🔥 ${D.streak} día${D.streak === 1 ? '' : 's'} de racha`, W / 2, 250, 52, { o: ease(t / 0.6) });
     text(c, `${D.lvl.tier ? D.lvl.tier.icon + ' ' : '⭐ '}Nivel ${D.lvl.label}`, W / 2, 330, 46, { o: ease((t - 0.3) / 0.6), w: 700 });
-    if (A.avatar) { c.save(); c.beginPath(); c.arc(W / 2, 470, 70, 0, 7); c.clip(); c.drawImage(A.avatar, W / 2 - 70, 400, 140, 140); c.restore(); }
     dogAt(c, A, W / 2, 1010, 360, t, true);
     text(c, '¡A por la próxima semana!', W / 2, 1100, 44, { o: ease((t - 0.8) / 0.6) });
     text(c, 'PintaMapa', W / 2, 1190, 30, { w: 700, o: 0.8 });

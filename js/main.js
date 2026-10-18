@@ -73,8 +73,8 @@
     for (let i = 0; i <= 48; i++) { const a = i / 48 * 2 * Math.PI; out.push(ll(PM.geo.offset(c, Math.cos(a) * r, Math.sin(a) * r))); }
     return { type: 'Feature', properties: props || {}, geometry: { type: 'Polygon', coordinates: [out] } };
   };
-  const SRC = ['pm-streets', 'pm-painted', 'pm-barrios', 'pm-avoid', 'pm-halos', 'pm-fx', 'pm-fxline', 'pm-bones', 'pm-lms'];
-  let FUN = null;   // tu perro y foto de perfil (js/fun.js)
+  const SRC = ['pm-streets', 'pm-painted', 'pm-barrios', 'pm-avoid', 'pm-halos', 'pm-fx', 'pm-fxline', 'pm-lms'];
+  let FUN = null;   // foto de perfil (js/fun.js)
   const srcData = {}; SRC.forEach((id) => (srcData[id] = FC([])));
   function setSrc(id, fc) { srcData[id] = fc; const src = mapReady && map.getSource(id); if (src) src.setData(fc); }
   // grosor según el zoom (las salidas pueden depender de datos: p. ej. la intensidad de la pasada)
@@ -97,7 +97,6 @@
     // efecto de conquista (ola de color + contorno brillante)
     add({ id: 'pm-fx-fill', type: 'fill', source: 'pm-fx', paint: { 'fill-color': paintColor(), 'fill-opacity': ['get', 'o'] } });
     add({ id: 'pm-fx-line', type: 'line', source: 'pm-fxline', layout: round, paint: { 'line-color': paintColor(), 'line-width': ['get', 'w'], 'line-opacity': ['get', 'o'], 'line-blur': 1.5 } }, true);
-    if (FUN) FUN.addLayers(add);
     add({ id: 'pm-lms', type: 'symbol', source: 'pm-lms', layout: { 'icon-image': ['get', 'icon'], 'icon-allow-overlap': true, 'icon-ignore-placement': true,
       'symbol-sort-key': ['get', 'z'], 'icon-size': ['interpolate', ['linear'], ['zoom'], 12, 0.55, 15, 0.85, 17, 1] } }, true);
     add({ id: 'pm-barrio-conq', type: 'line', source: 'pm-barrios', filter: ['==', ['get', 'c'], 1], paint: { 'line-color': paintColor(), 'line-opacity': 0.75, 'line-width': ['case', ['==', ['get', 'cur'], 1], 3, 2] } }, true);
@@ -264,7 +263,6 @@
     renderBarrios();
     conquestFX(id);
     setTimeout(() => celebrate(`¡${B && B.name ? B.name : 'Barrio'}: rango ${R.name}!`, want === 3 ? `100 % pintado y todos sus lugares capturados. Eres leyenda del barrio. +${R.pts}` : `Has pintado el ${Math.round(R.min * 100)} % de sus calles. +${R.pts}`, R.ic), 1500);
-    if (FUN) FUN.onEvent('conquered', {});
     G.checkAchievements();
   }
 
@@ -887,13 +885,12 @@
     toast(orient === 'heading' ? '🧭 El mapa gira hacia donde andas' + (mode === 'sim' ? ' (A/D giran, W/S avanzan)' : '') : '🧭 Norte arriba (mapa fijo)', 'info');
   });
 
-  // ---------------- Extras: tu perro y foto de perfil ----------------
+  // ---------------- Foto de perfil ----------------
   gpsIcon('search');
-  if (S().mystery) { delete S().mystery; PM.state.save(); }
+  if (S().mystery || S().pet || S().bones) { delete S().mystery; delete S().pet; delete S().bones; PM.state.save(); }   // restos de funciones retiradas
   FUN = PM.fun.create({ map, S, W, G, toast, openSheet, celebrate, setSrc, FC, ll, circlePoly, $,
     getPos: () => pos, inSession: () => !!(session && !session.paused), sessionWalked: () => (session ? session.st.walked : 0),
     lookAt: (c, z) => { follow = false; zoomAround(); $('#btn-center').classList.add('show'); clearTimeout(recenterTimer); recenterTimer = setTimeout(recenter, 20000); map.easeTo({ center: ll(c), zoom: z, duration: 900 }); } });
-  if (mapReady) { const fs = (map.getStyle().layers || []).find((x) => x.type === 'symbol'); FUN.addLayers((l, top) => { if (!map.getLayer(l.id)) map.addLayer(l, top ? undefined : fs && fs.id); }); }
   // «Tu semana pintando»: el domingo y el lunes, una vez por semana, aviso para ver el resumen en vídeo
   const openWeek = () => PM.wrapped && PM.wrapped.open({ S, W });
   setTimeout(() => {
@@ -904,14 +901,6 @@
       el.style.pointerEvents = 'auto'; el.style.cursor = 'pointer'; el.addEventListener('click', openWeek);
     }
   }, 5000);
-  let kmSaid = 0;
-  setInterval(() => {
-    if (document.hidden || !FUN) return;
-    FUN.tick();
-    const k = session ? Math.floor(session.st.walked / 1000) : 0;
-    if (!session) kmSaid = 0; else if (k > kmSaid) { kmSaid = k; FUN.onEvent('km', k); }
-  }, 1000);
-  setTimeout(() => FUN.greet(), 1500);
 
   // Gancho de pruebas (consola del navegador): PM.debug.walkTo([lat, lon]), PM.debug.setPace(0..4)
   PM.debug = { map, walkTo(p) { target = p; follow = true; }, setPace(i) { pace = i; turbo = false; }, get pos() { return pos.slice(); },
@@ -957,7 +946,6 @@
       } else if (speed > 0) { speed = 0; updateSpeedBadge(); }
     }
     stepDisplay(now);
-    if (FUN && disp && !document.hidden) FUN.frame(dt, disp, heading, speed);
     stepHeading(dt);
     stepPitch(dt);
     G.tickCombo(Date.now());
@@ -1078,7 +1066,6 @@
     persistSession(); syncGPS(); renderSession();
     PM.update.hold();
     PM.sound.pickup(); PM.vibrate(60);
-    if (FUN) FUN.onEvent('start');
     // la primera vez en el móvil: cómo evitar que Android frene el GPS con la pantalla apagada
     try {
       if (isNative && mode === 'gps' && !localStorage.getItem('pintamapa_bathint')) {
@@ -1120,7 +1107,6 @@
     }
     persistSession(); syncGPS(); renderSession();
     showSummary(s);
-    if (FUN) FUN.onEvent('end');
     PM.sync.auto(toast);
     setTimeout(() => PM.update.check(false, toast), 5000);
   }
@@ -1426,7 +1412,6 @@
       }
       case 'captured': {
         const lm = d.lm;
-        if (FUN) FUN.onEvent('captured', d);
         if (session && d.first) session.st.captures++;
         placeLandmark(lm); flushLandmarks();
         if (d.first) {
@@ -1444,7 +1429,6 @@
         break;
       }
       case 'conquered':
-        if (FUN) FUN.onEvent('conquered', d);
         if (session) session.st.conquests++;
         refreshFlag(d.key);
         (S().barrioRank = S().barrioRank || {})[d.key] = 0; PM.state.save();
@@ -1458,7 +1442,6 @@
         celebrate('¡CIUDAD CONQUISTADA!', `Has pintado el 80 % de las calles de ${d.city}. Eres leyenda. +25000`, '👑');
         break;
       case 'levelup':
-        if (FUN) FUN.onEvent('levelup', d);
         PM.sound.levelUp(); PM.vibrate([80, 40, 80]);
         toast(`${PM.levelName(d.level).tier ? PM.levelName(d.level).tier.icon : '⭐'} ¡Nivel ${PM.levelName(d.level).label}!` + (d.colors.length ? ` Nuevo color: <b style="color:${d.colors[0].c}">${d.colors[0].name}</b>` : ''), 'gold', 4000);
         break;
@@ -1590,7 +1573,7 @@
     const from = PM.xpForLevel(lp.level), to = PM.xpForLevel(lp.level + 1);
     const LBL = { paint: '🖌️ Pintar calles nuevas', landmark: '📸 Capturar lugares', revisit: '🔁 Volver a lugares', conquest: '🚩 Conquistar barrios',
       perfect: '💯 Barrios al 100 %', city: '👑 Conquistar ciudades', mission: '🎯 Misiones diarias', chest: '🎁 Cofre diario', set: '🗂️ Colecciones',
-      photo: '📷 Fotos de cromos', rank: '🏅 Rangos de barrio', bones: '🦴 Huesos de tu perro', shiny: '✨ Cartas brillantes', can: '🪣 Botes (antiguos)', otros: '✨ Otros' };
+      photo: '📷 Fotos de cromos', rank: '🏅 Rangos de barrio', shiny: '✨ Cartas brillantes', can: '🪣 Botes (antiguos)', otros: '✨ Otros' };
     const by = Object.assign({}, s.xpBy || {});
     const known = Object.values(by).reduce((a, b) => a + b, 0);
     if (s.xp - known > 0) by.antes = s.xp - known;   // puntos de antes de que se registrara el desglose
@@ -1675,7 +1658,7 @@
         ${D.first ? `<small class="pf-since">Pintando desde ${new Date(D.first).toLocaleDateString('es-ES', { month: 'long', year: 'numeric' })} · 🔥 ${st.streak || 0} día${st.streak === 1 ? '' : 's'} de racha</small>` : ''}</div></div>
       <div class="pf-quick">
         <button data-go="walks"><span>🥾</span>Paseos</button><button data-go="album"><span>🃏</span>Cromos</button>
-        <button data-go="ach"><span>🏆</span>Logros</button><button data-go="pet"><span>🐶</span>${esc((s.pet && s.pet.name) || 'Pincel')}</button>
+        <button data-go="ach"><span>🏆</span>Logros</button><button data-go="week"><span>📽️</span>Mi semana</button>
       </div>
       <div class="pf-tabs">${[['res', 'Resumen'], ['rec', 'Récords'], ['cit', 'Ciudades'], ['aj', 'Ajustes']].map(([k, l]) => `<button data-tab="${k}" class="${profTab === k ? 'on' : ''}">${l}</button>`).join('')}</div>`;
 
@@ -1756,7 +1739,7 @@
     if (S().avatar) { const d = document.createElement('button'); d.className = 'av-del'; d.textContent = 'Quitar foto'; d.addEventListener('click', () => { FUN.removeAvatar(); panelProfile(); }); $('.av-wrap').appendChild(d); }
     $('#pf-lvl').addEventListener('click', panelLevel);
     $('#pf-week') && $('#pf-week').addEventListener('click', () => PM.wrapped && PM.wrapped.open({ S, W }));
-    const go = { walks: panelWalks, album: panelAlbum, ach: panelAchievements, pet: () => FUN && FUN.showPet(), cit: () => { profTab = 'cit'; panelProfile(); } };
+    const go = { walks: panelWalks, album: panelAlbum, ach: panelAchievements, week: () => PM.wrapped && PM.wrapped.open({ S, W }), cit: () => { profTab = 'cit'; panelProfile(); } };
     document.querySelectorAll('.pf-quick [data-go]').forEach((b) => b.addEventListener('click', () => go[b.dataset.go]()));
     document.querySelectorAll('.pf-tile[data-act]').forEach((b) => b.addEventListener('click', () => go[b.dataset.act]()));
     document.querySelectorAll('.pf-tabs [data-tab]').forEach((b) => b.addEventListener('click', () => { profTab = b.dataset.tab; panelProfile(); }));
