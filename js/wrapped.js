@@ -75,7 +75,7 @@ PM.wrapped = (function () {
     bg(c, D, '#0f172a', '#1e293b');
     text(c, 'Tus calles de la semana', W / 2, 120, 46);
     const all = D.tracks.flat();
-    if (!all.length) { text(c, 'Esta semana no saliste a pintar…', W / 2, H / 2, 38, { w: 600 }); text(c, '¡Tu perro te espera! 🐾', W / 2, H / 2 + 60, 34, { w: 600, o: 0.8 }); return; }
+    if (!all.length) { text(c, 'Esta semana no saliste a pintar…', W / 2, H / 2, 38, { w: 600 }); text(c, '¡Esta semana, a pintar! 🎨', W / 2, H / 2 + 60, 34, { w: 600, o: 0.8 }); return; }
     let a = 90, b = -90, l = 180, r = -180;
     all.forEach((q) => { a = Math.min(a, q[0]); b = Math.max(b, q[0]); l = Math.min(l, q[1]); r = Math.max(r, q[1]); });
     const k = Math.cos((a + b) / 2 * Math.PI / 180), bx = 60, by = 200, bw = W - 120, bh = 900;

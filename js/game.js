@@ -69,7 +69,7 @@ PM.state = (function () {
     cardInfo: {},       // cromos: foto/texto de Wikipedia por monumento
     cardPhotos: {},     // cromos con foto propia (la imagen está en el móvil)
     barrioCards: {},    // cromos de barrio: silueta de sus calles pintadas
-    cityCards: {},      // cromos de ciudad (80 %)
+    cityCards: {},      // cromos de ciudad (70 %)
     setsDone: {},       // colecciones temáticas: nivel conseguido (1 bronce, 2 plata, 3 oro)
     avoid: [],          // zonas a evitar: { id, type:'barrio', name } | { id, type:'circle', c:[lat,lon], r }
     avoidRemoved: {},   // zonas quitadas (para que la nube no las devuelva)
@@ -222,7 +222,7 @@ PM.game = (function () {
     if (!B || B.total < 150 || !PM.world.barrioComplete(id)) return;   // incompleto o sin apenas calles: no cuenta
     const p = barrioProgress(id);
     const s = S();
-    if (p >= 0.8 && !s.conqueredB[id]) {
+    if (p >= PM.CONQ.barrio && !s.conqueredB[id]) {
       s.conqueredB[id] = Date.now();
       s.barrioNames[id] = B.name;
       // cromo del barrio: silueta de las calles pintadas (muestra de hasta 500 tramos)
@@ -275,12 +275,22 @@ PM.game = (function () {
   function checkCity(city) {
     const s = S();
     const cp = cityProgress(city);
-    if (cp.real && cp.pct >= 0.8 && !s.citiesWon[city]) {
+    if (cp.real && cp.pct >= PM.CONQ.city && !s.citiesWon[city]) {
       s.citiesWon[city] = Date.now();
       s.cityCards[city] = { t: Date.now() };
+      (s.cityRank = s.cityRank || {})[city] = 0;
       addXP(25000, 'city');
       unlock('rey_ciudad');
       emit('cityWon', { city });
+    }
+    // rangos de ciudad: plata al 80 %, oro al 90 %
+    if (cp.real && s.citiesWon[city]) {
+      const want = PM.rankFor('city', cp.pct), cur = (s.cityRank || {})[city] == null ? 0 : s.cityRank[city];
+      if (want > cur) {
+        (s.cityRank = s.cityRank || {})[city] = want;
+        addXP(want === 1 ? 10000 : 15000, 'rank');
+        emit('cityRank', { city, rank: want });
+      }
     }
   }
 
@@ -440,10 +450,10 @@ PM.game = (function () {
     peregrino: { name: 'Peregrino', desc: 'Visita 3 templos', icon: '⛪' },
     alcalde: { name: 'Señor alcalde', desc: 'Captura un ayuntamiento', icon: '🏛️' },
     leyenda: { name: 'Cazador de leyendas', desc: 'Captura un monumento legendario', icon: '👑' },
-    conquistador: { name: 'Conquistador', desc: 'Conquista tu primer barrio (80 %)', icon: '🚩' },
+    conquistador: { name: 'Conquistador', desc: 'Conquista tu primer barrio (60 %)', icon: '🚩' },
     senor_barrios: { name: 'Señor de los barrios', desc: 'Conquista 5 barrios', icon: '🗺️' },
     perfeccionista: { name: 'Perfeccionista', desc: 'Pinta un barrio al 100 %', icon: '💯' },
-    rey_ciudad: { name: 'Rey de la ciudad', desc: 'Pinta el 80 % de una ciudad', icon: '🏙️' },
+    rey_ciudad: { name: 'Rey de la ciudad', desc: 'Conquista una ciudad (70 %)', icon: '🏙️' },
     fotografo: { name: 'Fotógrafo', desc: 'Pon tu propia foto en un cromo', icon: '📸' },
     reportero: { name: 'Reportero', desc: '10 cromos con foto propia', icon: '🎞️' },
     madrugador: { name: 'Madrugador', desc: 'Pinta antes de las 8:00', icon: '🌅' },
@@ -484,7 +494,7 @@ PM.game = (function () {
   serie('raro', '💙', [10, 50, 100, 200], 'Rarezas', (t) => `Captura ${t} lugares raros`, (s) => byRarity(s, 'raro'));
   serie('barrios', '🚩', [10, 15, 25, 50, 75, 100, 150, 200], 'Señor de los barrios', (t) => `Conquista ${t} barrios`, (s) => Object.keys(s.conqueredB || {}).length);
   serie('perfecto', '💯', [3, 5, 10, 25], 'Perfeccionista', (t) => `Pinta ${t} barrios al 100 %`, (s) => Object.keys(s.perfectB || {}).length);
-  serie('reyes', '🏙️', [2, 3, 5, 10], 'Rey de ciudades', (t) => `Pinta el 80 % de ${t} ciudades`, (s) => Object.keys(s.citiesWon || {}).length);
+  serie('reyes', '🏙️', [2, 3, 5, 10], 'Rey de ciudades', (t) => `Conquista ${t} ciudades (70 %)`, (s) => Object.keys(s.citiesWon || {}).length);
   serie('viajero', '🧳', [2, 3, 5, 10, 20, 50], 'Viajero', (t) => `Pinta calles en ${t} ciudades distintas`,
     (s) => new Set(Object.entries(s.tileNames || {}).filter(([k, v]) => v.city && (s.paintedByTile || {})[k] > 0).map(([, v]) => v.city)).size);
   serie('racha', '📅', [14, 30, 60, 100, 365], 'Racha', (t) => `Juega ${t} días seguidos`, (s) => s.stats.streak || 0);
@@ -501,8 +511,10 @@ PM.game = (function () {
   serie('colec', '🗂️', [1, 3, 5, 10], 'Colecciones', (t) => `Completa ${t} colecci${t > 1 ? 'ones' : 'ón'}`, (s) => Object.keys(s.setsDone || {}).length);
   serie('brillo', '✨', [1, 3, 5, 10, 25], 'Cazador de brillos', (t) => t === 1 ? 'Consigue una carta brillante' : `Consigue ${t} cartas brillantes`, (s) => s.stats.shiny || 0);
   const rankN = (s, r) => Object.values(s.barrioRank || {}).filter((v) => v >= r).length;
-  serie('plata', '🥈', [1, 3, 5, 10, 25], 'Barrio de plata', (t) => `${t} barrio${t > 1 ? 's' : ''} en rango Plata (90 %)`, (s) => rankN(s, 1));
-  serie('oro', '🥇', [1, 3, 5, 10], 'Barrio de oro', (t) => `${t} barrio${t > 1 ? 's' : ''} en rango Oro (100 %)`, (s) => rankN(s, 2));
+  serie('plata', '🥈', [1, 3, 5, 10, 25], 'Barrio de plata', (t) => `${t} barrio${t > 1 ? 's' : ''} en rango Plata (80 %)`, (s) => rankN(s, 1));
+  serie('oro', '🥇', [1, 3, 5, 10], 'Barrio de oro', (t) => `${t} barrio${t > 1 ? 's' : ''} en rango Oro (90 %)`, (s) => rankN(s, 2));
+  serie('ciudadplata', '🥈', [1, 3], 'Ciudad de plata', (t) => `${t} ciudad${t > 1 ? 'es' : ''} en rango Plata (80 %)`, (s) => Object.values(s.cityRank || {}).filter((v) => v >= 1).length);
+  serie('ciudadoro', '🥇', [1, 3], 'Ciudad de oro', (t) => `${t} ciudad${t > 1 ? 'es' : ''} en rango Oro (90 %)`, (s) => Object.values(s.cityRank || {}).filter((v) => v >= 2).length);
   serie('leyendab', '🏆', [1, 3, 5], 'Leyenda del barrio', (t) => `${t} barrio${t > 1 ? 's' : ''} en rango Leyenda`, (s) => rankN(s, 3));
   serie('sendero', '🌲', [1, 5, 10, 25], 'Senderista', (t) => `Pinta ${t} km de senderos y caminos`, (s) => km(s.stats.trailM || 0));
   serie('puntos', '🏆', [10000, 50000, 100000, 250000, 500000, 1000000, 2000000, 5000000], 'Puntos', (t) => `Consigue ${PM.fmtNum ? PM.fmtNum(t) : t} puntos`, (s) => s.xp || 0);

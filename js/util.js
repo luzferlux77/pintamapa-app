@@ -185,3 +185,15 @@ PM.movingMs = function (w) {
   PM._movCache.set(w, r);
   return r;
 };
+
+// Conquista y rangos: barrio 60 % bronce · 80 % plata · 90 % oro (· leyenda: 100 % y todos sus lugares)
+//                     ciudad 70 % bronce · 80 % plata · 90 % oro
+PM.CONQ = { barrio: 0.6, city: 0.7 };
+PM.RANKS = [
+  { id: 'bronce', ic: '🥉', name: 'Bronce', color: '#cd7f32' },
+  { id: 'plata', ic: '🥈', name: 'Plata', color: '#a8b0bd' },
+  { id: 'oro', ic: '🥇', name: 'Oro', color: '#eab308' },
+  { id: 'leyenda', ic: '🏆', name: 'Leyenda', color: '#a855f7' },
+];
+PM.RANK_MIN = { barrio: [0.6, 0.8, 0.9], city: [0.7, 0.8, 0.9] };
+PM.rankFor = (kind, pct) => { const m = PM.RANK_MIN[kind]; return pct >= m[2] ? 2 : pct >= m[1] ? 1 : pct >= m[0] ? 0 : -1; };

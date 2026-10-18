@@ -99,7 +99,9 @@
     add({ id: 'pm-fx-line', type: 'line', source: 'pm-fxline', layout: round, paint: { 'line-color': paintColor(), 'line-width': ['get', 'w'], 'line-opacity': ['get', 'o'], 'line-blur': 1.5 } }, true);
     add({ id: 'pm-lms', type: 'symbol', source: 'pm-lms', layout: { 'icon-image': ['get', 'icon'], 'icon-allow-overlap': true, 'icon-ignore-placement': true,
       'symbol-sort-key': ['get', 'z'], 'icon-size': ['interpolate', ['linear'], ['zoom'], 12, 0.55, 15, 0.85, 17, 1] } }, true);
-    add({ id: 'pm-barrio-conq', type: 'line', source: 'pm-barrios', filter: ['==', ['get', 'c'], 1], paint: { 'line-color': paintColor(), 'line-opacity': 0.75, 'line-width': ['case', ['==', ['get', 'cur'], 1], 3, 2] } }, true);
+    add({ id: 'pm-barrio-conq', type: 'line', source: 'pm-barrios', filter: ['==', ['get', 'c'], 1], layout: round,
+      paint: { 'line-color': ['match', ['get', 'rk'], 1, PM.RANKS[1].color, 2, PM.RANKS[2].color, 3, PM.RANKS[3].color, PM.RANKS[0].color], 'line-opacity': 0.9,
+        'line-width': ['+', ['case', ['==', ['get', 'cur'], 1], 3.5, 2.5], ['*', 0.8, ['get', 'rk']]] } }, true);
   }
   map.on('style.load', () => { mapReady = true; PM.mapStyle.enhance(map, curStyle); iconMade.clear(); addOverlay(); set3D(false); flushLandmarks(true); });
   // créditos plegados (botón ⓘ): ocupan mucho en el móvil
@@ -229,17 +231,12 @@
   }
 
   let flagMarkers = [];
-  // ---------------- Rangos de barrio: bronce 80 % · plata 90 % · oro 100 % · leyenda (100 % y todos sus lugares) ----------------
-  const RANKS = [
-    { id: 'bronce', ic: '🥉', name: 'Bronce', min: 0.8, pts: 0 },
-    { id: 'plata', ic: '🥈', name: 'Plata', min: 0.9, pts: 1000 },
-    { id: 'oro', ic: '🥇', name: 'Oro', min: 0.999, pts: 500 },
-    { id: 'leyenda', ic: '🏆', name: 'Leyenda', min: 0.999, pts: 3000 },
-  ];
+  // ---------------- Rangos de barrio: bronce 60 % (conquista) · plata 80 % · oro 90 % · leyenda (100 % y todos sus lugares) ----------------
+  const RANKS = PM.RANKS.map((r, i) => Object.assign({}, r, { min: [PM.RANK_MIN.barrio[0], PM.RANK_MIN.barrio[1], PM.RANK_MIN.barrio[2], 0.999][i], pts: [0, 1000, 1500, 3000][i] }));
   function rankOf(id) {
     const s = S(), r = (s.barrioRank || {})[id];
     if (r != null) return r;
-    return (s.perfectB || {})[id] ? 2 : 0;   // partidas de antes: conquistado = bronce; al 100 % = oro
+    return (s.perfectB || {})[id] ? 2 : 0;   // partidas de antes: conquistado = bronce; al 100 % = oro (se recalcula al pasar por él)
   }
   let legendT = 0;
   function barrioPlacesDone(id) {   // ¿tienes todos los lugares de este barrio?
@@ -252,7 +249,7 @@
     const cur = rankOf(id);
     let want = 0;
     for (let i = 1; i < 3; i++) if (pr >= RANKS[i].min) want = i;
-    if (want >= 2 && cur < 3 && Date.now() - legendT > 10000) { legendT = Date.now(); if (barrioPlacesDone(id)) want = 3; }
+    if (pr >= 0.999 && cur < 3 && Date.now() - legendT > 10000) { legendT = Date.now(); if (barrioPlacesDone(id)) want = 3; }
     if (want <= cur) { if ((s.barrioRank || {})[id] == null) { (s.barrioRank = s.barrioRank || {})[id] = cur; PM.state.save(); } return; }
     (s.barrioRank = s.barrioRank || {})[id] = want;
     const R = RANKS[want];
@@ -317,7 +314,7 @@
     const f = [];
     for (const B of Object.values(W.barrios)) {
       const conq = !!S().conqueredB[B.id], cur = B.id === curBarrio;
-      if (B.segs && (cur || conq)) B.segs.forEach((sg) => f.push(lineF(sg, { c: conq ? 1 : 0, cur: cur ? 1 : 0 })));
+      if (B.segs && (cur || conq)) { const rk = conq ? rankOf(B.id) : 0; B.segs.forEach((sg) => f.push(lineF(sg, { c: conq ? 1 : 0, cur: cur ? 1 : 0, rk }))); }
       if (conq && B.pos) { const rk = rankOf(B.id); flagMarkers.push(htmlMarker(B.pos, `<div class="flag rk${rk}" title="${RANKS[rk].name}">${RANKS[rk].ic}</div>`, { anchor: 'bottom-left' })); }
     }
     setSrc('pm-barrios', FC(f));
@@ -341,7 +338,7 @@
   function recolorAll() {
     if (mapReady) {
       const c = paintColor();
-      [['pm-glow', 'line-color', c], ['pm-paint', 'line-color', paintExpr()], ['pm-halo-fill', 'fill-color', c], ['pm-halo-line', 'line-color', c], ['pm-barrio-conq', 'line-color', c]]
+      [['pm-glow', 'line-color', c], ['pm-paint', 'line-color', paintExpr()], ['pm-halo-fill', 'fill-color', c], ['pm-halo-line', 'line-color', c]]
         .forEach(([l, prop, v]) => map.getLayer(l) && map.setPaintProperty(l, prop, v));
     }
     renderBarrios();
@@ -1431,13 +1428,16 @@
         refreshFlag(d.key);
         (S().barrioRank = S().barrioRank || {})[d.key] = 0; PM.state.save();
         conquestFX(d.key);
-        setTimeout(() => celebrate('¡Barrio conquistado! 🥉', `${d.name || 'Este barrio'} es tuyo: has pintado el 80 % de sus calles. Rango Bronce. +2000 · Plata al 90 %, Oro al 100 %`, '🚩'), 1700);
+        setTimeout(() => celebrate('¡Barrio conquistado! 🥉', `${d.name || 'Este barrio'} es tuyo: has pintado el 60 % de sus calles. Rango Bronce. +2000 · Plata al 80 %, Oro al 90 %`, '🚩'), 1700);
         break;
       case 'perfect':
         toast(`💯 ¡${d.name} pintado al 100 %! +1000`, 'gold', 4000);
         break;
       case 'cityWon':
-        celebrate('¡CIUDAD CONQUISTADA!', `Has pintado el 80 % de las calles de ${d.city}. Eres leyenda. +25000`, '👑');
+        celebrate('¡CIUDAD CONQUISTADA! 🥉', `Has pintado el 70 % de las calles de ${d.city}. Rango Bronce. +25000 · Plata al 80 %, Oro al 90 %`, '👑');
+        break;
+      case 'cityRank':
+        celebrate(`¡${d.city}: ciudad de ${PM.RANKS[d.rank].name}! ${PM.RANKS[d.rank].ic}`, `Has pintado el ${d.rank === 1 ? 80 : 90} % de sus calles. +${d.rank === 1 ? '10000' : '15000'}`, PM.RANKS[d.rank].ic);
         break;
       case 'levelup':
         PM.sound.levelUp(); PM.vibrate([80, 40, 80]);
@@ -1591,8 +1591,8 @@
         <li>🖌️ <b>Pintar calle nueva</b>: 10 pts cada 12 m · el combo multiplica hasta ×3 · junto a un monumento ×2</li>
         <li>📸 <b>Capturar un lugar</b>: 100 (común) · 200 (raro) · 300 (épico) · 500 (legendario)</li>
         <li>🔁 <b>Volver a un lugar</b> (cada día): +20 % de sus puntos</li>
-        <li>🚩 <b>Conquistar un barrio</b> (80 %): +2.000 · al 100 %: +1.000 más</li>
-        <li>👑 <b>Conquistar una ciudad</b> (80 %): +25.000</li>
+        <li>🚩 <b>Conquistar un barrio</b> (60 %, bronce): +2.000 · plata (80 %) +1.000 · oro (90 %) +1.500 · al 100 %: +1.000 más</li>
+        <li>👑 <b>Conquistar una ciudad</b> (70 %, bronce): +25.000 · plata (80 %) +10.000 · oro (90 %) +15.000</li>
         <li>🎯 <b>Misiones del día</b> y 🎁 cofre al completarlas todas: +1.000</li>
         <li>🗂️ <b>Colecciones</b>: 300 · 1.000 · 3.000 · 📷 tu foto en un cromo</li>
       </ul>
@@ -1697,11 +1697,11 @@
       const cities = {};
       for (const k in s.tileNames) { const c = s.tileNames[k].city; if (c) cities[c] = true; }
       const cl = Object.keys(cities).map((c) => [c, G.cityProgress(c)]).sort((x, y) => y[1].painted - x[1].painted);
-      html += card('🏙️ Tus ciudades', cl.length ? cl.map(([c, cp]) => `<div class="mission"><div class="mt">${s.citiesWon[c] ? '👑' : '🏙️'} ${esc(c)}<span>${(cp.pct * 100).toFixed(2)} %</span></div>
-          <div class="bar"><i style="width:${Math.min(100, cp.pct / 0.8 * 100)}%"></i></div>
-          <small>${PM.fmtDist(cp.painted)} de ${cp.total ? PM.fmtDist(cp.total) : '?'} · ${s.citiesWon[c] ? '¡conquistada!' : 'faltan ' + (cp.total ? PM.fmtDist(Math.max(0, cp.total * 0.8 - cp.painted)) : '?') + ' para el 80 %'}</small></div>`).join('') : '<p class="muted">Sal a pintar y aquí verás tus ciudades.</p>', 'conquista = 80 %');
+      html += card('🏙️ Tus ciudades', cl.length ? cl.map(([c, cp]) => `<div class="mission"><div class="mt">${s.citiesWon[c] ? PM.RANKS[(s.cityRank || {})[c] || 0].ic : '🏙️'} ${esc(c)}<span>${(cp.pct * 100).toFixed(2)} %</span></div>
+          <div class="bar"><i style="width:${Math.min(100, cp.pct / PM.CONQ.city * 100)}%"></i></div>
+          <small>${PM.fmtDist(cp.painted)} de ${cp.total ? PM.fmtDist(cp.total) : '?'} · ${(() => { const rk = PM.rankFor('city', cp.pct), nx = PM.RANK_MIN.city[rk + 1]; return (rk >= 0 ? `${PM.RANKS[rk].ic} ${PM.RANKS[rk].name} · ` : '') + (nx ? 'faltan ' + (cp.total ? PM.fmtDist(Math.max(0, cp.total * nx - cp.painted)) : '?') + ` para ${Math.round(nx * 100)} %` : '¡oro conseguido!'); })()}</small></div>`).join('') : '<p class="muted">Sal a pintar y aquí verás tus ciudades.</p>', 'conquista 70 % · plata 80 · oro 90');
       const bc = Object.entries(s.barrioCards || {}).map(([id, v]) => Object.assign({ id }, v)).sort((x, y) => y.t - x.t);
-      html += card('🏅 Barrios conquistados', bc.length ? bc.map((b) => { const rk = b.id != null ? rankOf(b.id) : 0; return `<div class="row"><span>${RANKS[rk].ic} ${esc(b.name)} <small class="muted">· ${RANKS[rk].name}</small></span><small class="muted">${new Date(b.t).toLocaleDateString('es-ES')}</small></div>`; }).join('') : '<p class="muted">Pinta el 80 % de las calles de un barrio para conquistarlo.</p>', bc.length || '');
+      html += card('🏅 Barrios conquistados', bc.length ? bc.map((b) => { const rk = b.id != null ? rankOf(b.id) : 0; return `<div class="row"><span>${RANKS[rk].ic} ${esc(b.name)} <small class="muted">· ${RANKS[rk].name}</small></span><small class="muted">${new Date(b.t).toLocaleDateString('es-ES')}</small></div>`; }).join('') : '<p class="muted">Pinta el 60 % de las calles de un barrio para conquistarlo (80 % plata, 90 % oro).</p>', bc.length || '');
     }
     if (profTab === 'aj') {
       if (PM.isNative && PM.profile === 'real') {

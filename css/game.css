@@ -35,7 +35,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .bar { height: 8px; background: var(--track); border-radius: 99px; overflow: hidden; position: relative; }
 .bar i { display: block; height: 100%; width: 0; background: var(--paint); border-radius: 99px; transition: width .3s; box-shadow: 0 0 12px var(--paint); }
 .bar.big { height: 12px; }
-.bar em { position: absolute; left: 80%; top: -2px; bottom: -2px; width: 2px; background: var(--text); opacity: .7; }
+.bar em { position: absolute; left: 60%; top: -2px; bottom: -2px; width: 2px; background: var(--text); opacity: .7; }
 
 /* HUD */
 #hud { position: absolute; top: 0; left: 0; right: 0; z-index: 500; padding: calc(10px + var(--safe-top)) 12px 0; pointer-events: none; }
@@ -517,3 +517,8 @@ input.sw:checked { background: var(--accent, #2563eb); } input.sw:checked::after
 .pf-week span { font-size: 28px; } .pf-week div { flex: 1; } .pf-week b { display: block; font-size: 15px; } .pf-week small { font-size: 12px; opacity: .9; } .pf-week em { font-style: normal; font-size: 18px; }
 
 
+
+/* barra del barrio: marcas de plata (80 %) y oro (90 %) además de la conquista (60 %) */
+#barrio-bar { position: relative; }
+#barrio-bar::before, #barrio-bar::after { content: ''; position: absolute; top: -2px; bottom: -2px; width: 2px; border-radius: 2px; z-index: 1; }
+#barrio-bar::before { left: 80%; background: #a8b0bd; } #barrio-bar::after { left: 90%; background: #eab308; }

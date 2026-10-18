@@ -372,7 +372,7 @@ PM.cards = (function () {
       } else {
         const bc = Object.entries(s.barrioCards || {}).sort((a, b) => b[1].t - a[1].t);
         html += bc.length ? '<div class="cromos">' + bc.map(([id, b]) => barrioCardHTML(b)).join('') + '</div>'
-          : '<p class="muted">Conquista un barrio (pinta el 80 % de sus calles) y aquí aparecerá su cromo con la silueta pintada de tu color.</p>';
+          : '<p class="muted">Conquista un barrio (pinta el 60 % de sus calles) y aquí aparecerá su cromo con la silueta pintada de tu color.</p>';
         const cities = Object.entries(s.cityCards || {});
         if (cities.length) html += '<h4>👑 Ciudades</h4><div class="cromos">' + cities.map(([c, v]) => `<div class="cromo r-legendario city"><div class="cromo-in"><div class="cara front">
           <div class="foto vacia"><span>👑</span></div><div class="holo"></div><div class="cinta" style="background:#ffb700">Ciudad</div>
