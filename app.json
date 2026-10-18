@@ -1,8 +1,8 @@
 {
-  "version": "0.6.30",
-  "notes": "Quitado todo lo del perro: el juego vuelve a centrarse en pintar",
+  "version": "0.6.31",
+  "notes": "Quitada la función de zonas a evitar",
   "native": 3,
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.30/pintamapa-web-0.6.30.zip",
-  "checksum": "8847a83bb2b6169244cae8ebf9015595deeee3b775cf8610b6ecdd144c5ebdc6",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.30/PintaMapa-v0.6.30.apk"
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.31/pintamapa-web-0.6.31.zip",
+  "checksum": "be71ea50ea7896439e0effc677c928bb225c5e1ea88b606b46ec1b277d869443",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.31/PintaMapa-v0.6.31.apk"
 }
