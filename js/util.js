@@ -197,3 +197,47 @@ PM.RANKS = [
 ];
 PM.RANK_MIN = { barrio: [0.6, 0.8, 0.9], city: [0.7, 0.8, 0.9] };
 PM.rankFor = (kind, pct) => { const m = PM.RANK_MIN[kind]; return pct >= m[2] ? 2 : pct >= m[1] ? 1 : pct >= m[0] ? 0 : -1; };
+
+// ---------- Iconos iguales en todos los móviles (Twemoji, CC-BY 4.0, dentro de la app) ----------
+PM.TWEMOJI = new Set('1f309 1f32c 1f333 1f393 1f3a8 1f3ad 1f3d9 1f3db 1f3df 1f3e5 1f3f0 1f3fa 1f4cd 1f4da 1f4dc 1f52d 1f54c 1f54d 1f5bc 1f5fb 1f5fc 1f5fd 1f5ff 1f689 1f68b 1f692 1f6a9 1f6d2 1f6d5 2615 26bd 26e9 26ea 26f2 2b50'.split(' '));
+PM.emojiCode = (e) => [...String(e || '')].map((c) => c.codePointAt(0).toString(16)).filter((h) => h !== 'fe0f').join('-');
+PM.emojiURL = (e) => { const c = PM.emojiCode(e); return PM.TWEMOJI.has(c) ? 'lib/twemoji/' + c + '.svg' : null; };
+PM._emojiImg = {};
+// imagen ya cargada (para dibujar en canvas); si aún no está, se pide y devuelve null
+PM.emojiImg = (e, onload) => {
+  const url = PM.emojiURL(e); if (!url) return null;
+  let im = PM._emojiImg[url];
+  if (!im) { im = PM._emojiImg[url] = new Image(); im.onload = () => { im._ok = true; onload && onload(); }; im.src = url; }
+  return im._ok ? im : null;
+};
+
+// ---------- Simplificar un recorrido (Douglas-Peucker, en metros): mismo dibujo, muchos menos puntos ----------
+// Los puntos son [lat, lon, t?, alt?]; los null (cortes por pausa) se respetan.
+PM.simplifyTrack = function (track, tol = 3) {
+  const out = [];
+  let seg = [];
+  const flush = () => {
+    if (seg.length <= 2) { out.push(...seg); seg = []; return; }
+    const keep = new Uint8Array(seg.length); keep[0] = keep[seg.length - 1] = 1;
+    const stack = [[0, seg.length - 1]];
+    const k = PM.geo.mPerDegLon(seg[0][0]);
+    while (stack.length) {
+      const [a, b] = stack.pop();
+      let best = -1, bd = tol;
+      const ax = seg[a][1] * k, ay = seg[a][0] * PM.geo.mPerDegLat, bx = seg[b][1] * k, by = seg[b][0] * PM.geo.mPerDegLat;
+      const dx = bx - ax, dy = by - ay, L = dx * dx + dy * dy;
+      for (let i = a + 1; i < b; i++) {
+        const px = seg[i][1] * k, py = seg[i][0] * PM.geo.mPerDegLat;
+        let t = L ? ((px - ax) * dx + (py - ay) * dy) / L : 0; t = Math.max(0, Math.min(1, t));
+        const d = Math.hypot(px - (ax + t * dx), py - (ay + t * dy));
+        if (d > bd) { bd = d; best = i; }
+      }
+      if (best > 0) { keep[best] = 1; stack.push([a, best], [best, b]); }
+    }
+    seg.forEach((q, i) => { if (keep[i]) out.push(q); });
+    seg = [];
+  };
+  for (const q of track || []) { if (!q) { flush(); out.push(null); } else seg.push(q); }
+  flush();
+  return out;
+};

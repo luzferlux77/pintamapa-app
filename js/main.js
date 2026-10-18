@@ -37,7 +37,7 @@
   const STYLE = PM.mapStyle.URL;
   const ll = (p) => [p[1], p[0]];   // el juego usa [lat, lon]; MapLibre, [lon, lat]
   let curStyle = S().theme === 'dark' ? 'dark' : 'light';
-  const map = new maplibregl.Map({ container: 'map', style: STYLE[curStyle], center: ll(start), zoom: 17, attributionControl: false,
+  const map = new maplibregl.Map({ container: 'map', style: PM.mapStyle.styleURL(curStyle), center: ll(start), zoom: 17, attributionControl: false,
     dragRotate: false, pitchWithRotate: false, touchPitch: false, maxPitch: 0, pitch: 0, fadeDuration: 0, renderWorldCopies: false,
     pixelRatio: Math.min(1.75, window.devicePixelRatio || 1) });   // a más de 2× no se nota y cuesta mucho al móvil
   // ¿el dedo está moviendo el mapa? (mientras, ni la brújula ni la cámara lo mueven: si no, se pelean y va a tirones)
@@ -121,7 +121,7 @@
     document.body.classList.toggle('dark', dark);
     document.querySelector('meta[name=theme-color]').setAttribute('content', dark ? '#0d0f17' : '#f4f6fb');
     const want = dark ? 'dark' : 'light';
-    if (want !== curStyle) { curStyle = want; mapReady = false; map.setStyle(STYLE[want], { diff: false }); }   // carga limpia: así salta 'style.load' y se vuelven a poner las capas
+    if (want !== curStyle) { curStyle = want; mapReady = false; map.setStyle(PM.mapStyle.styleURL(want), { diff: false }); }   // carga limpia: así salta 'style.load' y se vuelven a poner las capas
   }
   applyTheme();
 
@@ -353,6 +353,9 @@
   const lmHalos = {}, lmIndex = {};   // id -> { lm, got }
   const RCOL = { comun: '#9aa4b2', raro: '#3fa9ff', epico: '#b65cff', legendario: '#ffb700' };
   const iconMade = new Set();
+  let iconPending = false, iconTimer = null;
+  // cuando llegan las imágenes de los iconos, se redibujan los que salieron con el emoji del sistema
+  function iconsReady() { if (!iconPending) return; clearTimeout(iconTimer); iconTimer = setTimeout(() => { iconPending = false; iconMade.forEach((k) => { try { map.removeImage(k); } catch (e) {} }); iconMade.clear(); flushLandmarks(true); }, 250); }
   function lmIcon(lm, got) {
     const must = !!(lm.must || (S().landmarks[lm.id] || {}).must);
     const key = 'pmi-' + (got ? 'g' + paintColor() : 'n') + '-' + lm.rarity + '-' + (lm.emoji || '') + (must ? '-m' : '');
@@ -371,10 +374,15 @@
     x.lineWidth = 3 * k; x.strokeStyle = got ? '#ffffff' : (RCOL[lm.rarity] || '#9aa4b2'); x.stroke();
     if (got) { x.beginPath(); x.arc(cx, cx, r + 3 * k, 0, 2 * Math.PI); x.lineWidth = 2.5 * k; x.strokeStyle = paintColor(); x.stroke(); }
     x.textAlign = 'center'; x.textBaseline = 'middle';
-    x.font = `${19 * k}px "Noto Color Emoji","Apple Color Emoji","Segoe UI Emoji",sans-serif`;
-    x.fillText(lm.emoji || '📍', cx, cx + 1 * k);
-    if (got) { x.font = `${13 * k}px "Noto Color Emoji","Apple Color Emoji","Segoe UI Emoji",sans-serif`; x.fillText('🚩', size - 9 * k, 9 * k); }
-    if (must) { x.font = `${14 * k}px "Noto Color Emoji","Apple Color Emoji","Segoe UI Emoji",sans-serif`; x.fillText('⭐', 9 * k, 9 * k); }
+    // iconos iguales en todos los móviles (Twemoji); mientras cargan, el emoji del sistema
+    const emo = (e, px, ex, ey) => {
+      const im = PM.emojiImg(e, iconsReady);
+      if (im) x.drawImage(im, ex - px / 2, ey - px / 2, px, px);
+      else { x.font = `${px}px "Noto Color Emoji","Apple Color Emoji","Segoe UI Emoji",sans-serif`; x.fillText(e, ex, ey + px * 0.05); iconPending = true; }
+    };
+    emo(lm.emoji || '📍', 19 * k, cx, cx);
+    if (got) emo('🚩', 13 * k, size - 9 * k, 9 * k);
+    if (must) emo('⭐', 14 * k, 9 * k, 9 * k);
     try { if (map.hasImage(key)) map.removeImage(key); map.addImage(key, x.getImageData(0, 0, size, size), { pixelRatio: k }); iconMade.add(key); } catch (e) {}
     return key;
   }
@@ -651,6 +659,7 @@
     $('#radar').classList.toggle('show', parts.length > 0);
   }
   setInterval(updateRadar, 1000);
+  setInterval(() => { if (session && !session.paused) checkNearMust(pos); }, 5000);
 
   // Captura por permanencia: CAPTURE_SECONDS seguidos a menos de CAPTURE_RADIUS del monumento.
   // t = hora real de la lectura GPS (con la pantalla bloqueada las lecturas llegan luego, en lote).
@@ -988,6 +997,14 @@
     onMove(pos, false, t || c.time || Date.now(), c.speed, c.bearing != null ? c.bearing : c.heading);
   }
 
+  // ahorro de batería: parado más de 90 s → el GPS solo avisa si te mueves 25 m; en cuanto andas, vuelve a 8 m
+  let gpsSaver = false, gpsSaverT = 0;
+  function gpsSaverCheck() {
+    if (!gpsWatch || !gpsWatch.bg || !session || session.paused) return;
+    const still = Date.now() - Math.max(lastMoveT || 0, session.resumedAt || 0) > 90000 && speed < 0.4;
+    if (still !== gpsSaver && Date.now() - gpsSaverT > 60000) { gpsSaver = still; gpsSaverT = Date.now(); startGPS(); }
+  }
+  setInterval(gpsSaverCheck, 30000);
   async function startGPS() {
     stopGPS();
     try {
@@ -995,7 +1012,7 @@
         const id = await BG.addWatcher({
           backgroundTitle: 'PintaMapa está pintando tus calles',
           backgroundMessage: 'Toca para volver al juego. Finaliza el paseo para apagar el GPS.',
-          requestPermissions: true, stale: false, distanceFilter: DISTANCE_FILTER,
+          requestPermissions: true, stale: false, distanceFilter: gpsSaver ? 25 : DISTANCE_FILTER,
         }, (loc, err) => {
           if (err) {
             if (err.code === 'NOT_AUTHORIZED') toast('Necesito permiso de ubicación para pintar 📍', 'warn', 5000);
@@ -1070,6 +1087,7 @@
     persistSession(); syncGPS(); renderSession();
     PM.update.hold();
     PM.sound.pickup(); PM.vibrate(60);
+    askNotifyPermission();
     // la primera vez en el móvil: cómo evitar que Android frene el GPS con la pantalla apagada
     try {
       if (isNative && mode === 'gps' && !localStorage.getItem('pintamapa_bathint')) {
@@ -1286,6 +1304,7 @@
       const done = B && W.barrioComplete(bq.id);
       const pr = B ? G.barrioProgress(bq.id) : 0;
       if (bq && B && S().conqueredB[bq.id]) checkRank(bq.id, pr, B);
+      if (bq && B && done) checkBarrioNear(bq.id, pr, B);
       setT('#barrio-name', (bq && S().conqueredB[bq.id] ? RANKS[rankOf(bq.id)].ic + ' ' : '') + ((B && B.name) || (bq && bq.name) || t.name || 'Barrio sin explorar'));
       const avoidedB = AVOID_ON && bq && S().avoid.some((z) => z.type === 'barrio' && z.id === bq.id);
       setT('#barrio-pct', avoidedB ? '🚫 evitado' : !B ? '' : !done ? 'calculando…' : B.total ? (pr * 100).toFixed(1) + ' %' : 'sin calles');
@@ -1538,7 +1557,94 @@
 
   function panelAlbum() {
     openSheet('🃏 Álbum de cromos', '<div id="album-box"></div>');
-    PM.cards.album($('#album-box'));
+    PM.cards.album($('#album-box'), { goTo: goToPlace });
+  }
+  // centra el mapa en un lugar y abre su carta (o su ficha si aún no es tuyo)
+  function goToPlace(id) {
+    const lm = W.landmarks[id] || (S().landmarks[id] && Object.assign({ id }, S().landmarks[id]));
+    if (!lm || !lm.pos) return;
+    $('#sheet').classList.remove('show');
+    follow = false; zoomAround(); $('#btn-center').classList.add('show'); clearTimeout(recenterTimer); recenterTimer = setTimeout(recenter, 25000);
+    map.easeTo({ center: ll(lm.pos), zoom: Math.max(16.2, map.getZoom()), duration: 900 });
+    setTimeout(() => showLandmarkInfo(lm), 950);
+  }
+  // ---------------- Avisos útiles (pocos) ----------------
+  // Con la app abierta, un aviso en pantalla; con el móvil en el bolsillo, una notificación del sistema.
+  const LN = () => (isNative && window.Capacitor.Plugins && window.Capacitor.Plugins.LocalNotifications) || null;
+  let lnAsked = false;
+  async function askNotifyPermission() {
+    const L = LN(); if (!L || lnAsked) return; lnAsked = true;
+    try { const p = await L.checkPermissions(); if (p.display !== 'granted') await L.requestPermissions(); } catch (e) {}
+  }
+  function notify(title, body, kind = 'gold') {
+    const L = LN();
+    if (L && document.hidden) L.schedule({ notifications: [{ id: Math.floor(Date.now() % 2e9), title, body, schedule: { at: new Date(Date.now() + 500) } }] }).catch(() => {});
+    else toast(`<b>${title}</b> ${body}`, kind, 5000);
+  }
+  const once = (key) => { const s = S(), d = PM.today(); s.notified = s.notified || {}; if (s.notified[key] === d) return false; s.notified[key] = d; PM.state.save(); return true; };
+  // racha: si llevas días seguidos y hoy aún no has salido, aviso a las 20:30
+  async function scheduleStreakReminder() {
+    const L = LN(); if (!L) return;
+    try { await L.cancel({ notifications: [{ id: 7001 }] }); } catch (e) {}
+    const st = S().stats || {}, streak = st.streak || 0;
+    if (!streak || st.lastDay === PM.today()) return;
+    const at = new Date(); at.setHours(20, 30, 0, 0);
+    if (at <= new Date()) return;
+    try { await L.schedule({ notifications: [{ id: 7001, title: `🔥 Tu racha de ${streak} día${streak > 1 ? 's' : ''} termina hoy`, body: 'Sal a pintar un ratito para no perderla.', schedule: { at } }] }); } catch (e) {}
+  }
+  // imprescindible cerca (≤ 200 m, una vez al día cada uno)
+  function checkNearMust(p) {
+    if (!session || session.paused) return;
+    for (const id in W.landmarks) {
+      const lm = W.landmarks[id];
+      if (!lm.must || S().landmarks[id]) continue;
+      const d = PM.geo.dist(p, lm.pos);
+      if (d <= 200 && once('must:' + id)) notify('⭐ Imprescindible cerca', `${lm.name} está a ${Math.round(d / 10) * 10} m. ¡Vale el doble!`);
+    }
+  }
+  // barrio a punto de conquistarse o de subir de rango (a menos de un 3 %)
+  function checkBarrioNear(id, pr, B) {
+    if (!session || !B || !B.name) return;
+    const conq = !!S().conqueredB[id], rk = conq ? rankOf(id) : -1;
+    const next = conq ? PM.RANK_MIN.barrio[rk + 1] : PM.CONQ.barrio;
+    if (!next || pr >= next) return;
+    const left = next - pr;
+    if (left <= 0.03 && once('bar:' + id + ':' + next)) {
+      const goal = conq ? `la ${PM.RANKS[rk + 1].name.toLowerCase()} ${PM.RANKS[rk + 1].ic}` : 'conquistarlo 🚩';
+      notify(`🎯 ${B.name}`, `Te falta un ${Math.max(1, Math.round(left * 100))} % para ${goal}.`);
+    }
+  }
+
+  // ---------------- Copia de seguridad en archivo ----------------
+  async function exportBackup() {
+    const s = S(), msg = $('#bk-msg');
+    if (msg) msg.textContent = '⏳ Preparando la copia…';
+    const photos = {};
+    for (const id of Object.keys(s.cardPhotos || {})) { try { const p = await PM.cards.getPhoto(id); if (p) photos[id] = p; } catch (e) {} }
+    s.backupT = Date.now(); PM.state.save();
+    const save = Object.assign({}, s); delete save.session;
+    const data = { app: 'PintaMapa', version: PM.VERSION.app, player: PM.player ? PM.player.name : '', t: Date.now(), save, photos };
+    const blob = new Blob([JSON.stringify(data)], { type: 'application/json' });
+    const name = `PintaMapa-${(PM.player ? PM.player.slug : 'partida')}-${new Date().toISOString().slice(0, 10)}.json`;
+    await PM.replay.save(blob, name, 'Copia de PintaMapa');
+    if (msg) msg.textContent = `✅ Copia lista (${(blob.size / 1048576).toFixed(1)} MB). Guárdala en tu Drive, correo o donde quieras.`;
+  }
+  function importBackup() {
+    const inp = document.createElement('input'); inp.type = 'file'; inp.accept = '.json,application/json';
+    inp.onchange = async () => {
+      const f = inp.files[0]; if (!f) return;
+      try {
+        const d = JSON.parse(await f.text());
+        if (d.app !== 'PintaMapa' || !d.save) throw new Error('Este archivo no es una copia de PintaMapa');
+        if (!confirm(`¿Importar la copia de «${d.player || '?'}» del ${new Date(d.t).toLocaleString('es-ES')}? Se sumará a tu partida actual (no se borra nada).`)) return;
+        const cur = S(), merged = PM.merge(d.save, cur);
+        PM.state.replace(Object.assign({}, merged, { session: cur.session, pendingGeo: Object.assign({}, d.save.pendingGeo || {}, cur.pendingGeo || {}) }));
+        for (const [id, img] of Object.entries(d.photos || {})) { try { await PM.cards.putPhoto(id, img); } catch (e) {} }
+        toast('✅ Copia importada. Recargando…', 'ok');
+        setTimeout(() => location.reload(), 1200);
+      } catch (e) { toast('❌ ' + (e.message || e), 'warn', 5000); }
+    };
+    inp.click();
   }
   function panelAlbumOld() {
     const s = S();
@@ -1616,12 +1722,30 @@
   $('#hud .lvl').addEventListener('click', panelLevel);
   $('#hud .xp').addEventListener('click', panelLevel);
 
+  // ---------------- Logros: agrupados por categoría, con barra de progreso y «casi lo tienes» ----------------
+  const ACH_CATS = [
+    { id: 'pin', name: 'Pintar y andar', ic: '🖌️', re: /^(primera_brocha|km\d|pinta|anda|sendero|habitual|largo|paseos|horas|combo)/ },
+    { id: 'lug', name: 'Lugares y cartas', ic: '🏛️', re: /^(primer_sello|coleccionista|enciclopedia|peregrino|alcalde|leyenda$|captura|k[a-z]|legend|epico|raro|brillo|imprescindible|fiel|colec|fotografo|reportero|fotos)/ },
+    { id: 'bar', name: 'Barrios y ciudades', ic: '🚩', re: /^(conquistador|senor_barrios|perfeccionista|rey_ciudad|barrios|perfecto|reyes|plata|oro|ciudadplata|ciudadoro|leyendab|viajero)/ },
+    { id: 'con', name: 'Constancia', ic: '🔥', re: /^(madrugador|noctambulo|racha|dias)/ },
+    { id: 'niv', name: 'Nivel y puntos', ic: '⭐', re: /^(nivel|puntos)/ },
+  ];
+  let achOpen = null;
   function panelAchievements() {
-    const s = S();
-    const all = Object.entries(G.ACHIEVEMENTS);
-    const n = all.filter(([id]) => s.achievements[id]).length;
-    openSheet(`🏆 Logros ${n}/${all.length}`, '<div class="grid">' + all.map(([id, a]) =>
-      `<div class="stamp ach ${s.achievements[id] ? '' : 'locked'}"><div>${s.achievements[id] ? a.icon : '🔒'}</div><b>${a.name}</b><small>${a.desc}</small></div>`).join('') + '</div>');
+    const s = S(), all = Object.entries(G.ACHIEVEMENTS), got = s.achievements || {};
+    const n = all.filter(([id]) => got[id]).length;
+    const prog = (a) => { try { return a.prog ? a.prog(s) : 0; } catch (e) { return 0; } };
+    const catOf = (id) => (ACH_CATS.find((c) => c.re.test(id)) || { id: 'otr' }).id;
+    const groups = {}; all.forEach(([id, a]) => (groups[catOf(id)] = groups[catOf(id)] || []).push([id, a]));
+    const cats = ACH_CATS.concat([{ id: 'otr', name: 'Otros', ic: '🎖️' }]).filter((c) => groups[c.id]);
+    const near = all.filter(([id, a]) => !got[id] && prog(a) >= 0.4 && prog(a) < 1).sort((x, y) => prog(y[1]) - prog(x[1])).slice(0, 5);
+    const stamp = ([id, a]) => { const p = got[id] ? 1 : prog(a); return `<div class="stamp ach ${got[id] ? '' : 'locked'}"><div>${got[id] ? a.icon : '🔒'}</div><b>${a.name}</b><small>${a.desc}</small>${!got[id] && p > 0 ? `<i class="ach-bar"><em style="width:${Math.round(p * 100)}%"></em></i>` : ''}</div>`; };
+    let html = `<div class="ach-top"><div class="ach-ring" style="--p:${(n / all.length * 100).toFixed(1)}"><b>${n}</b><small>de ${all.length}</small></div><p>Logros conseguidos. Toca una categoría para verla.</p></div>`;
+    if (near.length) html += `<h4>🎯 Casi lo tienes</h4>` + near.map(([id, a]) => `<div class="mission"><div class="mt">${a.icon} ${a.name}<span>${Math.round(prog(a) * 100)} %</span></div><div class="bar"><i style="width:${Math.round(prog(a) * 100)}%"></i></div><small>${a.desc}</small></div>`).join('');
+    html += cats.map((c) => { const L = groups[c.id], g = L.filter(([id]) => got[id]).length; return `<details class="ach-cat" data-c="${c.id}" ${achOpen === c.id ? 'open' : ''}><summary><span>${c.ic}</span><b>${c.name}</b><em>${g}/${L.length}</em><i class="ach-bar"><em style="width:${Math.round(g / L.length * 100)}%"></em></i></summary>
+      <div class="grid">${L.slice().sort((x, y) => (!!got[y[0]] - !!got[x[0]]) || prog(y[1]) - prog(x[1])).map(stamp).join('')}</div></details>`; }).join('');
+    openSheet(`🏆 Logros ${n}/${all.length}`, html);
+    document.querySelectorAll('.ach-cat').forEach((d) => d.addEventListener('toggle', () => { if (d.open) { achOpen = d.dataset.c; document.querySelectorAll('.ach-cat').forEach((o) => { if (o !== d) o.open = false; }); } }));
   }
 
   // ---------------- Perfil: cabecera + accesos rápidos + pestañas (Resumen · Récords · Ciudades · Ajustes) ----------------
@@ -1730,6 +1854,10 @@
       html += card('⚙️ Preferencias', `
         <label class="row"><span>🔊 Sonido</span><input type="checkbox" class="sw" id="opt-sound" ${PM.sound.enabled ? 'checked' : ''}></label>
         <label class="row"><span>🌙 Tema oscuro</span><input type="checkbox" class="sw" id="opt-dark" ${s.theme === 'dark' ? 'checked' : ''}></label>`);
+      html += card('💾 Copia de seguridad', `<p class="muted">Guarda TODA tu partida (con tus fotos de cromos) en un archivo, por si cambias de móvil o falla la nube. Al importarla se <b>suma</b> a lo que tengas: no se pierde nada.</p>
+        <div class="seg"><button class="btn on" id="bk-exp">💾 Exportar copia</button><button class="btn" id="bk-imp">📂 Importar copia</button></div><p class="muted" id="bk-msg">${s.backupT ? 'Última copia: ' + new Date(s.backupT).toLocaleString('es-ES') : 'Aún no has hecho ninguna copia.'}</p>`);
+      html += card('📴 Mapa sin conexión', `<p class="muted">Descarga tu zona para ver el mapa y pintar sin cobertura (metro, montaña, viajes). Lo que ya has visto también se guarda solo.</p>
+        <div class="seg"><button class="btn on" id="off-dl" data-km="3">⬇️ Mi zona (3 km)</button><button class="btn" id="off-dl2" data-km="6">⬇️ Mi ciudad (6 km)</button></div><p class="muted" id="off-msg">Calculando lo guardado…</p>`);
       html += card('🥾 Paseos y reloj', `<p class="muted">Estadísticas, vídeo del recorrido, exportar a GPX/KML/KMZ e importar desde un reloj.</p>
         <button class="btn" id="opt-walks">🥾 Ver mis paseos (${D.walks.length})</button>`);
       html += card('🔄 Versión', `<p class="muted">PintaMapa <b>v${PM.VERSION.app}</b> · ${(PM.update.status() || {}).msg || 'Se busca actualización al abrir la app.'}</p>
@@ -1771,6 +1899,25 @@
     $('#opt-sound') && $('#opt-sound').addEventListener('change', (e) => { PM.sound.enabled = e.target.checked; });
     $('#opt-dark') && $('#opt-dark').addEventListener('change', (e) => { s.theme = e.target.checked ? 'dark' : 'light'; PM.state.save(); applyTheme(); });
     $('#opt-walks') && $('#opt-walks').addEventListener('click', panelWalks);
+    if ($('#bk-exp')) $('#bk-exp').addEventListener('click', exportBackup);
+    if ($('#bk-imp')) $('#bk-imp').addEventListener('click', importBackup);
+    if ($('#off-msg')) {
+      PM.mapStyle.cacheInfo().then((i) => { const m = $('#off-msg'); if (m) m.textContent = i.n ? `Guardado en el móvil: ${PM.fmtNum(i.n)} piezas de mapa${i.mb ? ' · ' + i.mb.toFixed(0) + ' MB' : ''}` : 'Aún no hay mapa guardado.'; });
+      ['#off-dl', '#off-dl2'].forEach((sel) => $(sel).addEventListener('click', async (e) => {
+        const km = +e.currentTarget.dataset.km, msg = $('#off-msg');
+        document.querySelectorAll('#off-dl, #off-dl2').forEach((b) => { b.disabled = true; });
+        try {
+          msg.textContent = '⬇️ Descargando calles del juego…';
+          const keys = []; const ti = Math.floor(pos[0] / W.TILE), tj = Math.floor(pos[1] / W.TILE), n = Math.ceil(km / 1.0);
+          for (let i = -n; i <= n; i++) for (let j = -n; j <= n; j++) keys.push((ti + i) + '_' + (tj + j));
+          await W.ensureKeys(keys).catch(() => {});
+          const tot = await PM.mapStyle.prefetch(pos, km, curStyle, (d, t) => { msg.textContent = `⬇️ Descargando mapa… ${Math.round(d / t * 100)} % (${d}/${t})`; });
+          msg.textContent = `✅ Listo: tu zona (${km} km) está guardada en el móvil (${PM.fmtNum(tot)} piezas). Ya puedes usarla sin cobertura.`;
+          toast('📴 Mapa guardado para usar sin conexión', 'ok');
+        } catch (er) { msg.textContent = '❌ No se pudo descargar: ' + (er.message || er); }
+        finally { document.querySelectorAll('#off-dl, #off-dl2').forEach((b) => { b.disabled = false; }); }
+      }));
+    }
     $('#opt-reset') && $('#opt-reset').addEventListener('click', () => { if (confirm('¿Seguro? Se perderá todo tu progreso.')) PM.state.reset(); });
   }
 
@@ -1880,6 +2027,58 @@
   showNewBox(!players.length);
   refreshStart();
 
+  // ---------------- Pantalla de inicio: tú, tu nivel, tu racha y tus paseos dibujados de fondo ----------------
+  function renderHome() {
+    const el = $('#hm-hero'); if (!el) return;
+    drawHomeArt();
+    if (!PM.player || !players.length) { el.innerHTML = ''; return; }
+    const s = S(), lp = G.levelProgress(), st = s.stats || {};
+    const nB = Object.keys(s.conqueredB || {}).length, nL = Object.keys(s.landmarks || {}).length;
+    const today = PM.today(), streak = st.streak || 0;
+    const yest = (() => { const d = new Date(Date.now() - 86400000); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); })();
+    const msg = st.lastDay === today ? '✅ Hoy ya has salido. ¡Bien!' : streak && st.lastDay === yest ? `🔥 Sal hoy para no perder tu racha de ${streak} día${streak > 1 ? 's' : ''}` : 'Cada calle nueva cuenta. ¡A por ellas!';
+    el.innerHTML = `<div class="hm-card">
+      <div class="hm-me">${FUN ? FUN.avatarHTML('hm-av') : ''}<div class="hm-who"><b>${esc(PM.player.name)}</b><span class="hm-lvl">${lp.tier ? lp.tier.icon + ' ' : '⭐ '}Nivel ${lp.label}</span>
+        <div class="pf-xp"><i style="width:${(lp.pct * 100).toFixed(1)}%"></i></div></div></div>
+      <div class="hm-stats"><div><b>🔥 ${streak}</b><small>racha</small></div><div><b>${PM.fmtDist(st.paintedM || 0)}</b><small>pintados</small></div><div><b>${nL}</b><small>lugares</small></div><div><b>${nB}</b><small>barrios</small></div></div>
+      <button class="btn primary hm-go" id="hm-go">${s.session ? '▶ Seguir con tu paseo' : '▶ Salir a pintar'}</button>
+      <p class="hm-msg">${msg}</p></div>`;
+    $('#hm-go').addEventListener('click', () => begin());
+    $('#who-title').textContent = 'Cambiar de pintor';
+    document.querySelector('#intro .who').classList.add('small');
+  }
+  function drawHomeArt() {
+    const cv = $('#hm-art'); if (!cv) return;
+    const W0 = innerWidth, H0 = innerHeight, dpr = Math.min(2, devicePixelRatio || 1);
+    cv.width = W0 * dpr; cv.height = H0 * dpr; cv.style.width = W0 + 'px'; cv.style.height = H0 + 'px';
+    const x = cv.getContext('2d'); x.scale(dpr, dpr);
+    const tracks = PM.player ? (S().walks || []).map((w) => (w.track || []).filter(Boolean)).filter((t) => t.length > 1) : [];
+    if (!tracks.length) return;
+    let a = 90, b = -90, l = 180, r = -180;
+    tracks.forEach((t) => t.forEach((q) => { a = Math.min(a, q[0]); b = Math.max(b, q[0]); l = Math.min(l, q[1]); r = Math.max(r, q[1]); }));
+    const k = Math.cos((a + b) / 2 * Math.PI / 180), sx = Math.max(1e-6, (r - l) * k), sy = Math.max(1e-6, b - a);
+    const sc = Math.min(W0 * 0.9 / sx, H0 * 0.9 / sy), ox = (W0 - sx * sc) / 2, oy = (H0 - sy * sc) / 2;
+    x.strokeStyle = S().color || '#2563eb'; x.lineWidth = 3; x.lineJoin = x.lineCap = 'round'; x.globalAlpha = 0.22;
+    x.shadowColor = S().color || '#2563eb'; x.shadowBlur = 8;
+    tracks.forEach((t) => { x.beginPath(); t.forEach((q, i) => { const px = ox + (q[1] - l) * k * sc, py = oy + (b - q[0]) * sc; i ? x.lineTo(px, py) : x.moveTo(px, py); }); x.stroke(); });
+  }
+  renderHome();
+
+  // Los paseos de hace más de 30 días se guardan simplificados (mismo dibujo con muchos menos puntos):
+  // la partida no crece sin control y el guardado y la nube siguen rápidos.
+  function compressOldWalks() {
+    const s = S();
+    if (s.compressT && Date.now() - s.compressT < 86400000) return;
+    const old = Date.now() - 30 * 86400000;
+    let before = 0, after = 0;
+    for (const w of s.walks || []) {
+      if (w.start > old || w.slim || !w.track || w.track.length < 40) continue;
+      before += w.track.length; w.track = PM.simplifyTrack(w.track, 3); after += w.track.length; w.slim = 1;
+    }
+    s.compressT = Date.now();
+    PM.state.save();
+    if (before) console.log(`Paseos antiguos simplificados: ${before} → ${after} puntos`);
+  }
   function begin(fromNew) {
     if (fromNew === true) {
       const name = $('#player-name').value.trim();
@@ -1904,6 +2103,9 @@
     requestAnimationFrame(loop);
     PM.sync.auto();
     PM.update.watch(toast);
+    compressOldWalks();
+    scheduleStreakReminder();
+    document.addEventListener('visibilitychange', () => { if (document.hidden) scheduleStreakReminder(); });
     // tramos pintados con versiones anteriores: su geometría (pendiente de subir y la de tu nube) para reconocerlos con la nueva fuente de mapas
     W.addLegacyGeo(S().pendingGeo);
     if (PM.profile === 'real' && PM.player && PM.cloud.password() && Date.now() - (S().legacyCloudT || 0) > 7 * 86400000) {

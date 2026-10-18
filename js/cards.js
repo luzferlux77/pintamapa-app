@@ -346,14 +346,15 @@ PM.cards = (function () {
     return Object.values(S().landmarks).filter((r) => set.kinds.includes(r.kind)).length;
   }
 
-  function album(container) {
+  function album(container, opts = {}) {
     const s = S();
     const ids = Object.keys(s.landmarks).sort((a, b) => s.landmarks[b].t - s.landmarks[a].t);
     let tab = 'cromos';
     const draw = async () => {
       let html = `<div class="seg tabs"><button class="btn ${tab === 'cromos' ? 'on' : ''}" data-t="cromos">🃏 Cromos (${ids.length})</button>
         <button class="btn ${tab === 'col' ? 'on' : ''}" data-t="col">📚 Colecciones</button>
-        <button class="btn ${tab === 'bar' ? 'on' : ''}" data-t="bar">🏘️ Barrios (${Object.keys(s.barrioCards || {}).length})</button></div>`;
+        <button class="btn ${tab === 'bar' ? 'on' : ''}" data-t="bar">🏘️ Barrios (${Object.keys(s.barrioCards || {}).length})</button>
+        <button class="btn ${tab === 'must' ? 'on' : ''}" data-t="must">⭐ Imprescindibles</button></div>`;
       if (tab === 'cromos') {
         if (!ids.length) html += '<p class="muted">Aún no tienes cromos. Quédate 10 s junto a un monumento, iglesia, plaza… para conquistarlo.</p>';
         html += '<div id="city-stacks"></div>';
@@ -371,6 +372,18 @@ PM.cards = (function () {
             <div class="bar"><i style="width:${next ? Math.min(100, n / next * 100) : 100}%"></i></div>
             <small>${n} ${next ? '/ ' + next + ' para ' + TIER[tier] : '· ¡colección completa!'}</small></div>`;
         }).join('');
+      } else if (tab === 'must') {
+        // los imprescindibles de cada ciudad: los que tienes (a color) y los que te faltan (en gris, toca para verlos en el mapa)
+        const byCity = {};
+        const add = (c, x) => { const L = byCity[c] = byCity[c] || []; if (!L.some((y) => y.id === x.id)) L.push(x); };
+        for (const lm of Object.values(PM.world.landmarks)) if (lm.must) add(PM.world.cityAt(lm.pos) || 'Otros lugares', { id: lm.id, name: lm.name, emoji: lm.emoji, kind: lm.kind });
+        for (const [id, r] of Object.entries(s.landmarks)) if (r.must) add(r.city || 'Otros lugares', { id, name: r.name, emoji: r.emoji, kind: r.kind });
+        const cities = Object.entries(byCity).map(([c, L]) => [c, L, L.filter((x) => s.landmarks[x.id]).length]).sort((a, b) => b[2] - a[2] || b[1].length - a[1].length);
+        html += cities.length ? '<p class="muted">Los lugares que no te puedes perder en cada ciudad. Valen el doble. Toca uno para verlo en el mapa.</p>' + cities.map(([c, L, g]) => `
+          <div class="must-city"><div class="mc-h"><b>${esc(c)}</b><span>${g}/${L.length}${g >= L.length ? ' 🏆' : ''}</span></div><div class="bar"><i style="width:${Math.round(g / Math.max(1, L.length) * 100)}%"></i></div>
+          <div class="must-grid">${L.map((x) => { const got = !!s.landmarks[x.id], u = PM.emojiURL(x.emoji); return `<button class="must-it ${got ? 'got' : ''}" data-go="${esc(x.id)}">
+            <span class="mi-ic">${u ? `<img src="${u}" alt="">` : (x.emoji || '📍')}</span><b>${esc(x.name)}</b><small>${got ? '✓ conseguido' : '📍 ver en el mapa'}</small></button>`; }).join('')}</div></div>`).join('')
+          : '<p class="muted">Aún no se han cargado imprescindibles. Abre el mapa de una ciudad y aparecerán aquí sus 6 lugares que no te puedes perder.</p>';
       } else {
         const bc = Object.entries(s.barrioCards || {}).sort((a, b) => b[1].t - a[1].t);
         html += bc.length ? '<div class="cromos">' + bc.map(([id, b]) => barrioCardHTML(b)).join('') + '</div>'
@@ -393,6 +406,7 @@ PM.cards = (function () {
         PM.ensureCountries(s, cityPos).then((ch) => { if (ch) { PM.state.save(); if (container.querySelector('#city-stacks')) draw2(); } });
       }
       container.querySelectorAll('[data-t]').forEach((b) => b.addEventListener('click', () => { tab = b.dataset.t; draw(); }));
+      container.querySelectorAll('[data-go]').forEach((b) => b.addEventListener('click', () => { const id = b.dataset.go; if (s.landmarks[id]) open(id); else if (opts.goTo) opts.goTo(id); }));
       container.querySelectorAll('.cromo[data-id], .tcg[data-id]').forEach((el) => el.addEventListener('click', () => open(el.dataset.id)));
     };
     draw();
@@ -416,5 +430,5 @@ PM.cards = (function () {
       <div class="pie"><b>${esc(b.name)}</b><small>${b.city ? esc(b.city) + ' · ' : ''}${new Date(b.t).toLocaleDateString('es-ES')}</small></div></div></div></div>`;
   }
 
-  return { open, close, album, fetchInfo, dataFor, SETS, setCount, getPhoto, takePhoto, FILTERS, _img: { loadImg, cropCard, applyFilter } };
+  return { open, close, album, fetchInfo, dataFor, SETS, setCount, getPhoto, putPhoto, takePhoto, FILTERS, _img: { loadImg, cropCard, applyFilter } };
 })();

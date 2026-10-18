@@ -46,9 +46,9 @@
 
   <!-- Navegación inferior -->
   <nav id="nav">
-    <button id="nav-album"><span>🃏</span>Cromos</button>
-    <button id="nav-missions"><span>🎯</span>Misiones</button>
-    <button id="nav-ach"><span>🏆</span>Logros</button>
+    <button id="nav-album"><span><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5" width="11" height="15" rx="2"/><path d="M9.5 3.5h9a2 2 0 0 1 2 2v13"/><path d="M7 15l2.5-3 2 2 1.5-2"/></svg></span>Cromos</button>
+    <button id="nav-missions"><span><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.8"/><circle cx="12" cy="12" r="1.2" fill="currentColor"/></svg></span>Misiones</button>
+    <button id="nav-ach"><span><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7.5 4h9v5a4.5 4.5 0 0 1-9 0z"/><path d="M7.5 6H4.5a3 3 0 0 0 3 4M16.5 6h3a3 3 0 0 1-3 4"/><path d="M12 13.5V17M8.5 20h7M9.5 17h5"/></svg></span>Logros</button>
     <button id="nav-profile"><span><svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="8" r="4.2"/><path d="M3.5 21c0-4.6 3.8-7.6 8.5-7.6s8.5 3 8.5 7.6z"/></svg></span>Perfil</button>
   </nav>
 
@@ -58,17 +58,12 @@
 
   <!-- Pantalla de inicio -->
   <div id="intro" class="show">
+    <canvas id="hm-art"></canvas>
     <div class="in">
       <div class="logo"><span class="p">Pinta</span><span class="m">Mapa</span></div>
       <p class="tag">Sal a la calle. Pinta tu ciudad. Conquístala.</p>
       <div id="intro-badge" class="verbadge"></div>
-      <ul>
-        <li>🖌️ Cada calle que recorres andando se pinta con tu color.</li>
-        <li>🚩 Pinta el <b>60 %</b> de un barrio para conquistarlo y el <b>70 %</b> de tu ciudad para ser su rey. Con más, sube a 🥈 plata (80 %) y 🥇 oro (90 %).</li>
-        <li>🏛️ El ayuntamiento, iglesias, estadios, museos, plazas, parques y monumentos son <b>conquistas</b>: quédate 10 s junto a ellos y serán tuyos para siempre.</li>
-        <li>🔥 Repite tus calles favoritas: el trazo se vuelve más intenso cuanto más pasas.</li>
-        <li>🔥 Encadena calles nuevas para subir el combo.</li>
-      </ul>
+      <div id="hm-hero"></div>
       <div class="who">
         <label id="who-title">¿Quién pinta hoy?</label>
         <div id="players" class="players"></div>
@@ -79,6 +74,15 @@
           <button id="start" class="btn primary" disabled>¡A pintar!</button>
         </div>
       </div>
+      <details class="hm-how"><summary>¿Cómo se juega?</summary>
+      <ul>
+        <li>🖌️ Cada calle que recorres andando se pinta con tu color.</li>
+        <li>🚩 Pinta el <b>60 %</b> de un barrio para conquistarlo y el <b>70 %</b> de tu ciudad para ser su rey. Con más, sube a 🥈 plata (80 %) y 🥇 oro (90 %).</li>
+        <li>🏛️ El ayuntamiento, iglesias, estadios, museos, plazas, parques y monumentos son <b>conquistas</b>: quédate 10 s junto a ellos y serán tuyos para siempre.</li>
+        <li>🔥 Repite tus calles favoritas: el trazo se vuelve más intenso cuanto más pasas.</li>
+        <li>🔥 Encadena calles nuevas para subir el combo.</li>
+      </ul>
+      </details>
       <small id="intro-ver">v0.1 prototipo · datos © OpenStreetMap</small>
     </div>
   </div>
