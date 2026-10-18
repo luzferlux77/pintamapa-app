@@ -1,8 +1,8 @@
 {
-  "version": "0.6.31",
-  "notes": "Quitada la función de zonas a evitar",
+  "version": "0.6.32",
+  "notes": "Conquista: barrio al 60 % y ciudad al 70 %; rangos bronce/plata/oro con color (barrio 60/80/90, ciudad 70/80/90)",
   "native": 3,
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.31/pintamapa-web-0.6.31.zip",
-  "checksum": "be71ea50ea7896439e0effc677c928bb225c5e1ea88b606b46ec1b277d869443",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.31/PintaMapa-v0.6.31.apk"
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.32/pintamapa-web-0.6.32.zip",
+  "checksum": "40bd4e72b21f4f92407273edc3f83a31bf969adf44e34fd530c3ce03fc4a844d",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.32/PintaMapa-v0.6.32.apk"
 }
