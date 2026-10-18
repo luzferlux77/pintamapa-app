@@ -52,7 +52,7 @@ PM.fun = (function () {
 
   // orejas (la izquierda; la derecha es su reflejo)
   function earShape(b) {
-    const d = b.dark, in_ = '#f3b6b6';
+    const d = b.dark, in_ = '#f9b4c0';
     switch (b.ear) {
       case 'long': return `<ellipse cx="24" cy="58" rx="11" ry="26" fill="${d}" transform="rotate(8 24 58)"/>`;
       case 'pointy': return `<path d="M27 42 L22 8 L47 27 Z" fill="${d}"/><path d="M29 36 L26 15 L42 28 Z" fill="${in_}"/>`;
@@ -64,41 +64,69 @@ PM.fun = (function () {
     }
   }
 
-  // dibujo del perro (SVG): raza, cara según el ánimo y accesorios ganados
+  // ---------- color: aclarar / oscurecer ----------
+  const mix = (hex, to, k) => {
+    const h = hex.replace('#', ''), t = to.replace('#', '');
+    const c = (s, i) => parseInt(s.substr(i, 2), 16);
+    return '#' + [0, 2, 4].map((i) => Math.round(c(h, i) + (c(t, i) - c(h, i)) * k).toString(16).padStart(2, '0')).join('');
+  };
+  let dogUid = 0;
+  // dibujo del perro (SVG) estilo mascota de consola: volumen con degradados, contorno suave, ojos brillantes que te miran,
+  // mofletes, patas delanteras y traseras, cola con punta. Caras: happy, normal, bored, sad, sleep, wow (sorpresa/bostezo)
   function dogSVG(o) {
-    const b = BREEDS[o.breed] || BREEDS.mestizo;
+    const b = BREEDS[o.breed] || BREEDS.mestizo, u = 'dg' + (++dogUid);
     const c = o.color || '#ff2e88', fur = b.fur, dark = b.dark, face = o.face || 'normal', g = new Set(o.gear || []);
-    const eyeC = b.eye || '#1f1f1f';
-    const sclera = b.sclera ? '<circle cx="43" cy="51" r="6" fill="#fff"/><circle cx="67" cy="51" r="6" fill="#fff"/>' : '';
-    const lid = b.sclera ? '#fff' : '#222';
+    const darkFur = ['#262626', '#34343c'].includes(fur);
+    const hi = mix(fur, '#ffffff', darkFur ? 0.22 : 0.35), lo = mix(fur, '#000000', 0.18);
+    const ol = darkFur ? '#0a0a0a' : mix(dark, '#000000', 0.35);   // contorno
+    const OL = `stroke="${ol}" stroke-width="2" stroke-opacity=".55"`;
+    const eyeC = b.eye || '#1b1b1f';
+    const lid = darkFur ? '#e5e7eb' : '#2b1d12';
+    const defs = `<defs>
+      <radialGradient id="${u}h" cx="40%" cy="32%" r="75%"><stop offset="0" stop-color="${hi}"/><stop offset=".6" stop-color="${fur}"/><stop offset="1" stop-color="${lo}"/></radialGradient>
+      <radialGradient id="${u}b" cx="42%" cy="30%" r="80%"><stop offset="0" stop-color="${hi}"/><stop offset=".65" stop-color="${fur}"/><stop offset="1" stop-color="${lo}"/></radialGradient>
+      <radialGradient id="${u}m" cx="50%" cy="30%" r="70%"><stop offset="0" stop-color="${mix(b.muzzle, '#ffffff', 0.3)}"/><stop offset="1" stop-color="${b.muzzle}"/></radialGradient>
+      <radialGradient id="${u}e" cx="35%" cy="30%" r="70%"><stop offset="0" stop-color="${mix(eyeC, '#ffffff', 0.25)}"/><stop offset="1" stop-color="${eyeC}"/></radialGradient>
+      <radialGradient id="${u}d" cx="50%" cy="40%" r="60%"><stop offset="0" stop-color="${mix(dark, '#ffffff', 0.18)}"/><stop offset="1" stop-color="${dark}"/></radialGradient>
+    </defs>`;
+    // ojos grandes y brillantes (las pupilas se mueven para mirarte)
+    const bigEye = (x, y) => `<g class="dog-eye"><ellipse cx="${x}" cy="${y}" rx="6.4" ry="7.2" fill="${darkFur ? '#fff' : '#fff'}" opacity="${darkFur ? 1 : 0.9}"/>
+      <g class="dog-pupils"><ellipse cx="${x}" cy="${y + 0.6}" rx="5.2" ry="6" fill="url(#${u}e)"/>
+      <circle cx="${x + 1.8}" cy="${y - 2}" r="2" fill="#fff"/><circle cx="${x - 1.6}" cy="${y + 2.6}" r="0.9" fill="#fff" opacity=".85"/></g></g>`;
     const eyes = {
-      happy: `<path d="M38 52 q5 -6 10 0" stroke="${lid}" stroke-width="3" fill="none" stroke-linecap="round"/><path d="M62 52 q5 -6 10 0" stroke="${lid}" stroke-width="3" fill="none" stroke-linecap="round"/>`,
-      normal: `${sclera}<circle cx="43" cy="51" r="4.2" fill="${eyeC}"/><circle cx="67" cy="51" r="4.2" fill="${eyeC}"/><circle cx="44.5" cy="49.5" r="1.4" fill="#fff"/><circle cx="68.5" cy="49.5" r="1.4" fill="#fff"/>`,
-      bored: `<path d="M38 52 h10" stroke="${lid}" stroke-width="3" stroke-linecap="round"/><path d="M62 52 h10" stroke="${lid}" stroke-width="3" stroke-linecap="round"/><path d="M37 47 h11 M61 47 h11" stroke="${b.sclera ? '#bbb' : '#7a5230'}" stroke-width="2.5" stroke-linecap="round"/>`,
-      sad: `${sclera}<circle cx="43" cy="53" r="4" fill="${eyeC}"/><circle cx="67" cy="53" r="4" fill="${eyeC}"/><path d="M36 49 l10 -4 M74 49 l-10 -4" stroke="${b.sclera ? '#bbb' : '#7a5230'}" stroke-width="2.5" stroke-linecap="round"/><path d="M41 59 q-2 5 0 7 q2 -2 0 -7" fill="#60a5fa"/>`,
-    }[face];
-    const mouthC = b.noseLight ? '#111' : '#222';
+      happy: `<path d="M37 52 q6 -7 12 0" stroke="${lid}" stroke-width="3.2" fill="none" stroke-linecap="round"/><path d="M61 52 q6 -7 12 0" stroke="${lid}" stroke-width="3.2" fill="none" stroke-linecap="round"/>`,
+      normal: bigEye(43, 50) + bigEye(67, 50),
+      wow: bigEye(43, 49) + bigEye(67, 49),
+      bored: `<path d="M37 52 q6 3 12 0" stroke="${lid}" stroke-width="3" fill="none" stroke-linecap="round"/><path d="M61 52 q6 3 12 0" stroke="${lid}" stroke-width="3" fill="none" stroke-linecap="round"/><path d="M37 46 h11 M62 46 h11" stroke="${lid}" stroke-width="2.2" stroke-linecap="round" opacity=".6"/>`,
+      sleep: `<path d="M37 51 q6 5 12 0" stroke="${lid}" stroke-width="3" fill="none" stroke-linecap="round"/><path d="M61 51 q6 5 12 0" stroke="${lid}" stroke-width="3" fill="none" stroke-linecap="round"/>`,
+      sad: bigEye(43, 52) + bigEye(67, 52) + `<path d="M35 46 l11 -3 M75 46 l-11 -3" stroke="${lid}" stroke-width="2.4" stroke-linecap="round" opacity=".7"/><path d="M39 60 q-2.5 6 0 8 q2.5 -2 0 -8" fill="#7dd3fc"/>`,
+    }[face] || '';
+    const mc = '#2b1d12';
     const mouth = face === 'happy'
-      ? `<path d="M49 66 q6 6 12 0" stroke="${mouthC}" stroke-width="2.6" fill="none" stroke-linecap="round"/><path class="dog-tongue" d="M52 69 q3 9 6 0" fill="#f87171"/>`
-      : face === 'sad' ? `<path d="M49 70 q6 -5 12 0" stroke="${mouthC}" stroke-width="2.6" fill="none" stroke-linecap="round"/>`
-        : `<path d="M50 68 q5 3 10 0" stroke="${mouthC}" stroke-width="2.6" fill="none" stroke-linecap="round"/>`;
+      ? `<path d="M48 66 q7 7 14 0" stroke="${mc}" stroke-width="2.4" fill="#b91c1c" stroke-linecap="round" stroke-linejoin="round"/><path class="dog-tongue" d="M51.5 68.5 q3.5 10 7 0 z" fill="#fb7185" stroke="${mc}" stroke-width="1" stroke-opacity=".4"/>`
+      : face === 'wow' ? `<ellipse class="dog-yawn" cx="55" cy="69" rx="4.5" ry="5.5" fill="#7f1d1d" stroke="${mc}" stroke-width="1.6"/><ellipse cx="55" cy="72" rx="2.8" ry="2" fill="#fb7185"/>`
+        : face === 'sad' ? `<path d="M49 71 q6 -5 12 0" stroke="${mc}" stroke-width="2.4" fill="none" stroke-linecap="round"/>`
+          : face === 'sleep' ? `<path d="M51 68 q4 2 8 0" stroke="${mc}" stroke-width="2.2" fill="none" stroke-linecap="round"/>`
+            : `<path d="M49 66.5 q3 3 6 0 q3 3 6 0" stroke="${mc}" stroke-width="2.3" fill="none" stroke-linecap="round"/>`;
     const ear = earShape(b);
     const marks = [
       b.mask ? `<path d="M30 56 q4 -16 25 -14 q21 -2 25 14 q-4 22 -25 24 q-21 -2 -25 -24 z" fill="${b.mask}"/><path d="M36 40 q4 -5 8 0 M66 40 q4 -5 8 0" stroke="${b.mask}" stroke-width="5" stroke-linecap="round" fill="none"/>` : '',
       b.blaze ? `<path d="M51 24 q4 -2 8 0 l3 30 h-14 z" fill="${b.blaze}"/>` : '',
-      b.spots ? `<circle cx="36" cy="38" r="3.2" fill="${b.spots}"/><circle cx="74" cy="36" r="2.6" fill="${b.spots}"/><circle cx="78" cy="58" r="3" fill="${b.spots}"/><circle cx="31" cy="60" r="2.4" fill="${b.spots}"/><circle cx="60" cy="30" r="2" fill="${b.spots}"/>` : '',
-      b.wrinkles ? `<path d="M46 34 q9 -4 18 0 M44 39 q11 -4 22 0" stroke="#b9996a" stroke-width="2" fill="none" stroke-linecap="round"/>` : '',
+      b.spots ? `<circle cx="36" cy="38" r="3.2" fill="${b.spots}"/><circle cx="74" cy="36" r="2.6" fill="${b.spots}"/><circle cx="79" cy="58" r="3" fill="${b.spots}"/><circle cx="31" cy="62" r="2.4" fill="${b.spots}"/><circle cx="60" cy="29" r="2" fill="${b.spots}"/>` : '',
+      b.wrinkles ? `<path d="M46 33 q9 -4 18 0 M44 38 q11 -4 22 0" stroke="${mix(fur, '#000000', 0.3)}" stroke-width="2" fill="none" stroke-linecap="round"/>` : '',
     ].join('');
-    const pom = b.pom ? `<circle cx="55" cy="25" r="12" fill="${dark}"/><circle cx="46" cy="28" r="8" fill="${dark}"/><circle cx="64" cy="28" r="8" fill="${dark}"/>` : '';
+    const pom = b.pom ? `<circle cx="55" cy="24" r="12" fill="url(#${u}d)"/><circle cx="45" cy="28" r="8" fill="url(#${u}d)"/><circle cx="65" cy="28" r="8" fill="url(#${u}d)"/>` : '';
     const head = `<g class="dog-head">
-      <g class="dog-ear dog-ear-l">${ear}</g>
-      <g class="dog-ear dog-ear-r" transform="translate(110 0) scale(-1 1)">${ear}</g>
+      <g class="dog-ear dog-ear-l" ${OL}>${ear}</g>
+      <g class="dog-ear dog-ear-r" transform="translate(110 0) scale(-1 1)" ${OL}>${ear}</g>
       ${pom}
-      <ellipse cx="55" cy="52" rx="30" ry="28" fill="${fur}" ${b.line ? `stroke="${b.line}" stroke-width="1.2"` : ''}/>
+      <ellipse cx="55" cy="52" rx="30" ry="27.5" fill="url(#${u}h)" ${OL}/>
       ${marks}
-      <ellipse cx="55" cy="64" rx="16" ry="12" fill="${b.muzzle}"/>
+      <ellipse cx="55" cy="64" rx="16.5" ry="12" fill="url(#${u}m)"/>
+      <ellipse class="dog-cheek" cx="35" cy="62" rx="5" ry="3" fill="#ff8fab" opacity=".45"/><ellipse class="dog-cheek" cx="75" cy="62" rx="5" ry="3" fill="#ff8fab" opacity=".45"/>
       <g class="dog-eyes">${eyes}</g>
-      <ellipse class="dog-nose" cx="55" cy="60" rx="5.5" ry="4" fill="${b.noseLight ? '#111' : '#222'}"/>${mouth}
+      <g class="dog-nose"><path d="M49.5 58 q5.5 -4 11 0 q-1 5.5 -5.5 6.5 q-4.5 -1 -5.5 -6.5 z" fill="#1f1512"/><ellipse cx="53.5" cy="58.4" rx="2" ry="1.1" fill="#fff" opacity=".7"/></g>
+      <path d="M55 64 v2" stroke="${mc}" stroke-width="2" stroke-linecap="round"/>${mouth}
       ${g.has('gorra') && !g.has('corona') ? `<path d="M28 34 q27 -24 54 0 z" fill="${c}"/><path d="M76 33 q14 0 18 6 h-18 z" fill="${c}" opacity=".85"/><circle cx="55" cy="18" r="3" fill="#fff"/>` : ''}
       ${g.has('corona') ? '<path d="M38 28 l5 -14 l7 9 l5 -12 l5 12 l7 -9 l5 14 z" fill="#facc15" stroke="#b45309" stroke-width="1.5"/>' : ''}
       ${g.has('dino') ? '<path d="M34 34 l5 -12 l5 10 l5 -13 l5 12 l5 -13 l5 12 l5 -11 l4 12" fill="#4ade80" stroke="#16a34a" stroke-width="1.5" stroke-linejoin="round"/>' : ''}
@@ -108,26 +136,31 @@ PM.fun = (function () {
       ${g.has('cascos') ? `<path d="M27 50 q-2 -34 28 -36 q30 2 28 36" stroke="#111" stroke-width="5" fill="none"/><rect x="20" y="44" width="11" height="17" rx="5" fill="${c}"/><rect x="79" y="44" width="11" height="17" rx="5" fill="${c}"/>` : ''}
       ${g.has('gafas') ? '<rect x="33" y="44" width="18" height="11" rx="4" fill="#111" opacity=".92"/><rect x="59" y="44" width="18" height="11" rx="4" fill="#111" opacity=".92"/><path d="M51 49 h8" stroke="#111" stroke-width="2.5"/>' : ''}
     </g>`;
-    if (o.headOnly) return `<svg class="dog live" viewBox="4 2 102 90">${head}</svg>`;
+    if (o.headOnly) return `<svg class="dog live" viewBox="4 2 102 90">${defs}${head}</svg>`;
+    // patas delanteras: sin línea por arriba (salen del pecho)
+    const leg = (x) => `<path d="M${x - 5.5} 104 v14 q0 6 5.5 6 q5.5 0 5.5 -6 v-14 q-5.5 -3 -11 0 z" fill="${fur}"/><path d="M${x - 5.5} 108 v10 q0 6 5.5 6 q5.5 0 5.5 -6 v-10" fill="none" ${OL}/>`;
+    const paw = (x, cls) => `<g class="dog-paw ${cls}"><ellipse cx="${x}" cy="123.5" rx="7.2" ry="4.6" fill="${darkFur ? '#e5e7eb' : mix(b.muzzle, '#ffffff', 0.1)}" ${OL}/><path d="M${x - 2.5} 121.5 v3 M${x + 2.5} 121.5 v3" stroke="${ol}" stroke-width="1.2" stroke-opacity=".5" stroke-linecap="round"/></g>`;
     const body = `<g class="dog-body">
       ${g.has('alas') ? '<g class="dog-wings"><path d="M34 96 q-30 -18 -30 6 q10 4 30 6 z" fill="#fff" stroke="#cbd5e1" stroke-width="1.5"/><path d="M76 96 q30 -18 30 6 q-10 4 -30 6 z" fill="#fff" stroke="#cbd5e1" stroke-width="1.5"/></g>' : ''}
       ${g.has('capa') ? `<path d="M34 86 q-12 26 -4 40 h50 q8 -14 -4 -40 z" fill="${c}" opacity=".9"/>` : ''}
-      <g class="dog-tail"><path d="M78 104 q16 -6 14 -22" stroke="${b.saddle || dark}" stroke-width="7" fill="none" stroke-linecap="round"/>${b.blaze && b.saddle ? '<circle cx="92" cy="82" r="4" fill="#fafafa"/>' : ''}</g>
-      <g class="dog-torso"><ellipse cx="55" cy="104" rx="25" ry="20" fill="${fur}" ${b.line ? `stroke="${b.line}" stroke-width="1.2"` : ''}/>
-      ${b.saddle ? `<path d="M34 98 q21 -14 42 0 q-4 10 -21 10 q-17 0 -21 -10 z" fill="${b.saddle}"/>` : ''}
-      ${b.spots ? `<circle cx="42" cy="100" r="3" fill="${b.spots}"/><circle cx="70" cy="108" r="3.5" fill="${b.spots}"/><circle cx="64" cy="96" r="2.2" fill="${b.spots}"/>` : ''}
-      <ellipse cx="55" cy="108" rx="13" ry="12" fill="${b.muzzle === '#3a3a3a' || b.muzzle === '#44444e' ? fur : b.muzzle}" opacity="${b.sclera && !b.blaze ? 0.5 : 1}"/></g>
-      <ellipse class="dog-paw dog-paw-l" cx="41" cy="122" rx="7" ry="5" fill="${dark}"/><ellipse class="dog-paw dog-paw-r" cx="69" cy="122" rx="7" ry="5" fill="${dark}"/>
-      ${g.has('botas') ? `<ellipse cx="41" cy="122" rx="8" ry="6" fill="${c}"/><ellipse cx="69" cy="122" rx="8" ry="6" fill="${c}"/>` : ''}
+      <g class="dog-tail"><path d="M77 106 q17 -4 15 -24" stroke="${ol}" stroke-opacity=".5" stroke-width="9.5" fill="none" stroke-linecap="round"/><path d="M77 106 q17 -4 15 -24" stroke="${b.saddle || fur}" stroke-width="7" fill="none" stroke-linecap="round"/><circle cx="92" cy="82.5" r="3.6" fill="${b.blaze || hi}"/></g>
+      <ellipse cx="34" cy="114" rx="11" ry="10" fill="url(#${u}b)" ${OL}/><ellipse cx="76" cy="114" rx="11" ry="10" fill="url(#${u}b)" ${OL}/>
+      <g class="dog-torso"><ellipse cx="55" cy="103" rx="23" ry="21" fill="url(#${u}b)" ${OL}/>
+      ${b.saddle ? `<path d="M35 97 q20 -14 40 0 q-4 10 -20 10 q-16 0 -20 -10 z" fill="${b.saddle}"/>` : ''}
+      ${b.spots ? `<circle cx="42" cy="99" r="3" fill="${b.spots}"/><circle cx="69" cy="108" r="3.5" fill="${b.spots}"/><circle cx="63" cy="95" r="2.2" fill="${b.spots}"/>` : ''}
+      <ellipse cx="55" cy="96" rx="10" ry="9" fill="${['#3a3a3a', '#44444e'].includes(b.muzzle) ? hi : b.muzzle}" opacity="${darkFur && !b.blaze ? 0.45 : 0.95}"/></g>
+      ${leg(47)}${leg(63)}
+      ${paw(47, 'dog-paw-l')}${paw(63, 'dog-paw-r')}
+      ${g.has('botas') ? `<ellipse cx="47" cy="123" rx="8" ry="5.5" fill="${c}"/><ellipse cx="63" cy="123" rx="8" ry="5.5" fill="${c}"/>` : ''}
       ${g.has('mochila') ? `<rect x="72" y="92" width="14" height="18" rx="4" fill="${c}"/><rect x="74" y="98" width="10" height="6" rx="2" fill="#fff" opacity=".5"/>` : ''}
       ${g.has('pelota') ? '<g class="dog-ball"><circle cx="16" cy="121" r="7" fill="#d9f99d" stroke="#65a30d" stroke-width="1.5"/><path d="M10 117 q6 4 12 0 M10 125 q6 -4 12 0" stroke="#fff" stroke-width="1.3" fill="none"/></g>' : ''}
       ${g.has('pajarita') ? `<path d="M55 86 l-11 -6 v12 z M55 86 l11 -6 v12 z" fill="${c}"/><circle cx="55" cy="86" r="3" fill="#111"/>` : ''}
       ${g.has('dino') ? '<path d="M72 92 l6 -6 l2 8 l6 -5 l1 9" fill="#4ade80" stroke="#16a34a" stroke-width="1.2"/>' : ''}
-      ${g.has('collar') ? '<path d="M36 82 q19 10 38 0" stroke="#dc2626" stroke-width="5" fill="none" stroke-linecap="round"/>' : ''}
-      ${g.has('chapa') ? '<circle cx="55" cy="90" r="4.5" fill="#facc15" stroke="#b45309" stroke-width="1.2"/>' : ''}
-      ${g.has('panuelo') ? `<path d="M38 82 q17 9 34 0 l-17 16 z" fill="${c}"/>` : ''}
+      ${g.has('collar') ? '<path d="M36 83 q19 10 38 0" stroke="#dc2626" stroke-width="5" fill="none" stroke-linecap="round"/>' : ''}
+      ${g.has('chapa') ? '<circle cx="55" cy="91" r="4.5" fill="#facc15" stroke="#b45309" stroke-width="1.2"/>' : ''}
+      ${g.has('panuelo') ? `<path d="M38 83 q17 9 34 0 l-17 16 z" fill="${c}"/>` : ''}
     </g>`;
-    return `<svg class="dog live wag${o.wag || 0}" viewBox="0 0 110 132" ${o.size ? `width="${o.size}" height="${Math.round(o.size * 1.2)}"` : ''}>${body}${head}</svg>`;
+    return `<svg class="dog live wag${o.wag || 0}" viewBox="0 0 110 132" ${o.size ? `width="${o.size}" height="${Math.round(o.size * 1.2)}"` : ''}>${defs}${body}${head}</svg>`;
   }
   function dogHead(o) { return dogSVG(Object.assign({}, o, { headOnly: true })); }
 
@@ -223,8 +256,11 @@ PM.fun = (function () {
       const st = petState();
       const t = which ? TRICKS.find((x) => x.c === which) : pickOne(st.tricks), cls = 'trick-' + t.c;
       const p = pet(); p.tricks = (p.tricks || 0) + 1; PM.state.save();
-      TRICKS.forEach((x) => big.classList.remove('trick-' + x.c)); void big.offsetWidth; big.classList.add(cls);
-      setTimeout(() => big.classList.remove(cls), t.c === 'sleep' || t.c === 'rocket' || t.c === 'dance' || t.c === 'moon' ? 2200 : 1300);
+      if (p3) p3.trick(t.c);
+      else {
+        TRICKS.forEach((x) => big.classList.remove('trick-' + x.c)); void big.offsetWidth; big.classList.add(cls);
+        setTimeout(() => big.classList.remove(cls), t.c === 'sleep' || t.c === 'rocket' || t.c === 'dance' || t.c === 'moon' ? 2200 : 1300);
+      }
       if (t.c === 'hearts') burst(big, ['💖', '💕', '❤️'], 6);
       if (t.c === 'bark') burst(big, ['💬', '🎵', '!'], 3);
       if (t.c === 'dig') burst(big, ['🟫', '🦴', '·'], 5);
@@ -241,19 +277,222 @@ PM.fun = (function () {
       const got = b.list.filter((x) => x.got).length;
       return `<div class="pet-bones">${b.list.map((x) => `<span class="${x.got ? 'on' : ''}">🦴</span>`).join('')}<small>${got}/${b.list.length} huesos hoy · ${got < b.list.length ? 'sal a pintar y tu perro los olfateará' : '¡todos encontrados!'}</small></div>`;
     }
+    // ================= EL RINCÓN DEL PERRO (vida propia, estilo mascota de consola) =================
+    function daily() {
+      const p = pet();
+      if (!p.daily || p.daily.day !== today()) p.daily = { day: today(), pets: 0, treats: 0, play: 0 };
+      return p.daily;
+    }
+    const night = () => { const h = new Date().getHours(); return h >= 22 || h < 7; };
+    function needs(st) {
+      const d = daily();
+      const happy = Math.min(1, st.hearts / 3 * 0.5 + Math.min(1, d.pets / 4) * 0.3 + Math.min(1, d.play / 2) * 0.2);
+      const food = Math.min(1, d.treats / 3 * 0.7 + (st.hearts > 0 ? 0.3 : 0));
+      const energy = night() ? 0.25 : Math.max(0.12, 1 - st.wt / 7000 - d.play * 0.05);
+      return { happy, food, energy };
+    }
+    function needsHTML(st) {
+      const n = needs(st), bar = (ic, v, l, c) => `<div class="pr-need"><span>${ic}</span><div><i style="width:${Math.round(v * 100)}%;background:${c}"></i></div><small>${l}</small></div>`;
+      return `<div class="pr-needs" id="pr-needs">${bar('❤️', n.happy, 'Felicidad', '#ef4444')}${bar('🍖', n.food, 'Comida', '#f59e0b')}${bar('⚡', n.energy, 'Energía', '#22c55e')}</div>`;
+    }
+    function roomHTML(st) {
+      const nt = night();
+      if (PM.pet3d && PM.pet3d.available()) return `<div class="pet-room p3 ${nt ? 'night' : ''}" id="pet-room"><button class="pet-swap" id="pet-swap" title="Cambiar de perro">🔄</button>
+        <div class="pr-zzz" id="pr-zzz" hidden><span>z</span><span>z</span><span>Z</span></div></div>`;
+      return `<div class="pet-room ${nt ? 'night' : ''} mood-${st.mood}" id="pet-room">
+        <div class="pr-wall"><div class="pr-window"><i></i><b>${nt ? '🌙' : '☀️'}</b></div><div class="pr-frame">🖼️</div></div>
+        <div class="pr-floor"></div><div class="pr-rug"></div>
+        <div class="pr-bed"><svg viewBox="0 0 100 40"><ellipse cx="50" cy="26" rx="48" ry="14" fill="${S().color || '#2563eb'}"/><ellipse cx="50" cy="22" rx="38" ry="9" fill="#fef3c7"/></svg></div>
+        <div class="pr-bowl"><svg viewBox="0 0 60 26"><path d="M4 8 h52 l-6 16 h-40 z" fill="#ef4444"/><ellipse cx="30" cy="8" rx="26" ry="5" fill="#b91c1c"/><ellipse cx="30" cy="8" rx="20" ry="3" fill="#a16207"/></svg></div>
+        <button class="pet-swap" id="pet-swap" title="Cambiar de perro">🔄</button>
+        <div class="pr-dog" id="pr-dog" style="left:50%"><div class="pr-flip"><div class="pet-big" style="--k:${st.stage.k}">${dogSVG(look(st, { size: 132 }))}</div></div><div class="pr-shadow"></div></div>
+        <div class="pr-ball" id="pr-ball" hidden></div><div class="pr-zzz" id="pr-zzz" hidden><span>z</span><span>z</span><span>Z</span></div>
+      </div>`;
+    }
+    let roomTimer = null, p3 = null;
+    function startRoom3D(st0) {
+      if (p3) { p3.destroy(); p3 = null; }
+      const room = $('#pet-room');
+      const alive = () => document.body.contains(room) && $('#sheet').classList.contains('show');
+      const lookOf = () => { const st = petState(); return { breed: BREEDS[st.p.breed] || BREEDS.mestizo, gear: st.gear, color: S().color }; };
+      const ctl = PM.pet3d.mount(room, {
+        look: lookOf(), color: S().color, night: night(), face: st0.M.face, baseFace: () => petState().M.face,
+        onSay: (t) => say(t, true), onBurst: (ch, n) => burst(room, ch, n),
+        onTap: () => doTrick(room),
+        onRub: (n) => {
+          if (n < 3) return;
+          const d = daily(), p = pet(); d.pets++; p.pets = (p.pets || 0) + 1; PM.state.save(); refreshNeeds();
+          say(pickOne(['¡Me encantan los mimos! 💕', '*cierra los ojitos*', '¡Más, más! 🐾', '*se tumba panza arriba*']), true);
+          if (n > 8) ctl.belly();
+          ctx.G.checkAchievements();
+        },
+        onSleep: (on) => { const z = $('#pr-zzz'); if (z) z.hidden = !on; },
+      });
+      if (!ctl) return false;
+      p3 = ctl;
+      const pickAct = () => {
+        const st = petState(), n = needs(st), sad = st.mood === 'aburrido' || st.mood === 'triste';
+        const w = { wander: 3, sniff: 2, scratch: 1, yawn: n.energy < 0.4 ? 3 : 1, chase: sad ? 0.3 : 1.5, look: 2, drink: 1, nap: n.energy < 0.35 ? 4 : sad ? 2 : 0.5, wag: sad ? 0.4 : 2, sit: 2, lie: sad ? 2 : 0.6 };
+        const tot = Object.values(w).reduce((a, v) => a + v, 0); let r = Math.random() * tot;
+        for (const [k, v] of Object.entries(w)) { r -= v; if (r <= 0) return k; }
+        return 'sit';
+      };
+      (function life() {
+        if (!alive()) { if (p3 === ctl) { ctl.destroy(); p3 = null; } return; }
+        if (!ctl.busy) ctl.act(pickAct());
+        roomTimer = setTimeout(life, 900 + Math.random() * 1300);
+      })();
+      $('#pr-rub').addEventListener('click', () => {
+        const d = daily(), p = pet(); d.pets++; p.pets = (p.pets || 0) + 1; PM.state.save(); refreshNeeds();
+        burst(room, ['💕', '❤️', '💖'], 6); say('¡Panza arriba! 💕', true); ctl.belly(); ctx.G.checkAchievements();
+      });
+      $('#pr-treat').addEventListener('click', (e) => {
+        const d = daily();
+        if (d.treats >= 3) { say('¡Ya he comido bastante hoy! 😋', true); return; }
+        d.treats++; const p = pet(); p.treats = (p.treats || 0) + 1; PM.state.save();
+        e.currentTarget.querySelector('small').textContent = (3 - d.treats) + '/3';
+        ctl.treat().then(() => { refreshNeeds(); burst(room, ['✨', '🍪'], 3); });
+        setTimeout(() => say(pickOne(['¡Ñam ñam! 🍪', '¡Qué rico!', '*se relame*']), true), 900);
+        ctx.G.checkAchievements();
+      });
+      $('#pr-throw').addEventListener('click', () => {
+        ctl.fetch().then(() => {
+          const d = daily(), p = pet(); d.play++; p.fetches = (p.fetches || 0) + 1; PM.state.save(); refreshNeeds();
+          say(pickOne(['¡Otra vez! ¡Otra vez! 🎾', '¡Te la traje!', '¡Lánzala más lejos!']), true); ctx.G.checkAchievements();
+        });
+      });
+      function refreshNeeds() { const el = $('#pr-needs'); if (el) el.outerHTML = needsHTML(petState()); }
+      return true;
+    }
+    function startRoom(st0) {
+      if (PM.pet3d && PM.pet3d.available() && $('#pet-room.p3')) { if (startRoom3D(st0)) return; }
+      const room = $('#pet-room'), dogEl = $('#pr-dog'), flip = dogEl.querySelector('.pr-flip'), big = dogEl.querySelector('.pet-big');
+      const alive = () => document.body.contains(room) && $('#sheet').classList.contains('show');
+      let x = 50, dir = 1, busy = false, face = st0.M.face, lastAct = '';
+      const setFace = (f) => { if (f === face) return; face = f; big.innerHTML = dogSVG(look(petState(), { size: 132, face: f })); };
+      const baseFace = () => petState().M.face;
+      const cls = (c, ms) => new Promise((r) => { dogEl.classList.add(c); setTimeout(() => { dogEl.classList.remove(c); r(); }, ms); });
+      const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+      function walkTo(nx, run) {
+        nx = Math.max(12, Math.min(88, nx));
+        const d = Math.abs(nx - x); if (d < 2) return Promise.resolve();
+        dir = nx > x ? 1 : -1; flip.style.transform = `scaleX(${dir})`;
+        const ms = d * (run ? 22 : 48);
+        dogEl.style.transition = `left ${ms}ms linear`; dogEl.style.left = nx + '%'; x = nx;
+        dogEl.classList.add(run ? 'pr-run' : 'pr-walk');
+        return wait(ms).then(() => dogEl.classList.remove('pr-run', 'pr-walk'));
+      }
+      // mira hacia el dedo / ratón
+      function lookAt(cx, cy) {
+        const r = big.getBoundingClientRect(), ex = r.left + r.width / 2, ey = r.top + r.height * 0.4;
+        const dx = Math.max(-1, Math.min(1, (cx - ex) / 120)) * dir, dy = Math.max(-1, Math.min(1, (cy - ey) / 120));
+        big.querySelectorAll('.dog-pupils').forEach((pp) => { pp.style.transform = `translate(${(dx * 1.8).toFixed(2)}px, ${(dy * 1.6).toFixed(2)}px)`; });
+      }
+      // --- acciones por su cuenta ---
+      const ACTS = {
+        wander: async () => { await walkTo(15 + Math.random() * 70); },
+        sniff: async () => { await walkTo(x + (Math.random() * 30 - 15)); setFace('normal'); await cls('pr-sniff', 2200); },
+        scratch: async () => { await cls('pr-scratch', 1500); },
+        yawn: async () => { setFace('wow'); await cls('pr-yawn', 1300); setFace(baseFace()); },
+        chase: async () => { setFace('happy'); await cls('pr-chase', 1900); setFace(baseFace()); },
+        look: async () => { lookAt(Math.random() * innerWidth, Math.random() * innerHeight); await cls('pr-tilt', 1600); },
+        drink: async () => { await walkTo(83); dir = 1; flip.style.transform = 'scaleX(1)'; await cls('pr-eat', 2200); },
+        nap: async () => {
+          await walkTo(20); setFace('sleep'); $('#pr-zzz').hidden = false; dogEl.classList.add('pr-lie');
+          await wait(night() ? 9000 : 5500);
+          dogEl.classList.remove('pr-lie'); $('#pr-zzz').hidden = true; setFace('wow'); await wait(500); setFace(baseFace());
+        },
+        wag: async () => { setFace('happy'); await cls('pr-wiggle', 1400); setFace(baseFace()); },
+        sit: async () => { setFace(baseFace()); await wait(1800 + Math.random() * 1800); },
+      };
+      function pickAct() {
+        const st = petState(), n = needs(st), sad = st.mood === 'aburrido' || st.mood === 'triste';
+        const w = { wander: 3, sniff: 2, scratch: 1, yawn: n.energy < 0.4 ? 3 : 1, chase: sad ? 0.3 : 1.5, look: 2, drink: 1, nap: n.energy < 0.35 ? 4 : sad ? 2 : 0.6, wag: sad ? 0.4 : 2, sit: 2 };
+        delete w[lastAct];
+        const tot = Object.values(w).reduce((a, v) => a + v, 0);
+        let r = Math.random() * tot;
+        for (const [k, v] of Object.entries(w)) { r -= v; if (r <= 0) return k; }
+        return 'sit';
+      }
+      async function life() {
+        if (!alive()) return;
+        if (!busy) { busy = true; const a = pickAct(); lastAct = a; try { await ACTS[a](); } catch (e) {} busy = false; }
+        roomTimer = setTimeout(life, 600 + Math.random() * 1400);
+      }
+      clearTimeout(roomTimer); roomTimer = setTimeout(life, 1200);
+      room.addEventListener('pointermove', (e) => lookAt(e.clientX, e.clientY));
+      // --- mimos: arrastrar el dedo sobre él; toque corto = truco ---
+      let rub = null;
+      dogEl.addEventListener('pointerdown', (e) => { rub = { x: e.clientX, y: e.clientY, d: 0, n: 0 }; try { dogEl.setPointerCapture(e.pointerId); } catch (er) {} });
+      dogEl.addEventListener('pointermove', (e) => {
+        if (!rub) return;
+        rub.d += Math.hypot(e.clientX - rub.x, e.clientY - rub.y); rub.x = e.clientX; rub.y = e.clientY;
+        if (rub.d > 45) { rub.d = 0; rub.n++; setFace('happy'); dogEl.classList.add('pr-petting'); burst(big, ['💕', '❤️', '✨'], 1); PM.vibrate && PM.vibrate(8); }
+      });
+      const endRub = () => {
+        if (!rub) return;
+        const r0 = rub; rub = null; dogEl.classList.remove('pr-petting');
+        if (r0.n === 0 && !busy) { doTrick(big); return; }
+        if (r0.n >= 3) {
+          const d = daily(), p = pet(); d.pets++; p.pets = (p.pets || 0) + 1; PM.state.save(); refreshNeeds();
+          say(pickOne(['¡Me encantan los mimos! 💕', '*cierra los ojitos*', '¡Más, más! 🐾', '*se tumba panza arriba*']), true);
+          if (r0.n > 8) { busy = true; dogEl.classList.add('pr-belly'); setTimeout(() => { dogEl.classList.remove('pr-belly'); busy = false; setFace(baseFace()); }, 1800); }
+          else setTimeout(() => setFace(baseFace()), 1200);
+          ctx.G.checkAchievements();
+        }
+      };
+      dogEl.addEventListener('pointerup', endRub); dogEl.addEventListener('pointercancel', endRub);
+      $('#pr-rub').addEventListener('click', async () => { if (busy) return; busy = true; setFace('happy'); dogEl.classList.add('pr-belly'); burst(big, ['💕', '❤️', '💖'], 6);
+        const d = daily(), p = pet(); d.pets++; p.pets = (p.pets || 0) + 1; PM.state.save(); refreshNeeds(); say('¡Panza arriba! 💕', true);
+        await wait(1800); dogEl.classList.remove('pr-belly'); setFace(baseFace()); busy = false; ctx.G.checkAchievements(); });
+      // --- premio: la galleta vuela hasta él y se la come ---
+      $('#pr-treat').addEventListener('click', async (e) => {
+        const d = daily();
+        if (d.treats >= 3) { say('¡Ya he comido bastante hoy! 😋', true); return; }
+        if (busy) return; busy = true;
+        const b = e.currentTarget.getBoundingClientRect(), r = big.getBoundingClientRect();
+        const ck = document.createElement('div'); ck.className = 'pr-fly'; ck.textContent = '🍪';
+        ck.style.left = b.left + b.width / 2 + 'px'; ck.style.top = b.top + 'px'; document.body.appendChild(ck);
+        requestAnimationFrame(() => { ck.style.left = r.left + r.width / 2 + 'px'; ck.style.top = r.top + r.height * 0.5 + 'px'; ck.style.transform = 'scale(.6) rotate(360deg)'; });
+        setFace('wow'); await wait(650); ck.remove();
+        setFace('happy'); dogEl.classList.add('pr-munch'); burst(big, ['·', '✨', '🍪'], 4);
+        d.treats++; const p = pet(); p.treats = (p.treats || 0) + 1; PM.state.save(); refreshNeeds();
+        e.currentTarget.querySelector('small').textContent = (3 - d.treats) + '/3';
+        say(pickOne(['¡Ñam ñam! 🍪', '¡Qué rico!', '*se relame*']), true);
+        await wait(1500); dogEl.classList.remove('pr-munch'); setFace(baseFace()); busy = false; ctx.G.checkAchievements();
+      });
+      // --- pelota: la lanzas, corre a por ella y te la trae ---
+      $('#pr-throw').addEventListener('click', async () => {
+        if (busy) return; busy = true;
+        const ball = $('#pr-ball'), tx = x > 50 ? 12 + Math.random() * 25 : 63 + Math.random() * 25;
+        ball.hidden = false; ball.style.transition = 'none'; ball.style.left = x + '%'; ball.classList.remove('land'); void ball.offsetWidth;
+        ball.style.transition = 'left .7s ease-out'; ball.style.left = tx + '%'; ball.classList.add('fly');
+        setFace('wow'); lookAt(room.getBoundingClientRect().left + room.clientWidth * tx / 100, room.getBoundingClientRect().top + 60);
+        await wait(700); ball.classList.remove('fly'); ball.classList.add('land');
+        setFace('happy'); await walkTo(tx, true);
+        ball.hidden = true; dogEl.classList.add('pr-hasball');
+        await walkTo(50, true);
+        dogEl.classList.remove('pr-hasball'); await cls('pr-wiggle', 900);
+        const d = daily(), p = pet(); d.play++; p.fetches = (p.fetches || 0) + 1; PM.state.save(); refreshNeeds();
+        say(pickOne(['¡Otra vez! ¡Otra vez! 🎾', '¡Te la traje!', '¡Lánzala más lejos!']), true);
+        setFace(baseFace()); busy = false; ctx.G.checkAchievements();
+      });
+      function refreshNeeds() { const el = $('#pr-needs'); if (el) el.outerHTML = needsHTML(petState()); }
+    }
     function showPet() {
       const st = petState(), p = st.p;
       const nextStage = STAGES.find((x) => x.km > st.km);
       const tip = st.hearts >= 3 ? '¡Hoy ya está a tope! 💖' : `Sácalo a pasear: ${st.hearts === 0 ? '500 m' : st.hearts === 1 ? '1,5 km' : '3 km'} hoy para ${st.hearts === 0 ? 'su primer corazón' : 'otro corazón'}.`;
       const sleepy = st.mood === 'aburrido' || st.mood === 'triste';
       openSheet('🐶 ' + p.name, `<div class="pet-card mood-${st.mood}">
-          <div class="pet-stage"><button class="pet-swap" id="pet-swap" title="Cambiar de perro">🔄</button><div class="pet-big" style="--k:${st.stage.k}">${dogSVG(look(st, { size: 150 }))}</div>
-            ${sleepy ? '<span class="pet-z">z</span><span class="pet-z z2">z</span><span class="pet-z z3">Z</span>' : ''}<div class="pet-shadow"></div></div>
+          ${roomHTML(st)}
+          ${needsHTML(st)}
+          <div class="pr-actions"><button id="pr-treat">🍪 Premio <small>${3 - daily().treats}/3</small></button><button id="pr-throw">🎾 Pelota</button><button id="pr-rub">🤚 Mimos</button></div>
           <div class="pet-name"><input id="pet-name" value="${esc(p.name)}" maxlength="16" aria-label="Nombre del perro"><span>✏️</span></div>
           <div class="pet-mood">${st.M.t} · <b>${BREEDS[p.breed].name}</b></div>
           <div class="pet-hearts">${[0, 1, 2].map((i) => `<span class="${i < st.hearts ? 'on' : ''}">❤</span>`).join('')}<small>${PM.fmtDist(st.wt)} hoy</small></div>
           <p class="muted" style="text-align:center;margin:4px 0 6px">${tip}</p>
-          <small class="muted pet-hint">Tócalo y hará un truco 🐾</small>
+          <small class="muted pet-hint">Tócalo y hará un truco · acarícialo arrastrando el dedo 🐾</small>
           ${bonesLine()}
         </div>
         <div class="pet-breed-box" id="pet-breed-box" ${p.breedChosen ? 'hidden' : ''}>
@@ -273,8 +512,8 @@ PM.fun = (function () {
         ${st.nextBone ? `<p class="muted">🦴 Huesos encontrados: <b>${st.bones}</b> · el próximo exclusivo (${st.nextBone.name}) a los ${st.nextBone.b}.</p>` : `<p class="muted">🦴 Huesos encontrados: <b>${st.bones}</b>.</p>`}`);
       const inp = $('#pet-name');
       inp.addEventListener('change', () => { const v = inp.value.trim().slice(0, 16); if (v) { pet().name = v; PM.state.save(); $('#sheet h3').textContent = '🐶 ' + v; } });
-      const big = document.querySelector('.pet-big');
-      big.addEventListener('click', () => doTrick(big));
+      startRoom(st);
+      const big = document.querySelector('.pet-big') || document.querySelector('#pet-room');
       $('#pet-swap').addEventListener('click', () => { const bx = $('#pet-breed-box'); bx.hidden = !bx.hidden; if (!bx.hidden) bx.scrollIntoView({ behavior: 'smooth', block: 'center' }); });
       document.querySelectorAll('.pet-tricks [data-trick]').forEach((b) => b.addEventListener('click', () => { big.scrollIntoView({ behavior: 'smooth', block: 'center' }); setTimeout(() => doTrick(big, b.dataset.trick), 250); }));
       document.querySelectorAll('.pet-gear [data-gear]').forEach((b) => b.addEventListener('click', () => {
@@ -334,7 +573,7 @@ PM.fun = (function () {
     // =============== TU PERRO EN EL MAPA ===============
     // camina a tu lado (un poco por detrás), se sienta cuando paras, corre si aceleras y olfatea cerca de lugares y huesos
     const map = ctx.map;
-    let md = null, mdPos = null, mdKey = '', mdState = '', mdFlipX = 1, mdLastPx = null;
+    let md = null, mdPos = null, mdKey = '', mdState = '', mdFlipX = 1, mdLastPx = null, mdSitT = 0, mdIdle = null;
     function mapDogEl() {
       const el = document.createElement('div'); el.className = 'mapdog';
       el.innerHTML = '<div class="md-flip"><div class="md-body"></div></div><div class="md-shadow"></div>';
@@ -363,7 +602,13 @@ PM.fun = (function () {
       const lag = PM.geo.dist(mdPos, tgt);
       let state = speed > 2.5 || lag > 12 ? 'run' : speed > 0.4 || lag > 2 ? 'walk' : 'sit';
       if (sniffing && state !== 'run') state = 'sniff';
-      if (state !== mdState) { mdState = state; el.className = 'mapdog md-' + state; }
+      if (state !== mdState) { mdState = state; el.className = 'mapdog md-' + state; mdSitT = performance.now(); }
+      // parado: hace cosas por su cuenta (se rasca, mira alrededor, bosteza, se tumba)
+      if (state === 'sit' && performance.now() - mdSitT > 3500 && !mdIdle) {
+        mdIdle = pickOne(['md-i-scratch', 'md-i-look', 'md-i-yawn', 'md-i-look', 'md-i-lie', 'md-i-wag']);
+        el.classList.add(mdIdle);
+        const c0 = mdIdle; setTimeout(() => { el.classList.remove(c0); mdIdle = null; mdSitT = performance.now(); }, c0 === 'md-i-lie' ? 4000 : 1600);
+      }
       el.querySelector('.md-flip').style.transform = `scaleX(${mdFlipX})`;
       el.style.setProperty('--mds', Math.max(0.65, Math.min(1.25, (z - 13.5) / 3.5)).toFixed(2));
     }
@@ -462,7 +707,21 @@ PM.fun = (function () {
       const away = daysAway();
       if (away >= 2 && away < 99) setTimeout(() => { btnTrick('shake'); say(away >= 4 ? `Llevamos ${away} días sin salir… 🥺` : '¿Salimos hoy? 🐾', true); }, 2500);
     }
-    $('#btn-pet') && $('#btn-pet').addEventListener('click', showPet);
+    // el motor 3D (Three.js) se carga en segundo plano tras arrancar: así la app abre igual de rápido
+    let threeLoading = false;
+    function loadThree(cb) {
+      if (window.THREE) return cb && cb();
+      if (threeLoading) return;
+      threeLoading = true;
+      const sc = document.createElement('script'); sc.src = 'lib/three.min.js';
+      sc.onload = () => { threeLoading = false; cb && cb(); }; sc.onerror = () => { threeLoading = false; };
+      document.head.appendChild(sc);
+    }
+    setTimeout(() => loadThree(), 4000);
+    $('#btn-pet') && $('#btn-pet').addEventListener('click', () => {
+      showPet();
+      if (!window.THREE) loadThree(() => { if ($('#sheet').classList.contains('show') && $('#pet-room') && !$('#pet-room.p3')) showPet(); });
+    });
     refreshAvatar();
     return { tick, frame, addLayers, drawBones, onEvent, greet, say, showPet, avatarHTML, changeAvatar, removeAvatar, refreshAvatar };
   }

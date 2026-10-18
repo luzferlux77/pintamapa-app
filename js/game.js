@@ -510,6 +510,9 @@ PM.game = (function () {
   serie('trucos', '🦴', [1, 10, 50, 100, 250, 500], 'Domador', (t) => `Tu perro hace ${t} truco${t > 1 ? 's' : ''}`, (s) => petOf(s).tricks || 0);
   serie('perrofeliz', '💖', [1, 7, 30, 100, 365], 'Perro feliz', (t) => `${t} día${t > 1 ? 's' : ''} con los 3 corazones de tu perro`, (s) => petOf(s).fullDays || 0);
   serie('huesos', '🦴', [1, 10, 50, 100, 250, 500], 'Rastreador', (t) => t === 1 ? 'Tu perro encuentra su primer hueso' : `Tu perro encuentra ${t} huesos`, (s) => petOf(s).bones || 0);
+  serie('mimos', '🤚', [10, 50, 200, 1000], 'Achuchón', (t) => `Dale ${t} mimos a tu perro`, (s) => petOf(s).pets || 0);
+  serie('premios', '🍪', [1, 25, 100, 365], 'Cocinero canino', (t) => t === 1 ? 'Dale un premio a tu perro' : `Dale ${t} premios a tu perro`, (s) => petOf(s).treats || 0);
+  serie('pelota', '🎾', [1, 25, 100, 500], 'Lanzador', (t) => t === 1 ? 'Juega a la pelota con tu perro' : `Lánzale la pelota ${t} veces`, (s) => petOf(s).fetches || 0);
   serie('razas', '🐕', [3, 6, 10], 'Amante de los perros', (t) => `Prueba ${t} razas de perro`, (s) => (petOf(s).breeds || []).length);
   serie('look', '🎀', [3, 7, 13], 'Perro con estilo', (t) => `Desbloquea ${t} accesorios para tu perro`, (s) => [5, 10, 15, 20, 30, 40, 60, 80, 100, 120, 150, 200, 250].filter((n) => Object.keys(s.achievements || {}).length >= n).length);
   serie('sendero', '🌲', [1, 5, 10, 25], 'Senderista', (t) => `Pinta ${t} km de senderos y caminos`, (s) => km(s.stats.trailM || 0));
