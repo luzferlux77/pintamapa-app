@@ -1,7 +1,7 @@
 // PintaMapa — el mundo: barrios (celdas), calles troceadas en tramos, monumentos, botes de pintura
 // Radio de captura según el sitio: los estadios son enormes (su centro está dentro del campo, donde no se puede entrar)
 // radio de conquista: en los estadios grandes no se puede entrar, basta con rodearlos por fuera
-PM.capRadius = (kind, big) => (kind === 'Estadio' && big ? 240 : ({ Estadio: 200, 'Campo de fútbol': 70, Parque: 45 })[kind]) || 30;
+PM.capRadius = (kind, big) => (kind === 'Estadio' && big ? 240 : ({ Estadio: 200, 'Estudio de televisión': 200, 'Campo de fútbol': 70, Parque: 45 })[kind]) || 30;   // estadios y estudios de TV: no se suele poder entrar
 
 PM.world = (function () {
   const TILE = 0.01;          // tamaño de barrio en grados (~1.1 km x 0.8 km en España)
@@ -71,6 +71,10 @@ PM.world = (function () {
     if (h === 'city_gate' || h === 'tower' || tags.man_made === 'tower' || tags.man_made === 'obelisk' || b === 'tower') return { kind: 'Torre / Puerta', emoji: '🗼', rarity: 'epico', prio: 65 };
     if (a === 'hospital') return { kind: 'Hospital', emoji: '🏥', rarity: 'raro', prio: 57 };
     if (a === 'fire_station') return { kind: 'Bomberos', emoji: '🚒', rarity: 'raro', prio: 56 };
+    // estudios de televisión (no los de vídeo, radio o audio); las grandes cadenas, épicas
+    if (a === 'studio' && /(^|;)\s*(television|tv)\s*(;|$)/.test(tags.studio || ''))
+      return { kind: 'Estudio de televisión', emoji: '📺', prio: 62,
+        rarity: /(^|[^a-zà-ÿ])(tv3|televisi[oó] de catalunya|rtve|tve|antena ?3|telecinco|mediaset|atresmedia|la ?sexta|cuatro|telemadrid|canal sur|[àa] punt|etb|tvg|crtvg|ib3|aragón tv|bbc|rai|tf1|france t[eé]l[eé]visions|zdf|ard)([^a-zà-ÿ]|$)/i.test(n) ? 'epico' : 'raro' };
     if (a === 'theatre') return { kind: 'Teatro', emoji: '🎭', rarity: 'raro', prio: 60 };
     if (a === 'university') return { kind: 'Universidad', emoji: '🎓', rarity: 'raro', prio: 58 };
     if (tags.place === 'square') return { kind: 'Plaza', emoji: '🏙️', rarity: 'raro', prio: 55 };
@@ -168,9 +172,9 @@ PM.world = (function () {
     if (lmGrid[cell]) lmGrid[cell] = lmGrid[cell].filter((x) => x !== lm);
     emit('lmRemoved', { id });
   }
-  function nearbyAccepted(pos) {
+  function nearbyAccepted(pos, r = 1) {
     const ci = Math.floor(pos[0] / GRID), cj = Math.floor(pos[1] / GRID), out = [];
-    for (let di = -1; di <= 1; di++) for (let dj = -1; dj <= 1; dj++) out.push(...(lmGrid[(ci + di) + ':' + (cj + dj)] || []));
+    for (let di = -r; di <= r; di++) for (let dj = -r; dj <= r; dj++) out.push(...(lmGrid[(ci + di) + ':' + (cj + dj)] || []));
     return out;
   }
   // Respaldo: si en un pueblo ninguna iglesia es "importante" (Wikipedia, patrimonio, catedral…), se toma
@@ -259,7 +263,7 @@ PM.world = (function () {
     }
     for (const lm of list) {
       if (landmarks[lm.id] || skip.has(lm)) continue;
-      if (nearbyAccepted(lm.pos).some((o) => o.name === lm.name && PM.geo.dist(o.pos, lm.pos) < 80)) continue;
+      if (nearbyAccepted(lm.pos, 2).some((o) => o.name === lm.name && PM.geo.dist(o.pos, lm.pos) < (o.kind === lm.kind ? 300 : 80))) continue;   // varios edificios del mismo sitio (TV3…): uno
       if (lm.kind === 'Estación' && !lm.wiki && !lm.wd && [...list, ...nearbyAccepted(lm.pos)].some((o) => o.kind === 'Parque' && PM.geo.dist(o.pos, lm.pos) < 500 && sameName(o.name, lm.name))) continue;
       if (!lm.principal) {
         const clash = nearbyAccepted(lm.pos).some((o) => PM.geo.dist(o.pos, lm.pos) < (o.townhall ? TOWNHALL_GAP : MIN_GAP));
@@ -476,7 +480,7 @@ PM.world = (function () {
   // ---------------- Caché local de barrios (IndexedDB) ----------------
   // Cada barrio se descarga una vez y se guarda 30 días: menos datos móviles, menos batería y arranque instantáneo.
   const CACHE_DAYS = 90;
-  const CACHE_V = 9;   // súbelo si cambia lo que se descarga (p. ej. nuevos tipos de puntos): fuerza a renovar la caché
+  const CACHE_V = 10;   // súbelo si cambia lo que se descarga (p. ej. nuevos tipos de puntos): fuerza a renovar la caché
   const cache = (function () {
     let dbp = null;
     function db() {
@@ -503,7 +507,7 @@ PM.world = (function () {
 
   // Solo guardamos lo que el juego usa de cada elemento (ocupa mucho menos)
   const KEEP_TAGS = ['highway', 'oneway', 'lanes', 'width', 'dual_carriageway', 'name', 'amenity', 'historic', 'tourism', 'building', 'memorial',
-    'wikipedia', 'wikidata', 'leisure', 'sport', 'place', 'man_made', 'railway', 'religion', 'admin_level', 'boundary', 'heritage', 'footway', 'denomination', 'emergency', 'station', 'shop'];
+    'wikipedia', 'wikidata', 'leisure', 'sport', 'place', 'man_made', 'railway', 'religion', 'admin_level', 'boundary', 'heritage', 'footway', 'denomination', 'emergency', 'station', 'shop', 'studio'];
   function slim(el) {
     const tags = {};
     for (const k of KEEP_TAGS) if (el.tags && el.tags[k] != null) tags[k] = el.tags[k];
@@ -778,6 +782,7 @@ PM.world = (function () {
       out tags bb;
       (
         nwr["amenity"~"^(townhall|place_of_worship|fountain|theatre|library|marketplace|university|hospital|fire_station)$"]["name"](${bb});
+        nwr["amenity"="studio"]["studio"~"television|tv"]["name"](${bb});
         nwr["historic"]["name"](${bb});
         nwr["tourism"~"^(museum|attraction|viewpoint|artwork)$"]["name"](${bb});
         nwr["leisure"="stadium"]["name"](${bb});
@@ -834,8 +839,8 @@ PM.world = (function () {
     if (demoMode) return null;
     const c = await cache.get(k);
     if (!(c && c.v >= 4 && Date.now() - c.t < CACHE_DAYS * 86400000)) return null;
-    if (c.src && c.v < 9) return null;          // de mapas vectoriales sin caminos de parque/estaciones: se vuelve a pedir (tarda 1 s)
-    if (c.v < 8) c.extrasMiss = true;           // los extras de Overpass se completan con los tipos nuevos
+    if (c.src && c.v < 10) return null;         // de mapas vectoriales de antes (sin caminos de parque, estaciones o estudios de TV): se vuelve a pedir (tarda 1 s)
+    if (c.v < 10) { c.extrasMiss = true; c.wdMiss = true; }   // tipos nuevos (estudios de TV…): se completan los extras y Wikidata
     if (c.v < 6) c.wdMiss = true;   // guardado antes de Wikidata: se completa en segundo plano
     if (c.wdMiss || c.extrasMiss) setTimeout(() => completeTile(k, c), 3000);
     return c.els;
@@ -862,6 +867,7 @@ PM.world = (function () {
           if (got !== null) { add = add.concat(got.filter((el) => tilesOf(el).has(k))); wdMiss = false; }
         }
         const cur = (await cache.get(k)) || c;
+        const have = new Set(cur.els.map((el) => el.type + el.id)); add = add.filter((el) => !have.has(el.type + el.id));   // sin duplicados al volver a pedir
         cache.put(k, Object.assign({}, cur, { els: cur.els.concat(add), wdMiss, extrasMiss }));
         if (add.length && tiles[k] && (tiles[k].loaded || tiles[k].partial)) { ingest(add, new Set([k])); emit('loaded', { tiles: [k] }); }
       } finally { completing.delete(k); }

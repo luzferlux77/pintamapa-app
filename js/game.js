@@ -483,7 +483,7 @@ PM.game = (function () {
   serie('anda', '👟', [1, 5, 10, 25, 50, 100, 200, 300, 500, 1000, 2000], 'Caminante', (t) => `Camina ${t} km en total`, (s) => km(s.stats.walkedM));
   serie('captura', '📸', [5, 25, 75, 100, 150, 200, 300, 500, 750, 1000], 'Cazador de lugares', (t) => `Captura ${t} lugares`, (s) => lmList(s).length);
   const KINDS = [['Ayuntamiento', '🏛️'], ['Catedral', '⛪'], ['Basílica', '⛪'], ['Castillo', '🏰'], ['Palacio', '🏰'], ['Estadio', '🏟️'], ['Iglesia', '⛪'],
-    ['Templo', '🛕'], ['Museo', '🖼️'], ['Monumento', '🗽'], ['Torre / Puerta', '🗼'], ['Teatro', '🎭'], ['Universidad', '🎓'], ['Plaza', '🏙️'], ['Faro', '🗼'],
+    ['Templo', '🛕'], ['Museo', '🖼️'], ['Monumento', '🗽'], ['Torre / Puerta', '🗼'], ['Teatro', '🎭'], ['Estudio de televisión', '📺'], ['Universidad', '🎓'], ['Plaza', '🏙️'], ['Faro', '🗼'],
     ['Estación', '🚉'], ['Parada de tranvía', '🚋'], ['Ermita / Monasterio', '⛪'], ['Comercio emblemático', '☕'], ['Parque', '🌳'], ['Ruinas', '🏺'], ['Mirador', '🔭'], ['Campo de fútbol', '⚽'], ['Mercado', '🛒'], ['Biblioteca', '📚'],
     ['Atracción', '⭐'], ['Memorial', '🗿'], ['Fuente', '⛲'], ['Arte urbano', '🎨'], ['Hospital', '🏥'], ['Bomberos', '🚒'], ['Patrimonio', '🏛️'], ['Molino', '🌬️'], ['Lugar histórico', '📜']];
   for (const [k, ic] of KINDS) {
