@@ -1,8 +1,8 @@
 {
-  "version": "0.6.35",
-  "notes": "Inicio nuevo, imprescindibles en el álbum, logros agrupados, iconos iguales en todos los móviles, transiciones, copia de seguridad, mapa sin conexión, paseos comprimidos, pruebas automáticas, GPS que ahorra batería y avisos",
+  "version": "0.6.36",
+  "notes": "Imprescindibles: mínimo 10 por ciudad y más en las grandes (hasta 30)",
   "native": 4,
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.35/pintamapa-web-0.6.35.zip",
-  "checksum": "5cfb45bf2c1e08d8c775625ab901031bf708cf824bd64ce41686f0a56684e742",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.35/PintaMapa-v0.6.35.apk"
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.36/pintamapa-web-0.6.36.zip",
+  "checksum": "84ff171cba5ffc7452f176f7a329d292d245fe9f580b9496da806c6f23d914a3",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.36/PintaMapa-v0.6.36.apk"
 }
