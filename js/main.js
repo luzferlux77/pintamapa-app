@@ -802,6 +802,7 @@
   });
 
   // ---------------- Extras: calle misteriosa, tu perro y foto de perfil ----------------
+  gpsIcon('search');
   FUN = PM.fun.create({ map, S, W, G, toast, openSheet, celebrate, setSrc, FC, ll, circlePoly, $,
     getPos: () => pos, inSession: () => !!(session && !session.paused), sessionWalked: () => (session ? session.st.walked : 0),
     lookAt: (c, z) => { follow = false; zoomAround(); $('#btn-center').classList.add('show'); clearTimeout(recenterTimer); recenterTimer = setTimeout(recenter, 20000); map.easeTo({ center: ll(c), zoom: z, duration: 900 }); } });
@@ -865,6 +866,15 @@
     if (!manual) requestAnimationFrame(loop);
   }
 
+  // icono del GPS junto a la velocidad: buscando = antena animada; con señal = fijo (verde, o ámbar si es impreciso)
+  function gpsIcon(st, acc) {
+    const el = $('#gps'), key = st + (st === 'weak' ? Math.round(acc / 10) : '');
+    if (el.dataset.k === key) return;
+    el.dataset.k = key;
+    el.className = 'badge gpsi gps-' + st + (el.classList.contains('show') ? ' show' : '');
+    el.title = { search: 'Buscando GPS…', ok: `GPS con señal (±${Math.round(acc || 0)} m)`, weak: `GPS impreciso (±${Math.round(acc || 0)} m)`, off: 'GPS apagado (ahorrando batería)' }[st];
+    el.innerHTML = `<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><circle class="g-dot" cx="12" cy="12" r="3.2"/><circle class="g-r1" cx="12" cy="12" r="6.5"/><circle class="g-r2" cx="12" cy="12" r="10"/></svg>${st === 'weak' ? `<small>±${Math.round(acc)}</small>` : ''}`;
+  }
   // --- GPS real (con servicio en segundo plano en Android) ---
   // Ahorro de batería: el GPS solo está encendido durante una sesión activa (no en pausa),
   // el servicio nativo solo despierta cada DISTANCE_FILTER metros y con la app oculta no se redibuja nada.
@@ -875,8 +885,7 @@
   function onFix(c, t) {
     if (mode !== 'gps' || !c) return;
     const acc = c.accuracy || 0;
-    $('#gps').textContent = acc > 35 ? `📡 GPS impreciso (±${Math.round(acc)} m)` : `📡 GPS ±${Math.round(acc)} m`;
-    $('#gps').classList.toggle('bad', acc > 35);
+    gpsIcon(acc > 35 ? 'weak' : 'ok', acc);
     lastFixT = Date.now();
     if (c.altitude != null && isFinite(c.altitude) && (c.altitudeAccuracy == null || c.altitudeAccuracy < 30)) lastAlt = c.altitude;
     if (acc > 35) {   // con mucho error podríamos pintar la calle de al lado: no pinta, pero sirve de guía para rellenar el hueco
@@ -909,7 +918,7 @@
           (e) => { toast('No se pudo obtener el GPS: ' + e.message, 'warn'); },
           { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 }) };
       } else throw new Error('Este dispositivo no tiene GPS');
-      $('#gps').textContent = '📡 Buscando GPS…';
+      gpsIcon('search');
     } catch (e) {
       toast('GPS: ' + (e.message || e) + ' — paso a modo simulación', 'warn');
       setMode('sim');
@@ -920,8 +929,7 @@
     if (gpsWatch.bg) BG.removeWatcher({ id: gpsWatch.bg });
     if (gpsWatch.web != null) navigator.geolocation.clearWatch(gpsWatch.web);
     gpsWatch = null;
-    $('#gps').textContent = '📡 GPS apagado (ahorrando batería)';
-    $('#gps').classList.remove('bad');
+    gpsIcon('off');
   }
   // Una sola lectura para situarte en el mapa sin dejar el GPS encendido
   function locateOnce() {

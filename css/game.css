@@ -348,7 +348,7 @@ details.howto ol { padding-left: 18px; line-height: 1.6; }
 .cromos .tcg .tcg-face { box-shadow: 0 6px 14px rgba(0,0,0,.18); }
 
 /* --- pantalla más limpia: estado y botones en UNA sola línea bajo el panel del barrio --- */
-#badges { flex-direction: row; flex-wrap: wrap; align-items: center; right: 112px; gap: 5px; }
+#badges { flex-direction: row; flex-wrap: wrap; align-items: center; right: 166px; gap: 5px; }
 #badges .badge { padding: 4px 9px; font-size: 11.5px; white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
 #badges #capture { white-space: normal; flex-basis: 100%; }
 .fab.orient, .fab.avoidbtn { width: 44px; height: 44px; top: calc(156px + var(--safe-top)); }
@@ -469,3 +469,19 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 .av-del { border: 0; background: none; color: var(--muted); font-size: 11.5px; text-decoration: underline; padding: 0; }
 #nav-profile.has-avatar span svg { display: none; }
 #nav-profile.has-avatar span { display: block; width: 26px; height: 26px; margin: 0 auto; border-radius: 50%; background: var(--avatar) center / cover; box-shadow: 0 0 0 2px var(--panel), 0 0 0 3px var(--line); }
+
+/* mascota a la izquierda del botón de rumbo */
+#btn-pet { right: 114px; top: calc(156px + var(--safe-top)); width: 44px; height: 44px; }
+#pet-say { right: 14px; top: calc(210px + var(--safe-top)); }
+#pet-say::after { left: auto; right: 128px; top: -7px; border: 7px solid transparent; border-bottom-color: #fff; border-top: 0; }
+/* icono del GPS junto a «parado / en movimiento» */
+#badges #gps.gpsi { padding: 4px 7px; display: none; align-items: center; gap: 3px; line-height: 0; }
+#badges #gps.gpsi.show { display: inline-flex; }
+#gps.gpsi small { font-size: 10.5px; line-height: 1; font-weight: 700; }
+#gps svg circle { fill: none; stroke: currentColor; stroke-width: 1.8; } #gps svg .g-dot { fill: currentColor; stroke: none; }
+#gps.gps-search { color: #6b7280; } #gps.gps-search .g-r1, #gps.gps-search .g-r2 { transform-origin: 12px 12px; animation: gpsping 1.4s ease-out infinite; }
+#gps.gps-search .g-r2 { animation-delay: .5s; }
+@keyframes gpsping { 0% { opacity: .9; transform: scale(.4); } 100% { opacity: 0; transform: scale(1.05); } }
+#gps.gps-ok { color: #16a34a; border-color: #86efac; } #gps.gps-ok .g-r2 { opacity: .35; }
+#gps.gps-weak { color: #d97706; border-color: #fcd34d; } #gps.gps-weak .g-r2 { opacity: .25; }
+#gps.gps-off { color: #9ca3af; } #gps.gps-off .g-r1, #gps.gps-off .g-r2 { opacity: .3; }
