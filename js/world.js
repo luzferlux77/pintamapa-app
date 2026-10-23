@@ -210,7 +210,7 @@ PM.world = (function () {
   // los lugares más conocidos de TODO el municipio según Wikidata (en cuántas wikis salen), no los que
   // haya cargados a tu alrededor (por eso antes iban cambiando). Se piden una vez y se guardan.
   // Cuántos, según su tamaño: un pueblo, unos pocos; una gran ciudad, muchos más.
-  const CITY_V = 2;
+  const CITY_V = 3;   // 3: «ciudad grande» por población (no por superficie: Sant Boi o El Prat salían sin imprescindibles)
   function mustCount(ci, els) {
     const pop = ci.pop || 0;
     if (pop) return pop >= 3000000 ? 30 : pop >= 1000000 ? 20 : pop >= 400000 ? 15 : pop >= 100000 ? 10 : pop >= 20000 ? 6 : 4;
@@ -273,7 +273,7 @@ PM.world = (function () {
     mustBusy.add(name);
     try {
       const [s0, w0, n0, e0] = ci.bbox;
-      const big = (n0 - s0) * (e0 - w0) > 0.004;   // ciudad grande: solo lo bastante conocido (la consulta es más ligera)
+      const big = ci.pop ? ci.pop >= 400000 : (n0 - s0) * (e0 - w0) > 0.02;   // ciudad grande: solo lo bastante conocido (la consulta es más ligera)
       const ctl = new AbortController(), to = setTimeout(() => ctl.abort(), 60000);
       const els = await PM.wikidata.fetchTop(s0, w0, n0, e0, big ? 6 : 2, (u, o) => fetch(u, { ...o, signal: ctl.signal }));
       clearTimeout(to);
@@ -287,11 +287,12 @@ PM.world = (function () {
         list.push({ q: el.id, name: nm, pos, kind: c.kind, emoji: c.emoji, sl: el.tags._wp || 0 });
         if (list.length >= N) break;
       }
+      if (!list.length) throw new Error('sin lugares conocidos');   // no se guarda vacía: se vuelve a pedir en otra sesión
       cityInfo[name].must = list;
       saveCityInfo();
       emit('named', { city: name });
     } catch (e) { console.warn('Imprescindibles de', name, 'pendientes', e); }
-    mustBusy.delete(name);
+    // (si falló, no se reintenta en esta sesión: nada de pedírselo a Wikidata en bucle)
   }
   // qué lugar del mapa es cada imprescindible de la lista: el mismo de Wikidata, el mismo nombre o el importante que hay justo ahí
   function matchMust(e, lms) {
@@ -557,7 +558,7 @@ PM.world = (function () {
   // ---------------- Caché local de barrios (IndexedDB) ----------------
   // Cada barrio se descarga una vez y se guarda 30 días: menos datos móviles, menos batería y arranque instantáneo.
   const CACHE_DAYS = 90;
-  const CACHE_V = 10;   // súbelo si cambia lo que se descarga (p. ej. nuevos tipos de puntos): fuerza a renovar la caché
+  const CACHE_V = 11;   // súbelo si cambia lo que se descarga (p. ej. nuevos tipos de puntos): fuerza a renovar la caché
   const cache = (function () {
     let dbp = null;
     function db() {
@@ -916,7 +917,7 @@ PM.world = (function () {
     if (demoMode) return null;
     const c = await cache.get(k);
     if (!(c && c.v >= 4 && Date.now() - c.t < CACHE_DAYS * 86400000)) return null;
-    if (c.src && c.v < 10) return null;         // de mapas vectoriales de antes (sin caminos de parque, estaciones o estudios de TV): se vuelve a pedir (tarda 1 s)
+    if (c.v < 11) return null;   // guardado antes (librerías como bibliotecas, sin estudios de TV…): se vuelve a pedir igual en todos los móviles
     if (c.v < 10) { c.extrasMiss = true; c.wdMiss = true; }   // tipos nuevos (estudios de TV…): se completan los extras y Wikidata
     if (c.v < 6) c.wdMiss = true;   // guardado antes de Wikidata: se completa en segundo plano
     if (c.wdMiss || c.extrasMiss) setTimeout(() => completeTile(k, c), 3000);

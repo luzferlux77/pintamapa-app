@@ -105,7 +105,7 @@ PM.vtiles = (function () {
     else if (c === 'theatre') t.amenity = 'theatre';
     // estudios de televisión: en estos mapas salen como «oficina de telecomunicaciones» (TV3, RTVE…)
     else if (c === 'office' && s === 'telecommunication' && /(^|[^a-z])(tv|tv3|televisi|television|rtve|tve|telecinco|antena ?3|la ?sexta|bet[eé]v[eé])([^a-z]|$)/i.test(p.name || '')) { t.amenity = 'studio'; t.studio = 'television'; }
-    else if (c === 'library') t.amenity = 'library';
+    else if (c === 'library' && s === 'library') t.amenity = 'library';   // (la misma clase incluye librerías: Fnac, Casa del Libro…)
     else if (c === 'stadium') t.leisure = 'stadium';
     else if (c === 'pitch' && s === 'soccer') { t.leisure = 'pitch'; t.sport = 'soccer'; }
     else if (c === 'hospital' && s === 'hospital') t.amenity = 'hospital';

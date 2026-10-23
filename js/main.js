@@ -73,7 +73,7 @@
     for (let i = 0; i <= 48; i++) { const a = i / 48 * 2 * Math.PI; out.push(ll(PM.geo.offset(c, Math.cos(a) * r, Math.sin(a) * r))); }
     return { type: 'Feature', properties: props || {}, geometry: { type: 'Polygon', coordinates: [out] } };
   };
-  const SRC = ['pm-streets', 'pm-painted', 'pm-barrios', 'pm-avoid', 'pm-halos', 'pm-fx', 'pm-fxline', 'pm-lms'];
+  const SRC = ['pm-streets', 'pm-painted', 'pm-barrios', 'pm-avoid', 'pm-halos', 'pm-fx', 'pm-fxline', 'pm-lms', 'pm-must'];
   let FUN = null;   // foto de perfil (js/fun.js)
   const srcData = {}; SRC.forEach((id) => (srcData[id] = FC([])));
   function setSrc(id, fc) { srcData[id] = fc; const src = mapReady && map.getSource(id); if (src) src.setData(fc); }
@@ -92,6 +92,9 @@
     add({ id: 'pm-glow', type: 'line', source: 'pm-painted', layout: round, paint: { 'line-color': paintColor(), 'line-opacity': 0.22, 'line-width': zw(4, 14, 30), 'line-blur': zw(2, 6, 12) } });
     add({ id: 'pm-paint', type: 'line', source: 'pm-painted', layout: round, paint: { 'line-color': paintExpr(), 'line-width': zw(1.6, 5, 11, ['+', 1, ['*', 0.2, ['get', 'h']]]) } });
     // halo de los conquistados: simbólico (tamaño fijo en pantalla, no el radio real) con dos ondas que salen; solo mientras pintas
+    // imprescindibles sin conquistar: un brillo dorado que late despacio, siempre (debajo del icono)
+    add({ id: 'pm-must-pulse', type: 'circle', source: 'pm-must', layout: { visibility: placesOff ? 'none' : 'visible' }, paint: { 'circle-radius': mustR(1), 'circle-color': '#facc15',
+      'circle-opacity': 0.35, 'circle-blur': 0.55, 'circle-pitch-alignment': 'map' } });
     const haloVis = { visibility: haloOn ? 'visible' : 'none' };
     add({ id: 'pm-halo-fill', type: 'circle', source: 'pm-halos', layout: haloVis, paint: { 'circle-radius': haloR(1), 'circle-color': haloCol(), 'circle-opacity': ['case', ['==', ['get', 'm'], 1], 0.16, 0.2],
       'circle-stroke-color': haloCol(), 'circle-stroke-width': 1.5, 'circle-stroke-opacity': 0.6, 'circle-pitch-alignment': 'map' } });
@@ -375,14 +378,14 @@
       x.beginPath(); x.arc(cx, cx, r + 3.4 * k, 0, 2 * Math.PI); x.fillStyle = '#b45309'; x.fill();
     }
     x.beginPath(); x.arc(cx, cx, r, 0, 2 * Math.PI);
-    if (must) {   // imprescindible: fondo dorado claro (el icono se sigue viendo bien), conquistado o no
+    if (must && got) {   // imprescindible conquistado: relleno dorado (como los demás con tu color)
       const g = x.createRadialGradient(cx, cx - r * 0.3, r * 0.1, cx, cx, r);
-      g.addColorStop(0, '#fff8d6'); g.addColorStop(0.7, '#fde68a'); g.addColorStop(1, '#f5c542');
+      g.addColorStop(0, '#fff3b0'); g.addColorStop(0.55, '#fcd34d'); g.addColorStop(1, '#eab308');
       x.fillStyle = g;
     } else x.fillStyle = got ? paintColor() : '#ffffff';
     x.fill();
-    x.lineWidth = 3 * k; x.strokeStyle = got ? (must ? paintColor() : '#ffffff') : (must ? '#fffbeb' : (RCOL[lm.rarity] || '#9aa4b2')); x.stroke();
-    if (got) { x.beginPath(); x.arc(cx, cx, r + 3 * k, 0, 2 * Math.PI); x.lineWidth = 2.5 * k; x.strokeStyle = paintColor(); x.stroke(); }
+    x.lineWidth = 3 * k; x.strokeStyle = got ? '#ffffff' : (must ? '#fffbeb' : (RCOL[lm.rarity] || '#9aa4b2')); x.stroke();
+    if (got && !must) { x.beginPath(); x.arc(cx, cx, r + 3 * k, 0, 2 * Math.PI); x.lineWidth = 2.5 * k; x.strokeStyle = paintColor(); x.stroke(); }
     x.textAlign = 'center'; x.textBaseline = 'middle';
     // iconos iguales en todos los móviles (Twemoji); mientras cargan, el emoji del sistema
     const emo = (e, px, ex, ey) => {
@@ -391,7 +394,6 @@
       else { x.font = `${px}px "Noto Color Emoji","Apple Color Emoji","Segoe UI Emoji",sans-serif`; x.fillText(e, ex, ey + px * 0.05); iconPending = true; }
     };
     emo(lm.emoji || '📍', 19 * k, cx, cx);
-    if (got) emo('🚩', 13 * k, size - 9 * k, 9 * k);
     if (must) emo('⭐', 14 * k, 9 * k, 9 * k);
     try { if (map.hasImage(key)) map.removeImage(key); map.addImage(key, x.getImageData(0, 0, size, size), { pixelRatio: k }); iconMade.add(key); } catch (e) {}
     return key;
@@ -412,6 +414,7 @@
   // Parado o sin pintar, el lugar se ve conquistado (bandera y color) pero sin halo.
   let haloOn = false, haloT = 0;
   const haloCol = () => ['case', ['==', ['get', 'm'], 1], '#eab308', paintColor()];   // imprescindibles: dorado
+  function mustR(k) { return ['interpolate', ['linear'], ['zoom'], 12, 13 * k, 15, 21 * k, 17, 29 * k, 19, 33 * k]; }
   function haloR(k) { return ['interpolate', ['linear'], ['zoom'], 12, 6 * k, 15, 13 * k, 17, 20 * k, 19, 26 * k]; }
   function stepHalos(now) {
     const want = !!(session && !session.paused) && !placesOff && mapReady;
@@ -419,8 +422,15 @@
       haloOn = want;
       ['pm-halo-fill', 'pm-halo-line', 'pm-halo-wave2'].forEach((l) => { if (map.getLayer(l)) map.setLayoutProperty(l, 'visibility', want ? 'visible' : 'none'); });
     }
-    if (!haloOn || now - haloT < 40 || !Object.keys(lmHalos).length) return;   // ~25 fotogramas por segundo bastan
+    if (now - haloT < 40) return;   // ~25 fotogramas por segundo bastan
     haloT = now;
+    // latido suave de los imprescindibles (2,6 s, sin cambios bruscos)
+    if (mapReady && !placesOff && map.getLayer('pm-must-pulse')) {
+      const b = 0.5 - 0.5 * Math.cos(now / 2600 * 2 * Math.PI);
+      map.setPaintProperty('pm-must-pulse', 'circle-opacity', 0.18 + 0.4 * b);
+      map.setPaintProperty('pm-must-pulse', 'circle-radius', mustR(0.92 + 0.16 * b));
+    }
+    if (!haloOn || !Object.keys(lmHalos).length) return;
     [['pm-halo-line', 0], ['pm-halo-wave2', 0.5]].forEach(([l, off]) => {
       if (!map.getLayer(l)) return;
       const ph = ((now / 1800) + off) % 1, ease = 1 - Math.pow(1 - ph, 2);   // sale rápido y se frena al apagarse
@@ -432,6 +442,7 @@
   function flushLandmarks(force) {
     if (!(lmDirty || force) || !mapReady) return;
     lmDirty = false;
+    setSrc('pm-must', FC(Object.values(lmIndex).filter(({ lm, got }) => !got && lm.must).map(({ lm }) => ({ type: 'Feature', properties: {}, geometry: { type: 'Point', coordinates: ll(lm.pos) } }))));
     setSrc('pm-lms', FC(Object.values(lmIndex).map(({ lm, got }) => ({ type: 'Feature',
       properties: { id: lm.id, icon: lmIcon(lm, got), z: (got ? 1 : 0) + (lm.must ? 2 : 0) }, geometry: { type: 'Point', coordinates: ll(lm.pos) } }))));
   }
@@ -955,7 +966,7 @@
   function setPlaces(off, quiet) {
     placesOff = off;
     try { localStorage.setItem('pintamapa_places_off', off ? '1' : '0'); } catch (e) {}
-    if (map.getLayer('pm-lms')) map.setLayoutProperty('pm-lms', 'visibility', off ? 'none' : 'visible');   // los halos los decide stepHalos
+    ['pm-lms', 'pm-must-pulse'].forEach((l) => { if (map.getLayer(l)) map.setLayoutProperty(l, 'visibility', off ? 'none' : 'visible'); });   // los halos los decide stepHalos
     $('#btn-places').classList.toggle('off', off);
     $('#btn-places').innerHTML = off ? '<span>🖌️</span><small>calles</small>' : '<span>📍</span><small>lugares</small>';
     if (!quiet) toast(off ? '🖌️ Solo tus calles pintadas (los lugares, ocultos)' : '📍 Lugares para conquistar visibles', 'info');
