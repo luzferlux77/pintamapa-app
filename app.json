@@ -1,8 +1,8 @@
 {
-  "version": "0.6.48",
-  "notes": "Más ligera: latidos con CSS (el mapa ya no se redibuja sin parar), carga bajo demanda, fuera Leaflet y «evitar»; pintar en el bolsillo: reanudación con relleno del hueco y aviso de ahorro de batería",
+  "version": "0.6.49",
+  "notes": "ARREGLO IMPORTANTE: el GPS en segundo plano no se activaba (pintar con la pantalla apagada); también brújula nativa y aviso de batería",
   "native": 6,
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.48/pintamapa-web-0.6.48.zip",
-  "checksum": "3ef7960a8200cf05054e57b0d7d01a37253add2f0cca0a2be0679691573067a0",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.48/PintaMapa-v0.6.48.apk"
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.49/pintamapa-web-0.6.49.zip",
+  "checksum": "3b01be5264cc70ffbe0da1814685e978afaa83291d7aab18a79e37a9a7093eaf",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.49/PintaMapa-v0.6.49.apk"
 }
