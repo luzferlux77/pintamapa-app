@@ -165,42 +165,7 @@ PM.cards = (function () {
     const info = S().cardInfo[id];
     return info && info.img ? { src: info.img, own: false } : null;
   }
-  function cardHTML(id, rec, img, info, big) {
-    const R = PM.world.RARITY[rec.rarity] || PM.world.RARITY.comun;
-    const own = img && img.own;
-    return `<div class="cromo r-${rec.rarity} ${big ? 'big' : ''}" data-id="${id}">
-      <div class="cromo-in">
-        <div class="cara front">
-          <div class="foto ${img ? '' : 'vacia'}" ${img ? `style="background-image:url('${img.src}')"` : ''}>${img ? '' : `<span>${rec.emoji}</span><em>📸 Sin foto</em>`}</div>
-          <div class="holo"></div>
-          <div class="cinta" style="background:${R.color}">${R.label}</div>
-          <div class="num">#${number(id)}</div>
-          ${own ? '<div class="sello">📸 Foto propia</div>' : ''}
-          <div class="pie"><b>${esc(rec.name)}</b><small>${rec.emoji} ${esc(rec.kind)}${rec.city ? ' · ' + esc(rec.city) : ''}</small></div>
-        </div>
-        ${big ? `<div class="cara back">
-          <h3>${rec.emoji} ${esc(rec.name)}</h3>
-          <p>${info && info.text ? esc(info.text) : 'Todavía no sabemos su historia. ¡Tú lo has descubierto!'}</p>
-          <ul>
-            <li>🚩 Conquistado el <b>${new Date(rec.t).toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' })}</b></li>
-            <li>🔁 Visitas: <b>${rec.visits || 1}</b></li>
-            ${rec.barrio ? `<li>🏘️ Barrio: <b>${esc(rec.barrio)}</b></li>` : ''}
-            <li>⭐ Rareza: <b>${R.label}</b></li>
-          </ul>
-          <small>${own ? 'Foto: tuya 📸' : esc((info && info.credit) || '')}${info && info.url ? ` · <a href="${info.url}" target="_blank">Leer más</a>` : ''}</small>
-        </div>` : ''}
-      </div></div>`;
-  }
 
-  // Inclinación del móvil → brillo holográfico
-  let tiltOn = false;
-  function tilt(e) {
-    const el = document.querySelector('#cromo-view .cromo');
-    if (!el || e.beta == null) return;
-    const rx = Math.max(-18, Math.min(18, (e.beta - 45) / 2)), ry = Math.max(-18, Math.min(18, e.gamma / 2));
-    el.style.setProperty('--rx', rx + 'deg'); el.style.setProperty('--ry', ry + 'deg');
-    el.style.setProperty('--hx', (50 + ry * 2.5) + '%'); el.style.setProperty('--hy', (50 + rx * 2.5) + '%');
-  }
 
   // datos de la carta (anverso estilo TCG) para un monumento conquistado
   async function dataFor(id) {
@@ -271,63 +236,6 @@ PM.cards = (function () {
   }
 
   // ---------------- Compartir (imagen del cromo) ----------------
-  async function renderShare(id) {
-    const rec = recOf(id), R = PM.world.RARITY[rec.rarity] || PM.world.RARITY.comun;
-    const W = 1080, H = 1512, c = document.createElement('canvas'); c.width = W; c.height = H;
-    const ctx = c.getContext('2d');
-    const bg = ctx.createLinearGradient(0, 0, W, H); bg.addColorStop(0, '#141722'); bg.addColorStop(1, R.color);
-    ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
-    const rr = (x, y, w, h, r) => { ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath(); };
-    ctx.fillStyle = '#fff'; rr(40, 40, W - 80, H - 80, 48); ctx.fill();
-    ctx.lineWidth = 18; ctx.strokeStyle = R.color; rr(40, 40, W - 80, H - 80, 48); ctx.stroke();
-    // foto
-    const img = await imageFor(id);
-    ctx.save(); rr(90, 170, W - 180, 860, 28); ctx.clip();
-    if (img) {
-      try {
-        const i = await loadImg(img.src);
-        const crop = img.own ? i : applyFilter(cropCard(i, 900), 'orig');
-        const r = Math.max((W - 180) / crop.width, 860 / crop.height);
-        ctx.drawImage(crop, 90 + ((W - 180) - crop.width * r) / 2, 170 + (860 - crop.height * r) / 2, crop.width * r, crop.height * r);
-      } catch (e) { ctx.fillStyle = '#eef1f7'; ctx.fillRect(90, 170, W - 180, 860); }
-    } else { ctx.fillStyle = '#eef1f7'; ctx.fillRect(90, 170, W - 180, 860); ctx.font = '260px serif'; ctx.textAlign = 'center'; ctx.fillText(rec.emoji, W / 2, 700); }
-    if (rec.rarity === 'legendario' || rec.rarity === 'epico') {
-      const g = ctx.createLinearGradient(90, 170, W - 90, 1030);
-      ['rgba(255,46,136,.25)', 'rgba(255,209,102,.2)', 'rgba(34,211,238,.25)', 'rgba(168,85,247,.2)'].forEach((col, k, a) => g.addColorStop(k / (a.length - 1), col));
-      ctx.fillStyle = g; ctx.fillRect(90, 170, W - 180, 860);
-    }
-    ctx.restore();
-    // textos
-    ctx.textAlign = 'left'; ctx.fillStyle = '#ff2e88'; ctx.font = 'italic 900 64px sans-serif'; ctx.fillText('Pinta', 90, 130);
-    ctx.fillStyle = '#22d3ee'; ctx.fillText('Mapa', 90 + ctx.measureText('Pinta').width, 130);
-    ctx.textAlign = 'right'; ctx.fillStyle = R.color; ctx.font = '900 44px sans-serif'; ctx.fillText(R.label.toUpperCase() + '  #' + number(id), W - 90, 125);
-    ctx.textAlign = 'left'; ctx.fillStyle = '#1a1d29'; ctx.font = '900 66px sans-serif';
-    const name = rec.name.length > 26 ? rec.name.slice(0, 25) + '…' : rec.name;
-    ctx.fillText(name, 90, 1120);
-    ctx.fillStyle = '#5d6578'; ctx.font = '500 40px sans-serif';
-    ctx.fillText(`${rec.emoji} ${rec.kind}${rec.city ? ' · ' + rec.city : ''}`, 90, 1190);
-    ctx.fillText(`🚩 Conquistado el ${new Date(rec.t).toLocaleDateString('es-ES')}${PM.player ? ' por ' + PM.player.name : ''}`, 90, 1260);
-    if (img && img.own) { ctx.fillStyle = '#ff2e88'; ctx.font = '800 38px sans-serif'; ctx.fillText('📸 Foto propia', 90, 1330); }
-    ctx.fillStyle = '#9aa3b5'; ctx.font = '400 28px sans-serif';
-    ctx.fillText(img && !img.own ? 'Foto: Wikimedia Commons (CC BY-SA)' : 'Sal a la calle. Pinta tu ciudad. Conquístala.', 90, 1410);
-    return c.toDataURL('image/png');
-  }
-  async function share(id) {
-    const rec = recOf(id);
-    let url;
-    try { url = await renderShare(id); } catch (e) { alert('No se pudo crear la imagen del cromo'); return; }
-    const text = `He conquistado «${rec.name}» en PintaMapa 🖌️🚩`;
-    const P = isNative && window.Capacitor.Plugins;
-    if (P && P.Filesystem && P.Share) {
-      const f = await P.Filesystem.writeFile({ path: `cromo-${id}.png`, data: url.split(',')[1], directory: 'CACHE' });
-      await P.Share.share({ title: rec.name, text, files: [f.uri], dialogTitle: 'Compartir cromo' }).catch(() => {});
-      return;
-    }
-    const blob = await (await fetch(url)).blob();
-    const file = new File([blob], `cromo-${id}.png`, { type: 'image/png' });
-    if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], text }).catch(() => {}); return; }
-    const a = document.createElement('a'); a.href = url; a.download = `PintaMapa-${rec.name}.png`; a.click();
-  }
 
   // ---------------- Colecciones ----------------
   const SETS = [

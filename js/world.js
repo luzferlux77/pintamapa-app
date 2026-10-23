@@ -1183,20 +1183,7 @@ PM.world = (function () {
 
   // ---------------- Botes de pintura del día (como "pokéballs" en el suelo) ----------------
   const cans = {}; // id -> {id, pos, tile, kind}
-  function spawnCans(key) {
-    return;   // los botes de pintura ya no salen en el mapa
-    const t = tiles[key];
-    if (!t || !t.pieces.length) return;
-    const rnd = PM.rng('cans' + key + PM.today());
-    const pcs = t.pieces.slice().sort((a, b) => (a.id < b.id ? -1 : 1));   // mismo orden siempre → mismos botes
-    const n = Math.min(30, Math.ceil(t.pieces.length / 60));   // ~1 bote cada 700 m de calle
-    for (let i = 0; i < n; i++) {
-      const p = pcs[Math.floor(rnd() * pcs.length)];
-      const id = PM.today() + ':' + key + ':' + i;
-      const golden = rnd() < 0.18;
-      cans[id] = { id, pos: p.mid, tile: key, kind: golden ? 'gold' : 'normal' };
-    }
-  }
+  function spawnCans() {}   // los botes de pintura ya no salen en el mapa
 
   // ---------------- Nombres de barrio y ciudad (Nominatim) ----------------
   const nameQueue = [];

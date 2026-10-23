@@ -455,6 +455,7 @@
   function showAt(p, smooth) {
     if (!disp || !smooth || PM.geo.dist(disp, p) > 300) { disp = p.slice(); anim = null; drawPlayer(); return; }
     anim = { from: disp.slice(), to: p.slice(), start: performance.now(), dur: 900 };
+    wakeLoop();
   }
   function stepDisplay(now) {
     if (!anim) return;
@@ -787,18 +788,21 @@
   let lastBearingT = 0, lastCourseT = 0;
   let compass = null;         // brújula del móvil (para cuando estás parado)
   const angDiff = (a, b) => ((b - a + 540) % 360) - 180;
-  function setHeadingTarget(h) { headingTarget = (h + 360) % 360; }
+  function setHeadingTarget(h) { headingTarget = (h + 360) % 360; wakeLoop(); }
   function onCompass(e) {
     let h = null;
     if (e.webkitCompassHeading != null) h = e.webkitCompassHeading;
     else if (e.absolute && e.alpha != null) h = (360 - e.alpha) % 360;
     if (h == null) return;
     compass = compass == null ? h : (compass + angDiff(compass, h) * 0.15 + 360) % 360;
-    compassT = Date.now();
+    compassT = Date.now(); wakeLoop();
   }
   window.addEventListener('deviceorientationabsolute', onCompass);
   // En Android la web no recibe el norte: brújula nativa (sensor de rotación), solo en modo rumbo y con la app a la vista
-  const CompassN = PM.isNative && window.Capacitor.registerPlugin ? window.Capacitor.registerPlugin('Compass') : null;
+  // Plugins nativos: en la app van en Capacitor.Plugins (la web cargada desde el móvil NO trae registerPlugin;
+  // antes se buscaba ahí y por eso el GPS de segundo plano, la brújula y el aviso de batería nunca se activaban)
+  function nativePlugin(name) { const C = window.Capacitor; return (PM.isNative && C && ((C.Plugins && C.Plugins[name]) || (C.registerPlugin && C.registerPlugin(name)))) || null; }
+  const CompassN = nativePlugin('Compass');
   let compassT = 0, compassOn = false, compassListen = false;
   function compassSync() {
     if (!CompassN) return;
@@ -810,7 +814,7 @@
         CompassN.addListener('heading', (d) => {
           const h = d.heading;
           compass = compass == null ? h : (compass + angDiff(compass, h) * 0.35 + 360) % 360;
-          compassT = Date.now();
+          compassT = Date.now(); wakeLoop();
         });
       }
       CompassN.start().catch(() => { compassOn = false; });
@@ -990,8 +994,16 @@
     stepHalos();
     G.tickCombo(Date.now());
     flushPaint();
-    if (!manual) requestAnimationFrame(loop);
+    if (manual) return;
+    // sin nada que mover (quieto, sin girar, sin pintar pendiente): el bucle descansa 1/4 s en vez de ir a 60 por
+    // segundo. Cualquier novedad (GPS, giro, simulador) lo despierta al momento con wakeLoop().
+    const busy = mode === 'sim' || anim || Math.abs(angDiff(heading, headingTarget)) >= 0.3 || Math.abs(map.getPitch() - pitchTarget) > 0.3
+      || streetsDirty || paintedDirty || paintedAdd || (orient === 'heading' && Date.now() - compassT < 1500);
+    if (busy) requestAnimationFrame(loop);
+    else loopSleep = setTimeout(() => { loopSleep = null; requestAnimationFrame(loop); }, 250);
   }
+  let loopSleep = null;
+  function wakeLoop() { if (loopSleep) { clearTimeout(loopSleep); loopSleep = null; lastFrame = performance.now(); requestAnimationFrame(loop); } }
 
   // icono del GPS junto a la velocidad: buscando = antena animada; con señal = fijo (verde, o ámbar si es impreciso)
   function gpsIcon(st, acc) {
@@ -1006,7 +1018,7 @@
   // Ahorro de batería: el GPS solo está encendido durante una sesión activa (no en pausa),
   // el servicio nativo solo despierta cada DISTANCE_FILTER metros y con la app oculta no se redibuja nada.
   const DISTANCE_FILTER = 8;
-  const BG = isNative && window.Capacitor.registerPlugin ? window.Capacitor.registerPlugin('BackgroundGeolocation') : null;
+  const BG = nativePlugin('BackgroundGeolocation');
   let gpsWatch = null;
 
   function onFix(c, t) {
@@ -1027,13 +1039,16 @@
   // ahorro de batería: parado más de 90 s → el GPS solo avisa si te mueves 25 m; en cuanto andas, vuelve a 8 m
   let gpsSaver = false, gpsSaverT = 0;
   function gpsSaverCheck() {
-    if (!gpsWatch || !gpsWatch.bg || !session || session.paused) return;
+    if (!gpsWatch || !gpsWatch.bg || !session || session.paused || document.hidden) return;   // con la pantalla apagada no se toca el GPS
     const still = Date.now() - Math.max(lastMoveT || 0, session.resumedAt || 0) > 90000 && speed < 0.4;
     if (still !== gpsSaver && Date.now() - gpsSaverT > 60000) { gpsSaver = still; gpsSaverT = Date.now(); startGPS(); }
   }
   setInterval(gpsSaverCheck, 30000);
   async function startGPS() {
-    stopGPS();
+    // con el GPS nativo, el vigilante nuevo se crea ANTES de quitar el viejo: si el servicio se quedara un instante
+    // sin vigilantes, Android le quita el «primer plano» y con la pantalla apagada ya no recibiría posiciones
+    const old = gpsWatch && gpsWatch.bg ? gpsWatch : null;
+    if (!old) stopGPS();
     try {
       if (BG) {
         const id = await BG.addWatcher({
@@ -1048,6 +1063,7 @@
           onFix(loc, loc.time);
         });
         gpsWatch = { bg: id };
+        if (old) Promise.resolve(BG.removeWatcher({ id: old.bg })).catch(() => {});
       } else if (navigator.geolocation) {
         gpsWatch = { web: navigator.geolocation.watchPosition((p) => onFix(p.coords, p.timestamp),
           (e) => { toast('No se pudo obtener el GPS: ' + e.message, 'warn'); },
@@ -1061,7 +1077,7 @@
   }
   function stopGPS() {
     if (!gpsWatch) return;
-    if (gpsWatch.bg) BG.removeWatcher({ id: gpsWatch.bg });
+    if (gpsWatch.bg) Promise.resolve(BG.removeWatcher({ id: gpsWatch.bg })).catch(() => {});
     if (gpsWatch.web != null) navigator.geolocation.clearWatch(gpsWatch.web);
     gpsWatch = null;
     gpsIcon('off');
@@ -1121,7 +1137,7 @@
     if (isNative && mode === 'gps') checkBattery();
     toast(mode === 'gps' ? '🖌️ ¡A pintar! Puedes bloquear el móvil: sigo pintando en segundo plano' : '🖌️ ¡A pintar! Muévete con WASD o haz clic en el mapa', 'info', 4500);
   }
-  const PmSys = isNative && window.Capacitor.registerPlugin ? window.Capacitor.registerPlugin('PmSystem') : null;
+  const PmSys = nativePlugin('PmSystem');
   async function checkBattery() {
     let st = null;
     try { st = PmSys && await PmSys.batteryStatus(); } catch (e) { st = null; }   // APK antiguo sin el ajuste: nada
@@ -1291,7 +1307,7 @@
   document.addEventListener('visibilitychange', () => {
     if (!document.hidden) {
       showAt(pos, false);
-      flushPaint(); updateSessionInfo();
+      flushPaint(); updateSessionInfo(); wakeLoop();
       if (mode === 'gps') {
         if (gpsWanted()) { if (!gpsWatch || Date.now() - lastFixT > 20000) startGPS(); }   // el servicio pudo morir en el bolsillo
         else locateOnce();                                                               // sin paseo: una lectura para recolocarte
@@ -1563,20 +1579,6 @@
   }
   $('#sheet .close').addEventListener('click', () => $('#sheet').classList.remove('show'));
 
-  function showCard(lm, pts) {
-    const r = W.RARITY[lm.rarity];
-    const o = $('#card');
-    o.innerHTML = `<div class="cardin r-${lm.rarity}">
-        <div class="rar" style="background:${r.color}">${r.label}</div>
-        <div class="big">${lm.emoji}</div>
-        <h2>${lm.name}</h2>
-        <p>${lm.kind}</p>
-        <div class="pts">+${pts} pts</div>
-        <small>¡Nuevo sello en tu Álbum! Pintar a menos de ${AURA_RADIUS} m de aquí vale x2</small>
-      </div>`;
-    o.classList.add('show');
-    setTimeout(() => o.classList.remove('show'), 4200);
-  }
   $('#card').addEventListener('click', () => $('#card').classList.remove('show'));
 
   function showLandmarkInfo(lm) {
@@ -1773,27 +1775,6 @@
       } catch (e) { toast('❌ ' + (e.message || e), 'warn', 5000); }
     };
     inp.click();
-  }
-  function panelAlbumOld() {
-    const s = S();
-    const got = Object.entries(s.landmarks).sort((a, b) => b[1].t - a[1].t);
-    const order = ['legendario', 'epico', 'raro', 'comun'];
-    const near = Object.values(W.landmarks).filter((l) => !s.landmarks[l.id])
-      .map((l) => ({ l, d: PM.geo.dist(pos, l.pos) })).sort((a, b) => a.d - b.d).slice(0, 12);
-    let html = `<p class="muted">${got.length} sellos coleccionados. Como en una Pokédex: visita monumentos reales para llenarla.</p>`;
-    for (const r of order) {
-      const list = got.filter(([, v]) => v.rarity === r);
-      if (!list.length) continue;
-      html += `<h4 style="color:${W.RARITY[r].color}">${W.RARITY[r].label} (${list.length})</h4><div class="grid">`;
-      html += list.map(([, v]) => `<div class="stamp r-${r}"><div>${v.emoji}</div><b>${v.name}</b><small>${v.kind}</small></div>`).join('');
-      html += '</div>';
-    }
-    if (near.length) {
-      html += '<h4>Por descubrir cerca de ti</h4><div class="grid">';
-      html += near.map(({ l, d }) => `<div class="stamp unknown r-${l.rarity}"><div>${l.emoji}</div><b>???</b><small>${l.kind} · ${PM.fmtDist(d)}</small></div>`).join('');
-      html += '</div>';
-    }
-    openSheet('📖 Álbum de monumentos', html);
   }
 
   function panelMissions() {
