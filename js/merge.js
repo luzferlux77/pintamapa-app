@@ -10,7 +10,10 @@
       out[k] = Object.assign({}, a[k] || {});
       for (const [id, v] of Object.entries(b[k] || {})) out[k][id] = out[k][id] ? Math.min(out[k][id], v) : v;
     };
-    ['painted', 'cansTaken', 'tileNames', 'cities', 'barrioNames', 'cardInfo', 'cardPhotos', 'barrioCards', 'cityCards'].forEach(union);
+    ['painted', 'cansTaken', 'tileNames', 'barrioNames', 'cardInfo', 'cardPhotos', 'barrioCards', 'cityCards'].forEach(union);
+    // longitud de calles de cada ciudad: gana la medida exacta (Overpass) a la aproximada (mapas vectoriales, src 'vt')
+    out.cities = Object.assign({}, a.cities);
+    for (const [k, v] of Object.entries(b.cities || {})) { const o = out.cities[k]; out.cities[k] = o && o.total && !o.src && v && v.src ? o : v; }
     out.setsDone = Object.assign({}, a.setsDone);
     for (const [k, v] of Object.entries(b.setsDone || {})) out.setsDone[k] = Math.max(out.setsDone[k] || 0, v);
     ['conquered', 'perfect', 'conqueredB', 'perfectB', 'citiesWon', 'achievements'].forEach(unionMin);

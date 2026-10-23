@@ -256,20 +256,11 @@ PM.game = (function () {
     }
     // si no hay barrios cargados en esta sesión, usamos lo guardado
     if (!loadedTotal) for (const k in s.tileNames) if (s.tileNames[k].city === city) painted += s.paintedByTile[k] || 0;
-    // calles en tus zonas a evitar: fuera del total y de lo pintado
-    let avoidLen = 0, avoidPainted = 0;
-    if ((s.avoid || []).length) for (const id in PM.world.pieces) {
-      const pc = PM.world.pieces[id];
-      if (!pc.avoid) continue;
-      const t = PM.world.tiles[pc.tile];
-      if (!t || t.city !== city) continue;
-      avoidLen += pc.len;
-      if (s.painted[pc.id]) avoidPainted += pc.len;
-    }
-    painted = Math.max(0, painted - avoidPainted);
+    // (las «zonas a evitar» se retiraron: antes, si quedaba alguna guardada, aquí se recorrían TODOS los tramos
+    // cargados por cada calle pintada)
     const real = s.cities[city] && s.cities[city].total;
-    const total = Math.max(0, (real || loadedTotal) - avoidLen);
-    return { painted, total, real: !!real, avoidLen, pct: total ? Math.min(1, painted / total) : 0 };
+    const total = real || loadedTotal;
+    return { painted, total, real: !!real, pct: total ? Math.min(1, painted / total) : 0 };
   }
 
   function checkCity(city) {
@@ -378,7 +369,7 @@ PM.game = (function () {
   // ---------------- Misiones diarias ----------------
   const MISSION_TEMPLATES = [
     { type: 'paint', goals: [300, 600, 1000, 2000], text: (g) => `Pinta ${PM.fmtDist(g)} de calles nuevas` },
-    { type: 'landmark', goals: [1, 2, 3], text: (g) => `Captura ${g} monumento${g > 1 ? 's' : ''}` },
+    { type: 'landmark', goals: [1, 2, 3], text: (g) => `Captura ${g} lugar${g > 1 ? 'es' : ''}` },
     { type: 'combo', goals: [15, 25, 40], text: (g) => `Consigue un combo x${g}` },
     { type: 'walk', goals: [1000, 2000, 4000], text: (g) => `Camina ${PM.fmtDist(g)}` },
   ];
@@ -445,12 +436,12 @@ PM.game = (function () {
     km10: { name: 'Maratón de pintura', desc: 'Pinta 10 km de calles', icon: '🏃' },
     km42: { name: 'Fidias urbano', desc: 'Pinta 42 km de calles', icon: '🏅' },
     combo50: { name: 'Imparable', desc: 'Combo x50', icon: '🔥' },
-    primer_sello: { name: 'Turista', desc: 'Captura tu primer monumento', icon: '📸' },
-    coleccionista: { name: 'Coleccionista', desc: 'Captura 10 monumentos', icon: '📚' },
-    enciclopedia: { name: 'Enciclopedia andante', desc: 'Captura 50 monumentos', icon: '🧠' },
+    primer_sello: { name: 'Turista', desc: 'Captura tu primer lugar', icon: '📸' },
+    coleccionista: { name: 'Coleccionista', desc: 'Captura 10 lugares', icon: '📚' },
+    enciclopedia: { name: 'Enciclopedia andante', desc: 'Captura 50 lugares', icon: '🧠' },
     peregrino: { name: 'Peregrino', desc: 'Visita 3 templos', icon: '⛪' },
     alcalde: { name: 'Señor alcalde', desc: 'Captura un ayuntamiento', icon: '🏛️' },
-    leyenda: { name: 'Cazador de leyendas', desc: 'Captura un monumento legendario', icon: '👑' },
+    leyenda: { name: 'Cazador de leyendas', desc: 'Captura un lugar legendario', icon: '👑' },
     conquistador: { name: 'Conquistador', desc: 'Conquista tu primer barrio (60 %)', icon: '🚩' },
     senor_barrios: { name: 'Señor de los barrios', desc: 'Conquista 5 barrios', icon: '🗺️' },
     perfeccionista: { name: 'Perfeccionista', desc: 'Pinta un barrio al 100 %', icon: '💯' },

@@ -225,5 +225,10 @@ PM.vtiles = (function () {
     return { els: got.flatMap((g) => g.els), src: [...new Set(got.map((g) => g.src))].join('+') };
   }
 
-  return { fetchBox, decode, convert, SOURCES };
+  // una tesela concreta (z14) y sus límites: para medir una ciudad entera sin contar dos veces el borde de cada tesela
+  const lonOf = (x) => x / 2 ** Z * 360 - 180;
+  const latOf = (y) => { const n = Math.PI - 2 * Math.PI * y / 2 ** Z; return 180 / Math.PI * Math.atan(Math.sinh(n)); };
+  const tileBox = (X, Y) => [latOf(Y + 1), lonOf(X), latOf(Y), lonOf(X + 1)];   // [s, w, n, e]
+  const fetchXY = (X, Y) => fetchAny(X, Y);
+  return { fetchBox, decode, convert, SOURCES, tx, ty, tileBox, fetchXY };
 })();

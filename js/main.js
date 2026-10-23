@@ -65,6 +65,7 @@
   let mapReady = false;
   const FC = (features) => ({ type: 'FeatureCollection', features });
   const lineF = (pts, props) => ({ type: 'Feature', properties: props || {}, geometry: { type: 'LineString', coordinates: pts.map(ll) } });
+  const multiF = (pieces, props) => pieces.length ? { type: 'Feature', properties: props || {}, geometry: { type: 'MultiLineString', coordinates: pieces.map((p) => p.pts.map(ll)) } } : null;
   const circlePoly = (c, r, props) => {
     const out = [];
     for (let i = 0; i <= 48; i++) { const a = i / 48 * 2 * Math.PI; out.push(ll(PM.geo.offset(c, Math.cos(a) * r, Math.sin(a) * r))); }
@@ -151,14 +152,23 @@
   function rebuildStreets() {
     const f = [];
     for (const k of rendered) {
-      if (!tileFeat[k]) tileFeat[k] = W.tiles[k].pieces.map((p) => lineF(p.pts, p.trail ? { t: 1 } : null));
+      // una sola figura por zona (calles y senderos aparte), no una por tramo de 11 m: miles de objetos menos que
+      // preparar y mandar al mapa cada vez que se carga una zona (se dibuja exactamente igual)
+      if (!tileFeat[k]) {
+        const pcs = W.tiles[k].pieces;
+        tileFeat[k] = [multiF(pcs.filter((p) => !p.trail), null), multiF(pcs.filter((p) => p.trail), { t: 1 })].filter(Boolean);
+      }
       for (const x of tileFeat[k]) f.push(x);
     }
     setSrc('pm-streets', FC(f));
   }
   function rebuildPainted() {
     const f = [], painted = S().painted;
-    for (const k of rendered) for (const p of W.tiles[k].pieces) if (painted[p.id]) f.push(lineF(p.pts, { h: heatLevel(p.id) }));
+    for (const k of rendered) {   // por zona, una figura por intensidad (0-3) en vez de una por tramo
+      const by = [[], [], [], []];
+      for (const p of W.tiles[k].pieces) if (painted[p.id]) by[heatLevel(p.id)].push(p);
+      by.forEach((list, h) => { const x = multiF(list, { h }); if (x) f.push(x); });
+    }
     paintedF = f;
     setSrc('pm-painted', FC(f));
   }
@@ -1867,7 +1877,7 @@
       ${rows.map(([k, v]) => `<div class="xprow"><span>${LBL[k] || k}</span><b>${nf(v)}</b><div class="bar"><i style="width:${(v / Math.max(1, s.xp) * 100).toFixed(1)}%"></i></div></div>`).join('') || '<p class="muted">Aún no tienes puntos: ¡sal a pintar!</p>'}
       <h4>Cómo ganar más puntos</h4>
       <ul class="xphow">
-        <li>🖌️ <b>Pintar calle nueva</b>: 10 pts cada 12 m · el combo multiplica hasta ×3 · junto a un monumento ×2</li>
+        <li>🖌️ <b>Pintar calle nueva</b>: 10 pts cada 12 m · el combo multiplica hasta ×3 · junto a un lugar ×2</li>
         <li>📸 <b>Capturar un lugar</b>: 100 (común) · 200 (raro) · 300 (épico) · 500 (legendario)</li>
         <li>⭐ <b>Imprescindibles</b> de cada ciudad: valen el doble · ✨ <b>carta brillante</b> (1 de cada 50): el doble otra vez</li>
         <li>🔁 <b>Volver a un lugar</b> (cada día): +20 % de sus puntos</li>

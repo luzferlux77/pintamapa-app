@@ -1254,15 +1254,16 @@ PM.world = (function () {
   }
 
   // Longitud total REAL de calles del municipio (para el objetivo del 80 %)
-  const cityPending = new Set();
+  const cityPending = new Set(), cityRetried = new Set();
   async function ensureCityStats(city, lat, lon) {
     if (!city || !PM.state) return;
     const cs = PM.state.data.cities;
     let shared = {};
     try { shared = JSON.parse(localStorage.getItem('pintamapa_cities') || '{}'); } catch (e) {}
     if (shared[city] && !(cs[city] && cs[city].total)) { cs[city] = { total: shared[city] }; PM.state.save(); emit('city', { city }); return; }
-    if ((cs[city] && cs[city].total) || cityPending.has(city)) return;
-    cityPending.add(city);
+    // ya medida (con Overpass), midiéndose o medida a ojo con los mapas vectoriales y ya reintentada en esta sesión
+    if ((cs[city] && cs[city].total && (cs[city].src !== 'vt' || cityRetried.has(city))) || cityPending.has(city)) return;
+    cityPending.add(city); cityRetried.add(city);
     // consulta pesada (todo el municipio): espera a que terminen de cargarse las calles para no frenarlas
     while (loading.size || around) await new Promise((r) => setTimeout(r, 3000));
     const q = `[out:json][timeout:90];
@@ -1276,13 +1277,59 @@ PM.world = (function () {
       const st = data.elements.find((e) => e.type === 'stat');
       const len = st ? parseFloat(st.tags.len) : 0;
       if (len > 0) {
-        cs[city] = Object.assign(cs[city] || {}, { total: len });
+        cs[city] = Object.assign(cs[city] || {}, { total: len }); delete cs[city].src;
         try { shared[city] = len; localStorage.setItem('pintamapa_cities', JSON.stringify(shared)); } catch (e) {}
         PM.state.save();
         emit('city', { city });
       }
     } catch (e) { console.warn('No se pudo medir la ciudad', city, e); }
+    // plan B (Overpass caído, cosa frecuente): se mide con los mapas vectoriales dentro del contorno del municipio
+    if (!(cs[city] && cs[city].total)) {
+      const len = Math.round(await measureCityVT(city) * 1.09);   // (los mapas vectoriales se dejan túneles y algunas vías: ~9 % menos)
+      if (len > 0) {
+        cs[city] = Object.assign(cs[city] || {}, { total: len, src: 'vt' });
+        try { shared[city] = len; localStorage.setItem('pintamapa_cities', JSON.stringify(shared)); } catch (e) {}
+        PM.state.save();
+        emit('city', { city });
+      }
+    }
     cityPending.delete(city);
+  }
+  // Longitud de calles de un municipio con los mapas vectoriales: cada tesela z14 que toca su contorno, y de cada
+  // calle solo los trozos cuyo centro cae dentro de la tesela (sin repetir el margen) y dentro del municipio.
+  // Se hace una vez por ciudad, poco a poco (de 4 en 4 teselas) y sin prisa.
+  async function measureCityVT(city) {
+    const ci = cityInfo[city], V = PM.vtiles;
+    if (!ci || !ci.polys || !V || !V.fetchXY) return 0;
+    const [s0, w0, n0, e0] = ci.bbox, list = [];
+    for (let X = V.tx(w0); X <= V.tx(e0); X++) for (let Y = V.ty(n0); Y <= V.ty(s0); Y++) {
+      const [s, w, n, e] = V.tileBox(X, Y);
+      const corners = [[s, w], [s, e], [n, w], [n, e], [(s + n) / 2, (w + e) / 2]];
+      // fuera del todo (ninguna esquina dentro y el municipio no cae dentro de la tesela): se salta
+      if (!corners.some((q) => inCity(q, ci)) && !(s0 >= s && n0 <= n && w0 >= w && e0 <= e) && !ci.polys.some((poly) => poly[0].some(([x, y]) => y >= s && y <= n && x >= w && x <= e))) continue;
+      list.push([X, Y, s, w, n, e]);
+    }
+    if (!list.length || list.length > 200) return 0;   // ciudades enormes: mejor esperar a Overpass
+    let total = 0;
+    for (let i = 0; i < list.length; i += 4) {
+      const part = await Promise.all(list.slice(i, i + 4).map(([X, Y, s, w, n, e]) => V.fetchXY(X, Y).then((r) => {
+        let m = 0;
+        for (const el of r.els) {
+          if (!el.tags || !HW_RE.test(el.tags.highway || '') || !el.geometry) continue;
+          const g = el.geometry;
+          for (let k = 1; k < g.length; k++) {
+            const a = [g[k - 1].lat, g[k - 1].lon], b = [g[k].lat, g[k].lon], mid = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+            if (mid[0] < s || mid[0] >= n || mid[1] < w || mid[1] >= e || !inCity(mid, ci)) continue;
+            m += PM.geo.dist(a, b);
+          }
+        }
+        return m;
+      }, () => null)));
+      if (part.some((x) => x == null)) return 0;   // una tesela no llegó: se mide otro día (mejor que un total falso)
+      total += part.reduce((x, y) => x + y, 0);
+      await new Promise((r) => setTimeout(r, 300));
+    }
+    return Math.round(total);
   }
 
   // ---------------- Consultas ----------------
@@ -1350,7 +1397,7 @@ PM.world = (function () {
       for (let i = i0; i <= i1; i++) for (let j = j0; j <= j1; j++) if (!ensureTile(i + '_' + j).loaded) need.push(i + '_' + j);
       if (need.length && need.length <= 12) loadTiles(need).catch(() => {});
     },
-    _graph: () => gnodes,   // (pruebas)
+    _graph: () => gnodes, _measureCity: (c) => measureCityVT(c),   // (pruebas)
     isDemo: () => demoMode,
     setDemo: (v) => { demoMode = v; },
   };
