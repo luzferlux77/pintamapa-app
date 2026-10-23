@@ -1,8 +1,8 @@
 {
-  "version": "0.6.42",
-  "notes": "Botón «lugares» en la misma fila que el rumbo",
+  "version": "0.6.43",
+  "notes": "Lugares conquistados: halo simbólico con ondas, solo mientras pintas",
   "native": 4,
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.42/pintamapa-web-0.6.42.zip",
-  "checksum": "3d98270077282e751f912bec59847e3109c18863bbe732b274f4fc6e34f8c62a",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.42/PintaMapa-v0.6.42.apk"
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.43/pintamapa-web-0.6.43.zip",
+  "checksum": "29dbfd02fa5a428c9089fe2090b23d8506c9ff66dce9fd05e6c7a1e5a2222c6b",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.43/PintaMapa-v0.6.43.apk"
 }
