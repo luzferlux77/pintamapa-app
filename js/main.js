@@ -61,10 +61,7 @@
   map.touchZoomRotate.disableRotation();
   // si el hueco del mapa cambia de tamaño (pantalla de inicio, giro, teclado…), el mapa se reajusta
   if (window.ResizeObserver) new ResizeObserver(() => { map.resize(); padCache.t = 0; }).observe(map.getContainer());
-  map.addControl(new maplibregl.AttributionControl({ compact: true, customAttribution: '© OpenStreetMap · OpenFreeMap' }), 'bottom-left');
-  // aviso de © plegado (MapLibre lo despliega solo al cargar y al cambiar de tamaño, y en el móvil tapa el mapa); se abre tocando la ⓘ
-  const foldAttrib = () => setTimeout(() => { const at = map.getContainer().querySelector('.maplibregl-ctrl-attrib'); if (at) at.classList.remove('maplibregl-compact-show'); }, 0);
-  map.once('load', foldAttrib); map.on('resize', foldAttrib);
+  // sin la «i» de créditos en el mapa (molestaba): los créditos de OpenStreetMap y OpenFreeMap están en la pantalla de inicio
   let mapReady = false;
   const FC = (features) => ({ type: 'FeatureCollection', features });
   const lineF = (pts, props) => ({ type: 'Feature', properties: props || {}, geometry: { type: 'LineString', coordinates: pts.map(ll) } });
@@ -111,8 +108,6 @@
         'line-width': ['+', ['case', ['==', ['get', 'cur'], 1], 3.5, 2.5], ['*', 0.8, ['get', 'rk']]] } }, true);
   }
   map.on('style.load', () => { mapReady = true; PM.mapStyle.enhance(map, curStyle); iconMade.clear(); addOverlay(); set3D(false); flushLandmarks(true); if (placesOff) setPlaces(true, true); });
-  // créditos plegados (botón ⓘ): ocupan mucho en el móvil
-  map.once('idle', () => { const a = document.querySelector('.maplibregl-ctrl-attrib'); if (a) a.classList.remove('maplibregl-compact-show'); });
   // marcador HTML (lugares, banderas, etiquetas)
   function htmlMarker(p, html, opts = {}) {
     const el = document.createElement('div');
@@ -414,7 +409,7 @@
   // Parado o sin pintar, el lugar se ve conquistado (bandera y color) pero sin halo.
   let haloOn = false, haloT = 0;
   const haloCol = () => ['case', ['==', ['get', 'm'], 1], '#eab308', paintColor()];   // imprescindibles: dorado
-  function mustR(k) { return ['interpolate', ['linear'], ['zoom'], 12, 13 * k, 15, 21 * k, 17, 29 * k, 19, 33 * k]; }
+  function mustR(k) { return ['interpolate', ['linear'], ['zoom'], 12, 18 * k, 15, 30 * k, 17, 42 * k, 19, 48 * k]; }   // algo más grande que el icono: se ve alrededor
   function haloR(k) { return ['interpolate', ['linear'], ['zoom'], 12, 6 * k, 15, 13 * k, 17, 20 * k, 19, 26 * k]; }
   function stepHalos(now) {
     const want = !!(session && !session.paused) && !placesOff && mapReady;
@@ -427,8 +422,8 @@
     // latido suave de los imprescindibles (2,6 s, sin cambios bruscos)
     if (mapReady && !placesOff && map.getLayer('pm-must-pulse')) {
       const b = 0.5 - 0.5 * Math.cos(now / 2600 * 2 * Math.PI);
-      map.setPaintProperty('pm-must-pulse', 'circle-opacity', 0.18 + 0.4 * b);
-      map.setPaintProperty('pm-must-pulse', 'circle-radius', mustR(0.92 + 0.16 * b));
+      map.setPaintProperty('pm-must-pulse', 'circle-opacity', 0.15 + 0.4 * b);
+      map.setPaintProperty('pm-must-pulse', 'circle-radius', mustR(0.85 + 0.25 * b));
     }
     if (!haloOn || !Object.keys(lmHalos).length) return;
     [['pm-halo-line', 0], ['pm-halo-wave2', 0.5]].forEach(([l, off]) => {
@@ -2310,7 +2305,7 @@
       isNative ? '📡 Pulsa «Empezar a pintar» y sal a la calle' : '🕹️ Pulsa «Empezar a pintar» y muévete con WASD o clic', 'info', 4500), 600);
   }
   $('#start').addEventListener('click', () => begin(true));
-  $('#intro-ver').textContent = `v${PM.VERSION.app} · datos © OpenStreetMap`;
+  $('#intro-ver').textContent = `v${PM.VERSION.app} · datos © OpenStreetMap · mapa OpenFreeMap`;
   // versión bien visible (inicio y esquina del juego) para saber qué versión tienes instalada
   $('#intro-badge').innerHTML = `Versión <b>${PM.VERSION.app}</b> · ${new Date(PM.VERSION.date).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' })}` +
     (PM.isNative ? '' : ' · <i>web</i>');
