@@ -1148,10 +1148,13 @@
   function syncGPS() { if (gpsWanted()) { if (!gpsWatch) startGPS(); } else stopGPS(); }
 
   function setMode(m) {
+    const changed = m !== mode;
     mode = m;
     document.body.classList.toggle('sim', m === 'sim');
     $('#gps').classList.toggle('show', m === 'gps');
-    lastP = null; speed = 0;
+    // solo al cambiar de modo se olvida la última posición (al abrir la app con un paseo en marcha se conserva:
+    // es el punto de partida para rellenar el tramo hecho mientras Android la tuvo cerrada)
+    if (changed) { lastP = null; speed = 0; }
     if (m === 'gps') { if (!gpsWanted()) locateOnce(); syncGPS(); } else stopGPS();
     renderSimPanel();
   }
