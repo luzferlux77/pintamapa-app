@@ -26,6 +26,7 @@
     Q543654: { amenity: 'townhall' }, Q25550691: { amenity: 'townhall' }, Q112793351: { amenity: 'townhall' },
     Q43501: { tourism: 'attraction' }, Q194195: { tourism: 'attraction' }, Q6017969: { tourism: 'viewpoint' }, Q12280: { historic: 'monument' },
     Q38720: { man_made: 'tower' }, Q39614: { historic: 'monument' },
+    Q1154710: { leisure: 'stadium' }, Q120560: { building: 'basilica' }, Q22746: { leisure: 'park' }, Q143912: { historic: 'city_gate' }, Q2293362: { historic: 'monument' },
     // edificios: solo entran si además son patrimonio protegido
     Q41176: { building: 'yes' }, Q3947: { building: 'yes' }, Q585956: { building: 'yes' }, Q3950: { building: 'yes' }, Q83405: { building: 'yes' }, Q1662011: { building: 'yes' }, Q627236: { building: 'yes' },
   };
@@ -40,6 +41,20 @@
  OPTIONAL { ?item wdt:P1435 ?h } OPTIONAL { ?item wdt:P31 ?c }
  SERVICE wikibase:label { bd:serviceParam wikibase:language "es,ca,en,fr,de,it,pt,nl,mul". }
 } GROUP BY ?item ?itemLabel ?coord`;
+  }
+
+  // Los lugares más conocidos de una zona grande (una ciudad entera): por número de artículos en wikis (sitelinks), de más a menos
+  function topQuery(s, w, n, e, minSl) {
+    return `SELECT ?item ?itemLabel ?coord (?sl AS ?wp) (SAMPLE(?h) AS ?her) (GROUP_CONCAT(DISTINCT STRAFTER(STR(?c), "entity/"); separator=",") AS ?cls) WHERE {
+ { SELECT ?item ?coord ?sl WHERE {
+   SERVICE wikibase:box { ?item wdt:P625 ?coord. bd:serviceParam wikibase:cornerSouthWest "Point(${w} ${s})"^^geo:wktLiteral. bd:serviceParam wikibase:cornerNorthEast "Point(${e} ${n})"^^geo:wktLiteral. }
+   ?item wikibase:sitelinks ?sl. FILTER(?sl >= ${minSl})
+   FILTER NOT EXISTS { ?item wdt:P1082 [] } FILTER NOT EXISTS { ?item wdt:P81 [] }
+   FILTER NOT EXISTS { ?item wdt:P576 [] } FILTER NOT EXISTS { ?item wdt:P5817 wd:Q56556915 }
+ } ORDER BY DESC(?sl) LIMIT 400 }
+ OPTIONAL { ?item wdt:P1435 ?h } OPTIONAL { ?item wdt:P31 ?c }
+ SERVICE wikibase:label { bd:serviceParam wikibase:language "es,ca,en,fr,de,it,pt,nl,mul". }
+} GROUP BY ?item ?itemLabel ?coord ?sl`;
   }
 
   // Convierte la respuesta en elementos tipo OSM: { type:'node', id:'Q123', lat, lon, tags }
@@ -72,7 +87,14 @@
     return parse(await r.json());
   }
 
-  const api = { fetchBox, parse, query };
+  async function fetchTop(s, w, n, e, minSl, fetchFn) {
+    const url = 'https://query.wikidata.org/sparql?format=json&query=' + encodeURIComponent(topQuery(s, w, n, e, minSl));
+    const r = await (fetchFn || fetch)(url, { headers: { Accept: 'application/sparql-results+json' } });
+    if (!r.ok) throw new Error('Wikidata HTTP ' + r.status);
+    return parse(await r.json()).sort((a, b) => b.tags._wp - a.tags._wp);   // de más a menos conocido
+  }
+
+  const api = { fetchBox, fetchTop, parse, query, topQuery };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else { root.PM = root.PM || {}; root.PM.wikidata = api; }
 })(typeof window !== 'undefined' ? window : globalThis);

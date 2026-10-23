@@ -374,16 +374,23 @@ PM.cards = (function () {
         }).join('');
       } else if (tab === 'must') {
         // los imprescindibles de cada ciudad: los que tienes (a color) y los que te faltan (en gris, toca para verlos en el mapa)
+        // la lista FIJA de cada ciudad (los más conocidos de todo el municipio; más en las grandes), estén cargados o no en el mapa
         const byCity = {};
         const add = (c, x) => { const L = byCity[c] = byCity[c] || []; if (!L.some((y) => y.id === x.id)) L.push(x); };
-        for (const lm of Object.values(PM.world.landmarks)) if (lm.must) add(PM.world.cityAt(lm.pos) || 'Otros lugares', { id: lm.id, name: lm.name, emoji: lm.emoji, kind: lm.kind });
-        for (const [id, r] of Object.entries(s.landmarks)) if (r.must) add(r.city || 'Otros lugares', { id, name: r.name, emoji: r.emoji, kind: r.kind });
+        const fixed = PM.world.mustLists();
+        for (const [c, L] of Object.entries(fixed)) L.forEach((e) => {
+          // sin cargar en el mapa ahora: el tuyo ya conseguido de esa lista (mismo sitio)
+          if (!e.id) { const r = Object.entries(s.landmarks).find(([id, v]) => id === e.q || (v.must && v.pos && v.city === c && PM.geo.dist(v.pos, e.pos) < 400)); if (r) e.id = r[0]; }
+          const got = e.id && s.landmarks[e.id];
+          add(c, { id: e.id || 'q:' + e.q, name: got ? got.name : e.name, emoji: got ? got.emoji : e.emoji, kind: e.kind });
+        });
+        for (const [id, r] of Object.entries(s.landmarks)) if (r.must && !fixed[r.city]) add(r.city || 'Otros lugares', { id, name: r.name, emoji: r.emoji, kind: r.kind });
         const cities = Object.entries(byCity).map(([c, L]) => [c, L, L.filter((x) => s.landmarks[x.id]).length]).sort((a, b) => b[2] - a[2] || b[1].length - a[1].length);
         html += cities.length ? '<p class="muted">Los lugares que no te puedes perder en cada ciudad. Valen el doble. Toca uno para verlo en el mapa.</p>' + cities.map(([c, L, g]) => `
           <div class="must-city"><div class="mc-h"><b>${esc(c)}</b><span>${g}/${L.length}${g >= L.length ? ' 🏆' : ''}</span></div><div class="bar"><i style="width:${Math.round(g / Math.max(1, L.length) * 100)}%"></i></div>
           <div class="must-grid">${L.map((x) => { const got = !!s.landmarks[x.id], u = PM.emojiURL(x.emoji); return `<button class="must-it ${got ? 'got' : ''}" data-go="${esc(x.id)}">
             <span class="mi-ic">${u ? `<img src="${u}" alt="">` : (x.emoji || '📍')}</span><b>${esc(x.name)}</b><small>${got ? '✓ conseguido' : '📍 ver en el mapa'}</small></button>`; }).join('')}</div></div>`).join('')
-          : '<p class="muted">Aún no se han cargado imprescindibles. Abre el mapa de una ciudad y aparecerán aquí los lugares que no te puedes perder (al menos 10 por ciudad).</p>';
+          : '<p class="muted">Aún no hay imprescindibles. Abre el mapa de una ciudad y aparecerán aquí los lugares que no te puedes perder (siempre los mismos; más cuanto más grande es la ciudad).</p>';
       } else {
         const bc = Object.entries(s.barrioCards || {}).sort((a, b) => b[1].t - a[1].t);
         html += bc.length ? '<div class="cromos">' + bc.map(([id, b]) => barrioCardHTML(b)).join('') + '</div>'

@@ -103,7 +103,7 @@
       paint: { 'line-color': ['match', ['get', 'rk'], 1, PM.RANKS[1].color, 2, PM.RANKS[2].color, 3, PM.RANKS[3].color, PM.RANKS[0].color], 'line-opacity': 0.9,
         'line-width': ['+', ['case', ['==', ['get', 'cur'], 1], 3.5, 2.5], ['*', 0.8, ['get', 'rk']]] } }, true);
   }
-  map.on('style.load', () => { mapReady = true; PM.mapStyle.enhance(map, curStyle); iconMade.clear(); addOverlay(); set3D(false); flushLandmarks(true); });
+  map.on('style.load', () => { mapReady = true; PM.mapStyle.enhance(map, curStyle); iconMade.clear(); addOverlay(); set3D(false); flushLandmarks(true); if (placesOff) setPlaces(true, true); });
   // créditos plegados (botón ⓘ): ocupan mucho en el móvil
   map.once('idle', () => { const a = document.querySelector('.maplibregl-ctrl-attrib'); if (a) a.classList.remove('maplibregl-compact-show'); });
   // marcador HTML (lugares, banderas, etiquetas)
@@ -495,7 +495,8 @@
     const visible = !document.hidden;
     if (visible) showAt(p, mode === 'gps' && !isTeleport);
     // rumbo que da el propio GPS (fiable al caminar): manda sobre el calculado
-    if (fixBearing != null && !isNaN(fixBearing) && (fixSpeed || 0) > 0.9 && confirmTurn(fixBearing)) { setHeadingTarget(fixBearing); lastCourseT = Date.now(); }
+    // (un 0 exacto es «sin rumbo» en muchos móviles; y se alinea con la calle por la que vas)
+    if (fixBearing != null && !isNaN(fixBearing) && fixBearing !== 0 && (fixSpeed || 0) > 0.9) { const h = alongStreet(p, fixBearing); if (confirmTurn(h)) { setHeadingTarget(h); lastCourseT = Date.now(); } }
     const painting = session && !session.paused;
 
     if (!painting) {
@@ -859,8 +860,30 @@
     const h = (Math.atan2(dx, dy) * 180 / Math.PI + 360) % 360;
     lastMoveT = Date.now();
     if (mode === 'gps' && Date.now() - lastCourseT < 3000) return;   // ya hay rumbo del GPS, más fiable
-    if (mode === 'gps' && !confirmTurn(h)) return;
-    setHeadingTarget(h);
+    const hs = alongStreet(b, h);
+    if (mode === 'gps' && !confirmTurn(hs)) return;
+    setHeadingTarget(hs);
+  }
+  // Si vas por una calle, el mapa se alinea con ELLA (no con el rumbo del GPS, que baila unos grados de lado a lado):
+  // la calle más cercana (< 15 m) cuyo sentido se parece al de la marcha (± 35°); en un cruce o en una plaza, el rumbo tal cual.
+  function alongStreet(p, h) {
+    let best = null, bd = 15;
+    const kx = PM.geo.mPerDegLon(p[0]), ky = PM.geo.mPerDegLat;
+    for (const pc of W.piecesNear(p, 15)) {
+      const pts = pc.pts;
+      for (let i = 1; i < pts.length; i++) {
+        const ax = (pts[i - 1][1] - p[1]) * kx, ay = (pts[i - 1][0] - p[0]) * ky, bx = (pts[i][1] - p[1]) * kx, by = (pts[i][0] - p[0]) * ky;
+        const dx = bx - ax, dy = by - ay, L = dx * dx + dy * dy;
+        if (L < 1) continue;
+        const t = Math.max(0, Math.min(1, -(ax * dx + ay * dy) / L)), d = Math.hypot(ax + t * dx, ay + t * dy);
+        if (d >= bd) continue;
+        let sb = (Math.atan2(dx, dy) * 180 / Math.PI + 360) % 360;
+        if (Math.abs(angDiff(h, sb)) > 90) sb = (sb + 180) % 360;   // la calle en el sentido en que vas
+        if (Math.abs(angDiff(h, sb)) > 35) continue;
+        bd = d; best = sb;
+      }
+    }
+    return best == null ? h : best;
   }
 
   // un giro brusco (> 120°, "media vuelta") solo se acepta si la siguiente medida lo confirma: fuera tumbos por ruido
@@ -894,6 +917,18 @@
     $('#btn-orient').innerHTML = o === 'heading' ? '<span>➤</span><small>rumbo</small>' : '<span>N</span><small>norte</small>';
     $('#btn-orient').classList.toggle('on', o === 'heading');
   }
+  // Ver solo tus calles pintadas: oculta los lugares para conquistar (al empezar a pintar vuelven a salir)
+  let placesOff = false;
+  try { placesOff = localStorage.getItem('pintamapa_places_off') === '1'; } catch (e) {}
+  function setPlaces(off, quiet) {
+    placesOff = off;
+    try { localStorage.setItem('pintamapa_places_off', off ? '1' : '0'); } catch (e) {}
+    ['pm-lms', 'pm-halo-fill', 'pm-halo-line'].forEach((l) => { if (map.getLayer(l)) map.setLayoutProperty(l, 'visibility', off ? 'none' : 'visible'); });
+    $('#btn-places').classList.toggle('off', off);
+    $('#btn-places').innerHTML = off ? '<span>🖌️</span><small>calles</small>' : '<span>📍</span><small>lugares</small>';
+    if (!quiet) toast(off ? '🖌️ Solo tus calles pintadas (los lugares, ocultos)' : '📍 Lugares para conquistar visibles', 'info');
+  }
+  $('#btn-places').addEventListener('click', () => setPlaces(!placesOff));
   $('#btn-orient').addEventListener('click', () => {
     setOrient(orient === 'heading' ? 'north' : 'heading');
     toast(orient === 'heading' ? '🧭 El mapa gira hacia donde andas' + (mode === 'sim' ? ' (A/D giran, W/S avanzan)' : '') : '🧭 Norte arriba (mapa fijo)', 'info');
@@ -1083,6 +1118,7 @@
   function persistSession() { if (session) session.lastSeen = Date.now(); S().session = session; PM.state.save(); }
 
   function startSession() {
+    if (placesOff) setPlaces(false, true);   // pintando, los lugares se ven siempre (si no, pasarías de largo)
     session = { start: Date.now(), resumedAt: Date.now(), elapsed: 0, paused: false, st: newSessionStats(), track: [] };
     lastP = null; walkAnchor = null;
     persistSession(); syncGPS(); renderSession();
@@ -1502,7 +1538,11 @@
   W.onChange((ev, d) => {
     if (ev === 'barrios') { hudB.dirty = true; renderBarrios(); return; }
     if (ev === 'migrated') { paintedDirty = true; return; }
-    if (ev === 'named') { if (PM.fillLandmarkCities(S())) PM.state.save(); if (W.updateMustSee()) { lmDirty = true; flushLandmarks(); } return; }
+    if (ev === 'named') {
+      if (W.updateMustSee()) { lmDirty = true; flushLandmarks(); }
+      if (PM.fillLandmarkCities(S()) + W.fixRecords(S())) PM.state.save();
+      return;
+    }
     if (ev === 'lmRemoved') { if (lmIndex[d.id]) { delete lmIndex[d.id]; flushLandmarks(true); } return; }
     if (ev === 'loaded' || ev === 'partial') {
       d.tiles.forEach((k) => renderTile(k, true));
@@ -1562,7 +1602,17 @@
   }
   // centra el mapa en un lugar y abre su carta (o su ficha si aún no es tuyo)
   function goToPlace(id) {
-    const lm = W.landmarks[id] || (S().landmarks[id] && Object.assign({ id }, S().landmarks[id]));
+    let lm = W.landmarks[id] || (S().landmarks[id] && Object.assign({ id }, S().landmarks[id]));
+    if (!lm && /^q:/.test(id)) {   // imprescindible de la lista de su ciudad que aún no se ha cargado: se va allí y aparece al cargar
+      const e = [].concat(...Object.values(W.mustLists())).find((x) => x.q === id.slice(2));
+      if (!e) return;
+      $('#sheet').classList.remove('show');
+      follow = false; zoomAround(); $('#btn-center').classList.add('show'); clearTimeout(recenterTimer); recenterTimer = setTimeout(recenter, 25000);
+      map.easeTo({ center: ll(e.pos), zoom: Math.max(16.2, map.getZoom()), duration: 900 });
+      W.ensureAround(e.pos[0], e.pos[1]);
+      toast(`⭐ ${esc(e.name)}: imprescindible de esta ciudad`, 'info');
+      return;
+    }
     if (!lm || !lm.pos) return;
     $('#sheet').classList.remove('show');
     follow = false; zoomAround(); $('#btn-center').classList.add('show'); clearTimeout(recenterTimer); recenterTimer = setTimeout(recenter, 25000);
@@ -2180,7 +2230,7 @@
     unscroll(); document.body.addEventListener('scroll', unscroll, { passive: true }); window.addEventListener('scroll', unscroll, { passive: true });
     PM.sound._ctx();
     G.ensureDaily();
-    if (PM.fillLandmarkCities(S())) PM.state.save();   // lugares conquistados sin ciudad: se completa
+    if (PM.fillLandmarkCities(S()) + W.fixRecords(S())) PM.state.save();   // lugares conquistados sin ciudad (o con la de la celda vecina): se corrige
     recolorAll();
     W.setAvoid(AVOID_ON ? S().avoid : []);
     teleport(pos);

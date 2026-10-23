@@ -231,6 +231,11 @@ kbd { background: var(--btn); border-radius: 5px; padding: 1px 6px; color: var(-
 .fab.orient span { font-size: 20px; font-weight: 900; color: #ef4444; }
 .fab.orient small { font-size: 9px; color: var(--muted); margin-top: 1px; }
 .fab.orient.on span { color: var(--paint); }
+/* botón «lugares»: debajo del de orientación; apagado = solo tus calles pintadas */
+.fab.orient.places { top: calc(266px + var(--safe-top)); }
+.fab.orient.places span { font-size: 18px; color: inherit; }
+.fab.orient.places.off { background: var(--accent); border-color: var(--accent); }
+.fab.orient.places.off small { color: #fff; }
 #combo { top: calc(270px + var(--safe-top)); }
 .player .arrow { position: absolute; inset: -10px; pointer-events: none; transition: transform .2s; }
 .player .arrow::before { content: ''; position: absolute; left: 50%; top: 0; transform: translateX(-50%);
@@ -353,6 +358,8 @@ details.howto ol { padding-left: 18px; line-height: 1.6; }
 #badges #capture { white-space: normal; flex-basis: 100%; }
 .fab.orient, .fab.avoidbtn { width: 44px; height: 44px; top: calc(156px + var(--safe-top)); }
 .fab.orient { right: 64px; } .fab.avoidbtn { right: 14px; }
+.fab.orient.places { right: 14px; top: calc(156px + var(--safe-top)); }
+.fab.orient.places span { font-size: 15px; }
 .fab.orient span { font-size: 17px; } .fab.avoidbtn span { font-size: 15px; }
 .city-h { margin: 16px 0 8px; font-size: 15px; } .city-h span { color: var(--muted); font-weight: 500; margin-left: 4px; }
 

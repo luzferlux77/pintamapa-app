@@ -204,42 +204,119 @@ PM.world = (function () {
     const cell = Math.floor(lm.pos[0] / GRID) + ':' + Math.floor(lm.pos[1] / GRID);
     (lmGrid[cell] = lmGrid[cell] || []).push(lm);
   }
-  // ---------- Imprescindibles: en cada ciudad, los lugares que no te puedes perder ----------
-  // Mínimo 10 por ciudad; en las grandes, tantos como lugares de verdad importantes tenga (hasta 30).
-  // Importancia: en cuántas Wikipedias del mundo aparece (lo más fiable), rareza, artículo propio y si es principal.
-  // Nunca estaciones, paradas, hospitales ni cementerios. Si un pueblo no llega a 10 lugares muy conocidos,
-  // se completa con los siguientes mejores (patrimonio, plazas o parques con historia…).
-  const MUST_MIN = 10, MUST_MAX = 30;
-  const MUST_NO = /^(Estación|Parada de tranvía|Hospital|Bomberos|Arte urbano|Memorial|Comercio emblemático|Biblioteca|Mercado)$/;
-  const RANKV = { comun: 0, raro: 1, epico: 2, legendario: 3 };
-  // devuelve [puntuación, nivel]: nivel 2 = muy importante, 1 = importante, 0 = de relleno (solo si faltan para llegar a 10)
-  function mustScore(lm) {
-    if (MUST_NO.test(lm.kind)) return null;
-    if (/cementeri|cementiri|panteó|panteón|tanatori|cemetery/i.test(lm.name || '')) return null;
-    const wp = lm.wp || 0, rk = RANKV[lm.rarity] || 0;
-    if (lm.kind === 'Campo de fútbol' && wp < 3) return null;
-    if (!lm.wiki && !lm.wd && rk < 1 && wp < 1) return null;   // el relleno también tiene que ser algo conocido
-    const sc = wp * 4 + rk * 12 + (lm.wiki || lm.wd ? 6 : 0) + (lm.principal ? 4 : 0) + (lm.prio || 0) * 0.05;
-    const green = lm.kind === 'Parque' || lm.kind === 'Plaza' || lm.kind === 'Fuente';
-    const tier = wp >= 8 || rk >= 3 ? 2 : (!green || wp >= 8) && (wp >= 3 || rk >= 2 || lm.wiki) ? 1 : 0;
-    return [sc, tier];
+  // ---------- Ciudades: su contorno oficial y sus imprescindibles FIJOS ----------
+  // La ciudad de un lugar sale de su contorno real (antes, del centro de su celda de ~1 km: en los límites
+  // una iglesia de Barcelona podía salir «Sant Boi»). Y cada ciudad tiene sus imprescindibles fijos (las cartas doradas):
+  // los lugares más conocidos de TODO el municipio según Wikidata (en cuántas wikis salen), no los que
+  // haya cargados a tu alrededor (por eso antes iban cambiando). Se piden una vez y se guardan.
+  // Cuántos, según su tamaño: un pueblo, unos pocos; una gran ciudad, muchos más.
+  const CITY_V = 2;
+  function mustCount(ci, els) {
+    const pop = ci.pop || 0;
+    if (pop) return pop >= 3000000 ? 30 : pop >= 1000000 ? 20 : pop >= 400000 ? 15 : pop >= 100000 ? 10 : pop >= 20000 ? 6 : 4;
+    const famous = els.filter((el) => (el.tags._wp || 0) >= 10).length;   // sin población: por cuántos lugares muy conocidos tiene
+    return Math.max(4, Math.min(20, famous));
   }
+  let cityInfo = {};
+  try { cityInfo = JSON.parse(localStorage.getItem('pintamapa_cityinfo') || '{}'); } catch (e) {}
+  for (const k in cityInfo) if (!cityInfo[k] || cityInfo[k].v !== CITY_V) delete cityInfo[k];
+  const saveCityInfo = () => { try { localStorage.setItem('pintamapa_cityinfo', JSON.stringify(cityInfo)); } catch (e) {} };
+  function inRing(p, ring) {   // ring: [[lon, lat], …]
+    let inside = false; const x = p[1], y = p[0];
+    for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+      const xi = ring[i][0], yi = ring[i][1], xj = ring[j][0], yj = ring[j][1];
+      if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) inside = !inside;
+    }
+    return inside;
+  }
+  function inCity(p, ci) {
+    const b = ci.bbox;
+    if (!b || p[0] < b[0] || p[0] > b[2] || p[1] < b[1] || p[1] > b[3]) return false;
+    return ci.polys.some((poly) => inRing(p, poly[0]) && !poly.slice(1).some((h) => inRing(p, h)));
+  }
+  function shapeCity(p) { for (const name in cityInfo) if (cityInfo[name].polys && inCity(p, cityInfo[name])) return name; return null; }
+  // contorno de la ciudad que hay en ese punto (Nominatim, en la misma cola que los nombres de barrio: 1 por segundo)
+  const cityAsked = new Set();
+  function ensureCity(lat, lon) {
+    if (demoMode || !PM.state || typeof fetch === 'undefined') return;
+    const c = shapeCity([lat, lon]);
+    if (c) { if (!cityInfo[c].must) cityMust(c); return; }
+    const k = lat.toFixed(3) + ',' + lon.toFixed(3);
+    if (cityAsked.has(k)) return;
+    cityAsked.add(k);
+    nameQueue.push({ city: [lat, lon] });
+    if (!naming) drainNames();
+  }
+  async function fetchCityShape(lat, lon) {
+    if (shapeCity([lat, lon])) return;
+    try {
+      const r = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=10&accept-language=es&extratags=1&polygon_geojson=1&polygon_threshold=0.0003&lat=${lat}&lon=${lon}`);
+      const j = await r.json(), a = j.address || {}, g = j.geojson;
+      const name = a.city || a.town || a.village || a.municipality;
+      if (!name || !g || !/Polygon$/.test(g.type) || (j.name && j.name !== name)) return;   // sin contorno de municipio: se sigue por celdas
+      const rnd = (ring) => ring.map((q) => [+q[0].toFixed(5), +q[1].toFixed(5)]);
+      const polys = (g.type === 'Polygon' ? [g.coordinates] : g.coordinates).map((poly) => poly.map(rnd));
+      let bb = [90, 180, -90, -180];
+      polys.forEach((poly) => poly[0].forEach(([x, y]) => { bb = [Math.min(bb[0], y), Math.min(bb[1], x), Math.max(bb[2], y), Math.max(bb[3], x)]; }));
+      const ex = j.extratags || {};
+      cityInfo[name] = { v: CITY_V, q: ex.wikidata || null, pop: parseInt(String(ex.population || '').replace(/\D/g, ''), 10) || 0, polys, bbox: bb, t: Date.now(), must: (cityInfo[name] || {}).must || null };
+      saveCityInfo();
+      emit('named', { city: name });
+      cityMust(name);
+    } catch (e) { /* sin conexión: se volverá a pedir en otra sesión */ }
+  }
+  // los lugares más conocidos del municipio (una sola vez por ciudad)
+  const mustBusy = new Set();
+  async function cityMust(name) {
+    const ci = cityInfo[name];
+    if (!ci || ci.must || mustBusy.has(name) || !PM.wikidata || !PM.wikidata.fetchTop) return;
+    mustBusy.add(name);
+    try {
+      const [s0, w0, n0, e0] = ci.bbox;
+      const big = (n0 - s0) * (e0 - w0) > 0.004;   // ciudad grande: solo lo bastante conocido (la consulta es más ligera)
+      const ctl = new AbortController(), to = setTimeout(() => ctl.abort(), 60000);
+      const els = await PM.wikidata.fetchTop(s0, w0, n0, e0, big ? 6 : 2, (u, o) => fetch(u, { ...o, signal: ctl.signal }));
+      clearTimeout(to);
+      const list = [], inside = els.filter((el) => inCity([el.lat, el.lon], ci)), N = mustCount(ci, inside);
+      for (const el of inside) {
+        const pos = [el.lat, el.lon], nm = el.tags.name;
+        const c = classify(el.tags);
+        if (!c || MUST_NO.test(c.kind) || c.kind === 'Campo de fútbol') continue;
+        if (/cementeri|cementiri|panteó|panteón|tanatori|cemetery/i.test(nm)) continue;
+        if (list.some((x) => PM.geo.dist(x.pos, pos) < 120 || (sameName(x.name, nm) && PM.geo.dist(x.pos, pos) < 400))) continue;   // el museo dentro del estadio…
+        list.push({ q: el.id, name: nm, pos, kind: c.kind, emoji: c.emoji, sl: el.tags._wp || 0 });
+        if (list.length >= N) break;
+      }
+      cityInfo[name].must = list;
+      saveCityInfo();
+      emit('named', { city: name });
+    } catch (e) { console.warn('Imprescindibles de', name, 'pendientes', e); }
+    mustBusy.delete(name);
+  }
+  // qué lugar del mapa es cada imprescindible de la lista: el mismo de Wikidata, el mismo nombre o el importante que hay justo ahí
+  function matchMust(e, lms) {
+    let best = lms.find((lm) => lm.wd === e.q || lm.id === e.q);
+    if (best) return best;
+    let bd = 1e9;
+    for (const lm of lms) { const d = PM.geo.dist(lm.pos, e.pos); if (d < 400 && d < bd && sameName(lm.name, e.name)) { bd = d; best = lm; } }
+    if (best) return best;
+    bd = 80;
+    for (const lm of lms) { const d = PM.geo.dist(lm.pos, e.pos); if (d < bd && (lm.wd || lm.wiki || lm.wp) && !MUST_NO.test(lm.kind)) { bd = d; best = lm; } }
+    return best || null;
+  }
+
+  // ---------- Imprescindibles: en cada ciudad, los lugares que no te puedes perder ----------
+  // SOLO los de la lista fija de su ciudad (arriba): da igual por qué barrio andes o qué hay cargado.
+  // Nunca estaciones, paradas, hospitales ni cementerios. Sin lista todavía (sin conexión), ninguno: llegará luego.
+  const MUST_NO = /^(Estación|Parada de tranvía|Hospital|Bomberos|Arte urbano|Memorial|Comercio emblemático|Biblioteca|Mercado)$/;
   function updateMustSee() {
-    const byCity = {};
+    const allBy = {};
     for (const id in landmarks) {
       const lm = landmarks[id], city = api.cityAt(lm.pos);
-      if (!city) continue;
-      const r = mustScore(lm);
-      if (r) (byCity[city] = byCity[city] || []).push([lm, r[0], r[1]]);
+      if (city && cityInfo[city] && cityInfo[city].must) (allBy[city] = allBy[city] || []).push(lm);
     }
     const must = new Set();
-    for (const list of Object.values(byCity)) {
-      // primero los importantes (nivel 2 y 1) y luego el relleno, cada grupo por puntuación
-      list.sort((a, b) => (Math.min(1, b[2]) - Math.min(1, a[2])) || b[1] - a[1]);
-      const top = list.filter((x) => x[2] === 2).length;   // los muy conocidos marcan el tamaño de la ciudad
-      const n = Math.max(MUST_MIN, Math.min(MUST_MAX, top));
-      list.slice(0, n).forEach(([lm]) => must.add(lm.id));
-    }
+    for (const city in allBy) for (const e of cityInfo[city].must) { const lm = matchMust(e, allBy[city]); if (lm) must.add(lm.id); }
     let changed = false;
     for (const id in landmarks) { const m = must.has(id); if (!!landmarks[id].must !== m) { landmarks[id].must = m; changed = true; } }
     return changed;
@@ -823,9 +900,9 @@ PM.world = (function () {
       if (!r.ok) { cdnMissing.add(k); return null; }
       const j = await r.json();
       if (!(j.v >= 3)) { cdnMissing.add(k); return null; }   // formato muy antiguo (sin barrios): mejor de OpenStreetMap
-      const entry = { v: CACHE_V, t: Date.now(), els: j.els, wdMiss: !!j.wdMiss || j.v < 4 };
+      const entry = { v: CACHE_V, t: Date.now(), els: j.els, wdMiss: !!j.wdMiss || j.v < 4, extrasMiss: j.v < 6 };   // v<6: sin estudios de TV ni bomberos nuevos
       cache.put(k, entry);
-      if (entry.wdMiss) setTimeout(() => completeTile(k, entry), 4000);
+      if (entry.wdMiss || entry.extrasMiss) setTimeout(() => completeTile(k, entry), 4000);
       if (j.name || j.city) {
         const t = ensureTile(k);
         t.name = t.name || j.name; t.city = t.city || j.city;
@@ -862,13 +939,22 @@ PM.world = (function () {
           try { const d = await overpass(QUERY(bb), 45000); add = add.concat(d.elements.map(slim).filter((el) => tilesOf(el).has(k))); extrasMiss = false; }
           catch (err) { extrasFailT = Date.now(); console.warn('Extras del barrio pendientes (Overpass no responde)', k, err); }
         }
+        // Overpass no responde: los lugares que trae el mapa base (bomberos, estudios de TV, hospitales…), una vez por zona
+        let vtPois = !!c.vtPois;
+        if (extrasMiss && !c.src && !vtPois && !vtDown()) {
+          try {
+            const got = await PM.vtiles.fetchBox(s + 1e-6, w + 1e-6, n - 1e-6, e - 1e-6);
+            add = add.concat(got.els.filter((el) => el.tags && el.tags.name && !el.tags.highway && !el.tags.place && tilesOf(el).has(k)));
+            vtPois = true;
+          } catch (err) { vtFailT = Date.now(); }
+        }
         if (wdMiss) {
           const got = await wikidataBox(bb);
           if (got !== null) { add = add.concat(got.filter((el) => tilesOf(el).has(k))); wdMiss = false; }
         }
         const cur = (await cache.get(k)) || c;
         const have = new Set(cur.els.map((el) => el.type + el.id)); add = add.filter((el) => !have.has(el.type + el.id));   // sin duplicados al volver a pedir
-        cache.put(k, Object.assign({}, cur, { els: cur.els.concat(add), wdMiss, extrasMiss }));
+        cache.put(k, Object.assign({}, cur, { els: cur.els.concat(add), wdMiss, extrasMiss, vtPois }));
         if (add.length && tiles[k] && (tiles[k].loaded || tiles[k].partial)) { ingest(add, new Set([k])); emit('loaded', { tiles: [k] }); }
       } finally { completing.delete(k); }
     });
@@ -1118,7 +1204,7 @@ PM.world = (function () {
     const t = tiles[key];
     if (!t || t.name || !t.pieces.length) return;
     const saved = PM.state && PM.state.data.tileNames[key];
-    if (saved) { t.name = saved.name; t.city = saved.city; emit('named', { key }); return; }
+    if (saved) { t.name = saved.name; t.city = saved.city; emit('named', { key }); const [[s, w], [n, e]] = tileBounds(key); ensureCity((s + n) / 2, (w + e) / 2); return; }
     if (t.demo) { t.name = 'Sector ' + key.replace('_', '·'); t.city = 'Ciudad Demo'; emit('named', { key }); return; }
     nameQueue.push(key);
     if (!naming) drainNames();
@@ -1127,6 +1213,7 @@ PM.world = (function () {
     naming = true;
     while (nameQueue.length) {
       const key = nameQueue.shift();
+      if (typeof key !== 'string') { await fetchCityShape(key.city[0], key.city[1]); await new Promise((res) => setTimeout(res, 1100)); continue; }
       const [[s, w], [n, e]] = tileBounds(key);
       const t = tiles[key];
       try {
@@ -1143,6 +1230,7 @@ PM.world = (function () {
       if (PM.state) PM.state.data.tileNames[key] = { name: t.name, city: t.city };
       emit('named', { key });
       ensureCityStats(t.city, (s + n) / 2, (w + e) / 2);
+      ensureCity((s + n) / 2, (w + e) / 2);
       await new Promise((res) => setTimeout(res, 1100)); // respeta 1 petición/seg
     }
     naming = false;
@@ -1201,7 +1289,37 @@ PM.world = (function () {
     TILE, RARITY, tiles, pieces, landmarks, cans, updateMustSee,
     tileKeyOf, tileBounds, ensureAround, piecesNear, onChange,
     barrios, barrioAt: barrioOf, barrioComplete, route, setAvoid, isAvoided, addLegacyGeo, ensureKeys,
-    cityAt(p) { const t = tiles[tileKeyOf(p[0], p[1])]; return (t && t.city) || (PM.state && (PM.state.data.tileNames[tileKeyOf(p[0], p[1])] || {}).city) || null; },
+    cityAt(p) { const c = shapeCity(p); if (c) return c; const t = tiles[tileKeyOf(p[0], p[1])]; return (t && t.city) || (PM.state && (PM.state.data.tileNames[tileKeyOf(p[0], p[1])] || {}).city) || null; },
+    // los imprescindibles fijos de cada ciudad, con el lugar del mapa que les corresponde (id) si ya está cargado
+    mustLists() {
+      const out = {};
+      for (const [city, ci] of Object.entries(cityInfo)) {
+        if (!ci.must) continue;
+        const lms = Object.values(landmarks).filter((lm) => inCity(lm.pos, ci));
+        out[city] = ci.must.map((e) => { const lm = matchMust(e, lms); return Object.assign({}, e, { id: lm ? lm.id : null }); });
+      }
+      return out;
+    },
+    // tus lugares y cromos de barrio ya conseguidos: ciudad según el contorno real y si son imprescindibles de la lista fija
+    fixRecords(s) {
+      let n = 0;
+      for (const [id, r] of Object.entries(s.landmarks || {})) {
+        if (!r.pos) continue;
+        const c = shapeCity(r.pos);
+        if (c && r.city !== c) { r.city = c; n++; }
+        const ci = c && cityInfo[c];
+        if (!ci || !ci.must) continue;
+        const lm = landmarks[id];
+        const m = lm ? !!lm.must : ci.must.some((e) => e.q === id || (sameName(e.name, r.name) && PM.geo.dist(e.pos, r.pos) < 400));
+        if (!!r.must !== m) { r.must = m ? 1 : 0; n++; }
+      }
+      for (const b of Object.values(s.barrioCards || {})) {
+        const q = b.lines && b.lines[0] && b.lines[0][0];
+        const c = q && shapeCity(q);
+        if (c && b.city !== c) { b.city = c; n++; }
+      }
+      return n;
+    },
     // carga las celdas que faltan para tener entero el barrio (hasta 12)
     ensureBarrio(id) {
       const B = barrios[id];
