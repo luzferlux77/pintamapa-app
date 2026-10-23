@@ -478,6 +478,11 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 .fab.orient small, .fab.avoidbtn small { font-size: 8.5px; }
 .fab.orient span { font-size: 15px; } .fab.avoidbtn span { font-size: 14px; }
 #gps.gpsi { right: 58px; top: calc(107px + var(--safe-top)); width: 34px; height: 34px; }
+/* botón «lugares» en la misma fila, a la izquierda del rumbo (el GPS y las etiquetas se apartan) */
+.fab.orient.places { top: calc(104px + var(--safe-top)); right: 60px; }
+.fab.orient.places span { font-size: 14px; }
+#gps.gpsi { right: 106px; }
+#badges { right: 146px; }
 
 /* fila única: velocidad y radar sin saltar de línea (solo la captura en curso baja a una segunda línea) */
 #badges { flex-wrap: nowrap; gap: 4px; }
