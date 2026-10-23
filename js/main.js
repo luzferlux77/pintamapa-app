@@ -287,7 +287,7 @@
   }
   map.on('style.load', () => recolorAll());
 
-  // Monumentos. Los conquistados (visitados) quedan para siempre en el mapa con tu color, bandera y halo de territorio.
+  // Monumentos. Los conquistados (visitados) quedan para siempre en el mapa rellenos de tu color (los imprescindibles, de dorado).
   // Se dibujan como CAPA del mapa (iconos generados una vez y pintados por la tarjeta gráfica), no como cientos de
   // elementos sueltos que el móvil tendría que recolocar en cada fotograma al arrastrar: así el mapa va fluido.
   const lmHalos = {}, lmIndex = {};   // id -> { lm, got }
@@ -700,7 +700,7 @@
     el.classList.add('show');
   }
   // quieto junto al monumento no llegan lecturas nuevas del GPS: se comprueba cada segundo con la última posición
-  setInterval(() => { if (session && !session.paused && !document.hidden) checkDwell(pos, Date.now(), true); }, 1000);
+  setInterval(() => { if (session && !session.paused) checkDwell(pos, Date.now(), !document.hidden); }, 1000);   // también en el bolsillo: quieto junto a un lugar, el GPS no manda nada nuevo
 
   function checkLandmarksAndCans(p, visible = true, t = Date.now()) {
     const n = nearestLandmark(p);
@@ -831,7 +831,7 @@
   function stepHeading(dt) {
     // brújula (hacia donde apunta el móvil) si la hay; si no, el rumbo del GPS / de la marcha
     const walkingNow = mode === 'gps' && speed > 0.6 && Date.now() - Math.max(lastMoveT, lastCourseT) < 6000;
-    if (orient === 'heading' && compass != null && Date.now() - compassT < 1500 && !walkingNow && !(mode === 'sim' && (simTurned || target))) setHeadingTarget(compass);
+    if (orient === 'heading' && compass != null && Date.now() - compassT < 1500 && !walkingNow && !(mode === 'sim' && (simTurned || target)) && Math.abs(angDiff(headingTarget, compass)) >= 2) setHeadingTarget(compass);   // (el temblor de la brújula, < 2°, no gira el mapa: menos batería)
     const d = angDiff(heading, headingTarget);
     if (Math.abs(d) < 0.3) return;
     heading = (heading + d * Math.min(1, dt * (mode === 'gps' ? 2.2 : 4)) + 360) % 360;
@@ -998,7 +998,7 @@
     // sin nada que mover (quieto, sin girar, sin pintar pendiente): el bucle descansa 1/4 s en vez de ir a 60 por
     // segundo. Cualquier novedad (GPS, giro, simulador) lo despierta al momento con wakeLoop().
     const busy = mode === 'sim' || anim || Math.abs(angDiff(heading, headingTarget)) >= 0.3 || Math.abs(map.getPitch() - pitchTarget) > 0.3
-      || streetsDirty || paintedDirty || paintedAdd || (orient === 'heading' && Date.now() - compassT < 1500);
+      || streetsDirty || paintedDirty || paintedAdd;
     if (busy) requestAnimationFrame(loop);
     else loopSleep = setTimeout(() => { loopSleep = null; requestAnimationFrame(loop); }, 250);
   }

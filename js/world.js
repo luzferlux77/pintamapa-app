@@ -211,6 +211,7 @@ PM.world = (function () {
   // haya cargados a tu alrededor (por eso antes iban cambiando). Se piden una vez y se guardan.
   // Cuántos, según su tamaño: un pueblo, unos pocos; una gran ciudad, muchos más.
   const CITY_V = 3;   // 3: «ciudad grande» por población (no por superficie: Sant Boi o El Prat salían sin imprescindibles)
+  let mustCache = null;   // imprescindibles con su lugar del mapa (mustLists)
   function mustCount(ci, els) {
     const pop = ci.pop || 0;
     if (pop) return pop >= 3000000 ? 30 : pop >= 1000000 ? 20 : pop >= 400000 ? 15 : pop >= 100000 ? 10 : pop >= 20000 ? 6 : 4;
@@ -289,6 +290,7 @@ PM.world = (function () {
       }
       if (!list.length) throw new Error('sin lugares conocidos');   // no se guarda vacía: se vuelve a pedir en otra sesión
       cityInfo[name].must = list;
+      mustCache = null;
       saveCityInfo();
       emit('named', { city: name });
     } catch (e) { console.warn('Imprescindibles de', name, 'pendientes', e); }
@@ -408,7 +410,7 @@ PM.world = (function () {
       const { base, sec } = pieceId(pts, mid);
       let id = base + sec;
       // el mismo tramo llegado por otra tesela o fuente: ya está
-      if (pieces[id] && PM.geo.dist(pieces[id].mid, mid) < 4) continue;
+      if (pieces[id] && PM.geo.dist(pieces[id].mid, mid) < 4) { graphAdd({ id, pts }); continue; }   // (pero su geometría sí une la red: si no, quedaba un hueco de un tramo)
       // si la dirección cae justo en el borde entre dos sectores, se reconoce lo ya pintado con el sector vecino
       const painted = PM.state ? PM.state.data.painted : {};
       if (!painted[id]) for (const alt of [base + (sec + 1) % 8, base + (sec + 7) % 8]) if (painted[alt] && !pieces[alt]) { id = alt; break; }
@@ -424,7 +426,25 @@ PM.world = (function () {
       cells.forEach((c) => (index[c] = index[c] || []).push(id));
       added.push(p);
     }
+    for (const p of added) linkJunctions(p);
     return added;
+  }
+  // Cruces: en los mapas vectoriales las calles que se cruzan no siempre comparten el punto exacto del cruce
+  // (geometría simplificada). Sin unirlas, la red queda partida y los huecos del GPS no se pueden rellenar
+  // por las calles. Cada extremo de tramo se une al vértice más cercano de las otras calles (< 6 m).
+  function linkJunctions(p) {
+    for (const q of [p.pts[0], p.pts[p.pts.length - 1]]) {
+      const a = gnodes.get(gkey(q));
+      if (!a) continue;
+      for (const pc of piecesNear(q, 6)) {
+        if (pc === p) continue;
+        let best = null, bd = 6;
+        for (const v of pc.pts) { const d = PM.geo.dist(q, v); if (d < bd) { bd = d; best = v; } }
+        const b = best && gnodes.get(gkey(best));
+        if (!b || b === a || a.e.some((ed) => ed.to === b)) continue;
+        a.e.push({ to: b, len: bd, piece: null }); b.e.push({ to: a, len: bd, piece: null });
+      }
+    }
   }
 
   // ---------------- Migración: lo pintado con los tramos antiguos (id "w<vía>:<n>") pasa a los tramos nuevos ----------------
@@ -635,7 +655,8 @@ PM.world = (function () {
         if (o && PM.geo.dist(o.p, q) < 1) n = o;
       }
     }
-    if (!n) { n = { k, p: q, e: [] }; gnodes.set(k, n); }
+    if (!n) n = { k, p: q, e: [] };
+    gnodes.set(k, n);   // también con su propia clave si se unió a un vértice vecino (si no, «el más cercano» no lo encontraba y la ruta del hueco fallaba)
     return n;
   }
   function graphAdd(piece) {
@@ -680,7 +701,7 @@ PM.world = (function () {
     }
     if (!done.has(t)) return null;
     const ids = new Set(), path = [t.p];
-    for (let n = t; prev.has(n); n = prev.get(n)[0]) { ids.add(prev.get(n)[1]); path.push(prev.get(n)[0].p); }
+    for (let n = t; prev.has(n); n = prev.get(n)[0]) { if (prev.get(n)[1]) ids.add(prev.get(n)[1]); path.push(prev.get(n)[0].p); }
     return { len: dist.get(t), pieces: [...ids], path: path.reverse() };   // path: el camino por las calles, de a a b
   }
 
@@ -1280,12 +1301,16 @@ PM.world = (function () {
     cityAt(p) { const c = shapeCity(p); if (c) return c; const t = tiles[tileKeyOf(p[0], p[1])]; return (t && t.city) || (PM.state && (PM.state.data.tileNames[tileKeyOf(p[0], p[1])] || {}).city) || null; },
     // los imprescindibles fijos de cada ciudad, con el lugar del mapa que les corresponde (id) si ya está cargado
     mustLists() {
+      // (caché de 5 s: lo consultan el álbum y los logros, y en una ciudad grande son miles de lugares)
+      const nL = Object.keys(landmarks).length;
+      if (mustCache && Date.now() - mustCache.t < 5000 && mustCache.n === nL) return mustCache.v;
       const out = {};
       for (const [city, ci] of Object.entries(cityInfo)) {
         if (!ci.must) continue;
         const lms = Object.values(landmarks).filter((lm) => inCity(lm.pos, ci));
         out[city] = ci.must.map((e) => { const lm = matchMust(e, lms); return Object.assign({}, e, { id: lm ? lm.id : null }); });
       }
+      mustCache = { t: Date.now(), n: nL, v: out };
       return out;
     },
     // tus lugares y cromos de barrio ya conseguidos: ciudad según el contorno real y si son imprescindibles de la lista fija
@@ -1317,6 +1342,7 @@ PM.world = (function () {
       for (let i = i0; i <= i1; i++) for (let j = j0; j <= j1; j++) if (!ensureTile(i + '_' + j).loaded) need.push(i + '_' + j);
       if (need.length && need.length <= 12) loadTiles(need).catch(() => {});
     },
+    _graph: () => gnodes,   // (pruebas)
     isDemo: () => demoMode,
     setDemo: (v) => { demoMode = v; },
   };
