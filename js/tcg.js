@@ -346,6 +346,7 @@ PM.tcg = (function () {
     document.body.appendChild(box);
     try {
       await new Promise((r) => setTimeout(r, 300));
+      if (!window.htmlToImage && PM.lazy) await PM.lazy('lib/html-to-image.js');
       return await window.htmlToImage.toPng(card, { pixelRatio: 2, cacheBust: true, filter: (n) => !(n.classList && n.classList.contains('tcg-back')) });
     } finally { box.remove(); }
   }

@@ -231,6 +231,17 @@ kbd { background: var(--btn); border-radius: 5px; padding: 1px 6px; color: var(-
 .fab.orient span { font-size: 20px; font-weight: 900; color: #ef4444; }
 .fab.orient small { font-size: 9px; color: var(--muted); margin-top: 1px; }
 .fab.orient.on span { color: var(--paint); }
+/* latido de los imprescindibles y ondas de los conquistados: animación CSS (la mueve la tarjeta gráfica, el mapa no se redibuja) */
+.fxm { width: calc(var(--fxs, 1) * 92px); height: calc(var(--fxs, 1) * 92px); pointer-events: none; }
+.fxm i { position: absolute; inset: 0; border-radius: 50%; will-change: transform, opacity; }
+.fx-must i:first-child { background: radial-gradient(circle closest-side, rgba(250, 204, 21, 0) 50%, rgba(250, 204, 21, .75) 58%, rgba(250, 204, 21, 0) 100%); animation: fxBreath 2.6s ease-in-out infinite; }
+.fx-must i:last-child, .fx-halo.off i { display: none; }
+@keyframes fxBreath { 0%, 100% { transform: scale(.9); opacity: .3; } 50% { transform: scale(1.12); opacity: .9; } }
+.fx-halo i { border: 3px solid var(--fxc, #2563eb); opacity: 0; animation: fxWave 1.8s ease-out infinite; }
+.fx-halo i:last-child { animation-delay: .9s; }
+.fx-halo.gold i { border-color: #eab308; }
+@keyframes fxWave { 0% { transform: scale(.42); opacity: .85; } 100% { transform: scale(1.25); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .fxm i { animation-duration: 6s; } }
 /* botón «lugares»: debajo del de orientación; apagado = solo tus calles pintadas */
 .fab.orient.places { top: calc(266px + var(--safe-top)); }
 .fab.orient.places span { font-size: 18px; color: inherit; }
@@ -283,11 +294,7 @@ details.howto ol { padding-left: 18px; line-height: 1.6; }
 
 #apk-banner small { color: var(--muted); font-size: 11.5px; }
 
-.fab.avoidbtn { display: flex; flex-direction: column; align-items: center; justify-content: center; bottom: auto; top: calc(270px + var(--safe-top)); line-height: 1; box-shadow: var(--shadow); }
-.fab.avoidbtn span { font-size: 18px; } .fab.avoidbtn small { font-size: 9px; color: var(--muted); margin-top: 1px; }
-.fab.avoidbtn.on { border-color: #6b7280; background: #e5e7eb; box-shadow: 0 0 0 3px #6b7280; }
 #combo { top: calc(330px + var(--safe-top)); }
-.avoidlbl { white-space: nowrap; background: rgba(75, 85, 99, .85); color: #fff; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 99px; transform: translate(-50%, -50%); display: inline-block; }
 
 #cloud-banner { top: auto; bottom: calc(150px + var(--safe-bottom)); display: flex; gap: 8px; align-items: center; background: var(--panel); border: 2px solid #2563eb; border-radius: 14px; padding: 10px 12px; box-shadow: var(--shadow); font-size: 13.5px; left: 10px; right: 10px; z-index: 900; }
 #cloud-banner span { flex: 1; } #cloud-banner .x { background: none; border: none; font-size: 16px; }
@@ -356,11 +363,11 @@ details.howto ol { padding-left: 18px; line-height: 1.6; }
 #badges { flex-direction: row; flex-wrap: wrap; align-items: center; right: 166px; gap: 5px; }
 #badges .badge { padding: 4px 9px; font-size: 11.5px; white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
 #badges #capture { white-space: normal; flex-basis: 100%; }
-.fab.orient, .fab.avoidbtn { width: 44px; height: 44px; top: calc(156px + var(--safe-top)); }
-.fab.orient { right: 64px; } .fab.avoidbtn { right: 14px; }
+.fab.orient { width: 44px; height: 44px; top: calc(156px + var(--safe-top)); }
+.fab.orient { right: 64px; }
 .fab.orient.places { right: 14px; top: calc(156px + var(--safe-top)); }
 .fab.orient.places span { font-size: 15px; }
-.fab.orient span { font-size: 17px; } .fab.avoidbtn span { font-size: 15px; }
+.fab.orient span { font-size: 17px; }
 .city-h { margin: 16px 0 8px; font-size: 15px; } .city-h span { color: var(--muted); font-weight: 500; margin-left: 4px; }
 
 /* ===== Aspecto sobrio y legible (para cualquier edad): sin neones ni brillos, letra más grande, color de interfaz neutro.
@@ -466,17 +473,17 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 #hud .top .lvl { flex: none; }
 #hud .top #modebtn { flex: none; align-self: flex-start; }
 #badges { top: calc(106px + var(--safe-top)); }
-.fab.orient, .fab.avoidbtn { top: calc(102px + var(--safe-top)); }
+.fab.orient { top: calc(102px + var(--safe-top)); }
 #gps.gpsi { top: calc(106px + var(--safe-top)); }
 #combo { top: calc(212px + var(--safe-top)); }
 
 /* TODO en una fila: etiquetas (velocidad, radar…) a la izquierda; GPS y rumbo a la derecha */
 #badges { top: calc(104px + var(--safe-top)); right: 98px; min-height: 40px; flex-wrap: wrap; align-content: center; }
 #badges .badge { font-size: 11.5px; padding: 4px 8px; }
-.fab.orient, .fab.avoidbtn { width: 40px; height: 40px; top: calc(104px + var(--safe-top)); }
+.fab.orient { width: 40px; height: 40px; top: calc(104px + var(--safe-top)); }
 .fab.orient { right: 14px; }
-.fab.orient small, .fab.avoidbtn small { font-size: 8.5px; }
-.fab.orient span { font-size: 15px; } .fab.avoidbtn span { font-size: 14px; }
+.fab.orient small { font-size: 8.5px; }
+.fab.orient span { font-size: 15px; }
 #gps.gpsi { right: 58px; top: calc(107px + var(--safe-top)); width: 34px; height: 34px; }
 /* botón «lugares» en la misma fila, a la izquierda del rumbo (el GPS y las etiquetas se apartan) */
 .fab.orient.places { top: calc(104px + var(--safe-top)); right: 60px; }

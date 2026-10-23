@@ -129,6 +129,20 @@ PM.levelInfo = function (xp) {
     nextLabel: max ? null : PM.levelName(l + 1).label, cur: xp - a, need: max ? 0 : b - a, pct: max ? 1 : (xp - a) / (b - a) };
 };
 
+// Carga bajo demanda de lo que casi nunca se usa (vídeos, póster, compartir imagen): la app arranca más rápido.
+// PM.need('lib/mp4-muxer.js', 'js/replay.js') carga en orden lo que falte (una sola vez cada archivo).
+PM._lz = {};
+PM.lazy = function (src) {
+  if (PM._lz[src]) return PM._lz[src];
+  if ([...document.scripts].some((s) => s.src && s.src.endsWith('/' + src))) return (PM._lz[src] = Promise.resolve());   // ya estaba en la página
+  return (PM._lz[src] = new Promise((ok, ko) => {
+    const s = document.createElement('script'); s.src = src;
+    s.onload = ok; s.onerror = () => { delete PM._lz[src]; ko(new Error('No se pudo cargar ' + src)); };
+    document.head.appendChild(s);
+  }));
+};
+PM.need = async function (...srcs) { for (const s of srcs) await PM.lazy(s); };
+
 // Ciudad de un lugar conquistado al que le falta (se capturó antes de que llegara el nombre de la ciudad):
 // por el nombre ya guardado de su zona (~1 km) o, si no, por el lugar conquistado con ciudad más cercano (< 3 km).
 PM.fillLandmarkCities = function (s) {

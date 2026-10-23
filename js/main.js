@@ -70,7 +70,7 @@
     for (let i = 0; i <= 48; i++) { const a = i / 48 * 2 * Math.PI; out.push(ll(PM.geo.offset(c, Math.cos(a) * r, Math.sin(a) * r))); }
     return { type: 'Feature', properties: props || {}, geometry: { type: 'Polygon', coordinates: [out] } };
   };
-  const SRC = ['pm-streets', 'pm-painted', 'pm-barrios', 'pm-avoid', 'pm-halos', 'pm-fx', 'pm-fxline', 'pm-lms', 'pm-must'];
+  const SRC = ['pm-streets', 'pm-painted', 'pm-barrios', 'pm-halos', 'pm-fx', 'pm-fxline', 'pm-lms'];
   let FUN = null;   // foto de perfil (js/fun.js)
   const srcData = {}; SRC.forEach((id) => (srcData[id] = FC([])));
   function setSrc(id, fc) { srcData[id] = fc; const src = mapReady && map.getSource(id); if (src) src.setData(fc); }
@@ -82,21 +82,15 @@
     const firstSym = (map.getStyle().layers || []).find((l) => l.type === 'symbol');   // lo pintado, por debajo de los nombres de calle
     const add = (l, top) => { if (!map.getLayer(l.id)) map.addLayer(l, top ? undefined : firstSym && firstSym.id); };
     const round = { 'line-cap': 'round', 'line-join': 'round' };
-    add({ id: 'pm-avoid-fill', type: 'fill', source: 'pm-avoid', paint: { 'fill-color': '#6b7280', 'fill-opacity': 0.18 } });
-    add({ id: 'pm-avoid-line', type: 'line', source: 'pm-avoid', paint: { 'line-color': '#6b7280', 'line-width': 2, 'line-dasharray': [3, 3] } });
     add({ id: 'pm-streets', type: 'line', source: 'pm-streets', filter: ['!=', ['get', 't'], 1], layout: round, paint: { 'line-color': '#9aa3b5', 'line-opacity': 0.38, 'line-width': zw(0.8, 2.4, 6) } });
     add({ id: 'pm-trails', type: 'line', source: 'pm-streets', filter: ['==', ['get', 't'], 1], paint: { 'line-color': '#9a8a66', 'line-opacity': 0.85, 'line-width': zw(0.8, 2.2, 4), 'line-dasharray': [1.5, 2] } });
     add({ id: 'pm-glow', type: 'line', source: 'pm-painted', layout: round, paint: { 'line-color': paintColor(), 'line-opacity': 0.22, 'line-width': zw(4, 14, 30), 'line-blur': zw(2, 6, 12) } });
     add({ id: 'pm-paint', type: 'line', source: 'pm-painted', layout: round, paint: { 'line-color': paintExpr(), 'line-width': zw(1.6, 5, 11, ['+', 1, ['*', 0.2, ['get', 'h']]]) } });
-    // halo de los conquistados: simbólico (tamaño fijo en pantalla, no el radio real) con dos ondas que salen; solo mientras pintas
-    // imprescindibles sin conquistar: un brillo dorado que late despacio, siempre (debajo del icono)
-    add({ id: 'pm-must-pulse', type: 'circle', source: 'pm-must', layout: { visibility: placesOff ? 'none' : 'visible' }, paint: { 'circle-radius': mustR(1), 'circle-color': '#facc15',
-      'circle-opacity': 0.35, 'circle-blur': 0.55, 'circle-pitch-alignment': 'map' } });
+    // halo de los conquistados: simbólico (tamaño fijo en pantalla, no el radio real); solo mientras pintas.
+    // Las ondas y el latido de los imprescindibles van aparte, con CSS (fxSync): así el mapa no se redibuja sin parar.
     const haloVis = { visibility: haloOn ? 'visible' : 'none' };
     add({ id: 'pm-halo-fill', type: 'circle', source: 'pm-halos', layout: haloVis, paint: { 'circle-radius': haloR(1), 'circle-color': haloCol(), 'circle-opacity': ['case', ['==', ['get', 'm'], 1], 0.16, 0.2],
       'circle-stroke-color': haloCol(), 'circle-stroke-width': 1.5, 'circle-stroke-opacity': 0.6, 'circle-pitch-alignment': 'map' } });
-    ['pm-halo-line', 'pm-halo-wave2'].forEach((id) => add({ id, type: 'circle', source: 'pm-halos', layout: haloVis, paint: { 'circle-radius': haloR(1), 'circle-opacity': 0,
-      'circle-stroke-color': haloCol(), 'circle-stroke-width': 2.5, 'circle-stroke-opacity': 0, 'circle-pitch-alignment': 'map' } }));
     add({ id: 'pm-barrio-cur', type: 'line', source: 'pm-barrios', filter: ['==', ['get', 'c'], 0], paint: { 'line-color': '#5b6478', 'line-opacity': 0.8, 'line-width': 2.5, 'line-dasharray': [3, 3] } }, true);
     // efecto de conquista (ola de color + contorno brillante)
     add({ id: 'pm-fx-fill', type: 'fill', source: 'pm-fx', paint: { 'fill-color': paintColor(), 'fill-opacity': ['get', 'o'] } });
@@ -173,64 +167,7 @@
   let curBarrio = null;
   let flagTimer = null;
   function refreshFlag() { clearTimeout(flagTimer); flagTimer = setTimeout(renderBarrios, 120); }
-  // ---------- Zonas a evitar: función RETIRADA. Las zonas guardadas se conservan en la partida pero ya no se aplican
-  // (todas las calles cuentan para el %). El código se deja inerte por si se recupera algún día. ----------
-  const AVOID_ON = false;
-  let avoidEdit = false;
-  function setAvoidEdit(on) { avoidEdit = AVOID_ON && on; }
-  function avoidChanged() {
-    PM.state.save();
-    W.setAvoid(AVOID_ON ? S().avoid : []);
-    setTimeout(renderBarrios, 400);   // tras recalcular los barrios
-  }
-  function addAvoid(z) {
-    z.id = 'z' + Date.now().toString(36); z.t = Date.now();
-    S().avoid.push(z);
-    avoidChanged(); setAvoidEdit(false);
-    $('#sheet').classList.remove('show');
-    toast(`🚫 ${z.type === 'barrio' ? 'Barrio «' + z.name + '»' : 'Zona'} excluida: sus calles no cuentan para el %`, 'info', 4000);
-  }
-  function removeAvoid(id) {
-    S().avoid = S().avoid.filter((z) => z.id !== id);
-    S().avoidRemoved[id] = Date.now();
-    avoidChanged();
-    $('#sheet').classList.remove('show');
-    toast('✅ Zona quitada: sus calles vuelven a contar', 'info');
-  }
-  function askAvoid(p) {
-    const b = W.barrioAt(p);
-    const already = S().avoid.find((z) => (z.type === 'barrio' && z.id === b.id) || (z.type === 'circle' && PM.geo.dist(p, z.c) <= z.r));
-    if (already) { askRemoveAvoid(already); return; }
-    openSheet('🚫 Zona a evitar', `
-      <p class="muted">Sus calles quedan <b>fuera del porcentaje</b> del barrio y de la ciudad: puedes llegar al 80 % sin pasar por ahí. El radar no te lleva allí. Solo lo ves tú.</p>
-      <h4>Alrededor de este punto</h4>
-      <div class="seg"><button class="btn" data-r="100">100 m</button><button class="btn" data-r="200">200 m</button><button class="btn" data-r="400">400 m</button></div>
-      <h4>O el barrio entero</h4>
-      <button class="btn" id="av-barrio" style="width:100%">🚫 Evitar todo «${b.name}»</button>`);
-    document.querySelectorAll('#sheet [data-r]').forEach((bt) => bt.addEventListener('click', () => addAvoid({ type: 'circle', c: [+p[0].toFixed(6), +p[1].toFixed(6)], r: +bt.dataset.r })));
-    $('#av-barrio').addEventListener('click', () => addAvoid({ type: 'barrio', id: b.id, name: b.name }));
-  }
-  function askRemoveAvoid(z) {
-    openSheet('🚫 Zona evitada', `<p>${z.type === 'barrio' ? 'Barrio <b>' + z.name + '</b>' : 'Zona de ' + z.r + ' m'} · desde el ${new Date(z.t).toLocaleDateString('es-ES')}</p>
-      <button class="btn on" id="av-del" style="width:100%">Quitar: que vuelva a contar</button>`);
-    $('#av-del').addEventListener('click', () => removeAvoid(z.id));
-  }
-  let avoidMarkers = [];
-  function renderAvoid() {
-    avoidMarkers.forEach((m) => m.remove()); avoidMarkers = [];
-    const f = [];
-    if (!AVOID_ON) { setSrc('pm-avoid', FC(f)); return; }
-    const label = (p, txt, z) => avoidMarkers.push(htmlMarker(p, `<div class="avoidlbl">🚫 ${txt}</div>`, { onClick: () => askRemoveAvoid(z) }));
-    for (const z of S().avoid) {
-      if (z.type === 'circle') { f.push(circlePoly(z.c, z.r)); label(z.c, '', z); }
-      else {
-        const B = W.barrios[z.id];
-        if (B && B.segs) B.segs.forEach((sg) => f.push(lineF(sg)));
-        if (B && B.pos) label(B.pos, z.name, z);
-      }
-    }
-    setSrc('pm-avoid', FC(f));
-  }
+  // (las «zonas a evitar» se retiraron: las que hubiera guardadas siguen en la partida, pero ya no se aplican)
 
   let flagMarkers = [];
   // ---------------- Rangos de barrio: bronce 60 % (conquista) · plata 80 % · oro 90 % · leyenda (100 % y todos sus lugares) ----------------
@@ -312,7 +249,6 @@
   }
 
   function renderBarrios() {
-    renderAvoid();
     flagMarkers.forEach((m) => m.remove()); flagMarkers = [];
     const f = [];
     for (const B of Object.values(W.barrios)) {
@@ -341,12 +277,13 @@
   function recolorAll() {
     if (mapReady) {
       const c = paintColor();
-      [['pm-glow', 'line-color', c], ['pm-paint', 'line-color', paintExpr()], ['pm-halo-fill', 'circle-color', haloCol()], ['pm-halo-fill', 'circle-stroke-color', haloCol()], ['pm-halo-line', 'circle-stroke-color', haloCol()], ['pm-halo-wave2', 'circle-stroke-color', haloCol()]]
+      [['pm-glow', 'line-color', c], ['pm-paint', 'line-color', paintExpr()], ['pm-halo-fill', 'circle-color', haloCol()], ['pm-halo-fill', 'circle-stroke-color', haloCol()]]
         .forEach(([l, prop, v]) => map.getLayer(l) && map.setPaintProperty(l, prop, v));
     }
     renderBarrios();
     if (typeof flushLandmarks === 'function') flushLandmarks(true);   // los conquistados llevan tu color
     document.documentElement.style.setProperty('--paint', paintColor());
+    document.documentElement.style.setProperty('--fxc', paintColor());
   }
   map.on('style.load', () => recolorAll());
 
@@ -406,40 +343,55 @@
     if (h && h.properties.m !== m) { h.properties.m = m; setSrc('pm-halos', FC(Object.values(lmHalos))); }
   }
   // Halo simbólico de los conquistados: un círculo de tu color y ondas que salen de él, en bucle, SOLO mientras pintas.
-  // Parado o sin pintar, el lugar se ve conquistado (bandera y color) pero sin halo.
-  let haloOn = false, haloT = 0;
+  // Parado o sin pintar, el lugar se ve conquistado (relleno de color) pero sin halo.
+  let haloOn = false;
   const haloCol = () => ['case', ['==', ['get', 'm'], 1], '#eab308', paintColor()];   // imprescindibles: dorado
-  function mustR(k) { return ['interpolate', ['linear'], ['zoom'], 12, 18 * k, 15, 30 * k, 17, 42 * k, 19, 48 * k]; }   // algo más grande que el icono: se ve alrededor
   function haloR(k) { return ['interpolate', ['linear'], ['zoom'], 12, 6 * k, 15, 13 * k, 17, 20 * k, 19, 26 * k]; }
-  function stepHalos(now) {
+  function stepHalos() {
     const want = !!(session && !session.paused) && !placesOff && mapReady;
-    if (want !== haloOn) {
-      haloOn = want;
-      ['pm-halo-fill', 'pm-halo-line', 'pm-halo-wave2'].forEach((l) => { if (map.getLayer(l)) map.setLayoutProperty(l, 'visibility', want ? 'visible' : 'none'); });
-    }
-    if (now - haloT < 40) return;   // ~25 fotogramas por segundo bastan
-    haloT = now;
-    // latido suave de los imprescindibles (2,6 s, sin cambios bruscos)
-    if (mapReady && !placesOff && map.getLayer('pm-must-pulse')) {
-      const b = 0.5 - 0.5 * Math.cos(now / 2600 * 2 * Math.PI);
-      map.setPaintProperty('pm-must-pulse', 'circle-opacity', 0.15 + 0.4 * b);
-      map.setPaintProperty('pm-must-pulse', 'circle-radius', mustR(0.85 + 0.25 * b));
-    }
-    if (!haloOn || !Object.keys(lmHalos).length) return;
-    [['pm-halo-line', 0], ['pm-halo-wave2', 0.5]].forEach(([l, off]) => {
-      if (!map.getLayer(l)) return;
-      const ph = ((now / 1800) + off) % 1, ease = 1 - Math.pow(1 - ph, 2);   // sale rápido y se frena al apagarse
-      map.setPaintProperty(l, 'circle-radius', haloR(1 + ease * 1.6));
-      map.setPaintProperty(l, 'circle-stroke-opacity', 0.75 * (1 - ph));
-      map.setPaintProperty(l, 'circle-stroke-width', 3 - ph * 2);
-    });
+    if (want === haloOn) return;
+    haloOn = want;
+    if (map.getLayer('pm-halo-fill')) map.setLayoutProperty('pm-halo-fill', 'visibility', want ? 'visible' : 'none');
+    fxSync();
   }
+  // Latido de los imprescindibles sin conquistar (siempre) y ondas de los conquistados (pintando): marcadores con
+  // animación CSS. Los anima la tarjeta gráfica sin tocar el mapa (antes, cambiar la capa 25 veces por segundo
+  // obligaba a redibujarlo entero sin parar: más de la mitad del procesador y mucha batería).
+  const fxMarks = new Map();
+  let fxT = 0;
+  function fxScale() {   // mismo tamaño que los iconos según el zoom
+    const z = map.getZoom(), s = z <= 12 ? 0.55 : z <= 15 ? 0.55 + (z - 12) * 0.1 : z <= 17 ? 0.85 + (z - 15) * 0.075 : 1;
+    map.getContainer().style.setProperty('--fxs', s.toFixed(3));
+  }
+  map.on('zoom', fxScale);
+  function fxSync() {
+    if (!mapReady) return;
+    fxT = Date.now();
+    const want = new Map();
+    if (!placesOff) {
+      const c = map.getCenter(), ctr = [c.lat, c.lng];
+      for (const { lm, got } of Object.values(lmIndex)) {
+        const must = !!(lm.must || (S().landmarks[lm.id] || {}).must);
+        if (!got && must && PM.geo.dist(lm.pos, ctr) < 5000) want.set('m' + lm.id, [lm, 'fx-must']);
+        else if (got && haloOn && PM.geo.dist(lm.pos, pos) < 1500) want.set('h' + lm.id, [lm, 'fx-halo' + (must ? ' gold' : '')]);
+      }
+    }
+    for (const [k, mk] of fxMarks) if (!want.has(k) || mk._pmCls !== want.get(k)[1]) { mk.remove(); fxMarks.delete(k); }
+    for (const [k, [lm, cls]] of want) {
+      if (fxMarks.has(k)) continue;
+      const el = document.createElement('div'); el.className = 'fxm ' + cls; el.innerHTML = '<i></i><i></i>';
+      const mk = new maplibregl.Marker({ element: el }).setLngLat(ll(lm.pos)).addTo(map); mk._pmCls = cls;
+      fxMarks.set(k, mk);
+    }
+    fxScale();
+  }
+  map.on('moveend', () => { if (Date.now() - fxT > 1500) fxSync(); });
   function flushLandmarks(force) {
     if (!(lmDirty || force) || !mapReady) return;
     lmDirty = false;
-    setSrc('pm-must', FC(Object.values(lmIndex).filter(({ lm, got }) => !got && lm.must).map(({ lm }) => ({ type: 'Feature', properties: {}, geometry: { type: 'Point', coordinates: ll(lm.pos) } }))));
     setSrc('pm-lms', FC(Object.values(lmIndex).map(({ lm, got }) => ({ type: 'Feature',
       properties: { id: lm.id, icon: lmIcon(lm, got), z: (got ? 1 : 0) + (lm.must ? 2 : 0) }, geometry: { type: 'Point', coordinates: ll(lm.pos) } }))));
+    fxSync();
   }
   function renderLandmarks() {
     for (const id in W.landmarks) {
@@ -532,6 +484,7 @@
     const now = fixTime || Date.now();
     const visible = !document.hidden;
     if (visible) showAt(p, mode === 'gps' && !isTeleport);
+    if (visible && haloOn && Date.now() - fxT > 5000) fxSync();   // pintando: ondas en los conquistados que tienes cerca
     // rumbo que da el propio GPS (fiable al caminar): manda sobre el calculado
     // (un 0 exacto es «sin rumbo» en muchos móviles; y se alinea con la calle por la que vas)
     if (fixBearing != null && !isNaN(fixBearing) && fixBearing !== 0 && (fixSpeed || 0) > 0.9) { const h = alongStreet(p, fixBearing); if (confirmTurn(h)) { setHeadingTarget(h); lastCourseT = Date.now(); } }
@@ -595,6 +548,7 @@
     if (lastP && !isTeleport) updateHeading(lastP, p);
     lastP = p.slice(); lastT = now;
     S().lastPos = p.slice();
+    if (painting && !isTeleport) session.lastSeen = Date.now();   // si Android cierra la app, se sabe desde cuándo falta el recorrido
     PM.state.save();
 
     if (painting) checkLandmarksAndCans(p, visible, now);
@@ -682,7 +636,7 @@
     if (document.hidden || !session) { $('#radar').classList.remove('show'); return; }
     let lm = null, lmD = Infinity, can = null, canD = Infinity;
     for (const id in W.landmarks) {
-      if (S().landmarks[id] || (AVOID_ON && S().avoid.length && W.isAvoided(W.landmarks[id].pos))) continue;
+      if (S().landmarks[id]) continue;
       const d = PM.geo.dist(pos, W.landmarks[id].pos);
       if (d < lmD) { lmD = d; lm = W.landmarks[id]; }
     }
@@ -789,9 +743,6 @@
   map.on('click', (e) => {
     if (mapReady && map.getLayer('pm-lms') && map.queryRenderedFeatures(e.point, { layers: ['pm-lms'] }).length) return;   // tocó un lugar
     const p = [e.lngLat.lat, e.lngLat.lng];
-    if (avoidEdit) { askAvoid(p); return; }
-    const z = AVOID_ON && S().avoid.find((a) => a.type === 'circle' && PM.geo.dist(p, a.c) <= a.r);
-    if (z && mode !== 'sim') { askRemoveAvoid(z); return; }
     if (mode !== 'sim') return;
     if (e.originalEvent.ctrlKey || e.originalEvent.metaKey) { teleport(p); return; }
     target = p;
@@ -961,7 +912,8 @@
   function setPlaces(off, quiet) {
     placesOff = off;
     try { localStorage.setItem('pintamapa_places_off', off ? '1' : '0'); } catch (e) {}
-    ['pm-lms', 'pm-must-pulse'].forEach((l) => { if (map.getLayer(l)) map.setLayoutProperty(l, 'visibility', off ? 'none' : 'visible'); });   // los halos los decide stepHalos
+    if (map.getLayer('pm-lms')) map.setLayoutProperty('pm-lms', 'visibility', off ? 'none' : 'visible');   // los halos los decide stepHalos
+    fxSync();
     $('#btn-places').classList.toggle('off', off);
     $('#btn-places').innerHTML = off ? '<span>🖌️</span><small>calles</small>' : '<span>📍</span><small>lugares</small>';
     if (!quiet) toast(off ? '🖌️ Solo tus calles pintadas (los lugares, ocultos)' : '📍 Lugares para conquistar visibles', 'info');
@@ -979,7 +931,7 @@
     getPos: () => pos, inSession: () => !!(session && !session.paused), sessionWalked: () => (session ? session.st.walked : 0),
     lookAt: (c, z) => { follow = false; zoomAround(); $('#btn-center').classList.add('show'); clearTimeout(recenterTimer); recenterTimer = setTimeout(recenter, 20000); map.easeTo({ center: ll(c), zoom: z, duration: 900 }); } });
   // «Tu semana pintando»: el domingo y el lunes, una vez por semana, aviso para ver el resumen en vídeo
-  const openWeek = () => PM.wrapped && PM.wrapped.open({ S, W });
+  const openWeek = () => PM.need('lib/mp4-muxer.js', 'js/replay.js', 'js/wrapped.js').then(() => PM.wrapped.open({ S, W })).catch(() => toast('Sin conexión para abrir el vídeo', 'warn'));
   setTimeout(() => {
     const d = new Date(), wk = d.getFullYear() + '-' + Math.floor((d - new Date(d.getFullYear(), 0, 1)) / 604800000);
     if ((d.getDay() === 0 || d.getDay() === 1) && S().wrappedWeek !== wk && (S().walks || []).some((w) => w.start > Date.now() - 7 * 86400000)) {
@@ -1035,7 +987,7 @@
     stepDisplay(now);
     stepHeading(dt);
     stepPitch(dt);
-    stepHalos(now);
+    stepHalos();
     G.tickCombo(Date.now());
     flushPaint();
     if (!manual) requestAnimationFrame(loop);
@@ -1142,7 +1094,7 @@
   let session = S().session || null;   // sobrevive a cerrar la app
   let autoResumed = false;
   if (session && !session.paused) {
-    if (Date.now() - (session.lastSeen || 0) < 10 * 60000) autoResumed = true;   // Android la cerró hace poco: el paseo sigue solo
+    if (Date.now() - (session.lastSeen || 0) < 20 * 60000) autoResumed = true;   // Android la cerró hace poco: el paseo sigue solo
     else {                                                                          // hace mucho: queda en pausa
       session.elapsed += Math.max(0, (session.lastSeen || session.resumedAt) - session.resumedAt);
       session.paused = true;
@@ -1164,21 +1116,26 @@
     PM.update.hold();
     PM.sound.pickup(); PM.vibrate(60);
     askNotifyPermission();
-    // la primera vez en el móvil: cómo evitar que Android frene el GPS con la pantalla apagada
-    try {
-      if (isNative && mode === 'gps' && !localStorage.getItem('pintamapa_bathint')) {
-        localStorage.setItem('pintamapa_bathint', '1');
-        openSheet('🔋 Para pintar con el móvil en el bolsillo', `
-          <p>Algunos móviles frenan el GPS de las apps con la pantalla apagada para ahorrar batería, y entonces quedan tramos sin pintar. Revísalo una vez:</p>
-          <ol class="keys" style="color:var(--text)">
-            <li><b>Ajustes → Aplicaciones → PintaMapa → Batería</b> → <b>Sin restricciones</b> (o "No optimizar").</li>
-            <li><b>Ubicación</b> → <b>Permitir siempre</b> y "Usar ubicación precisa".</li>
-            <li>En Xiaomi/Huawei/Samsung: activa también <b>Inicio automático</b> y no la cierres desde "apps recientes".</li>
-          </ol>
-          <p class="muted">PintaMapa solo usa el GPS mientras hay un paseo activo: en pausa o al finalizar se apaga del todo.</p>`);
-      }
-    } catch (e) {}
+    // ¿Android puede frenar el GPS con la pantalla apagada? Se mira de verdad (ahorro de batería del sistema) y, si
+    // la app sigue «optimizada», se ofrece el diálogo del propio Android para permitirlo (como mucho cada 3 días)
+    if (isNative && mode === 'gps') checkBattery();
     toast(mode === 'gps' ? '🖌️ ¡A pintar! Puedes bloquear el móvil: sigo pintando en segundo plano' : '🖌️ ¡A pintar! Muévete con WASD o haz clic en el mapa', 'info', 4500);
+  }
+  const PmSys = isNative && window.Capacitor.registerPlugin ? window.Capacitor.registerPlugin('PmSystem') : null;
+  async function checkBattery() {
+    let st = null;
+    try { st = PmSys && await PmSys.batteryStatus(); } catch (e) { st = null; }   // APK antiguo sin el ajuste: nada
+    if (!st || st.ignoring) return;
+    let last = 0; try { last = +localStorage.getItem('pintamapa_bathint2') || 0; } catch (e) {}
+    if (Date.now() - last < 3 * 86400000) return;
+    try { localStorage.setItem('pintamapa_bathint2', String(Date.now())); } catch (e) {}
+    openSheet('🔋 Para pintar con el móvil en el bolsillo', `
+      <p>Tu móvil tiene PintaMapa en <b>ahorro de batería</b>: con la pantalla apagada puede frenar el GPS o cerrar la app, y quedarían tramos sin pintar.</p>
+      <button class="btn on" id="bat-ok" style="width:100%;margin:6px 0 10px">🔋 Permitir que pinte en segundo plano</button>
+      <p class="muted">Se abre el aviso de Android: elige <b>Permitir</b>. Si no sale, en <b>Ajustes → Aplicaciones → PintaMapa → Batería</b> pon <b>Sin restricciones</b>.
+      PintaMapa solo usa el GPS mientras hay un paseo activo: en pausa o al finalizar se apaga del todo.</p>`);
+    const btn = $('#bat-ok');
+    if (btn) btn.addEventListener('click', async () => { $('#sheet').classList.remove('show'); try { await PmSys.requestBattery(); } catch (e) { toast('Ábrelo en Ajustes → Aplicaciones → PintaMapa → Batería', 'warn', 5000); } });
   }
   function pauseSession() {
     if (!session || session.paused) return;
@@ -1270,6 +1227,7 @@
     if (keys.length && keys.length <= 40) { toast('🗺️ Cargando las calles del recorrido…', 'info', 2000); await W.ensureKeys(keys); }
     const geo = {};
     for (const id in S().painted) { const pc = W.pieces[id]; if (pc) geo[id] = pc.pts; }
+    await PM.need('lib/mp4-muxer.js', 'js/replay.js');
     PM.replay.open(w, { geo, color: paintColor(), player: PM.player && PM.player.name });
   }
   function panelWalks() {
@@ -1382,8 +1340,7 @@
       if (bq && B && S().conqueredB[bq.id]) checkRank(bq.id, pr, B);
       if (bq && B && done) checkBarrioNear(bq.id, pr, B);
       setT('#barrio-name', (bq && S().conqueredB[bq.id] ? RANKS[rankOf(bq.id)].ic + ' ' : '') + ((B && B.name) || (bq && bq.name) || t.name || 'Barrio sin explorar'));
-      const avoidedB = AVOID_ON && bq && S().avoid.some((z) => z.type === 'barrio' && z.id === bq.id);
-      setT('#barrio-pct', avoidedB ? '🚫 evitado' : !B ? '' : !done ? 'calculando…' : B.total ? (pr * 100).toFixed(1) + ' %' : 'sin calles');
+      setT('#barrio-pct', !B ? '' : !done ? 'calculando…' : B.total ? (pr * 100).toFixed(1) + ' %' : 'sin calles');
       setW('#barrio-bar i', (pr * 100).toFixed(1) + '%');
       if (t.city) {
         const cp = G.cityProgress(t.city);
@@ -1796,6 +1753,7 @@
     const data = { app: 'PintaMapa', version: PM.VERSION.app, player: PM.player ? PM.player.name : '', t: Date.now(), save, photos };
     const blob = new Blob([JSON.stringify(data)], { type: 'application/json' });
     const name = `PintaMapa-${(PM.player ? PM.player.slug : 'partida')}-${new Date().toISOString().slice(0, 10)}.json`;
+    await PM.need('lib/mp4-muxer.js', 'js/replay.js');
     await PM.replay.save(blob, name, 'Copia de PintaMapa');
     if (msg) msg.textContent = `✅ Copia lista (${(blob.size / 1048576).toFixed(1)} MB). Guárdala en tu Drive, correo o donde quieras.`;
   }
@@ -2044,9 +2002,9 @@
     $('.av-wrap .avatar') && $('.av-wrap .avatar').addEventListener('click', avEdit);
     if (S().avatar) { const d = document.createElement('button'); d.className = 'av-del'; d.textContent = 'Quitar foto'; d.addEventListener('click', () => { FUN.removeAvatar(); panelProfile(); }); $('.av-wrap').appendChild(d); }
     $('#pf-lvl').addEventListener('click', panelLevel);
-    $('#pf-week') && $('#pf-week').addEventListener('click', () => PM.wrapped && PM.wrapped.open({ S, W }));
-    $('#pf-poster') && $('#pf-poster').addEventListener('click', () => PM.poster && PM.poster.open({ S, W }));
-    const go = { walks: panelWalks, album: panelAlbum, ach: panelAchievements, week: () => PM.wrapped && PM.wrapped.open({ S, W }), cit: () => { profTab = 'cit'; panelProfile(); } };
+    $('#pf-week') && $('#pf-week').addEventListener('click', openWeek);
+    $('#pf-poster') && $('#pf-poster').addEventListener('click', () => PM.need('lib/mp4-muxer.js', 'js/replay.js', 'js/poster.js').then(() => PM.poster.open({ S, W })));
+    const go = { walks: panelWalks, album: panelAlbum, ach: panelAchievements, week: openWeek, cit: () => { profTab = 'cit'; panelProfile(); } };
     document.querySelectorAll('.pf-quick [data-go]').forEach((b) => b.addEventListener('click', () => go[b.dataset.go]()));
     document.querySelectorAll('.pf-tile[data-act]').forEach((b) => b.addEventListener('click', () => go[b.dataset.act]()));
     document.querySelectorAll('.pf-tabs [data-tab]').forEach((b) => b.addEventListener('click', () => { profTab = b.dataset.tab; panelProfile(); }));
@@ -2064,7 +2022,6 @@
       try { await PM.cloud.now(); $('#cl-msg').textContent = '✅ ¡Guardado! Ya lo puedes ver en «Mi progreso» con tu pintor y contraseña.'; recolorAll(); }
       catch (e) { $('#cl-msg').textContent = '❌ ' + (e.message || e); }
     });
-    document.querySelectorAll('.av-rm').forEach((b) => b.addEventListener('click', () => { removeAvoid(b.dataset.id); }));
     if ($('#opt-upd')) $('#opt-upd').addEventListener('click', async () => {
       $('#opt-upd').textContent = '⏳ Buscando…';
       await PM.update.check(true, toast);
@@ -2271,8 +2228,10 @@
     G.ensureDaily();
     if (PM.fillLandmarkCities(S()) + W.fixRecords(S())) PM.state.save();   // lugares conquistados sin ciudad (o con la de la celda vecina): se corrige
     recolorAll();
-    W.setAvoid(AVOID_ON ? S().avoid : []);
     teleport(pos);
+    // la app se cerró a mitad de paseo (Android, en el bolsillo): el hueco desde tu última posición se rellena
+    // por las calles con la primera lectura buena (como si el GPS hubiera tardado en contestar)
+    if (autoResumed && session && !session.paused && session.lastSeen && S().lastPos) lastT = session.lastSeen;
     setMode(mode);
     setOrient(orient);
     renderSession();
@@ -2300,11 +2259,13 @@
         document.body.appendChild(el);
       }, 2500);
     }
-    if (autoResumed && session && !session.paused) { if (session.track && session.track.length) session.track.push(null); PM.update.hold(); }
+    if (autoResumed && session && !session.paused) PM.update.hold();
     setTimeout(() => toast(autoResumed && session && !session.paused ? '▶ Tu paseo sigue: la app se había cerrado, seguimos pintando' : session ? '⏸ Tienes un paseo en pausa: pulsa ▶ para reanudar' :
       isNative ? '📡 Pulsa «Empezar a pintar» y sal a la calle' : '🕹️ Pulsa «Empezar a pintar» y muévete con WASD o clic', 'info', 4500), 600);
   }
   $('#start').addEventListener('click', () => begin(true));
+  // paseo en marcha que Android cerró: se vuelve directo al mapa y sigue pintando (sin pasar por la pantalla de inicio)
+  if (autoResumed && PM.player && session && !session.paused) setTimeout(() => begin(), 200);
   $('#intro-ver').textContent = `v${PM.VERSION.app} · datos © OpenStreetMap · mapa OpenFreeMap`;
   // versión bien visible (inicio y esquina del juego) para saber qué versión tienes instalada
   $('#intro-badge').innerHTML = `Versión <b>${PM.VERSION.app}</b> · ${new Date(PM.VERSION.date).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' })}` +
