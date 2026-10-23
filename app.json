@@ -1,8 +1,8 @@
 {
-  "version": "0.6.44",
-  "notes": "Imprescindibles: fondo del icono y halo dorados",
-  "native": 4,
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.44/pintamapa-web-0.6.44.zip",
-  "checksum": "28a487126a4a46bc88e3963ea0988a2d068057df76576c19cc4986fbf5148db2",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.44/PintaMapa-v0.6.44.apk"
+  "version": "0.6.45",
+  "notes": "Revisión por USB (depuración del WebView)",
+  "native": 5,
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.45/pintamapa-web-0.6.45.zip",
+  "checksum": "dda0a531b22f9757179e6f21bdff1e952e9b933d413cdbe4e1aaa035ada405bf",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.45/PintaMapa-v0.6.45.apk"
 }
