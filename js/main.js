@@ -1378,6 +1378,7 @@
     persistSession(); syncGPS(); renderSession();
     showSummary(s);
     PM.sync.auto(toast);
+    setTimeout(backupReminder, 8000);
     setTimeout(() => PM.update.check(false, toast), 5000);
   }
 
@@ -1951,19 +1952,38 @@
   $('#hud .barrio').addEventListener('click', () => showBarrioHistory(curBarrio));
 
   // ---------------- Copia de seguridad en archivo ----------------
+  // Copia de seguridad en archivo, en el propio móvil (Documentos/PintaMapa) y, si quieres, enviada a donde elijas.
+  // Lleva TODA la partida, tus fotos de cromos, la forma de lo pintado, los contornos de tus barrios y los
+  // imprescindibles de cada ciudad: en el móvil nuevo se ve todo al momento, sin nube.
   async function exportBackup() {
     const s = S(), msg = $('#bk-msg');
     if (msg) msg.textContent = '⏳ Preparando la copia…';
     const photos = {};
     for (const id of Object.keys(s.cardPhotos || {})) { try { const p = await PM.cards.getPhoto(id); if (p) photos[id] = p; } catch (e) {} }
     s.backupT = Date.now(); PM.state.save();
-    const save = Object.assign({}, s); delete save.session;
-    const data = { app: 'PintaMapa', version: PM.VERSION.app, player: PM.player ? PM.player.name : '', t: Date.now(), save, photos };
+    const save = Object.assign({}, s); delete save.session; delete save.pendingGeo;
+    const geo = {};
+    for (const [k, ids] of pgeoTile) { const o = {}; for (const id of ids) if (s.painted[id]) o[id] = pgeo.get(id).p; if (Object.keys(o).length) geo[k] = o; }
+    let cityinfo = null; try { cityinfo = JSON.parse(localStorage.getItem('pintamapa_cityinfo') || 'null'); } catch (e) {}
+    const data = { app: 'PintaMapa', version: PM.VERSION.app, player: PM.player ? PM.player.name : '', t: Date.now(), save, photos, geo, bgeo, cityinfo };
     const blob = new Blob([JSON.stringify(data)], { type: 'application/json' });
     const name = `PintaMapa-${(PM.player ? PM.player.slug : 'partida')}-${new Date().toISOString().slice(0, 10)}.json`;
+    const mb = (blob.size / 1048576).toFixed(1);
+    const FS = isNative && window.Capacitor.Plugins && window.Capacitor.Plugins.Filesystem;
+    if (FS) {
+      try {
+        const b64 = await new Promise((ok, ko) => { const fr = new FileReader(); fr.onload = () => ok(String(fr.result).split(',')[1]); fr.onerror = ko; fr.readAsDataURL(blob); });
+        await FS.writeFile({ path: 'PintaMapa/' + name, data: b64, directory: 'DOCUMENTS', recursive: true });
+        if (msg) msg.innerHTML = `✅ Copia guardada en el móvil: <b>Documentos/PintaMapa/${name}</b> (${mb} MB). Si cambias de móvil, pásala al nuevo e impórtala.
+          <button class="btn" id="bk-share" style="margin-top:6px;width:100%">📤 Guardarla también en otro sitio (Drive, correo…)</button>`;
+        const sh = $('#bk-share');
+        if (sh) sh.addEventListener('click', async () => { await PM.need('lib/mp4-muxer.js', 'js/replay.js'); await PM.replay.save(blob, name, 'Copia de PintaMapa'); });
+        return;
+      } catch (e) { /* sin acceso a Documentos: se comparte como antes */ }
+    }
     await PM.need('lib/mp4-muxer.js', 'js/replay.js');
     await PM.replay.save(blob, name, 'Copia de PintaMapa');
-    if (msg) msg.textContent = `✅ Copia lista (${(blob.size / 1048576).toFixed(1)} MB). Guárdala en tu Drive, correo o donde quieras.`;
+    if (msg) msg.textContent = `✅ Copia lista (${mb} MB). Guárdala donde quieras: en el móvil nuevo, impórtala.`;
   }
   function importBackup() {
     const inp = document.createElement('input'); inp.type = 'file'; inp.accept = '.json,application/json';
@@ -1976,11 +1996,37 @@
         const cur = S(), merged = PM.merge(d.save, cur);
         PM.state.replace(Object.assign({}, merged, { session: cur.session, pendingGeo: Object.assign({}, d.save.pendingGeo || {}, cur.pendingGeo || {}) }));
         for (const [id, img] of Object.entries(d.photos || {})) { try { await PM.cards.putPhoto(id, img); } catch (e) {} }
+        // formas de lo pintado y contornos de barrios: lo tuyo se ve al momento, también lo de zonas lejanas
+        try {
+          const db = await geoDb(), tx = db.transaction(['geo', 'meta'], 'readwrite'), st = tx.objectStore('geo');
+          for (const [k, o] of Object.entries(d.geo || {})) {
+            const prev = (await idbReq(st.get(k))) || {};
+            st.put(Object.assign(prev, o), k);
+          }
+          if (d.bgeo) tx.objectStore('meta').put(Object.assign({}, d.bgeo, bgeo), 'barrios');
+          await new Promise((ok) => { tx.oncomplete = ok; tx.onerror = ok; });
+        } catch (e) { /* se recogerán solas, zona a zona */ }
+        if (d.cityinfo) { try { const ci = JSON.parse(localStorage.getItem('pintamapa_cityinfo') || '{}'); localStorage.setItem('pintamapa_cityinfo', JSON.stringify(Object.assign({}, d.cityinfo, ci))); } catch (e) {} }
         toast('✅ Copia importada. Recargando…', 'ok');
         setTimeout(() => location.reload(), 1200);
       } catch (e) { toast('❌ ' + (e.message || e), 'warn', 5000); }
     };
     inp.click();
+  }
+  // Sin nube: recordatorio suave para hacer copia (como mucho uno por semana, si la última tiene más de un mes)
+  function backupReminder() {
+    const s = S();
+    if (PM.cloud.ready() || (s.stats.paintedM || 0) < 500 || Date.now() - (s.backupT || 0) < 30 * 86400000) return;
+    let last = 0; try { last = +localStorage.getItem('pintamapa_bkrem') || 0; } catch (e) {}
+    if (Date.now() - last < 7 * 86400000 || document.getElementById('bk-banner')) return;
+    try { localStorage.setItem('pintamapa_bkrem', String(Date.now())); } catch (e) {}
+    const el = document.createElement('div');
+    el.id = 'bk-banner'; el.className = 'cloud-banner-like';
+    el.innerHTML = `<span>💾 <b>Haz una copia</b> de tu partida por si cambias de móvil (se guarda en el propio móvil)</span><button class="btn on">Hacer copia</button><button class="x">✕</button>`;
+    el.querySelector('.btn').addEventListener('click', () => { el.remove(); profTab = 'aj'; panelProfile(); setTimeout(exportBackup, 400); });
+    el.querySelector('.x').addEventListener('click', () => el.remove());
+    document.body.appendChild(el);
+    setTimeout(() => el.remove(), 20000);
   }
 
   function panelMissions() {
@@ -2155,7 +2201,7 @@
       html += card('🏅 Barrios conquistados', bc.length ? bc.map((b) => { const rk = b.id != null ? rankOf(b.id) : 0; return `<div class="row bh-row" data-bid="${esc(b.id)}"><span>${RANKS[rk].ic} ${esc(b.name)} <small class="muted">· ${RANKS[rk].name}</small></span><small class="muted">${new Date(b.t).toLocaleDateString('es-ES')} ›</small></div>`; }).join('') : '<p class="muted">Pinta el 60 % de las calles de un barrio para conquistarlo (80 % plata, 90 % oro).</p>', bc.length || '');
     }
     if (profTab === 'aj') {
-      if (PM.isNative && PM.profile === 'real') {
+      if (PM.isNative && PM.profile === 'real' && PM.cloud.allowed()) {
         const has = !!PM.cloud.password();
         html += card('☁️ Mi cuenta en la nube', `
           <p class="muted">Tu progreso se guarda <b>cifrado con tu contraseña</b>. Con tu pintor (<b>${PM.player ? esc(PM.player.name) : ''}</b>) y la contraseña lo ves en <b>luzferlux77.github.io/pintamapa-app/progreso.html</b></p>
@@ -2171,7 +2217,7 @@
       html += card('⚙️ Preferencias', `
         <label class="row"><span>🔊 Sonido</span><input type="checkbox" class="sw" id="opt-sound" ${PM.sound.enabled ? 'checked' : ''}></label>
         <label class="row"><span>🌙 Tema oscuro</span><input type="checkbox" class="sw" id="opt-dark" ${s.theme === 'dark' ? 'checked' : ''}></label>`);
-      html += card('💾 Copia de seguridad', `<p class="muted">Guarda TODA tu partida (con tus fotos de cromos) en un archivo, por si cambias de móvil o falla la nube. Al importarla se <b>suma</b> a lo que tengas: no se pierde nada.</p>
+      html += card('💾 Copia de seguridad', `<p class="muted">Guarda TODA tu partida (fotos de cromos, lo pintado y tus barrios incluidos) en un archivo en tu móvil (<b>Documentos/PintaMapa</b>). Si cambias de móvil, pásalo al nuevo e impórtalo: se <b>suma</b> a lo que tengas, no se pierde nada.</p>
         <div class="seg"><button class="btn on" id="bk-exp">💾 Exportar copia</button><button class="btn" id="bk-imp">📂 Importar copia</button></div><p class="muted" id="bk-msg">${s.backupT ? 'Última copia: ' + new Date(s.backupT).toLocaleString('es-ES') : 'Aún no has hecho ninguna copia.'}</p>`);
       html += card('📴 Mapa sin conexión', `<p class="muted">Descarga tu zona para ver el mapa y pintar sin cobertura (metro, montaña, viajes). Lo que ya has visto también se guarda solo.</p>
         <div class="seg"><button class="btn on" id="off-dl" data-km="3">⬇️ Mi zona (3 km)</button><button class="btn" id="off-dl2" data-km="6">⬇️ Mi ciudad (6 km)</button></div><p class="muted" id="off-msg">Calculando lo guardado…</p>`);
@@ -2414,6 +2460,7 @@
     PM.sound._ctx();
     G.ensureDaily();
     if (PM.fillLandmarkCities(S()) + W.fixRecords(S())) PM.state.save();   // lugares conquistados sin ciudad (o con la de la celda vecina): se corrige
+    if (!PM.cloud.allowed() && Object.keys(S().pendingGeo || {}).length) { S().pendingGeo = {}; PM.state.save(); }   // sin nube: no hay nada que subir
     recolorAll();
     teleport(pos);
     // la app se cerró a mitad de paseo (Android, en el bolsillo): el hueco desde tu última posición se rellena
@@ -2430,13 +2477,13 @@
     document.addEventListener('visibilitychange', () => { if (document.hidden) scheduleStreakReminder(); });
     // tramos pintados con versiones anteriores: su geometría (pendiente de subir y la de tu nube) para reconocerlos con la nueva fuente de mapas
     W.addLegacyGeo(S().pendingGeo);
-    if (PM.profile === 'real' && PM.player && PM.cloud.password() && Date.now() - (S().legacyCloudT || 0) > 7 * 86400000) {
+    if (PM.profile === 'real' && PM.player && PM.cloud.allowed() && PM.cloud.password() && Date.now() - (S().legacyCloudT || 0) > 7 * 86400000) {
       PM.cloud.load(PM.player.name, PM.cloud.password()).then((r) => {
         if (r && r.geo) { W.addLegacyGeo(r.geo); S().legacyCloudT = Date.now(); PM.state.save(); }
       }).catch((e) => console.warn('Geometría de la nube para la migración: pendiente', e));
     }
     // perfil real sin nube conectada: aviso claro (sin el token en el móvil, el PC no puede ver tu progreso)
-    if (PM.isNative && PM.profile === 'real' && !PM.cloud.token()) {
+    if (PM.isNative && PM.profile === 'real' && PM.cloud.allowed() && !PM.cloud.token()) {
       setTimeout(() => {
         const el = document.createElement('div');
         el.id = 'cloud-banner';

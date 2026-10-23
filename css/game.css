@@ -298,6 +298,8 @@ details.howto ol { padding-left: 18px; line-height: 1.6; }
 
 #cloud-banner { top: auto; bottom: calc(150px + var(--safe-bottom)); display: flex; gap: 8px; align-items: center; background: var(--panel); border: 2px solid #2563eb; border-radius: 14px; padding: 10px 12px; box-shadow: var(--shadow); font-size: 13.5px; left: 10px; right: 10px; z-index: 900; }
 #cloud-banner span { flex: 1; } #cloud-banner .x { background: none; border: none; font-size: 16px; }
+#bk-banner { position: fixed; top: auto; bottom: calc(150px + var(--safe-bottom)); left: 10px; right: 10px; z-index: 900; display: flex; gap: 8px; align-items: center; background: var(--panel); border: 2px solid var(--paint); border-radius: 14px; padding: 10px 12px; box-shadow: var(--shadow); font-size: 13.5px; }
+#bk-banner span { flex: 1; } #bk-banner .x { background: none; border: none; font-size: 16px; }
 .howto-card { text-align: left; background: var(--card); border-radius: 12px; padding: 12px 14px; font-size: 13.5px; line-height: 1.5; }
 .howto-card ol { padding-left: 18px; margin: 8px 0; }
 

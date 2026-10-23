@@ -28,7 +28,11 @@ PM.cloud = (function () {
   const passKey = () => 'pw_' + (PM.player ? PM.player.slug : '');
   const password = () => cfg[passKey()] || '';
   function setPassword(p) { cfg[passKey()] = String(p || ''); try { localStorage.setItem(KEY, JSON.stringify(cfg)); } catch (e) {} }
-  const ready = () => !!(PM.player && password() && writeToken());
+  // De momento la nube es solo para el dueño de la app (no se pueden mantener servidores para más gente):
+  // el resto de pintores juega igual, con todo guardado en su móvil (y copia de seguridad en archivo).
+  const OWNER = 'luzfer';
+  const allowed = () => !!(PM.player && PM.player.slug === OWNER);
+  const ready = () => !!(allowed() && password() && writeToken());
 
   // ---- cifrado ----
   const enc = new TextEncoder(), dec = new TextDecoder();
@@ -82,6 +86,7 @@ PM.cloud = (function () {
 
   // Sube tu partida: lee la de la nube, las fusiona (nunca se pierde nada) y guarda la unión, cifrada.
   async function now() {
+    if (!allowed()) throw new Error('La nube de momento solo está disponible para el dueño de la app');
     if (!writeToken()) throw new Error('Esta versión de la app no trae la clave de la nube');
     if (!PM.player) throw new Error('Elige tu pintor');
     if (!password()) throw new Error('Pon una contraseña de pintor en Perfil → Mi cuenta en la nube');
@@ -186,7 +191,7 @@ PM.cloud = (function () {
     return { save, geo, photo };
   }
 
-  return { now, auto, ready, load, password, setPassword, hasKey: () => !!writeToken(), REPO,
+  return { now, auto, ready, allowed, load, password, setPassword, hasKey: () => !!writeToken(), REPO,
     token: () => (password() ? 'ok' : '') };   // compatibilidad: "¿está conectada la nube?"
 })();
 PM.sync = PM.cloud;

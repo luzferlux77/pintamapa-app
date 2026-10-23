@@ -1259,7 +1259,8 @@ PM.world = (function () {
   function nameTile(key) {
     const t = tiles[key];
     if (!t || t.name || !t.pieces.length) return;
-    const saved = PM.state && PM.state.data.tileNames[key];
+    let saved = PM.state && PM.state.data.tileNames[key];
+    if (saved && saved.city === 'Ciudad desconocida') saved = null;   // guardado sin conexión en versiones antiguas: se vuelve a preguntar
     if (saved) { t.name = saved.name; t.city = saved.city; emit('named', { key }); const [[s, w], [n, e]] = tileBounds(key); ensureCity((s + n) / 2, (w + e) / 2); return; }
     if (t.demo) { t.name = 'Sector ' + key.replace('_', '·'); t.city = 'Ciudad Demo'; emit('named', { key }); return; }
     nameQueue.push(key);
@@ -1281,7 +1282,13 @@ PM.world = (function () {
         t.name = a.suburb || a.neighbourhood || a.quarter || a.city_district || a.hamlet || t.city;
         if (PM.state && a.country && t.city) { const cs = PM.state.data.countries || (PM.state.data.countries = {}); if (!cs[t.city]) cs[t.city] = { name: a.country, cc: a.country_code || '' }; }
       } catch (e) {
+        // sin conexión: nombre provisional que NO se guarda (antes quedaba «Ciudad desconocida» para siempre);
+        // se vuelve a preguntar en un par de minutos
         t.name = 'Sector ' + key.replace('_', '·'); t.city = t.city || 'Ciudad desconocida';
+        emit('named', { key });
+        setTimeout(() => { if (tiles[key] && tiles[key].city === 'Ciudad desconocida') { tiles[key].name = null; tiles[key].city = null; nameTile(key); } }, 120000);
+        await new Promise((res) => setTimeout(res, 1100));
+        continue;
       }
       if (PM.state) PM.state.data.tileNames[key] = { name: t.name, city: t.city };
       emit('named', { key });

@@ -160,7 +160,7 @@ PM.game = (function () {
     s.painted[piece.id] = 1;
     lastPass[piece.id] = Date.now();
     markActiveDay();
-    if (PM.profile === 'real') s.pendingGeo[piece.id] = piece.pts.map((q) => [+q[0].toFixed(6), +q[1].toFixed(6)]);
+    if (PM.profile === 'real' && PM.cloud && PM.cloud.allowed()) s.pendingGeo[piece.id] = piece.pts.map((q) => [+q[0].toFixed(6), +q[1].toFixed(6)]);   // (solo para subirlo a la nube)
     if (piece.trail) s.stats.trailM = (s.stats.trailM || 0) + piece.len;
     if (!piece.trail) s.paintedByTile[piece.tile] = (s.paintedByTile[piece.tile] || 0) + piece.len;   // senderos: no cuentan para el %
     s.stats.paintedM += piece.len;
