@@ -1,8 +1,8 @@
 {
-  "version": "0.6.49",
-  "notes": "ARREGLO IMPORTANTE: el GPS en segundo plano no se activaba (pintar con la pantalla apagada); también brújula nativa y aviso de batería",
+  "version": "0.6.50",
+  "notes": "Red de calles bien unida (los huecos del GPS se rellenan por las calles también con los mapas vectoriales); capturas en el bolsillo; brújula sin temblores",
   "native": 6,
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.49/pintamapa-web-0.6.49.zip",
-  "checksum": "3b01be5264cc70ffbe0da1814685e978afaa83291d7aab18a79e37a9a7093eaf",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.49/PintaMapa-v0.6.49.apk"
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.50/pintamapa-web-0.6.50.zip",
+  "checksum": "9e2ba382242bb7f110164ca80d4c8effc2f2ed20d6d26cb2559f96ab122a6831",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.50/PintaMapa-v0.6.50.apk"
 }
