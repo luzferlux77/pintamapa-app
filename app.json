@@ -1,8 +1,8 @@
 {
-  "version": "0.6.54",
-  "notes": "Depuración de huecos",
+  "version": "0.6.55",
+  "notes": "Al reabrir la app con un paseo en marcha se rellena el tramo hecho mientras estuvo cerrada",
   "native": 6,
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.54/pintamapa-web-0.6.54.zip",
-  "checksum": "748371744e9ef4f393f845b3e3a248e0d7eebaf7822eea417fd7bd08203549a9",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.54/PintaMapa-v0.6.54.apk"
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.55/pintamapa-web-0.6.55.zip",
+  "checksum": "7d7c1817cdad6fdc88dce07ae2adc5380656d71672500622873d16221df45485",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.55/PintaMapa-v0.6.55.apk"
 }
