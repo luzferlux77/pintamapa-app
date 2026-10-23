@@ -1,8 +1,8 @@
 {
-  "version": "0.6.46",
-  "notes": "Conquistados sin bandera; imprescindibles con latido dorado; mismos lugares en todos los móviles; librerías no son bibliotecas; imprescindibles en Sant Boi y El Prat",
+  "version": "0.6.47",
+  "notes": "Latido de imprescindibles más visible; sin la «i» de créditos en el mapa",
   "native": 5,
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.46/pintamapa-web-0.6.46.zip",
-  "checksum": "321b3c8f23c330e75745a67ece9f5b8e574ed7d3420b1cb14533563177148689",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.46/PintaMapa-v0.6.46.apk"
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.47/pintamapa-web-0.6.47.zip",
+  "checksum": "b4f2639ddff5536812df68946ec53c2eebb6aba75126cc289dd3d06b59726201",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.47/PintaMapa-v0.6.47.apk"
 }
