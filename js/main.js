@@ -132,6 +132,81 @@
     const c = map.getCenter(), [i, j] = key.split('_').map(Number);
     return Math.abs(i - Math.floor(c.lat / W.TILE)) <= r && Math.abs(j - Math.floor(c.lng / W.TILE)) <= r;
   }
+  // ---------------- Lo pintado y lo conquistado, visibles SIEMPRE y en cualquier lugar del mundo ----------------
+  // La forma de cada calle que pintas y el contorno de cada barrio que conquistas se guardan aparte en el móvil
+  // (base de datos ligera, ~40 bytes por tramo). Así el mapa los dibuja aunque esa zona no esté cargada en memoria:
+  // puedes revisar todo lo tuyo desde cualquier sitio y con cualquier zoom, y las zonas lejanas se pueden
+  // descargar de la memoria sin que desaparezca nada de lo que ves.
+  const pgeo = new Map(), pgeoTile = new Map(), pgeoNew = new Set();   // id -> {k, p}; zona -> ids; zonas por guardar
+  let bgeo = {};   // barrio conquistado -> { name, segs, pos }
+  let pgeoTimer = null, harvested = {}, geoReady = false;
+  const H_KEY = 'pintamapa_geo_h_' + (PM.player ? PM.player.slug : '') + '_' + PM.profile;   // (por pintor: cada uno recoge lo suyo)
+  try { harvested = JSON.parse(localStorage.getItem(H_KEY) || '{}'); } catch (e) {}
+  const idbReq = (r) => new Promise((ok, ko) => { r.onsuccess = () => ok(r.result); r.onerror = () => ko(r.error); });
+  let geoDbP = null;
+  const geoDb = () => geoDbP || (geoDbP = new Promise((ok, ko) => {
+    const r = indexedDB.open('pintamapa-geo', 1);
+    r.onupgradeneeded = () => { r.result.createObjectStore('geo'); r.result.createObjectStore('meta'); };
+    r.onsuccess = () => ok(r.result); r.onerror = () => ko(r.error);
+  }));
+  (async () => {
+    try {
+      const db = await geoDb(), st = db.transaction('geo').objectStore('geo');
+      const [keys, vals] = await Promise.all([idbReq(st.getAllKeys()), idbReq(st.getAll())]);
+      // (se mezcla con lo que se haya pintado mientras se leía: nada se pisa)
+      keys.forEach((k, i) => { const set = pgeoTile.get(k) || new Set(); for (const [id, pts] of Object.entries(vals[i] || {})) { if (!pgeo.has(id)) pgeo.set(id, { k, p: pts }); set.add(id); } pgeoTile.set(k, set); });
+      bgeo = Object.assign((await idbReq(db.transaction('meta').objectStore('meta').get('barrios'))) || {}, bgeo);
+    } catch (e) { /* sin base de datos (navegador privado): se dibuja lo cargado, como antes */ }
+    geoReady = true;
+    if (Object.keys(bgeo).length) geoDb().then((db) => db.transaction('meta', 'readwrite').objectStore('meta').put(bgeo, 'barrios')).catch(() => {});
+    paintedDirty = true; renderBarrios();
+  })();
+  function geoAdd(pc) {
+    if (!pc || pgeo.has(pc.id)) return;
+    pgeo.set(pc.id, { k: pc.tile, p: pc.pts.map((q) => [+q[0].toFixed(6), +q[1].toFixed(6)]) });
+    (pgeoTile.get(pc.tile) || pgeoTile.set(pc.tile, new Set()).get(pc.tile)).add(pc.id);
+    pgeoNew.add(pc.tile);
+    clearTimeout(pgeoTimer); pgeoTimer = setTimeout(geoFlush, 3000);
+  }
+  async function geoFlush() {
+    if (!pgeoNew.size) return;
+    if (!geoReady) { pgeoTimer = setTimeout(geoFlush, 2000); return; }   // primero hay que leer lo guardado
+    const tilesToWrite = [...pgeoNew]; pgeoNew.clear();
+    try {
+      const db = await geoDb(), st = db.transaction('geo', 'readwrite').objectStore('geo');
+      for (const k of tilesToWrite) { const o = {}; for (const id of pgeoTile.get(k) || []) o[id] = pgeo.get(id).p; st.put(o, k); }
+    } catch (e) { tilesToWrite.forEach((k) => pgeoNew.add(k)); }
+  }
+  // guarda la forma de lo pintado de unas zonas recién cargadas (y las da por «recogidas»)
+  function geoHarvest(keys) {
+    const painted = S().painted;
+    for (const k of keys) {
+      const t = W.tiles[k];
+      if (!t || !t.loaded) continue;
+      for (const pc of t.pieces) if (painted[pc.id]) geoAdd(pc);
+      harvested[k] = 1;
+    }
+    try { localStorage.setItem(H_KEY, JSON.stringify(harvested)); } catch (e) {}
+  }
+  function bgeoSave(B) {   // contorno de un barrio conquistado (simplificado)
+    const segs = (B.segs || []).map((sg) => PM.simplifyTrack(sg.map((q) => [q[0], q[1]]), 4).map((q) => [+q[0].toFixed(5), +q[1].toFixed(5)]));
+    const cur = bgeo[B.id];
+    if (cur && cur.segs.length === segs.length && cur.pos) return;
+    bgeo[B.id] = { name: B.name, segs, pos: B.pos ? [+B.pos[0].toFixed(5), +B.pos[1].toFixed(5)] : null };
+    if (geoReady) geoDb().then((db) => db.transaction('meta', 'readwrite').objectStore('meta').put(bgeo, 'barrios')).catch(() => {});
+  }
+  // zonas (celdas de 0,01°) que se ven ahora en el mapa (con un margen)
+  function viewTiles() {
+    const b = map.getBounds(), T = W.TILE;
+    const s0 = Math.floor(b.getSouth() / T) - 1, n0 = Math.floor(b.getNorth() / T) + 1, w0 = Math.floor(b.getWest() / T) - 1, e0 = Math.floor(b.getEast() / T) + 1;
+    const inView = (k) => { const [i, j] = k.split('_').map(Number); return i >= s0 && i <= n0 && j >= w0 && j <= e0; };
+    const out = new Set();
+    for (const k of pgeoTile.keys()) if (inView(k)) out.add(k);
+    for (const k of rendered) out.add(k);
+    for (const k in S().paintedByTile) if (inView(k)) out.add(k);
+    return out;
+  }
+
   const tileFeat = {};   // zona -> calles ya convertidas (al volver a dibujar no se rehacen)
   function renderTile(key) {
     const t = W.tiles[key];
@@ -145,7 +220,8 @@
     let changed = false;
     for (const k of [...rendered]) if (!nearView(k, VIEW_R + 2)) { rendered.delete(k); delete tileFeat[k]; changed = true; }   // margen: no se rehace al cruzar un borde
     for (const k in W.tiles) if (!rendered.has(k) && (W.tiles[k].loaded || W.tiles[k].partial) && nearView(k)) { rendered.add(k); changed = true; }
-    if (changed) { streetsDirty = true; paintedDirty = true; }
+    if (changed) streetsDirty = true;
+    paintedDirty = true;   // lo pintado de lo que ahora miras (sale del almacén aunque no esté cargado)
   }
   map.on('moveend', () => { clearTimeout(viewTimer); viewTimer = setTimeout(refreshView, 250); });
   let viewTimer = null;
@@ -163,15 +239,18 @@
     setSrc('pm-streets', FC(f));
   }
   function rebuildPainted() {
-    const f = [], painted = S().painted;
-    for (const k of rendered) {   // por zona, una figura por intensidad (0-3) en vez de una por tramo
-      const by = [[], [], [], []];
-      for (const p of W.tiles[k].pieces) if (painted[p.id]) by[heatLevel(p.id)].push(p);
-      by.forEach((list, h) => { const x = multiF(list, { h }); if (x) f.push(x); });
+    const f = [], painted = S().painted, cos = [];
+    for (const k of viewTiles()) {   // por zona, una figura por intensidad (0-3) en vez de una por tramo
+      const by = [[], [], [], []], t = W.tiles[k], seen = new Set();
+      if (t) for (const p of t.pieces) if (painted[p.id]) { by[heatLevel(p.id)].push(p.pts); seen.add(p.id); }
+      const ids = pgeoTile.get(k);
+      if (ids) for (const id of ids) if (painted[id] && !seen.has(id)) by[heatLevel(id)].push(pgeo.get(id).p);
+      by.forEach((list, h) => { if (list.length) f.push({ type: 'Feature', properties: { h }, geometry: { type: 'MultiLineString', coordinates: list.map((pts) => pts.map(ll)) } }); });
     }
     paintedF = f;
     setSrc('pm-painted', FC(f));
   }
+
 
   // ---------- Barrios reales: contorno del barrio donde estás y de los conquistados, con bandera ----------
   let curBarrio = null;
@@ -263,8 +342,16 @@
     const f = [];
     for (const B of Object.values(W.barrios)) {
       const conq = !!S().conqueredB[B.id], cur = B.id === curBarrio;
+      if (conq) bgeoSave(B);
       if (B.segs && (cur || conq)) { const rk = conq ? rankOf(B.id) : 0; B.segs.forEach((sg) => f.push(lineF(sg, { c: conq ? 1 : 0, cur: cur ? 1 : 0, rk }))); }
       if (conq && B.pos) { const rk = rankOf(B.id); flagMarkers.push(htmlMarker(B.pos, `<div class="flag rk${rk}" title="${RANKS[rk].name}">${RANKS[rk].ic}</div>`, { anchor: 'bottom-left' })); }
+    }
+    // los conquistados que no están cargados ahora (lejos, en otra ciudad, en otro país): con su contorno guardado
+    for (const [id, g] of Object.entries(bgeo)) {
+      if (W.barrios[id] || !S().conqueredB[id]) continue;
+      const rk = rankOf(id);
+      g.segs.forEach((sg) => f.push(lineF(sg, { c: 1, cur: 0, rk })));
+      if (g.pos) flagMarkers.push(htmlMarker(g.pos, `<div class="flag rk${rk}" title="${RANKS[rk].name}">${RANKS[rk].ic}</div>`, { anchor: 'bottom-left' }));
     }
     setSrc('pm-barrios', FC(f));
   }
@@ -613,6 +700,54 @@
     pendingGaps = keep;
     paintedDirty = true; PM.state.save();
   }
+
+  // ---------------- Memoria: las zonas lejanas salen; lo pintado de antes se recoge poco a poco ----------------
+  // Con más de 36 zonas en memoria se quitan las más lejanas hasta dejar 25. Nunca: las que tienes a menos de 2
+  // celdas (~2 km), las de lo que estás mirando, las de tu barrio ni las de un hueco del GPS por rellenar.
+  // Lo pintado y lo conquistado se siguen viendo (salen del almacén de formas) y las calles vuelven al acercarte.
+  const KEEP_MAX = 36, KEEP_TO = 25;
+  function keepSet() {
+    const keep = new Set(), T = W.TILE;
+    const around = (p, r) => { const i = Math.floor(p[0] / T), j = Math.floor(p[1] / T); for (let a = -r; a <= r; a++) for (let b = -r; b <= r; b++) keep.add((i + a) + '_' + (j + b)); };
+    around(pos, 2);
+    const c = map.getCenter(); around([c.lat, c.lng], 2);
+    const B = curBarrio && W.barrios[curBarrio];
+    if (B && B.bbox) {
+      const i0 = Math.floor(B.bbox[0] / T), i1 = Math.floor(B.bbox[2] / T), j0 = Math.floor(B.bbox[1] / T), j1 = Math.floor(B.bbox[3] / T);
+      if ((i1 - i0 + 1) * (j1 - j0 + 1) <= 30) for (let i = i0; i <= i1; i++) for (let j = j0; j <= j1; j++) keep.add(i + '_' + j);
+    }
+    for (const g of pendingGaps) { around(g.a, 1); around(g.b, 1); }
+    return keep;
+  }
+  function trimMemory() {
+    const loaded = Object.keys(W.tiles).filter((k) => W.tiles[k].loaded);
+    if (loaded.length <= KEEP_MAX) return;
+    const keep = keepSet(), ip = Math.floor(pos[0] / W.TILE), jp = Math.floor(pos[1] / W.TILE);
+    const far = (k) => { const [i, j] = k.split('_').map(Number); return Math.max(Math.abs(i - ip), Math.abs(j - jp)); };
+    const cand = loaded.filter((k) => !keep.has(k)).sort((x, y) => far(y) - far(x));
+    geoHarvest(cand);   // (por si acaso: su pintado queda guardado antes de quitarlas)
+    W.unloadTiles(cand.slice(0, loaded.length - KEEP_TO));
+  }
+  setInterval(trimMemory, 30000);
+  // Lo pintado antes de esta versión: sus formas se recogen en segundo plano, zona a zona, desde la copia del móvil
+  // (sin pintar, con la app a la vista y de una en una). Al acabar, cada zona lejana vuelve a salir de la memoria.
+  let harvestBusy = false;
+  const harvestTry = {};
+  async function harvestOld() {
+    if (harvestBusy || !mapReady || document.hidden || (session && !session.paused) || !geoReady) return;
+    const pb = S().paintedByTile;
+    const k = Object.keys(pb).find((x) => pb[x] > 0 && !harvested[x] && !(Date.now() - (harvestTry[x] || 0) < 30 * 60000));
+    if (!k) return;
+    harvestBusy = true;
+    try {
+      if (W.tiles[k] && W.tiles[k].loaded) { geoHarvest([k]); return; }
+      await W.ensureKeys([k]);
+      if (W.tiles[k] && W.tiles[k].loaded) geoHarvest([k]); else harvestTry[k] = Date.now();   // no llegó (¿sin conexión?): en media hora
+      if (!keepSet().has(k)) W.unloadTiles([k]);
+      paintedDirty = true;
+    } catch (e) { /* sin conexión: se probará más tarde */ } finally { harvestBusy = false; }
+  }
+  setInterval(harvestOld, 5000);
 
   // punto del recorrido: [lat, lon, segundos desde el inicio del paseo, altitud del GPS] (para las estadísticas tipo Strava)
   let lastAlt = null;
@@ -1007,7 +1142,7 @@
 
   // Gancho de pruebas (consola del navegador): PM.debug.walkTo([lat, lon]), PM.debug.setPace(0..4)
   PM.debug = { map, walkTo(p) { target = p; follow = true; }, setPace(i) { pace = i; turbo = false; }, get pos() { return pos.slice(); },
-    get bearing() { return map.getBearing(); }, get heading() { return heading; }, get gap() { return { lastP, lastT, pending: pendingGaps.length, autoResumed, lastSeen: session && session.lastSeen }; },
+    get bearing() { return map.getBearing(); }, get heading() { return heading; }, get gap() { return { lastP, lastT, pending: pendingGaps.length, autoResumed, lastSeen: session && session.lastSeen }; }, trim: () => trimMemory(), harvest: () => harvestOld(), flushGeo: () => geoFlush(), get geo() { return { pgeo: pgeo.size, zonas: pgeoTile.size, barrios: Object.keys(bgeo).length, recogidas: Object.keys(harvested).length, ready: geoReady }; }, get painted() { return paintedF; },
     // avanza el juego n fotogramas a mano (pruebas con la pestaña oculta, donde el navegador congela la animación)
     frames(n, ms = 50) { let t = lastFrame; for (let i = 0; i < n; i++) { t += ms; loop(t, true); } } };
   PM.debug.fx = (id) => conquestFX(id || curBarrio);   // pruebas: animación de conquista
@@ -1531,6 +1666,7 @@
       }
       case 'painted': {
         paintedF.push(lineF(d.piece.pts, { h: 0 })); paintedAdd = true;   // solo el tramo nuevo
+        geoAdd(d.piece);
         if (session) { session.st.painted += d.piece.len; session.st.pieces++; session.st.bestCombo = Math.max(session.st.bestCombo, d.combo); }
         const now = performance.now();
         if (!document.hidden && now - splatThrottle > 120) {
@@ -1613,6 +1749,11 @@
   W.onChange((ev, d) => {
     if (ev === 'barrios') { hudB.dirty = true; renderBarrios(); return; }
     if (ev === 'migrated') { paintedDirty = true; return; }
+    if (ev === 'unloaded') {   // zonas lejanas quitadas de la memoria: sus calles grises dejan de dibujarse (lo pintado sigue)
+      for (const k of [...rendered]) { const t = W.tiles[k]; if (!t || !(t.loaded || t.partial)) { rendered.delete(k); delete tileFeat[k]; } }
+      streetsDirty = true; paintedDirty = true; hudB.dirty = true;
+      return;
+    }
     if (ev === 'named') {
       if (W.updateMustSee()) { lmDirty = true; flushLandmarks(); }
       if (PM.fillLandmarkCities(S()) + W.fixRecords(S())) PM.state.save();
@@ -1620,7 +1761,7 @@
     }
     if (ev === 'lmRemoved') { if (lmIndex[d.id]) { delete lmIndex[d.id]; flushLandmarks(true); } return; }
     if (ev === 'loaded' || ev === 'partial') {
-      if (ev === 'loaded') retryGaps();
+      if (ev === 'loaded') { retryGaps(); geoHarvest(d.tiles); }
       d.tiles.forEach((k) => renderTile(k, true));
       renderLandmarks(); renderCans();
       if (ev === 'loaded') $('#loading').classList.remove('show');

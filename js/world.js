@@ -410,7 +410,7 @@ PM.world = (function () {
       const { base, sec } = pieceId(pts, mid);
       let id = base + sec;
       // el mismo tramo llegado por otra tesela o fuente: ya está
-      if (pieces[id] && PM.geo.dist(pieces[id].mid, mid) < 4) { graphAdd({ id, pts }); continue; }   // (pero su geometría sí une la red: si no, quedaba un hueco de un tramo)
+      if (pieces[id] && PM.geo.dist(pieces[id].mid, mid) < 4) { graphAdd({ id, pts }); (pieces[id].alt = pieces[id].alt || []).push(pts); continue; }   // (pero su geometría sí une la red: si no, quedaba un hueco de un tramo)
       // si la dirección cae justo en el borde entre dos sectores, se reconoce lo ya pintado con el sector vecino
       const painted = PM.state ? PM.state.data.painted : {};
       if (!painted[id]) for (const alt of [base + (sec + 1) % 8, base + (sec + 7) % 8]) if (painted[alt] && !pieces[alt]) { id = alt; break; }
@@ -663,7 +663,8 @@ PM.world = (function () {
         if (o && PM.geo.dist(o.p, q) < 1) n = o;
       }
     }
-    if (!n) n = { k, p: q, e: [] };
+    if (!n) n = { k, p: q, e: [], keys: [] };
+    if (!n.keys.includes(k)) n.keys.push(k);
     gnodes.set(k, n);   // también con su propia clave si se unió a un vértice vecino (si no, «el más cercano» no lo encontraba y la ruta del hueco fallaba)
     return n;
   }
@@ -676,6 +677,19 @@ PM.world = (function () {
       b.e.push({ to: a, len, piece: piece.id });
     }
   }
+  // quita de la red las conexiones de un tramo (al descargar su zona); el vértice que se queda sin calles, fuera
+  function graphRemove(p) {
+    for (const q of [].concat(p.pts, ...(p.alt || []))) {   // (también la geometría repetida que llegó de otra zona)
+      const n = gnodes.get(gkey(q));
+      if (!n) continue;
+      n.e = n.e.filter((ed) => ed.piece !== p.id);
+      if (n.e.some((ed) => ed.piece)) continue;   // sigue teniendo calles de otras zonas
+      for (const ed of n.e) ed.to.e = ed.to.e.filter((x) => x.to !== n);   // uniones de cruce que llegaban a él
+      n.e = [];
+      for (const kk of n.keys || [gkey(q)]) if (gnodes.get(kk) === n) gnodes.delete(kk);
+    }
+  }
+
   // vértice de la red más cercano a un punto (a menos de maxM)
   function nearestNode(p, maxM) {
     let best = null, bd = maxM;
@@ -1120,6 +1134,31 @@ PM.world = (function () {
     keys.forEach((k) => nameTile(k));
   }
 
+  // ---------------- Descarga de zonas lejanas (memoria) ----------------
+  // Las calles de cada zona ocupan memoria (~2,5 MB en una zona densa). En un paseo o un viaje muy largo se iban
+  // acumulando hasta que Android podía cerrar la app. Las zonas lejanas se quitan de la memoria (tramos, índice y
+  // red de calles); siguen en la caché del móvil y se recargan solas al volver o al mirarlas en el mapa.
+  // Los lugares y los nombres de barrio se quedan (ocupan poco y los usan el álbum y los imprescindibles).
+  function unloadTiles(keys) {
+    let n = 0;
+    for (const k of keys) {
+      const t = tiles[k];
+      if (!t || !t.loaded || loading.has(k) || t.demo) continue;
+      for (const p of t.pieces) {
+        if (pieces[p.id] !== p) continue;
+        delete pieces[p.id];
+        const cells = new Set(p.pts.map((q) => cellKey(q[0], q[1])));
+        cells.add(cellKey(p.mid[0], p.mid[1]));
+        for (const c of cells) { const L = index[c]; if (!L) continue; const i = L.indexOf(p.id); if (i >= 0) L.splice(i, 1); if (!L.length) delete index[c]; }
+        graphRemove(p);
+      }
+      t.pieces = []; t.total = 0; t.loaded = false; t.partial = false;
+      n++;
+    }
+    if (n) { scheduleReassign(); emit('unloaded', { count: n }); }
+    return n;
+  }
+
   // Carga estas celdas y espera a que estén listas (aunque otra carga las tuviera ya en marcha)
   async function ensureKeys(keys) {
     for (let i = 0; i < keys.length; i += 8) {
@@ -1352,7 +1391,7 @@ PM.world = (function () {
   const api = {
     TILE, RARITY, tiles, pieces, landmarks, cans, updateMustSee,
     tileKeyOf, tileBounds, ensureAround, piecesNear, onChange,
-    barrios, barrioAt: barrioOf, barrioComplete, route, setAvoid, isAvoided, addLegacyGeo, ensureKeys,
+    barrios, barrioAt: barrioOf, barrioComplete, route, setAvoid, isAvoided, addLegacyGeo, ensureKeys, unloadTiles,
     cityAt(p) { const c = shapeCity(p); if (c) return c; const t = tiles[tileKeyOf(p[0], p[1])]; return (t && t.city) || (PM.state && (PM.state.data.tileNames[tileKeyOf(p[0], p[1])] || {}).city) || null; },
     // los imprescindibles fijos de cada ciudad, con el lugar del mapa que les corresponde (id) si ya está cargado
     mustLists() {
