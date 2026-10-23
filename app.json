@@ -1,8 +1,8 @@
 {
-  "version": "0.6.43",
-  "notes": "Lugares conquistados: halo simbólico con ondas, solo mientras pintas",
+  "version": "0.6.44",
+  "notes": "Imprescindibles: fondo del icono y halo dorados",
   "native": 4,
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.43/pintamapa-web-0.6.43.zip",
-  "checksum": "29dbfd02fa5a428c9089fe2090b23d8506c9ff66dce9fd05e6c7a1e5a2222c6b",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.43/PintaMapa-v0.6.43.apk"
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.44/pintamapa-web-0.6.44.zip",
+  "checksum": "28a487126a4a46bc88e3963ea0988a2d068057df76576c19cc4986fbf5148db2",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.44/PintaMapa-v0.6.44.apk"
 }
