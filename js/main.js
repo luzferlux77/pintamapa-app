@@ -517,10 +517,12 @@
           fillGap(r, lastP, p, lastT, now);
           paintAround(p, [p[0] - lastP[0], (p[1] - lastP[1]) * Math.cos(p[0] * Math.PI / 180)]);
           walkAnchor = p.slice();
-        } else if (!r && (!streetsReady(lastP) || !streetsReady(p))) {
-          // las calles de esa zona aún no están cargadas (p. ej. al reabrir la app que Android cerró en el bolsillo):
-          // el hueco queda pendiente y se rellena en cuanto lleguen (antes se perdía ese tramo)
-          pendingGaps.push({ a: lastP.slice(), b: p.slice(), ta: lastT, tb: now, via, d }); walkAnchor = p.slice();   // (lo andado del hueco lo suma fillGap al rellenarlo)
+        } else if (!r && d > 40) {
+          // sin camino ahora: casi siempre porque aún no están cargadas las calles de la zona (p. ej. al reabrir la app
+          // que Android cerró en el bolsillo). El hueco queda pendiente, se piden las calles que faltan y se rellena en
+          // cuanto llegan (antes se pintaba en línea recta, atravesando manzanas: ese tramo se perdía)
+          pendingGaps.push({ a: lastP.slice(), b: p.slice(), ta: lastT, tb: now, via, d, since: Date.now() }); walkAnchor = p.slice();   // (lo andado lo suma fillGap)
+          loadAlong(lastP, p);
           routed = true;
         }
       }
@@ -573,17 +575,30 @@
     tr.splice(k, 0, ...pts);
   }
   const streetsReady = (q) => { const t = W.tiles[W.tileKeyOf(q[0], q[1])]; return !!(t && t.loaded); };
+  // carga las celdas de calles entre dos puntos (y las vecinas): el camino de un hueco puede pasar por ellas
+  function loadAlong(a, b) {
+    const keys = new Set(), n = Math.ceil(PM.geo.dist(a, b) / 300) + 1;
+    for (let i = 0; i <= n; i++) {
+      const q = PM.geo.lerp(a, b, i / n);
+      for (const dy of [-0.006, 0, 0.006]) for (const dx of [-0.006, 0, 0.006]) keys.add(W.tileKeyOf(q[0] + dy, q[1] + dx));
+    }
+    const miss = [...keys].filter((k) => !(W.tiles[k] && W.tiles[k].loaded));
+    if (miss.length && miss.length <= 40) W.ensureKeys(miss).then(retryGaps).catch(() => {});
+    else setTimeout(retryGaps, 1500);
+  }
   let pendingGaps = [];
+  setInterval(() => { if (pendingGaps.length) retryGaps(); }, 20000);
   function retryGaps() {
     if (!pendingGaps.length) return;
     if (!session) { pendingGaps = []; return; }
     const keep = [];
     for (const g of pendingGaps) {
-      if (Date.now() - g.tb > 30 * 60000) continue;
-      if (!streetsReady(g.a) || !streetsReady(g.b)) { keep.push(g); continue; }
       const maxLen = Math.max(g.d * 2, g.d + 250), dt = (g.tb - g.ta) / 1000;
       const r = (g.via.length && routeVia(g.a, g.b, g.via)) || W.route(g.a, g.b, maxLen);
-      if (r && r.len <= Math.max(maxLen, r.via ? r.len : 0) && (dt <= 0 || r.len / dt <= MAX_SPEED * 1.5)) fillGap(r, g.a, g.b, g.ta, g.tb);
+      if (r && r.len <= Math.max(maxLen, r.via ? r.len : 0) && (dt <= 0 || r.len / dt <= MAX_SPEED * 1.5)) { fillGap(r, g.a, g.b, g.ta, g.tb); continue; }
+      if (Date.now() - g.since < 3 * 60000) { keep.push(g); continue; }
+      // 3 minutos sin camino posible (de verdad no lo hay): como antes, lo que haya justo en línea recta (si es corto)
+      if (g.d < 400) { const st = Math.ceil(g.d / 4), h = [g.b[0] - g.a[0], (g.b[1] - g.a[1]) * Math.cos(g.b[0] * Math.PI / 180)]; for (let i = 1; i <= st; i++) paintAround(PM.geo.lerp(g.a, g.b, i / st), h); }
     }
     pendingGaps = keep;
     paintedDirty = true; PM.state.save();
