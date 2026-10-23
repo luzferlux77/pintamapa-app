@@ -514,20 +514,14 @@
         const r = (via.length && routeVia(lastP, p, via)) || W.route(lastP, p, maxLen);
         if (r && r.len <= Math.max(maxLen, r.via ? r.len : 0) && (dt <= 0 || r.len / dt <= MAX_SPEED * 1.5)) {
           routed = true;
-          const aura = nearestLandmark(p).d <= AURA_RADIUS;
-          for (const id of r.pieces) { const pc = W.pieces[id]; if (pc) { if (S().painted[pc.id]) G.repass(pc); else G.paintPiece(pc, aura); } }
+          fillGap(r, lastP, p, lastT, now);
           paintAround(p, [p[0] - lastP[0], (p[1] - lastP[1]) * Math.cos(p[0] * Math.PI / 180)]);
-          G.addWalk(r.len); session.st.walked += r.len; walkAnchor = p.slice();
-          // el recorrido guarda el camino real por las calles (no una diagonal), con la hora repartida a lo largo del hueco
-          const tr = session.track || (session.track = []);
-          const way = (r.path || []).concat([p]);
-          let acc = 0;
-          for (let i = 0; i < way.length; i++) {
-            if (i) acc += PM.geo.dist(way[i - 1], way[i]);
-            const lt = tr[tr.length - 1];
-            if (i < way.length - 1 && lt && PM.geo.dist(lt, way[i]) < 8) continue;
-            tr.push(trackPt(way[i], lastT + (now - lastT) * Math.min(1, acc / Math.max(1, r.len))));
-          }
+          walkAnchor = p.slice();
+        } else if (!r && (!streetsReady(lastP) || !streetsReady(p))) {
+          // las calles de esa zona aún no están cargadas (p. ej. al reabrir la app que Android cerró en el bolsillo):
+          // el hueco queda pendiente y se rellena en cuanto lleguen (antes se perdía ese tramo)
+          pendingGaps.push({ a: lastP.slice(), b: p.slice(), ta: lastT, tb: now, via, d }); walkAnchor = p.slice();   // (lo andado del hueco lo suma fillGap al rellenarlo)
+          routed = true;
         }
       }
       if (!routed && !jump && d > 0.01 && d < 400) {
@@ -556,6 +550,43 @@
     const tk = W.tileKeyOf(p[0], p[1]);
     if (tk !== curTile) { curTile = tk; W.ensureAround(p[0], p[1]); }
     if (visible) updateSpeedBadge();
+  }
+
+  // Rellena un hueco con el camino por las calles: pinta sus tramos, suma lo andado y lo guarda en el recorrido
+  // (con la hora repartida a lo largo del hueco y en su sitio, aunque se rellene más tarde)
+  function fillGap(r, a, b, ta, tb) {
+    const aura = nearestLandmark(b).d <= AURA_RADIUS;
+    for (const id of r.pieces) { const pc = W.pieces[id]; if (pc) { if (S().painted[pc.id]) G.repass(pc); else G.paintPiece(pc, aura); } }
+    G.addWalk(r.len); session.st.walked += r.len;
+    const tr = session.track || (session.track = []);
+    const way = (r.path || []).concat([b]), pts = [];
+    let acc = 0;
+    for (let i = 0; i < way.length; i++) {
+      if (i) acc += PM.geo.dist(way[i - 1], way[i]);
+      const lt = pts[pts.length - 1] || tr[tr.length - 1];
+      if (i < way.length - 1 && lt && PM.geo.dist(lt, way[i]) < 8) continue;
+      pts.push(trackPt(way[i], ta + (tb - ta) * Math.min(1, acc / Math.max(1, r.len))));
+    }
+    let k = tr.length;
+    const t0 = pts.length ? pts[0][2] : 0;
+    while (k > 0 && tr[k - 1] && tr[k - 1][2] > t0) k--;
+    tr.splice(k, 0, ...pts);
+  }
+  const streetsReady = (q) => { const t = W.tiles[W.tileKeyOf(q[0], q[1])]; return !!(t && t.loaded); };
+  let pendingGaps = [];
+  function retryGaps() {
+    if (!pendingGaps.length) return;
+    if (!session) { pendingGaps = []; return; }
+    const keep = [];
+    for (const g of pendingGaps) {
+      if (Date.now() - g.tb > 30 * 60000) continue;
+      if (!streetsReady(g.a) || !streetsReady(g.b)) { keep.push(g); continue; }
+      const maxLen = Math.max(g.d * 2, g.d + 250), dt = (g.tb - g.ta) / 1000;
+      const r = (g.via.length && routeVia(g.a, g.b, g.via)) || W.route(g.a, g.b, maxLen);
+      if (r && r.len <= Math.max(maxLen, r.via ? r.len : 0) && (dt <= 0 || r.len / dt <= MAX_SPEED * 1.5)) fillGap(r, g.a, g.b, g.ta, g.tb);
+    }
+    pendingGaps = keep;
+    paintedDirty = true; PM.state.save();
   }
 
   // punto del recorrido: [lat, lon, segundos desde el inicio del paseo, altitud del GPS] (para las estadísticas tipo Strava)
@@ -1561,6 +1592,7 @@
     }
     if (ev === 'lmRemoved') { if (lmIndex[d.id]) { delete lmIndex[d.id]; flushLandmarks(true); } return; }
     if (ev === 'loaded' || ev === 'partial') {
+      if (ev === 'loaded') retryGaps();
       d.tiles.forEach((k) => renderTile(k, true));
       renderLandmarks(); renderCans();
       if (ev === 'loaded') $('#loading').classList.remove('show');
