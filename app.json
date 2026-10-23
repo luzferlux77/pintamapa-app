@@ -1,8 +1,8 @@
 {
-  "version": "0.6.53",
-  "notes": "Huecos del GPS: si las calles aún no están, se esperan y se rellenan (sin líneas rectas)",
+  "version": "0.6.54",
+  "notes": "Depuración de huecos",
   "native": 6,
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.53/pintamapa-web-0.6.53.zip",
-  "checksum": "378dc495708d12bf732704e53ad1e76573d292152764396d9c03f79ac10b6712",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.53/PintaMapa-v0.6.53.apk"
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.54/pintamapa-web-0.6.54.zip",
+  "checksum": "748371744e9ef4f393f845b3e3a248e0d7eebaf7822eea417fd7bd08203549a9",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.54/PintaMapa-v0.6.54.apk"
 }
