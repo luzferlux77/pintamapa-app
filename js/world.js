@@ -436,13 +436,21 @@ PM.world = (function () {
     for (const q of [p.pts[0], p.pts[p.pts.length - 1]]) {
       const a = gnodes.get(gkey(q));
       if (!a) continue;
-      for (const pc of piecesNear(q, 6)) {
-        if (pc === p) continue;
-        let best = null, bd = 6;
-        for (const v of pc.pts) { const d = PM.geo.dist(q, v); if (d < bd) { bd = d; best = v; } }
-        const b = best && gnodes.get(gkey(best));
-        if (!b || b === a || a.e.some((ed) => ed.to === b)) continue;
-        a.e.push({ to: b, len: bd, piece: null }); b.e.push({ to: a, len: bd, piece: null });
+      // (rápido: solo vértices de las casillas vecinas y distancia aproximada en metros; sin medir contra cada segmento)
+      const kx = PM.geo.mPerDegLon(q[0]), ky = PM.geo.mPerDegLat;
+      const ci = Math.floor(q[0] / CELL), cj = Math.floor(q[1] / CELL), seen = new Set();
+      for (let di = -1; di <= 1; di++) for (let dj = -1; dj <= 1; dj++) {
+        for (const id of index[(ci + di) + ':' + (cj + dj)] || []) {
+          if (id === p.id || seen.has(id)) continue;
+          seen.add(id);
+          const pc = pieces[id];
+          let best = null, bd = 36;   // 6 m al cuadrado
+          for (const v of pc.pts) { const dx = (v[1] - q[1]) * kx, dy = (v[0] - q[0]) * ky, d2 = dx * dx + dy * dy; if (d2 < bd) { bd = d2; best = v; } }
+          const b = best && gnodes.get(gkey(best));
+          if (!b || b === a || a.e.some((ed) => ed.to === b)) continue;
+          const len = Math.sqrt(bd);
+          a.e.push({ to: b, len, piece: null }); b.e.push({ to: a, len, piece: null });
+        }
       }
     }
   }

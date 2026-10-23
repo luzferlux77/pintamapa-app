@@ -620,9 +620,13 @@
     // 2) solo la calle por la que vas: la más cercana y las que estén casi igual de cerca (margen para el GPS).
     //    Así no se pintan calles paralelas a 12-14 m que no pisas (antes se pintaba bastante más de lo andado).
     //    Las avenidas anchas siguen pintando ambas calzadas.
-    let best = Infinity;
-    for (const [pc, d] of cand) if (!pc.wide && d < best) best = d;
+    //    Las avenidas anchas pintan ambas calzadas SOLO si vas por la avenida (es lo más cercano a ti); si vas por
+    //    una calle paralela a 20-40 m, la avenida no se pinta (antes sí: se pintaban tramos que no habías pisado).
+    let best = Infinity, nearest = null;
+    for (const [pc, d] of cand) { if (!pc.wide && d < best) best = d; if (!nearest || d < nearest[1]) nearest = [pc, d]; }
+    const onAvenue = nearest && nearest[0].wide;
     for (const [piece, dist] of cand) {
+      if (piece.wide && !onAvenue && dist > PAINT_RADIUS) continue;
       if (!piece.wide && dist > best + 7 && !(piece.len < 8 && dist <= 5)) continue;
       if (S().painted[piece.id]) G.repass(piece); else G.paintPiece(piece, aura);
     }
