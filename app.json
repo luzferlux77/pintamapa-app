@@ -1,8 +1,8 @@
 {
-  "version": "0.6.55",
-  "notes": "Al reabrir la app con un paseo en marcha se rellena el tramo hecho mientras estuvo cerrada",
+  "version": "0.6.56",
+  "notes": "Mapa más ágil (calles agrupadas por zona), medida de ciudades sin Overpass, progreso de ciudad sin cálculos de más",
   "native": 6,
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.55/pintamapa-web-0.6.55.zip",
-  "checksum": "7d7c1817cdad6fdc88dce07ae2adc5380656d71672500622873d16221df45485",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.55/PintaMapa-v0.6.55.apk"
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.56/pintamapa-web-0.6.56.zip",
+  "checksum": "dece34c9d160e9a30357ef1f903172427c7b712f0e9a647dc17c132d41509c21",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.56/PintaMapa-v0.6.56.apk"
 }
