@@ -1,8 +1,8 @@
 {
-  "version": "0.6.41",
-  "notes": "Imprescindibles fijos por ciudad (más en las grandes), ciudad real de cada carta, mapa alineado con la calle, botón para ver solo calles pintadas y lugares del mapa base si Overpass falla",
+  "version": "0.6.42",
+  "notes": "Botón «lugares» en la misma fila que el rumbo",
   "native": 4,
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.41/pintamapa-web-0.6.41.zip",
-  "checksum": "52424bb0b9a7549c0fc5fc8cb5b9a5c384a46761c2d9458c756ed881a5517203",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.41/PintaMapa-v0.6.41.apk"
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.42/pintamapa-web-0.6.42.zip",
+  "checksum": "3d98270077282e751f912bec59847e3109c18863bbe732b274f4fc6e34f8c62a",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.42/PintaMapa-v0.6.42.apk"
 }
