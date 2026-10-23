@@ -1,8 +1,8 @@
 {
-  "version": "0.6.57",
-  "notes": "Todo lo pintado y lo conquistado visible siempre y en cualquier lugar; zonas lejanas fuera de la memoria (la app aguanta paseos y viajes largos)",
+  "version": "0.6.58",
+  "notes": "Lo pintado aparece al instante al mover el mapa",
   "native": 6,
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.57/pintamapa-web-0.6.57.zip",
-  "checksum": "5cf75ec93f2bd76e4501ab951e8d2cec37a0113b0999dc151ab6aef4734d8064",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.57/PintaMapa-v0.6.57.apk"
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.58/pintamapa-web-0.6.58.zip",
+  "checksum": "0059c8587178be4fe99aa755ba392e062f13cc4532c79315914f0737fa976dd5",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.58/PintaMapa-v0.6.58.apk"
 }
