@@ -1,8 +1,8 @@
 {
-  "version": "0.6.52",
-  "notes": "Si Android cierra la app en el bolsillo, el tramo perdido se rellena aunque las calles tarden en cargar",
+  "version": "0.6.53",
+  "notes": "Huecos del GPS: si las calles aún no están, se esperan y se rellenan (sin líneas rectas)",
   "native": 6,
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.52/pintamapa-web-0.6.52.zip",
-  "checksum": "64478f71dd11391d44791c3583568bba5bd7b0530c03d1e96516d7fe95bac836",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.52/PintaMapa-v0.6.52.apk"
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.53/pintamapa-web-0.6.53.zip",
+  "checksum": "378dc495708d12bf732704e53ad1e76573d292152764396d9c03f79ac10b6712",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.53/PintaMapa-v0.6.53.apk"
 }
