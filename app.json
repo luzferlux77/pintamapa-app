@@ -1,8 +1,8 @@
 {
-  "version": "0.6.50",
-  "notes": "Red de calles bien unida (los huecos del GPS se rellenan por las calles también con los mapas vectoriales); capturas en el bolsillo; brújula sin temblores",
+  "version": "0.6.51",
+  "notes": "Pintado más fiel: las avenidas no se pintan si vas por una calle paralela; unión de cruces más rápida",
   "native": 6,
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.50/pintamapa-web-0.6.50.zip",
-  "checksum": "9e2ba382242bb7f110164ca80d4c8effc2f2ed20d6d26cb2559f96ab122a6831",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.50/PintaMapa-v0.6.50.apk"
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.51/pintamapa-web-0.6.51.zip",
+  "checksum": "01b92b460bfaee6e03c5034c7eb3cf0affa64e05cbd61e39333537fe8b4159e7",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.51/PintaMapa-v0.6.51.apk"
 }
