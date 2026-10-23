@@ -157,7 +157,7 @@
       keys.forEach((k, i) => { const set = pgeoTile.get(k) || new Set(); for (const [id, pts] of Object.entries(vals[i] || {})) { if (!pgeo.has(id)) pgeo.set(id, { k, p: pts }); set.add(id); } pgeoTile.set(k, set); });
       bgeo = Object.assign((await idbReq(db.transaction('meta').objectStore('meta').get('barrios'))) || {}, bgeo);
     } catch (e) { /* sin base de datos (navegador privado): se dibuja lo cargado, como antes */ }
-    geoReady = true;
+    geoReady = true; if (typeof wakeLoop === 'function') wakeLoop();
     if (Object.keys(bgeo).length) geoDb().then((db) => db.transaction('meta', 'readwrite').objectStore('meta').put(bgeo, 'barrios')).catch(() => {});
     paintedDirty = true; renderBarrios();
   })();
@@ -222,6 +222,7 @@
     for (const k in W.tiles) if (!rendered.has(k) && (W.tiles[k].loaded || W.tiles[k].partial) && nearView(k)) { rendered.add(k); changed = true; }
     if (changed) streetsDirty = true;
     paintedDirty = true;   // lo pintado de lo que ahora miras (sale del almacén aunque no esté cargado)
+    wakeLoop();
   }
   map.on('moveend', () => { clearTimeout(viewTimer); viewTimer = setTimeout(refreshView, 250); });
   let viewTimer = null;
@@ -1751,7 +1752,7 @@
     if (ev === 'migrated') { paintedDirty = true; return; }
     if (ev === 'unloaded') {   // zonas lejanas quitadas de la memoria: sus calles grises dejan de dibujarse (lo pintado sigue)
       for (const k of [...rendered]) { const t = W.tiles[k]; if (!t || !(t.loaded || t.partial)) { rendered.delete(k); delete tileFeat[k]; } }
-      streetsDirty = true; paintedDirty = true; hudB.dirty = true;
+      streetsDirty = true; paintedDirty = true; hudB.dirty = true; wakeLoop();
       return;
     }
     if (ev === 'named') {
