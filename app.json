@@ -1,8 +1,8 @@
 {
-  "version": "0.6.47",
-  "notes": "Latido de imprescindibles más visible; sin la «i» de créditos en el mapa",
-  "native": 5,
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.47/pintamapa-web-0.6.47.zip",
-  "checksum": "b4f2639ddff5536812df68946ec53c2eebb6aba75126cc289dd3d06b59726201",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.47/PintaMapa-v0.6.47.apk"
+  "version": "0.6.48",
+  "notes": "Más ligera: latidos con CSS (el mapa ya no se redibuja sin parar), carga bajo demanda, fuera Leaflet y «evitar»; pintar en el bolsillo: reanudación con relleno del hueco y aviso de ahorro de batería",
+  "native": 6,
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.48/pintamapa-web-0.6.48.zip",
+  "checksum": "3ef7960a8200cf05054e57b0d7d01a37253add2f0cca0a2be0679691573067a0",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.48/PintaMapa-v0.6.48.apk"
 }
