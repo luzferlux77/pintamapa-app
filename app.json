@@ -1,8 +1,8 @@
 {
-  "version": "0.6.56",
-  "notes": "Mapa más ágil (calles agrupadas por zona), medida de ciudades sin Overpass, progreso de ciudad sin cálculos de más",
+  "version": "0.6.57",
+  "notes": "Todo lo pintado y lo conquistado visible siempre y en cualquier lugar; zonas lejanas fuera de la memoria (la app aguanta paseos y viajes largos)",
   "native": 6,
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.56/pintamapa-web-0.6.56.zip",
-  "checksum": "dece34c9d160e9a30357ef1f903172427c7b712f0e9a647dc17c132d41509c21",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.56/PintaMapa-v0.6.56.apk"
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.57/pintamapa-web-0.6.57.zip",
+  "checksum": "5cf75ec93f2bd76e4501ab951e8d2cec37a0113b0999dc151ab6aef4734d8064",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.57/PintaMapa-v0.6.57.apk"
 }
