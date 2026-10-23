@@ -1,8 +1,8 @@
 {
-  "version": "0.6.45",
-  "notes": "Revisión por USB (depuración del WebView)",
+  "version": "0.6.46",
+  "notes": "Conquistados sin bandera; imprescindibles con latido dorado; mismos lugares en todos los móviles; librerías no son bibliotecas; imprescindibles en Sant Boi y El Prat",
   "native": 5,
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.45/pintamapa-web-0.6.45.zip",
-  "checksum": "dda0a531b22f9757179e6f21bdff1e952e9b933d413cdbe4e1aaa035ada405bf",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.45/PintaMapa-v0.6.45.apk"
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.46/pintamapa-web-0.6.46.zip",
+  "checksum": "321b3c8f23c330e75745a67ece9f5b8e574ed7d3420b1cb14533563177148689",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.46/PintaMapa-v0.6.46.apk"
 }
