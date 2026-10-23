@@ -91,8 +91,12 @@
     add({ id: 'pm-trails', type: 'line', source: 'pm-streets', filter: ['==', ['get', 't'], 1], paint: { 'line-color': '#9a8a66', 'line-opacity': 0.85, 'line-width': zw(0.8, 2.2, 4), 'line-dasharray': [1.5, 2] } });
     add({ id: 'pm-glow', type: 'line', source: 'pm-painted', layout: round, paint: { 'line-color': paintColor(), 'line-opacity': 0.22, 'line-width': zw(4, 14, 30), 'line-blur': zw(2, 6, 12) } });
     add({ id: 'pm-paint', type: 'line', source: 'pm-painted', layout: round, paint: { 'line-color': paintExpr(), 'line-width': zw(1.6, 5, 11, ['+', 1, ['*', 0.2, ['get', 'h']]]) } });
-    add({ id: 'pm-halo-fill', type: 'fill', source: 'pm-halos', paint: { 'fill-color': paintColor(), 'fill-opacity': 0.16 } });
-    add({ id: 'pm-halo-line', type: 'line', source: 'pm-halos', paint: { 'line-color': paintColor(), 'line-opacity': 0.7, 'line-width': 2 } });
+    // halo de los conquistados: simbólico (tamaño fijo en pantalla, no el radio real) con dos ondas que salen; solo mientras pintas
+    const haloVis = { visibility: haloOn ? 'visible' : 'none' };
+    add({ id: 'pm-halo-fill', type: 'circle', source: 'pm-halos', layout: haloVis, paint: { 'circle-radius': haloR(1), 'circle-color': paintColor(), 'circle-opacity': 0.2,
+      'circle-stroke-color': paintColor(), 'circle-stroke-width': 1.5, 'circle-stroke-opacity': 0.55, 'circle-pitch-alignment': 'map' } });
+    ['pm-halo-line', 'pm-halo-wave2'].forEach((id) => add({ id, type: 'circle', source: 'pm-halos', layout: haloVis, paint: { 'circle-radius': haloR(1), 'circle-opacity': 0,
+      'circle-stroke-color': paintColor(), 'circle-stroke-width': 2.5, 'circle-stroke-opacity': 0, 'circle-pitch-alignment': 'map' } }));
     add({ id: 'pm-barrio-cur', type: 'line', source: 'pm-barrios', filter: ['==', ['get', 'c'], 0], paint: { 'line-color': '#5b6478', 'line-opacity': 0.8, 'line-width': 2.5, 'line-dasharray': [3, 3] } }, true);
     // efecto de conquista (ola de color + contorno brillante)
     add({ id: 'pm-fx-fill', type: 'fill', source: 'pm-fx', paint: { 'fill-color': paintColor(), 'fill-opacity': ['get', 'o'] } });
@@ -339,7 +343,7 @@
   function recolorAll() {
     if (mapReady) {
       const c = paintColor();
-      [['pm-glow', 'line-color', c], ['pm-paint', 'line-color', paintExpr()], ['pm-halo-fill', 'fill-color', c], ['pm-halo-line', 'line-color', c]]
+      [['pm-glow', 'line-color', c], ['pm-paint', 'line-color', paintExpr()], ['pm-halo-fill', 'circle-color', c], ['pm-halo-fill', 'circle-stroke-color', c], ['pm-halo-line', 'circle-stroke-color', c], ['pm-halo-wave2', 'circle-stroke-color', c]]
         .forEach(([l, prop, v]) => map.getLayer(l) && map.setPaintProperty(l, prop, v));
     }
     renderBarrios();
@@ -393,9 +397,29 @@
     if (!prev || prev.got !== got) lmDirty = true;
     lmIndex[lm.id] = { lm, got };
     if (got && !lmHalos[lm.id]) {
-      lmHalos[lm.id] = circlePoly(lm.pos, (lm.capR || PM.capRadius(lm.kind)) + 10);
+      lmHalos[lm.id] = { type: 'Feature', properties: {}, geometry: { type: 'Point', coordinates: ll(lm.pos) } };
       setSrc('pm-halos', FC(Object.values(lmHalos)));
     }
+  }
+  // Halo simbólico de los conquistados: un círculo de tu color y ondas que salen de él, en bucle, SOLO mientras pintas.
+  // Parado o sin pintar, el lugar se ve conquistado (bandera y color) pero sin halo.
+  let haloOn = false, haloT = 0;
+  function haloR(k) { return ['interpolate', ['linear'], ['zoom'], 12, 6 * k, 15, 13 * k, 17, 20 * k, 19, 26 * k]; }
+  function stepHalos(now) {
+    const want = !!(session && !session.paused) && !placesOff && mapReady;
+    if (want !== haloOn) {
+      haloOn = want;
+      ['pm-halo-fill', 'pm-halo-line', 'pm-halo-wave2'].forEach((l) => { if (map.getLayer(l)) map.setLayoutProperty(l, 'visibility', want ? 'visible' : 'none'); });
+    }
+    if (!haloOn || now - haloT < 40 || !Object.keys(lmHalos).length) return;   // ~25 fotogramas por segundo bastan
+    haloT = now;
+    [['pm-halo-line', 0], ['pm-halo-wave2', 0.5]].forEach(([l, off]) => {
+      if (!map.getLayer(l)) return;
+      const ph = ((now / 1800) + off) % 1, ease = 1 - Math.pow(1 - ph, 2);   // sale rápido y se frena al apagarse
+      map.setPaintProperty(l, 'circle-radius', haloR(1 + ease * 1.6));
+      map.setPaintProperty(l, 'circle-stroke-opacity', 0.75 * (1 - ph));
+      map.setPaintProperty(l, 'circle-stroke-width', 3 - ph * 2);
+    });
   }
   function flushLandmarks(force) {
     if (!(lmDirty || force) || !mapReady) return;
@@ -923,7 +947,7 @@
   function setPlaces(off, quiet) {
     placesOff = off;
     try { localStorage.setItem('pintamapa_places_off', off ? '1' : '0'); } catch (e) {}
-    ['pm-lms', 'pm-halo-fill', 'pm-halo-line'].forEach((l) => { if (map.getLayer(l)) map.setLayoutProperty(l, 'visibility', off ? 'none' : 'visible'); });
+    if (map.getLayer('pm-lms')) map.setLayoutProperty('pm-lms', 'visibility', off ? 'none' : 'visible');   // los halos los decide stepHalos
     $('#btn-places').classList.toggle('off', off);
     $('#btn-places').innerHTML = off ? '<span>🖌️</span><small>calles</small>' : '<span>📍</span><small>lugares</small>';
     if (!quiet) toast(off ? '🖌️ Solo tus calles pintadas (los lugares, ocultos)' : '📍 Lugares para conquistar visibles', 'info');
@@ -997,6 +1021,7 @@
     stepDisplay(now);
     stepHeading(dt);
     stepPitch(dt);
+    stepHalos(now);
     G.tickCombo(Date.now());
     flushPaint();
     if (!manual) requestAnimationFrame(loop);
