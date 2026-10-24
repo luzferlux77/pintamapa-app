@@ -114,7 +114,7 @@ PM.world = (function () {
     if (/plaque|stolperstein|blue_plaque|bench/.test(tags.memorial || '') && !(tags.wikipedia || tags.wikidata || tags._wp)) return;   // placas: solo con Wikipedia
     // iglesias evangélicas / pentecostales / testigos…: no (sí las demás religiones y templos del mundo)
     const evangelical = tags.amenity === 'place_of_worship' && /evangel|pentecost|baptist|adventist|jehovah|protestant/i.test(tags.denomination || '');
-    if (evangelical && landmarks[el.type[0] + el.id]) { removeLandmark(el.type[0] + el.id); return; }
+    if (evangelical && (landmarks[el.type[0] + el.id] || pool[el.type[0] + el.id])) { delete pool[el.type[0] + el.id]; removeLandmark(el.type[0] + el.id); return; }
     if (tags.amenity === 'place_of_worship' && (/evangel|pentecost|baptist|adventist|jehovah|protestant|neo/i.test(tags.denomination || '')
       || /evang[eè]li|pentecost|bautista|baptist|adventista|filad[eè]lfia|sal[oó]n del reino|kingdom hall|testigos de jehov|centro cristiano|comunidad cristiana|ministerio|iglesia de dios|asamblea de dios|cuerpo de cristo|betel|el shaddai|nueva vida|elim\b/i.test(tags.name))) return;
     const c = classify(tags);
@@ -196,8 +196,12 @@ PM.world = (function () {
     }
     return promoted;
   }
-  const norm = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-    .replace(/\b(de|del|la|el|les|los|las|dels|of|the|le|du|di|della)\b/g, ' ').replace(/[^a-z0-9]+/g, ' ').trim();
+  const normMemo = new Map();   // (cada nombre se normaliza una sola vez: la selección compara miles)
+  const norm = (s) => {
+    s = String(s || ''); let r = normMemo.get(s);
+    if (r === undefined) { r = s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\b(de|del|la|el|les|los|las|dels|of|the|le|du|di|della)\b/g, ' ').replace(/[^a-z0-9]+/g, ' ').trim(); if (normMemo.size > 20000) normMemo.clear(); normMemo.set(s, r); }
+    return r;
+  };
   function sameName(a, b) { a = norm(a); b = norm(b); return !!a && !!b && (a === b || (a.length > 5 && b.includes(a)) || (b.length > 5 && a.includes(b))); }
   function accept(lm) {
     landmarks[lm.id] = lm;
@@ -324,33 +328,53 @@ PM.world = (function () {
     for (const id in landmarks) { const m = must.has(id); if (!!landmarks[id].must !== m) { landmarks[id].must = m; changed = true; } }
     return changed;
   }
+  // Selección de lugares DETERMINISTA: se guardan todos los candidatos que llegan (aceptados o no) y en cada carga se
+  // recalcula la selección completa con un orden fijo (conquistados, principales, importancia y, a igualdad, el id).
+  // Así el resultado depende solo de los datos y no del orden en que llegan (antes, en un móvil llegaba antes lo de
+  // OpenStreetMap y en otro lo de Wikidata, y a cada uno le salían lugares distintos: la Font dels Nens de la Ciutadella).
+  const pool = {};   // id -> candidato
+  const _pool = () => pool;
   function commitLandmarks(list) {
-    // iglesias principales que ya estaban descartadas de antes y ahora tienen su ayuntamiento: entran
-    for (const c of markMainChurches(list)) if (!landmarks[c.id] && !list.includes(c)) accept(c);
-    // de más importante a menos: cada uno entra solo si no tiene otro aceptado demasiado cerca.
-    // Los principales entran siempre (y no se tapan entre ellos).
-    list.sort((x, y) => (y.principal - x.principal) || (y.prio - x.prio));
-    // lo de Wikidata que ya está en OpenStreetMap (mismo Q, o el mismo sitio con otro nombre) no se duplica
-    // y si coinciden en el mismo sitio, gana el más conocido (p. ej. el Palau de Can Mercader frente al museo que hay dentro)
-    const osm = list.filter((x) => !x.fromWd), skip = new Set();
-    for (const lm of list) {
+    for (const lm of list) if (!pool[lm.id]) pool[lm.id] = lm;
+    markMainChurches(list);
+    selectLandmarks();
+  }
+  function selectLandmarks() {
+    const isCap = (o) => !!(PM.state && PM.state.data.landmarks[o.id]);
+    const byId = (x, y) => (x.id < y.id ? -1 : x.id > y.id ? 1 : 0);
+    const all = Object.values(pool).sort((x, y) => (isCap(y) - isCap(x)) || (y.principal - x.principal) || (y.prio - x.prio) || byId(x, y));
+    const cellOf = (q) => [Math.floor(q[0] / GRID), Math.floor(q[1] / GRID)];
+    const gridAdd = (G, lm) => { const [i, j] = cellOf(lm.pos); (G[i + ':' + j] = G[i + ':' + j] || []).push(lm); };
+    const around = (G, q, r) => { const [ci, cj] = cellOf(q), out = []; for (let i = -r; i <= r; i++) for (let j = -r; j <= r; j++) { const L = G[(ci + i) + ':' + (cj + j)]; if (L) out.push(...L); } return out; };
+    // 1) lo de Wikidata que es el MISMO sitio que algo de OpenStreetMap (mismo Q, casi encima, mismo tipo cerca o
+    //    nombre parecido; no cualquier cosa a 40 m): se queda uno, el más conocido
+    const osmGrid = {}, drop = new Set();
+    for (const o of all) if (!o.fromWd) gridAdd(osmGrid, o);
+    for (const lm of all) {
       if (!lm.fromWd) continue;
-      const near = [...osm, ...nearbyAccepted(lm.pos)].filter((o) => o !== lm && !o.fromWd);
-      if (near.some((o) => o.wd && o.wd === lm.wd)) { skip.add(lm); continue; }
-      const close = near.filter((o) => { const d = PM.geo.dist(o.pos, lm.pos); return d < 40 || (o.kind === lm.kind && d < 150) || (sameName(o.name, lm.name) && d < 300); });
+      const near = around(osmGrid, lm.pos, 2);
+      const same = near.filter((o) => o.wd && o.wd === lm.wd);
+      if (same.length) { if (isCap(lm) && !same.some(isCap)) same.forEach((o) => drop.add(o.id)); else drop.add(lm.id); continue; }
+      const close = near.filter((o) => { const d = PM.geo.dist(o.pos, lm.pos); return d < 12 || (o.kind === lm.kind && d < 60) || (sameName(o.name, lm.name) && d < 300); });
       if (!close.length) continue;
-      if (lm.wp >= 2 && close.every((o) => !o.wd && !o.wiki && !landmarks[o.id])) close.forEach((o) => skip.add(o)); else skip.add(lm);
+      if (lm.wp >= 2 && close.every((o) => !o.wd && !o.wiki)) close.forEach((o) => { if (!isCap(o)) drop.add(o.id); });
+      else if (!isCap(lm)) drop.add(lm.id);
     }
-    for (const lm of list) {
-      if (landmarks[lm.id] || skip.has(lm)) continue;
-      if (nearbyAccepted(lm.pos, 2).some((o) => o.name === lm.name && PM.geo.dist(o.pos, lm.pos) < (o.kind === lm.kind ? 300 : 80))) continue;   // varios edificios del mismo sitio (TV3…): uno
-      if (lm.kind === 'Estación' && !lm.wiki && !lm.wd && [...list, ...nearbyAccepted(lm.pos)].some((o) => o.kind === 'Parque' && PM.geo.dist(o.pos, lm.pos) < 500 && sameName(o.name, lm.name))) continue;
-      if (!lm.principal) {
-        const clash = nearbyAccepted(lm.pos).some((o) => PM.geo.dist(o.pos, lm.pos) < (o.townhall ? TOWNHALL_GAP : MIN_GAP));
-        if (clash) continue;
+    // 2) de más importante a menos: cada uno entra si no tiene otro ya elegido demasiado cerca
+    //    (los principales entran siempre y no se tapan entre ellos; lo conquistado, siempre)
+    const kept = {}, keep = new Set();
+    for (const lm of all) {
+      if (drop.has(lm.id)) continue;
+      if (!isCap(lm)) {
+        if (around(kept, lm.pos, 2).some((o) => o.name === lm.name && PM.geo.dist(o.pos, lm.pos) < (o.kind === lm.kind ? 300 : 80))) continue;   // varios edificios del mismo sitio (TV3…): uno
+        if (lm.kind === 'Estación' && !lm.wiki && !lm.wd && around(osmGrid, lm.pos, 3).concat(around(kept, lm.pos, 3)).some((o) => o.kind === 'Parque' && PM.geo.dist(o.pos, lm.pos) < 500 && sameName(o.name, lm.name))) continue;
+        if (!lm.principal && around(kept, lm.pos, 1).some((o) => PM.geo.dist(o.pos, lm.pos) < (o.townhall ? TOWNHALL_GAP : MIN_GAP))) continue;
       }
-      accept(lm);
+      keep.add(lm.id); gridAdd(kept, lm);
     }
+    // 3) se aplica: fuera los que ya no tocan (nunca lo conquistado) y dentro los nuevos
+    for (const id of Object.keys(landmarks)) if (!keep.has(id) && pool[id]) removeLandmark(id);
+    for (const id of keep) if (!landmarks[id]) accept(pool[id]);
   }
 
   // ---------------- Trocear calles ----------------
@@ -969,6 +993,7 @@ PM.world = (function () {
   // Completa un barrio guardado sin los lugares de Wikidata (y los añade al mapa en cuanto llegan)
   // (de uno en uno, en segundo plano, para no saturar a los servidores mientras se cargan calles)
   const completing = new Set();
+  const wdRetries = {};
   let extrasFailT = 0;
   let completeChain = Promise.resolve();
   function completeTile(k, c) {
@@ -999,6 +1024,9 @@ PM.world = (function () {
         const cur = (await cache.get(k)) || c;
         const have = new Set(cur.els.map((el) => el.type + el.id)); add = add.filter((el) => !have.has(el.type + el.id));   // sin duplicados al volver a pedir
         cache.put(k, Object.assign({}, cur, { els: cur.els.concat(add), wdMiss, extrasMiss, vtPois }));
+        // Wikidata falló (red floja, servidor ocupado): se reintenta en 2 minutos, hasta 5 veces en esta sesión.
+        // Si no, ese móvil se quedaba sin los lugares de Wikidata de la zona hasta volver a abrir la app.
+        if (wdMiss && (wdRetries[k] = (wdRetries[k] || 0) + 1) <= 5) setTimeout(async () => { const c2 = await cache.get(k); if (c2 && c2.wdMiss) completeTile(k, c2); }, 120000);
         if (add.length && tiles[k] && (tiles[k].loaded || tiles[k].partial)) { ingest(add, new Set([k])); emit('loaded', { tiles: [k] }); }
       } finally { completing.delete(k); }
     });
@@ -1443,7 +1471,7 @@ PM.world = (function () {
       for (let i = i0; i <= i1; i++) for (let j = j0; j <= j1; j++) if (!ensureTile(i + '_' + j).loaded) need.push(i + '_' + j);
       if (need.length && need.length <= 12) loadTiles(need).catch(() => {});
     },
-    _graph: () => gnodes, _measureCity: (c) => measureCityVT(c),   // (pruebas)
+    _graph: () => gnodes, _pool: () => pool, _reselect: () => selectLandmarks(), _ingest: (els, keys) => { keys.forEach((k) => ensureTile(k)); ingest(els, new Set(keys)); }, _measureCity: (c) => measureCityVT(c),   // (pruebas)
     isDemo: () => demoMode,
     setDemo: (v) => { demoMode = v; },
   };
