@@ -1,8 +1,8 @@
 {
-  "version": "0.6.60",
-  "notes": "Pintado más fiel (filtro de rebotes del GPS, menos calles paralelas pintadas), fusión de paseos sin pérdidas, póster/vídeo con todo lo pintado",
+  "version": "0.6.61",
+  "notes": "Arreglos de la auditoría con pruebas exigentes: reanudar sin línea recta, copia de seguridad separada y probada",
   "native": 6,
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.60/pintamapa-web-0.6.60.zip",
-  "checksum": "11f54810b943a246aeb26eb42d48797792e9d9ab5690d98888e15efae5ba208a",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.60/PintaMapa-v0.6.60.apk"
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.61/pintamapa-web-0.6.61.zip",
+  "checksum": "17264ae23083cd8f152c3074163a694993d05889e6e435d45b7031924aeaadf3",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.61/PintaMapa-v0.6.61.apk"
 }
