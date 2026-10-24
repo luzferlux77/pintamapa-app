@@ -483,7 +483,16 @@
     }
     fxScale();
   }
-  map.on('moveend', () => { if (Date.now() - fxT > 1500) fxSync(); });
+  map.on('moveend', () => { if (Date.now() - fxT > 1500) fxSync(); fxReplay(); });
+  // los imprescindibles laten 3 veces y descansan; vuelven a latir al mover el mapa o cada minuto
+  function fxReplay() {
+    for (const mk of fxMarks.values()) {
+      if (mk._pmCls !== 'fx-must') continue;
+      const i = mk.getElement().querySelector('i'); if (!i) continue;
+      i.style.animation = 'none'; void i.offsetWidth; i.style.animation = '';
+    }
+  }
+  setInterval(() => { if (!document.hidden) fxReplay(); }, 60000);
   function flushLandmarks(force) {
     if (!(lmDirty || force) || !mapReady) return;
     lmDirty = false;
@@ -1266,6 +1275,7 @@
       return;
     }
     pos = [c.latitude, c.longitude];
+    stillCheck(pos);
     const f = { p: pos.slice(), t: t || c.time || Date.now(), acc, spd: c.speed, brg: c.bearing != null ? c.bearing : c.heading };
     if (!(session && !session.paused) || PM.debug.sinFiltro) { onMove(f.p, false, f.t, f.spd, f.brg); return; }
     // Pintando: cada lectura se confirma con la siguiente. Un rebote del GPS entre edificios (una lectura suelta
@@ -1299,6 +1309,16 @@
     if (still !== gpsSaver && Date.now() - gpsSaverT > 60000) { gpsSaver = still; gpsSaverT = Date.now(); startGPS(); }
   }
   setInterval(gpsSaverCheck, 30000);
+  // Paseo olvidado: 15 min sin salir de un círculo de 50 m → se pausa solo y se apaga el GPS (si no, el GPS seguía
+  // a tope toda la tarde en casa). Se reanuda con ▶ cuando vuelvas a salir.
+  let stillAnchor = null;
+  function stillCheck(p) { if (!stillAnchor || PM.geo.dist(stillAnchor.p, p) > 50) stillAnchor = { p: p.slice(), t: Date.now() }; }
+  setInterval(() => {
+    if (!session || session.paused || mode !== 'gps' || !stillAnchor) return;
+    if (Date.now() - Math.max(stillAnchor.t, session.resumedAt || 0) < 15 * 60000) return;
+    pauseSession();
+    notify('⏸ Paseo en pausa', 'Llevas 15 minutos sin moverte: he pausado el paseo y apagado el GPS para ahorrar batería. Pulsa ▶ para seguir.', 'info');
+  }, 60000);
   async function startGPS() {
     // con el GPS nativo, el vigilante nuevo se crea ANTES de quitar el viejo: si el servicio se quedara un instante
     // sin vigilantes, Android le quita el «primer plano» y con la pantalla apagada ya no recibiría posiciones
@@ -1421,6 +1441,7 @@
   }
   function resumeSession() {
     if (!session || !session.paused) return;
+    stillAnchor = null;
     session.paused = false; session.resumedAt = Date.now();
     if (session.track && session.track.length) session.track.push(null);   // corte del recorrido (pausa)
     lastP = null; walkAnchor = null; paintPrev = null; recentP = [];   // no se pinta el "salto" desde donde pausaste
@@ -2525,7 +2546,7 @@
     // la pantalla de inicio pudo dejar la página desplazada (móviles bajos): el juego siempre pegado arriba
     const unscroll = () => { if (document.body.scrollTop) document.body.scrollTop = 0; if (document.documentElement.scrollTop) document.documentElement.scrollTop = 0; };
     unscroll(); document.body.addEventListener('scroll', unscroll, { passive: true }); window.addEventListener('scroll', unscroll, { passive: true });
-    PM.sound._ctx();
+    PM.sound._ctx(); PM.sound._sleepSoon(Date.now());   // (se desbloquea el audio con el toque y se suspende enseguida)
     G.ensureDaily();
     if (PM.fillLandmarkCities(S()) + W.fixRecords(S())) PM.state.save();   // lugares conquistados sin ciudad (o con la de la celda vecina): se corrige
     if (!PM.cloud.allowed() && Object.keys(S().pendingGeo || {}).length) { S().pendingGeo = {}; PM.state.save(); }   // sin nube: no hay nada que subir

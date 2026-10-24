@@ -75,6 +75,16 @@ PM.sound = {
     if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume();
     return this.ctx;
   },
+  // El canal de audio solo se mantiene abierto mientras suena algo: 1,5 s después del último sonido se suspende.
+  // (Abierto sin sonar, Android lo cuenta como «reproduciendo» y no deja dormir al móvil: horas de batería.)
+  _endAt: 0, _sleepT: null,
+  _sleepSoon(endAt) {
+    this._endAt = Math.max(this._endAt, endAt);
+    clearTimeout(this._sleepT);
+    const ms = Math.max(0, (this._endAt - Date.now())) + 1500;
+    this._sleepT = setTimeout(() => { if (this.ctx && this.ctx.state === 'running' && Date.now() >= this._endAt) this.ctx.suspend().catch(() => {}); }, ms);
+  },
+  sleep() { clearTimeout(this._sleepT); if (this.ctx && this.ctx.state === 'running') this.ctx.suspend().catch(() => {}); },
   tone(freq, dur, type = 'sine', vol = 0.08, when = 0, slideTo = null) {
     if (!this.enabled) return;
     const ctx = this._ctx(); if (!ctx) return;
@@ -86,6 +96,7 @@ PM.sound = {
     g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
     o.connect(g).connect(ctx.destination);
     o.start(t0); o.stop(t0 + dur + 0.02);
+    this._sleepSoon(Date.now() + (when + dur + 0.05) * 1000);
   },
   splat(combo) {
     // "plof" que sube de tono con el combo
@@ -100,6 +111,8 @@ PM.sound = {
   levelUp() { [440, 554, 659, 880].forEach((f, i) => this.tone(f, 0.18, 'square', 0.05, i * 0.08)); },
   warn() { this.tone(180, 0.3, 'sawtooth', 0.05); },
 };
+
+if (typeof document !== 'undefined' && document.addEventListener) document.addEventListener('visibilitychange', () => { if (document.hidden) PM.sound.sleep(); });
 
 PM.vibrate = function (pattern) {
   try { if (navigator.vibrate) navigator.vibrate(pattern); } catch (e) { /* sin vibración */ }

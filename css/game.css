@@ -234,7 +234,7 @@ kbd { background: var(--btn); border-radius: 5px; padding: 1px 6px; color: var(-
 /* latido de los imprescindibles y ondas de los conquistados: animación CSS (la mueve la tarjeta gráfica, el mapa no se redibuja) */
 .fxm { width: calc(var(--fxs, 1) * 92px); height: calc(var(--fxs, 1) * 92px); pointer-events: none; }
 .fxm i { position: absolute; inset: 0; border-radius: 50%; will-change: transform, opacity; }
-.fx-must i:first-child { background: radial-gradient(circle closest-side, rgba(250, 204, 21, 0) 50%, rgba(250, 204, 21, .75) 58%, rgba(250, 204, 21, 0) 100%); animation: fxBreath 2.6s ease-in-out infinite; }
+.fx-must i:first-child { background: radial-gradient(circle closest-side, rgba(250, 204, 21, 0) 50%, rgba(250, 204, 21, .75) 58%, rgba(250, 204, 21, 0) 100%); animation: fxBreath 2.6s ease-in-out 3; }   /* 3 latidos y descansa (infinito obligaba a dibujar sin parar: batería) */
 .fx-must i:last-child, .fx-halo.off i { display: none; }
 @keyframes fxBreath { 0%, 100% { transform: scale(.9); opacity: .3; } 50% { transform: scale(1.12); opacity: .9; } }
 .fx-halo i { border: 3px solid var(--fxc, #2563eb); opacity: 0; animation: fxWave 1.8s ease-out infinite; }
