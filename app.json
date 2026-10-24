@@ -1,8 +1,8 @@
 {
-  "version": "0.6.65",
-  "notes": "Estaciones de tren históricas (Estació de França…) que antes no salían; comercios históricos o de gran interés (centenarios o protegidos), fuera tiendas y restaurantes de moda; palacios del Gòtic/Born ya no salen como castillos; los mismos lugares para todos aunque la zona se baje por la vía de respaldo",
+  "version": "0.6.66",
+  "notes": "Versión web: sin halo alrededor de los lugares conquistados; el acceso del escritorio ya no abre otra app",
   "native": 6,
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.65/pintamapa-web-0.6.65.zip",
-  "checksum": "3c881094b55168c2152315652162d4096791f2c5356501df03d3a2590247ffa9",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.65/PintaMapa-v0.6.65.apk"
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.66/pintamapa-web-0.6.66.zip",
+  "checksum": "9af4523e00ec1a042d3e7dca559dd7297251bc83977b6ce2f4aa8a7b19285782",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.66/PintaMapa-v0.6.66.apk"
 }
