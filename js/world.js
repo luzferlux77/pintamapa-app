@@ -58,8 +58,11 @@ PM.world = (function () {
     const a = tags.amenity, h = tags.historic, t = tags.tourism, b = tags.building, l = tags.leisure, n = tags.name || '';
     if (a === 'townhall') return { kind: 'Ayuntamiento', emoji: '🏛️', rarity: 'legendario', prio: 100 };
     if (b === 'cathedral' || /catedral|cathedral|cathédrale|cattedrale|\bduomo\b|\bdom\b|kathedrale|domkirke/i.test(n)) return { kind: 'Catedral', emoji: '⛪', rarity: 'legendario', prio: 95 };
-    if (h === 'castle' || h === 'fort') return { kind: 'Castillo', emoji: '🏰', rarity: 'legendario', prio: 90 };
-    if (b === 'palace' || /\b(palau|palacio|palace|palais|palazzo|pałac|palácio|schloss|paleis)\b/i.test(n)) return { kind: 'Palacio', emoji: '🏰', rarity: 'epico', prio: 84 };
+    // palacios y casas señoriales que OpenStreetMap marca como «castillo» (los del Gòtic y el Born): palacio o patrimonio
+    const palaceName = /\b(palau|palacio|palace|palais|palazzo|pałac|palácio|schloss|paleis)\b/i.test(n);
+    if (h === 'castle' && !palaceName && /^(casa|cal|can|ca l'|cases|sal[oó]|edifici|mansi[oó]n?|villa)\b/i.test(n)) return { kind: 'Patrimonio', emoji: '🏛️', rarity: 'raro', prio: 62 };
+    if ((h === 'castle' && !palaceName) || h === 'fort') return { kind: 'Castillo', emoji: '🏰', rarity: 'legendario', prio: 90 };
+    if (b === 'palace' || palaceName) return { kind: 'Palacio', emoji: '🏰', rarity: 'epico', prio: 84 };
     if (l === 'stadium' || b === 'stadium') return { kind: 'Estadio', emoji: '🏟️', rarity: 'epico', prio: 85 };
     if (b === 'basilica' || /bas[ií]lica|co-?catedral|concatedral/i.test(n)) return { kind: 'Basílica', emoji: '⛪', rarity: 'epico', prio: 80 };
     // ermitas y monasterios (siempre visibles si son patrimonio o tienen Wikipedia)
@@ -83,8 +86,10 @@ PM.world = (function () {
     if (tags.railway === 'station' && tags.heritage && tags.station !== 'subway' && !/\bmetro\b/i.test(n)) return { kind: 'Estación', emoji: '🚉', rarity: 'epico', prio: 66 };
     if (/^(station|halt|tram_stop|subway_entrance)$/.test(tags.railway || '') || tags.station === 'subway') return null;
     // comercios emblemáticos: solo si son patrimonio (cafés, pastelerías, farmacias, tiendas centenarias…)
-    // comercios históricos que siguen abiertos (protegidos o muy conocidos; los cerrados ya no llegan de Wikidata)
-    if ((tags.heritage || (tags._wp || 0) >= 2) && (tags.shop || /^(cafe|bar|restaurant|pharmacy|pub|ice_cream)$/.test(a || ''))) return { kind: 'Comercio emblemático', emoji: '☕', rarity: 'raro', prio: 52 };
+    // comercios históricos o de gran interés que siguen abiertos: protegidos, famosos en el mundo (8+ idiomas) o conocidos
+    // y fundados antes de 1950 (no los restaurantes de moda); los cerrados ya no llegan de Wikidata
+    if ((tags.heritage || (tags._wp || 0) >= 8 || ((tags._wp || 0) >= 2 && +tags.start_date && +tags.start_date <= 1950)) && (tags.shop || /^(cafe|bar|restaurant|pharmacy|pub|ice_cream)$/.test(a || ''))) return { kind: 'Comercio emblemático', emoji: '☕', rarity: 'raro', prio: 52 };
+    if (tags.shop || /^(cafe|bar|restaurant|pharmacy|pub|ice_cream)$/.test(a || '')) return null;   // el resto de tiendas y bares: no
     if (l === 'park' || l === 'garden') return { kind: 'Parque', emoji: '🌳', rarity: 'raro', prio: 48 };
     if (tags.man_made === 'windmill' || tags.man_made === 'watermill') return { kind: 'Molino', emoji: '🌬️', rarity: 'raro', prio: 52 };
     if (tags.heritage) return { kind: 'Patrimonio', emoji: /f[aàá]bri|factory|usine|fabbrica/i.test(n) ? '🏭' : '🏛️', rarity: 'raro', prio: 62 };
@@ -104,6 +109,7 @@ PM.world = (function () {
   // Que no se amontonen: entre dos puntos conquistables al menos MIN_GAP m (se queda el más importante).
   // El ayuntamiento manda: se muestra siempre y deja libre a su alrededor TOWNHALL_GAP m.
   const MIN_GAP = 60, TOWNHALL_GAP = 100;
+  const SHOP_GAP = 25;                 // los comercios históricos son una fachada: les basta con no estar pegados a otro lugar
   const GRID = 0.0015;                 // celda del índice de separación (~160 m)
   const RANK = { comun: 0, raro: 1, epico: 2, legendario: 3 };
   const lmGrid = {};                   // celda -> [landmarks aceptados]
@@ -162,7 +168,7 @@ PM.world = (function () {
       // importantes: SIEMPRE visibles y conquistables, sin restricción de cercanía con otros puntos:
       // ayuntamiento, catedral, basílica, castillo y cualquier lugar con artículo en Wikipedia o protegido como patrimonio
       // (de Wikidata: si tiene artículo en 2+ idiomas; parques y plazas: solo con artículo)
-      principal: !/^(Estación|Parada de tranvía)$/.test(c.kind) && (c.kind === 'Ayuntamiento' || /^(Catedral|Basílica|Castillo|Estadio|Palacio|Museo)$/.test(c.kind)
+      principal: c.kind !== 'Comercio emblemático' && (c.kind === 'Ayuntamiento' || /^(Catedral|Basílica|Castillo|Estadio|Palacio|Museo|Estación)$/.test(c.kind)
         || (c.kind === 'Ermita / Monasterio' && important)
         || (tags._wp ? tags._wp >= 2 : (wiki || (!!tags.heritage && !green)))),
       capR: PM.capRadius(c.kind, wiki || wp >= 2) };
@@ -373,7 +379,8 @@ PM.world = (function () {
       if (!isCap(lm)) {
         if (around(kept, lm.pos, 2).some((o) => o.name === lm.name && PM.geo.dist(o.pos, lm.pos) < (o.kind === lm.kind ? 300 : 80))) continue;   // varios edificios del mismo sitio (TV3…): uno
         if (lm.kind === 'Estación' && !lm.wiki && !lm.wd && around(osmGrid, lm.pos, 3).concat(around(kept, lm.pos, 3)).some((o) => o.kind === 'Parque' && PM.geo.dist(o.pos, lm.pos) < 500 && sameName(o.name, lm.name))) continue;
-        if (!lm.principal && around(kept, lm.pos, 1).some((o) => PM.geo.dist(o.pos, lm.pos) < (o.townhall ? TOWNHALL_GAP : MIN_GAP))) continue;
+        const shop = lm.kind === 'Comercio emblemático';
+        if (!lm.principal && around(kept, lm.pos, 1).some((o) => PM.geo.dist(o.pos, lm.pos) < (o.townhall ? TOWNHALL_GAP : shop || o.kind === 'Comercio emblemático' ? SHOP_GAP : MIN_GAP))) continue;
       }
       keep.add(lm.id); gridAdd(kept, lm);
     }
@@ -615,7 +622,7 @@ PM.world = (function () {
   // ---------------- Caché local de barrios (IndexedDB) ----------------
   // Cada barrio se descarga una vez y se guarda 30 días: menos datos móviles, menos batería y arranque instantáneo.
   const CACHE_DAYS = 90;
-  const CACHE_V = 12;   // 12: lugares solo de mapas vectoriales + Wikidata (iguales para todos), comercios y estaciones históricas   // súbelo si cambia lo que se descarga (p. ej. nuevos tipos de puntos): fuerza a renovar la caché
+  const CACHE_V = 13;   // 13: estaciones de tren históricas de Wikidata (antes se perdían); 12: lugares solo de mapas vectoriales + Wikidata   // súbelo si cambia lo que se descarga (p. ej. nuevos tipos de puntos): fuerza a renovar la caché
   const cache = (function () {
     let dbp = null;
     function db() {
@@ -989,10 +996,10 @@ PM.world = (function () {
     if (demoMode) return null;
     const c = await cache.get(k);
     if (!(c && c.v >= 4 && Date.now() - c.t < CACHE_DAYS * 86400000)) return null;
-    if (c.v < 12) return null;   // guardado antes (librerías como bibliotecas, sin estudios de TV…): se vuelve a pedir igual en todos los móviles
+    if (c.v < 13) return null;   // guardado antes (librerías como bibliotecas, sin estudios de TV…): se vuelve a pedir igual en todos los móviles
     if (c.v < 10) { c.extrasMiss = true; c.wdMiss = true; }   // tipos nuevos (estudios de TV…): se completan los extras y Wikidata
     if (c.v < 6) c.wdMiss = true;   // guardado antes de Wikidata: se completa en segundo plano
-    if (c.wdMiss || c.extrasMiss) setTimeout(() => completeTile(k, c), 3000);
+    if (c.wdMiss || c.extrasMiss || (!c.src && !c.vtPois)) setTimeout(() => completeTile(k, c), 3000);
     return c.els;
   }
   // Completa un barrio guardado sin los lugares de Wikidata (y los añade al mapa en cuanto llegan)
@@ -1013,9 +1020,10 @@ PM.world = (function () {
           try { const d = await overpass(QUERY(bb), 45000); add = add.concat(d.elements.map(slim).filter((el) => tilesOf(el).has(k))); extrasMiss = false; }
           catch (err) { extrasFailT = Date.now(); console.warn('Extras del barrio pendientes (Overpass no responde)', k, err); }
         }
-        // Overpass no responde: los lugares que trae el mapa base (bomberos, estudios de TV, hospitales…), una vez por zona
+        // zona bajada sin los mapas vectoriales (Overpass o GitHub): sus lugares, una vez por zona. Hace falta SIEMPRE
+        // (no solo si Overpass falla): los lugares salen solo de los mapas vectoriales y Wikidata, iguales para todos
         let vtPois = !!c.vtPois;
-        if (extrasMiss && !c.src && !vtPois && !vtDown()) {
+        if (!c.src && !vtPois && !vtDown()) {
           try {
             const got = await PM.vtiles.fetchBox(s + 1e-6, w + 1e-6, n - 1e-6, e - 1e-6);
             add = add.concat(got.els.filter((el) => el.tags && el.tags.name && !el.tags.highway && !el.tags.place && tilesOf(el).has(k)));
@@ -1031,7 +1039,8 @@ PM.world = (function () {
         cache.put(k, Object.assign({}, cur, { els: cur.els.concat(add), wdMiss, extrasMiss, vtPois }));
         // Wikidata falló (red floja, servidor ocupado): se reintenta en 2 minutos, hasta 5 veces en esta sesión.
         // Si no, ese móvil se quedaba sin los lugares de Wikidata de la zona hasta volver a abrir la app.
-        if (wdMiss && (wdRetries[k] = (wdRetries[k] || 0) + 1) <= 5) setTimeout(async () => { const c2 = await cache.get(k); if (c2 && c2.wdMiss) completeTile(k, c2); }, 120000);
+        const pending = (x) => x.wdMiss || (!x.src && !x.vtPois);   // (lo mismo si faltan los lugares del mapa vectorial)
+        if (pending({ wdMiss, src: cur.src, vtPois }) && (wdRetries[k] = (wdRetries[k] || 0) + 1) <= 5) setTimeout(async () => { const c2 = await cache.get(k); if (c2 && pending(c2)) completeTile(k, c2); }, 120000);
         if (add.length && tiles[k] && (tiles[k].loaded || tiles[k].partial)) { ingest(add, new Set([k])); emit('loaded', { tiles: [k] }); }
       } finally { completing.delete(k); }
     });
