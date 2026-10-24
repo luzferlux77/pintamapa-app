@@ -1,8 +1,8 @@
 {
-  "version": "0.6.62",
-  "notes": "Mismos lugares para todos: la selección ya no depende del orden en que llegan los datos (la Font dels Nens de la Ciutadella) y Wikidata se reintenta si falla",
+  "version": "0.6.63",
+  "notes": "Batería: el audio ya no mantiene el móvil despierto (horas con la pantalla apagada), pausa automática del paseo tras 15 min quieto, latido dorado que descansa",
   "native": 6,
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.62/pintamapa-web-0.6.62.zip",
-  "checksum": "7f7c1e5649852c2109c231c0c28cea2e868eb6e7a5b063e5a04f9a72e765ac09",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.62/PintaMapa-v0.6.62.apk"
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.63/pintamapa-web-0.6.63.zip",
+  "checksum": "99accb81cd0fc58fc5219d498777e9d936beeafe4fb93e83aac56b31128f73ac",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.63/PintaMapa-v0.6.63.apk"
 }
