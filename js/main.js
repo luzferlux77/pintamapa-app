@@ -643,6 +643,7 @@
       }
     } else {
       paintAround(p);
+      paintPrev = null; recentP = [];   // primera lectura del tramo: el suavizado empieza de cero
     }
     if (lastP && !isTeleport) updateHeading(lastP, p);
     if (isTeleport || !painting || (lastP && PM.geo.dist(lastP, p) > 40)) { recentP = []; paintPrev = null; }
@@ -1179,7 +1180,7 @@
 
   // Gancho de pruebas (consola del navegador): PM.debug.walkTo([lat, lon]), PM.debug.setPace(0..4)
   PM.debug = { map, walkTo(p) { target = p; follow = true; }, setPace(i) { pace = i; turbo = false; }, get pos() { return pos.slice(); },
-    get bearing() { return map.getBearing(); }, get heading() { return heading; }, get gap() { return { lastP, lastT, pending: pendingGaps.length, autoResumed, lastSeen: session && session.lastSeen }; }, trim: () => trimMemory(), fix(lat, lon, t, acc = 5, spd, brg) { const m = mode; mode = 'gps'; try { onFix({ latitude: lat, longitude: lon, accuracy: acc, speed: spd, bearing: brg }, t); } finally { mode = m; } }, newSession() { if (session) endSession(); startSession(); $('#sheet').classList.remove('show'); }, endSession: () => endSession(), get sessionTrack() { return session && session.track; }, harvest: () => harvestOld(), flushGeo: () => geoFlush(), get geo() { return { pgeo: pgeo.size, zonas: pgeoTile.size, barrios: Object.keys(bgeo).length, recogidas: Object.keys(harvested).length, ready: geoReady }; }, get painted() { return paintedF; },
+    get bearing() { return map.getBearing(); }, get heading() { return heading; }, get gap() { return { lastP, lastT, pending: pendingGaps.length, autoResumed, lastSeen: session && session.lastSeen }; }, trim: () => trimMemory(), backup: () => buildBackup(), importData: (d) => importData(d), fix(lat, lon, t, acc = 5, spd, brg) { const m = mode; mode = 'gps'; try { onFix({ latitude: lat, longitude: lon, accuracy: acc, speed: spd, bearing: brg }, t); } finally { mode = m; } }, newSession() { if (session) endSession(); startSession(); $('#sheet').classList.remove('show'); }, endSession: () => endSession(), get sessionTrack() { return session && session.track; }, harvest: () => harvestOld(), flushGeo: () => geoFlush(), get geo() { return { pgeo: pgeo.size, zonas: pgeoTile.size, barrios: Object.keys(bgeo).length, recogidas: Object.keys(harvested).length, ready: geoReady }; }, get painted() { return paintedF; },
     // avanza el juego n fotogramas a mano (pruebas con la pestaña oculta, donde el navegador congela la animación)
     frames(n, ms = 50) { let t = lastFrame; for (let i = 0; i < n; i++) { t += ms; loop(t, true); } } };
   PM.debug.fx = (id) => conquestFX(id || curBarrio);   // pruebas: animación de conquista
@@ -1422,7 +1423,7 @@
     if (!session || !session.paused) return;
     session.paused = false; session.resumedAt = Date.now();
     if (session.track && session.track.length) session.track.push(null);   // corte del recorrido (pausa)
-    lastP = null; walkAnchor = null;   // no se pinta el "salto" desde donde pausaste
+    lastP = null; walkAnchor = null; paintPrev = null; recentP = [];   // no se pinta el "salto" desde donde pausaste
     persistSession(); syncGPS(); renderSession();
     PM.update.hold();
     toast('▶ ¡Seguimos pintando!', 'info');
@@ -2015,17 +2016,20 @@
   // Copia de seguridad en archivo, en el propio móvil (Documentos/PintaMapa) y, si quieres, enviada a donde elijas.
   // Lleva TODA la partida, tus fotos de cromos, la forma de lo pintado, los contornos de tus barrios y los
   // imprescindibles de cada ciudad: en el móvil nuevo se ve todo al momento, sin nube.
-  async function exportBackup() {
-    const s = S(), msg = $('#bk-msg');
-    if (msg) msg.textContent = '⏳ Preparando la copia…';
-    const photos = {};
+  async function buildBackup() {
+    const s = S(), photos = {};
     for (const id of Object.keys(s.cardPhotos || {})) { try { const p = await PM.cards.getPhoto(id); if (p) photos[id] = p; } catch (e) {} }
-    s.backupT = Date.now(); PM.state.save();
-    const save = Object.assign({}, s); delete save.session; delete save.pendingGeo;
+    const save = JSON.parse(JSON.stringify(s)); delete save.session; delete save.pendingGeo;
     const geo = {};
     for (const [k, ids] of pgeoTile) { const o = {}; for (const id of ids) if (s.painted[id]) o[id] = pgeo.get(id).p; if (Object.keys(o).length) geo[k] = o; }
     let cityinfo = null; try { cityinfo = JSON.parse(localStorage.getItem('pintamapa_cityinfo') || 'null'); } catch (e) {}
-    const data = { app: 'PintaMapa', version: PM.VERSION.app, player: PM.player ? PM.player.name : '', t: Date.now(), save, photos, geo, bgeo, cityinfo };
+    return { app: 'PintaMapa', version: PM.VERSION.app, player: PM.player ? PM.player.name : '', t: Date.now(), save, photos, geo, bgeo, cityinfo };
+  }
+  async function exportBackup() {
+    const s = S(), msg = $('#bk-msg');
+    if (msg) msg.textContent = '⏳ Preparando la copia…';
+    s.backupT = Date.now(); PM.state.save();
+    const data = await buildBackup();
     const blob = new Blob([JSON.stringify(data)], { type: 'application/json' });
     const name = `PintaMapa-${(PM.player ? PM.player.slug : 'partida')}-${new Date().toISOString().slice(0, 10)}.json`;
     const mb = (blob.size / 1048576).toFixed(1);
@@ -2045,6 +2049,23 @@
     await PM.replay.save(blob, name, 'Copia de PintaMapa');
     if (msg) msg.textContent = `✅ Copia lista (${mb} MB). Guárdala donde quieras: en el móvil nuevo, impórtala.`;
   }
+  // mete una copia de seguridad en la partida actual (se suma: no se borra nada)
+  async function importData(d) {
+    const cur = S(), merged = PM.merge(d.save, cur);
+    PM.state.replace(Object.assign({}, merged, { session: cur.session, pendingGeo: Object.assign({}, d.save.pendingGeo || {}, cur.pendingGeo || {}) }));
+    for (const [id, img] of Object.entries(d.photos || {})) { try { await PM.cards.putPhoto(id, img); } catch (e) {} }
+    // formas de lo pintado y contornos de barrios: lo tuyo se ve al momento, también lo de zonas lejanas
+    try {
+      const db = await geoDb(), tx = db.transaction(['geo', 'meta'], 'readwrite'), st = tx.objectStore('geo');
+      for (const [k, o] of Object.entries(d.geo || {})) {
+        const prev = (await idbReq(st.get(k))) || {};
+        st.put(Object.assign(prev, o), k);
+      }
+      if (d.bgeo) tx.objectStore('meta').put(Object.assign({}, d.bgeo, bgeo), 'barrios');
+      await new Promise((ok) => { tx.oncomplete = ok; tx.onerror = ok; });
+    } catch (e) { /* se recogerán solas, zona a zona */ }
+    if (d.cityinfo) { try { const ci = JSON.parse(localStorage.getItem('pintamapa_cityinfo') || '{}'); localStorage.setItem('pintamapa_cityinfo', JSON.stringify(Object.assign({}, d.cityinfo, ci))); } catch (e) {} }
+  }
   function importBackup() {
     const inp = document.createElement('input'); inp.type = 'file'; inp.accept = '.json,application/json';
     inp.onchange = async () => {
@@ -2053,20 +2074,7 @@
         const d = JSON.parse(await f.text());
         if (d.app !== 'PintaMapa' || !d.save) throw new Error('Este archivo no es una copia de PintaMapa');
         if (!confirm(`¿Importar la copia de «${d.player || '?'}» del ${new Date(d.t).toLocaleString('es-ES')}? Se sumará a tu partida actual (no se borra nada).`)) return;
-        const cur = S(), merged = PM.merge(d.save, cur);
-        PM.state.replace(Object.assign({}, merged, { session: cur.session, pendingGeo: Object.assign({}, d.save.pendingGeo || {}, cur.pendingGeo || {}) }));
-        for (const [id, img] of Object.entries(d.photos || {})) { try { await PM.cards.putPhoto(id, img); } catch (e) {} }
-        // formas de lo pintado y contornos de barrios: lo tuyo se ve al momento, también lo de zonas lejanas
-        try {
-          const db = await geoDb(), tx = db.transaction(['geo', 'meta'], 'readwrite'), st = tx.objectStore('geo');
-          for (const [k, o] of Object.entries(d.geo || {})) {
-            const prev = (await idbReq(st.get(k))) || {};
-            st.put(Object.assign(prev, o), k);
-          }
-          if (d.bgeo) tx.objectStore('meta').put(Object.assign({}, d.bgeo, bgeo), 'barrios');
-          await new Promise((ok) => { tx.oncomplete = ok; tx.onerror = ok; });
-        } catch (e) { /* se recogerán solas, zona a zona */ }
-        if (d.cityinfo) { try { const ci = JSON.parse(localStorage.getItem('pintamapa_cityinfo') || '{}'); localStorage.setItem('pintamapa_cityinfo', JSON.stringify(Object.assign({}, d.cityinfo, ci))); } catch (e) {} }
+        await importData(d);
         toast('✅ Copia importada. Recargando…', 'ok');
         setTimeout(() => location.reload(), 1200);
       } catch (e) { toast('❌ ' + (e.message || e), 'warn', 5000); }
