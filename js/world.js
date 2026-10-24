@@ -79,10 +79,12 @@ PM.world = (function () {
     if (a === 'university') return { kind: 'Universidad', emoji: '🎓', rarity: 'raro', prio: 58 };
     if (tags.place === 'square') return { kind: 'Plaza', emoji: '🏙️', rarity: 'raro', prio: 55 };
     if (tags.man_made === 'lighthouse') return { kind: 'Faro', emoji: '🗼', rarity: 'raro', prio: 55 };
-    if (/^(station|halt)$/.test(tags.railway || '')) return { kind: 'Estación', emoji: '🚉', rarity: 'raro', prio: 50 };   // tren, cercanías, metro
-    if (tags.railway === 'tram_stop') return { kind: 'Parada de tranvía', emoji: '🚋', rarity: 'comun', prio: 28 };
+    // estaciones: solo las de tren históricas (protegidas como patrimonio); nunca metro, tranvía ni apeaderos
+    if (tags.railway === 'station' && tags.heritage && tags.station !== 'subway' && !/\bmetro\b/i.test(n)) return { kind: 'Estación', emoji: '🚉', rarity: 'epico', prio: 66 };
+    if (/^(station|halt|tram_stop|subway_entrance)$/.test(tags.railway || '') || tags.station === 'subway') return null;
     // comercios emblemáticos: solo si son patrimonio (cafés, pastelerías, farmacias, tiendas centenarias…)
-    if (tags.heritage && (tags.shop || /^(cafe|bar|restaurant|pharmacy|pub)$/.test(a || ''))) return { kind: 'Comercio emblemático', emoji: '☕', rarity: 'raro', prio: 52 };
+    // comercios históricos que siguen abiertos (protegidos o muy conocidos; los cerrados ya no llegan de Wikidata)
+    if ((tags.heritage || (tags._wp || 0) >= 2) && (tags.shop || /^(cafe|bar|restaurant|pharmacy|pub|ice_cream)$/.test(a || ''))) return { kind: 'Comercio emblemático', emoji: '☕', rarity: 'raro', prio: 52 };
     if (l === 'park' || l === 'garden') return { kind: 'Parque', emoji: '🌳', rarity: 'raro', prio: 48 };
     if (tags.man_made === 'windmill' || tags.man_made === 'watermill') return { kind: 'Molino', emoji: '🌬️', rarity: 'raro', prio: 52 };
     if (tags.heritage) return { kind: 'Patrimonio', emoji: /f[aàá]bri|factory|usine|fabbrica/i.test(n) ? '🏭' : '🏛️', rarity: 'raro', prio: 62 };
@@ -109,6 +111,9 @@ PM.world = (function () {
 
   function addLandmark(el) {
     const tags = el.tags || {};
+    // los lugares salen SOLO de las fuentes que funcionan igual para todos: mapas vectoriales (src 'vt') y Wikidata
+    // (_wp). Lo de Overpass (caído a menudo) daba a unos móviles lugares de más que otros no tenían.
+    if (!demoMode && el.src !== 'vt' && !tags._wp) return;
     if (!tags.name) return;               // solo lugares con nombre: más "coleccionables"
     const important = !!(tags.wikipedia || tags.wikidata || tags._wp || tags.heritage);
     if (/plaque|stolperstein|blue_plaque|bench/.test(tags.memorial || '') && !(tags.wikipedia || tags.wikidata || tags._wp)) return;   // placas: solo con Wikipedia
@@ -610,7 +615,7 @@ PM.world = (function () {
   // ---------------- Caché local de barrios (IndexedDB) ----------------
   // Cada barrio se descarga una vez y se guarda 30 días: menos datos móviles, menos batería y arranque instantáneo.
   const CACHE_DAYS = 90;
-  const CACHE_V = 11;   // súbelo si cambia lo que se descarga (p. ej. nuevos tipos de puntos): fuerza a renovar la caché
+  const CACHE_V = 12;   // 12: lugares solo de mapas vectoriales + Wikidata (iguales para todos), comercios y estaciones históricas   // súbelo si cambia lo que se descarga (p. ej. nuevos tipos de puntos): fuerza a renovar la caché
   const cache = (function () {
     let dbp = null;
     function db() {
@@ -984,7 +989,7 @@ PM.world = (function () {
     if (demoMode) return null;
     const c = await cache.get(k);
     if (!(c && c.v >= 4 && Date.now() - c.t < CACHE_DAYS * 86400000)) return null;
-    if (c.v < 11) return null;   // guardado antes (librerías como bibliotecas, sin estudios de TV…): se vuelve a pedir igual en todos los móviles
+    if (c.v < 12) return null;   // guardado antes (librerías como bibliotecas, sin estudios de TV…): se vuelve a pedir igual en todos los móviles
     if (c.v < 10) { c.extrasMiss = true; c.wdMiss = true; }   // tipos nuevos (estudios de TV…): se completan los extras y Wikidata
     if (c.v < 6) c.wdMiss = true;   // guardado antes de Wikidata: se completa en segundo plano
     if (c.wdMiss || c.extrasMiss) setTimeout(() => completeTile(k, c), 3000);

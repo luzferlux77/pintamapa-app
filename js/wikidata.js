@@ -27,10 +27,17 @@
     Q43501: { tourism: 'attraction' }, Q194195: { tourism: 'attraction' }, Q6017969: { tourism: 'viewpoint' }, Q12280: { historic: 'monument' },
     Q38720: { man_made: 'tower' }, Q39614: { historic: 'monument' },
     Q1154710: { leisure: 'stadium' }, Q120560: { building: 'basilica' }, Q22746: { leisure: 'park' }, Q143912: { historic: 'city_gate' }, Q2293362: { historic: 'monument' },
+    // comercios históricos (tiendas, bares, cafés, restaurantes, pastelerías, farmacias, librerías, heladerías)
+    Q213441: { shop: 'yes' }, Q19471285: { shop: 'pastry' }, Q274393: { shop: 'bakery' }, Q200764: { shop: 'books' }, Q1311064: { shop: 'ice_cream' },
+    Q187456: { amenity: 'bar' }, Q30022: { amenity: 'cafe' }, Q11707: { amenity: 'restaurant' }, Q13107184: { amenity: 'pharmacy' },
+    // estaciones de tren (solo entran las históricas: patrimonio protegido)
+    Q55488: { railway: 'station', _tren: 1 }, Q1339195: { railway: 'station', _tren: 1 }, Q18543139: { railway: 'station', _tren: 1 },
     // edificios: solo entran si además son patrimonio protegido
     Q41176: { building: 'yes' }, Q3947: { building: 'yes' }, Q585956: { building: 'yes' }, Q3950: { building: 'yes' }, Q83405: { building: 'yes' }, Q1662011: { building: 'yes' }, Q627236: { building: 'yes' },
   };
   // descripciones de viviendas/conjuntos de catálogo: protegidos, pero no los conoce nadie
+  // metro, tranvía y estaciones subterráneas: nunca (no son lugares que visitar)
+  const NO_CLS = new Set(['Q928830', 'Q2175765', 'Q22808403']);
   const DULL = /^(habitatges?|edificis?|edifici d'habitatges|casa al |cases al |casa a la |conjunt|carrer|farmàcia|porteria|masoveria|viviendas?|edificio de viviendas|bloque)/i;
 
   function query(s, w, n, e) {
@@ -38,9 +45,10 @@
  SERVICE wikibase:box { ?item wdt:P625 ?coord. bd:serviceParam wikibase:cornerSouthWest "Point(${w} ${s})"^^geo:wktLiteral. bd:serviceParam wikibase:cornerNorthEast "Point(${e} ${n})"^^geo:wktLiteral. }
  ?art schema:about ?item; schema:isPartOf/wikibase:wikiGroup "wikipedia".
  FILTER NOT EXISTS { ?item wdt:P1082 [] } FILTER NOT EXISTS { ?item wdt:P81 [] }
+ FILTER NOT EXISTS { ?item wdt:P576 [] } FILTER NOT EXISTS { ?item wdt:P5817 wd:Q56556915 }
  OPTIONAL { ?item wdt:P1435 ?h } OPTIONAL { ?item wdt:P31 ?c }
  SERVICE wikibase:label { bd:serviceParam wikibase:language "es,ca,en,fr,de,it,pt,nl,mul". }
-} GROUP BY ?item ?itemLabel ?coord`;
+} GROUP BY ?item ?itemLabel ?coord`;   // (P576 / derribado: lo que ya cerró o no existe no sale)
   }
 
   // Los lugares más conocidos de una zona grande (una ciudad entera): por número de artículos en wikis (sitelinks), de más a menos
@@ -66,13 +74,16 @@
       const m = /Point\(([-\d.]+) ([-\d.]+)\)/.exec(b.coord.value);
       if (!m) continue;
       const wp = +b.wp.value, her = !!b.her, cls = (b.cls && b.cls.value || '').split(',').filter(Boolean);
+      if (cls.some((c) => NO_CLS.has(c))) continue;   // metro, tranvía
       let tags = null;
       for (const c of cls) if (CLS[c] && (!tags || tags.building === 'yes')) tags = CLS[c];
+      if (tags && tags._tren && !her) continue;       // estación de tren moderna: solo las históricas (protegidas)
       if (!tags && !her) continue;                    // ni lugar reconocible ni patrimonio: barrio, empresa, colegio, evento…
       if (tags && tags.building === 'yes' && !her) continue;
       if (!her && wp < 2) continue;                   // sin protección y casi sin artículos: poco conocido (cines cerrados, etc.)
       if (DULL.test(name) && wp < 2) continue;
       const t = Object.assign({ historic: 'building' }, tags && tags.building !== 'yes' ? tags : {}, { name, wikidata: q, _wp: wp });
+      delete t._tren;
       if (tags && tags.building === 'yes') t.building = 'yes';
       if (her) t.heritage = 'yes';
       out.push({ type: 'node', id: q, lat: +(+m[2]).toFixed(6), lon: +(+m[1]).toFixed(6), tags: t });
