@@ -1,8 +1,8 @@
 {
-  "version": "0.6.61",
-  "notes": "Arreglos de la auditoría con pruebas exigentes: reanudar sin línea recta, copia de seguridad separada y probada",
+  "version": "0.6.62",
+  "notes": "Mismos lugares para todos: la selección ya no depende del orden en que llegan los datos (la Font dels Nens de la Ciutadella) y Wikidata se reintenta si falla",
   "native": 6,
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.61/pintamapa-web-0.6.61.zip",
-  "checksum": "17264ae23083cd8f152c3074163a694993d05889e6e435d45b7031924aeaadf3",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.61/PintaMapa-v0.6.61.apk"
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.62/pintamapa-web-0.6.62.zip",
+  "checksum": "7f7c1e5649852c2109c231c0c28cea2e868eb6e7a5b063e5a04f9a72e765ac09",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.62/PintaMapa-v0.6.62.apk"
 }
