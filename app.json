@@ -1,8 +1,8 @@
 {
-  "version": "0.6.59",
-  "notes": "Nube solo para el dueño; copia de seguridad en Documentos del móvil con todo (también lo pintado y los barrios) y recordatorio; nombres de zona sin conexión ya no se quedan mal",
+  "version": "0.6.60",
+  "notes": "Pintado más fiel (filtro de rebotes del GPS, menos calles paralelas pintadas), fusión de paseos sin pérdidas, póster/vídeo con todo lo pintado",
   "native": 6,
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.59/pintamapa-web-0.6.59.zip",
-  "checksum": "ab0711f49285536b508823327de397797ff950ac23925c44d38e300a3869c40e",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.59/PintaMapa-v0.6.59.apk"
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.60/pintamapa-web-0.6.60.zip",
+  "checksum": "11f54810b943a246aeb26eb42d48797792e9d9ab5690d98888e15efae5ba208a",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.60/PintaMapa-v0.6.60.apk"
 }
