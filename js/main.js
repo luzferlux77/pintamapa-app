@@ -441,12 +441,12 @@
     if (h && h.properties.m !== m) { h.properties.m = m; setSrc('pm-halos', FC(Object.values(lmHalos))); }
   }
   // Halo simbólico de los conquistados: un círculo de tu color y ondas que salen de él, en bucle, SOLO mientras pintas.
-  // Parado o sin pintar, el lugar se ve conquistado (relleno de color) pero sin halo.
+  // Parado o sin pintar, el lugar se ve conquistado (relleno de color) pero sin halo. En la versión web, nunca.
   let haloOn = false;
   const haloCol = () => ['case', ['==', ['get', 'm'], 1], '#eab308', paintColor()];   // imprescindibles: dorado
   function haloR(k) { return ['interpolate', ['linear'], ['zoom'], 12, 6 * k, 15, 13 * k, 17, 20 * k, 19, 26 * k]; }
   function stepHalos() {
-    const want = !!(session && !session.paused) && !placesOff && mapReady;
+    const want = PM.isNative && !!(session && !session.paused) && !placesOff && mapReady;
     if (want === haloOn) return;
     haloOn = want;
     if (map.getLayer('pm-halo-fill')) map.setLayoutProperty('pm-halo-fill', 'visibility', want ? 'visible' : 'none');
