@@ -33,7 +33,8 @@
     out.stats = Object.assign({}, a.stats);
     for (const [k, v] of Object.entries(b.stats || {})) out.stats[k] = typeof v === 'number' ? Math.max(out.stats[k] || 0, v) : v;
     const walks = {};
-    [...(a.walks || []), ...(b.walks || [])].forEach((w) => { walks[w.id] = w; });
+    // el mismo paseo en dos versiones: la más completa (más tiempo; a igualdad, la más reciente)
+    [...(a.walks || []), ...(b.walks || [])].forEach((w) => { const o = walks[w.id]; if (!o || (w.elapsed || 0) >= (o.elapsed || 0)) walks[w.id] = w; });
     out.walks = Object.values(walks).filter((w) => (w.elapsed || 0) >= 120000).sort((x, y) => x.start - y.start);   // < 2 min: no cuentan
     if (a.daily && b.daily && a.daily.date > b.daily.date) out.daily = a.daily;
     // foto de perfil: la más reciente (también si la quitaste)

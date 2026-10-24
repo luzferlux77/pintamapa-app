@@ -4,7 +4,7 @@
   const $ = (s) => document.querySelector(s);
   const isNative = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
 
-  const PAINT_RADIUS = 14;      // m: margen para el error del GPS (calle por la que vas)
+  const PAINT_RADIUS = 12;      // m: margen para el error del GPS (calle por la que vas). Ajustado con pruebas de GPS realista (tests/pruebas-navegador.js)
   const TRAIL_RADIUS = 20;      // m: en senderos (GPS peor entre árboles)
   const PAINT_CORE = 5;         // m: parado o sin dirección conocida, se pinta solo lo que pisas
   const WIDE_RADIUS = 40;       // m: en avenidas anchas basta una acera para pintar ambas calzadas
@@ -579,10 +579,10 @@
 
   // fixTime: hora real de la lectura GPS. Con la pantalla bloqueada Android entrega las posiciones
   // en lotes; medir la velocidad por la hora de llegada daría velocidades absurdas (falso "vas en coche").
-  function onMove(p, isTeleport, fixTime, fixSpeed, fixBearing) {
+  function onMove(p, isTeleport, fixTime, fixSpeed, fixBearing, noShow) {
     const now = fixTime || Date.now();
     const visible = !document.hidden;
-    if (visible) showAt(p, mode === 'gps' && !isTeleport);
+    if (visible && !noShow) showAt(p, mode === 'gps' && !isTeleport);
     if (visible && haloOn && Date.now() - fxT > 5000) fxSync();   // pintando: ondas en los conquistados que tienes cerca
     // rumbo que da el propio GPS (fiable al caminar): manda sobre el calculado
     // (un 0 exacto es «sin rumbo» en muchos móviles; y se alinea con la calle por la que vas)
@@ -607,12 +607,12 @@
       // Hueco entre lecturas (GPS en el bolsillo): se pinta el camino más corto POR LAS CALLES
       let routed = false;
       const via = softFixes.filter((f) => f.t > lastT && f.t < now).map((f) => f.p); softFixes = [];
-      if (!jump && !tooFast && mode === 'gps' && d > 20 && d < 3000) {
+      if (!jump && !tooFast && mode === 'gps' && d > (PM.debug.umbralHueco || 20) && d < 3000) {
         const maxLen = Math.max(d * 2, d + 250);
         const r = (via.length && routeVia(lastP, p, via)) || W.route(lastP, p, maxLen);
         if (r && r.len <= Math.max(maxLen, r.via ? r.len : 0) && (dt <= 0 || r.len / dt <= MAX_SPEED * 1.5)) {
           routed = true;
-          fillGap(r, lastP, p, lastT, now);
+          fillGap(r, lastP, p, lastT, now); paintPrev = null; recentP = [];
           paintAround(p, [p[0] - lastP[0], (p[1] - lastP[1]) * Math.cos(p[0] * Math.PI / 180)]);
           walkAnchor = p.slice();
         } else if (!r && d > 40) {
@@ -628,7 +628,11 @@
         if (!tooFast) {
           const steps = Math.ceil(d / 4);
           const heading = [p[0] - lastP[0], (p[1] - lastP[1]) * Math.cos(p[0] * Math.PI / 180)];
-          for (let i = 1; i <= steps; i++) paintAround(PM.geo.lerp(lastP, p, i / steps), heading);
+          // se pinta con la posición «suavizada» de lado (media de las 3 últimas lecturas): con el ruido del GPS
+          // (5-10 m en ciudad) una lectura suelta caía más cerca de la calle paralela y se pintaba la que no era
+          const a = paintPrev || lastP, b = PM.debug.sinSuavizado ? p : lateralSmooth(p);
+          for (let i = 1; i <= steps; i++) paintAround(PM.geo.lerp(a, b, i / steps), heading);
+          paintPrev = b;
           // distancia caminada: se cuenta de "ancla" en "ancla" (cada >= 10 m) para no sumar el zigzag del ruido GPS
           if (!walkAnchor) walkAnchor = lastP.slice();
           const wa = PM.geo.dist(walkAnchor, p);
@@ -641,6 +645,7 @@
       paintAround(p);
     }
     if (lastP && !isTeleport) updateHeading(lastP, p);
+    if (isTeleport || !painting || (lastP && PM.geo.dist(lastP, p) > 40)) { recentP = []; paintPrev = null; }
     lastP = p.slice(); lastT = now;
     S().lastPos = p.slice();
     if (painting && !isTeleport) session.lastSeen = Date.now();   // si Android cierra la app, se sabe desde cuándo falta el recorrido
@@ -721,6 +726,7 @@
     return keep;
   }
   function trimMemory() {
+    if (PM.debug.sinLimpieza) return;
     const loaded = Object.keys(W.tiles).filter((k) => W.tiles[k].loaded);
     if (loaded.length <= KEEP_MAX) return;
     const keep = keepSet(), ip = Math.floor(pos[0] / W.TILE), jp = Math.floor(pos[1] / W.TILE);
@@ -749,6 +755,22 @@
     } catch (e) { /* sin conexión: se probará más tarde */ } finally { harvestBusy = false; }
   }
   setInterval(harvestOld, 5000);
+
+  // Suavizado lateral: la media de las 3 últimas lecturas solo corrige el desvío A LOS LADOS de la marcha (no
+  // retrasa el pintado hacia delante). Se reinicia tras un salto o un hueco.
+  let recentP = [], paintPrev = null;
+  function lateralSmooth(p) {
+    if (recentP.length && PM.geo.dist(recentP[recentP.length - 1], p) > 40) recentP = [];
+    recentP.push(p.slice()); if (recentP.length > 3) recentP.shift();
+    if (recentP.length < 3) return p;
+    const kx = PM.geo.mPerDegLon(p[0]), ky = PM.geo.mPerDegLat, f = recentP[0];
+    const ux0 = (p[1] - f[1]) * kx, uy0 = (p[0] - f[0]) * ky, ul = Math.hypot(ux0, uy0);
+    if (ul < 6) return p;
+    const ux = ux0 / ul, uy = uy0 / ul;
+    const mx = (recentP.reduce((s0, q) => s0 + q[1], 0) / 3 - p[1]) * kx, my = (recentP.reduce((s0, q) => s0 + q[0], 0) / 3 - p[0]) * ky;
+    const along = mx * ux + my * uy, px = mx - along * ux, py = my - along * uy;   // solo lo perpendicular
+    return [p[0] + py / ky, p[1] + px / kx];
+  }
 
   // punto del recorrido: [lat, lon, segundos desde el inicio del paseo, altitud del GPS] (para las estadísticas tipo Strava)
   let lastAlt = null;
@@ -794,7 +816,7 @@
     for (const piece of W.piecesNear(p, WIDE_RADIUS)) {
       const dist = PM.geo.distToPolyline(p, piece.pts);
       // senderos: el GPS va peor entre árboles y los caminos serpentean → más margen de distancia y de ángulo
-      if (dist > (piece.wide ? WIDE_RADIUS : piece.trail ? TRAIL_RADIUS : PAINT_RADIUS)) continue;
+      if (dist > (piece.wide ? WIDE_RADIUS : piece.trail ? TRAIL_RADIUS : (PM.debug.radio || PAINT_RADIUS))) continue;
       // Sin dirección conocida (parado, primera lectura): solo lo que pisas. Con dirección: solo tramos
       // que van en tu misma dirección (al pasar por un cruce no se pinta el arranque de la calle lateral).
       let ok = !hl && dist <= PAINT_CORE;
@@ -819,7 +841,7 @@
     const onAvenue = nearest && nearest[0].wide;
     for (const [piece, dist] of cand) {
       if (piece.wide && !onAvenue && dist > PAINT_RADIUS) continue;
-      if (!piece.wide && dist > best + 7 && !(piece.len < 8 && dist <= 5)) continue;
+      if (!piece.wide && dist > best + (PM.debug.margen != null ? PM.debug.margen : 3) && !(piece.len < 8 && dist <= 5)) continue;   // (3 m: un tercio menos de calles paralelas pintadas sin pisarlas, misma cobertura)
       if (S().painted[piece.id]) G.repass(piece); else G.paintPiece(piece, aura);
     }
   }
@@ -1131,7 +1153,21 @@
     getPos: () => pos, inSession: () => !!(session && !session.paused), sessionWalked: () => (session ? session.st.walked : 0),
     lookAt: (c, z) => { follow = false; zoomAround(); $('#btn-center').classList.add('show'); clearTimeout(recenterTimer); recenterTimer = setTimeout(recenter, 20000); map.easeTo({ center: ll(c), zoom: z, duration: 900 }); } });
   // «Tu semana pintando»: el domingo y el lunes, una vez por semana, aviso para ver el resumen en vídeo
-  const openWeek = () => PM.need('lib/mp4-muxer.js', 'js/replay.js', 'js/wrapped.js').then(() => PM.wrapped.open({ S, W })).catch(() => toast('Sin conexión para abrir el vídeo', 'warn'));
+  // todo lo pintado con su forma (de la memoria o, si su zona no está cargada, del almacén) y los barrios guardados
+  function paintedAll() {
+    const out = [], s = S();
+    for (const id in s.painted) {
+      const pc = W.pieces[id];
+      if (pc) { out.push(pc); continue; }
+      const g = pgeo.get(id);
+      if (!g) continue;
+      let len = 0; for (let i = 1; i < g.p.length; i++) len += PM.geo.dist(g.p[i - 1], g.p[i]);
+      out.push({ id, pts: g.p, len, mid: g.p[Math.floor(g.p.length / 2)], trail: false });
+    }
+    return out;
+  }
+  const artCtx = () => ({ S, W, paintedAll, barrioShapes: () => bgeo });
+  const openWeek = () => PM.need('lib/mp4-muxer.js', 'js/replay.js', 'js/wrapped.js').then(() => PM.wrapped.open(artCtx())).catch(() => toast('Sin conexión para abrir el vídeo', 'warn'));
   setTimeout(() => {
     const d = new Date(), wk = d.getFullYear() + '-' + Math.floor((d - new Date(d.getFullYear(), 0, 1)) / 604800000);
     if ((d.getDay() === 0 || d.getDay() === 1) && S().wrappedWeek !== wk && (S().walks || []).some((w) => w.start > Date.now() - 7 * 86400000)) {
@@ -1143,7 +1179,7 @@
 
   // Gancho de pruebas (consola del navegador): PM.debug.walkTo([lat, lon]), PM.debug.setPace(0..4)
   PM.debug = { map, walkTo(p) { target = p; follow = true; }, setPace(i) { pace = i; turbo = false; }, get pos() { return pos.slice(); },
-    get bearing() { return map.getBearing(); }, get heading() { return heading; }, get gap() { return { lastP, lastT, pending: pendingGaps.length, autoResumed, lastSeen: session && session.lastSeen }; }, trim: () => trimMemory(), harvest: () => harvestOld(), flushGeo: () => geoFlush(), get geo() { return { pgeo: pgeo.size, zonas: pgeoTile.size, barrios: Object.keys(bgeo).length, recogidas: Object.keys(harvested).length, ready: geoReady }; }, get painted() { return paintedF; },
+    get bearing() { return map.getBearing(); }, get heading() { return heading; }, get gap() { return { lastP, lastT, pending: pendingGaps.length, autoResumed, lastSeen: session && session.lastSeen }; }, trim: () => trimMemory(), fix(lat, lon, t, acc = 5, spd, brg) { const m = mode; mode = 'gps'; try { onFix({ latitude: lat, longitude: lon, accuracy: acc, speed: spd, bearing: brg }, t); } finally { mode = m; } }, newSession() { if (session) endSession(); startSession(); $('#sheet').classList.remove('show'); }, endSession: () => endSession(), get sessionTrack() { return session && session.track; }, harvest: () => harvestOld(), flushGeo: () => geoFlush(), get geo() { return { pgeo: pgeo.size, zonas: pgeoTile.size, barrios: Object.keys(bgeo).length, recogidas: Object.keys(harvested).length, ready: geoReady }; }, get painted() { return paintedF; },
     // avanza el juego n fotogramas a mano (pruebas con la pestaña oculta, donde el navegador congela la animación)
     frames(n, ms = 50) { let t = lastFrame; for (let i = 0; i < n; i++) { t += ms; loop(t, true); } } };
   PM.debug.fx = (id) => conquestFX(id || curBarrio);   // pruebas: animación de conquista
@@ -1229,8 +1265,30 @@
       return;
     }
     pos = [c.latitude, c.longitude];
-    onMove(pos, false, t || c.time || Date.now(), c.speed, c.bearing != null ? c.bearing : c.heading);
+    const f = { p: pos.slice(), t: t || c.time || Date.now(), acc, spd: c.speed, brg: c.bearing != null ? c.bearing : c.heading };
+    if (!(session && !session.paused) || PM.debug.sinFiltro) { onMove(f.p, false, f.t, f.spd, f.brg); return; }
+    // Pintando: cada lectura se confirma con la siguiente. Un rebote del GPS entre edificios (una lectura suelta
+    // desviada 30-60 m) hacía que se trazara un camino hasta ella y de vuelta, pintando calles que no pisaste.
+    if (!document.hidden) showAt(f.p, true);   // tu punto se mueve ya; lo que se pinta espera a la siguiente lectura
+    holdFix(f);
   }
+  let heldFix = null, heldTimer = null;
+  function holdFix(f) {
+    const h = heldFix; heldFix = null;
+    if (h) {
+      const base = lastP;
+      if (base && f) {
+        const dev = PM.geo.distToPolyline(h.p, [base, f.p]);
+        const vuelta = PM.geo.dist(base, h.p) + PM.geo.dist(h.p, f.p), recta = PM.geo.dist(base, f.p);
+        // muy fuera del camino entre la anterior y la siguiente, y un «pico» (ida y vuelta): rebote, se descarta
+        if (!(dev > Math.max(20, h.acc * 1.5) && vuelta > recta * 1.6 + 20)) onMove(h.p, false, h.t, h.spd, h.brg, true);
+      } else onMove(h.p, false, h.t, h.spd, h.brg, true);
+    }
+    heldFix = f || null;
+    clearTimeout(heldTimer);
+    if (heldFix) heldTimer = setTimeout(() => holdFix(null), 12000);   // parado (no llega otra lectura): se acepta
+  }
+  const flushHeldFix = () => { if (heldFix) holdFix(null); };
 
   // ahorro de batería: parado más de 90 s → el GPS solo avisa si te mueves 25 m; en cuanto andas, vuelve a 8 m
   let gpsSaver = false, gpsSaverT = 0;
@@ -1354,6 +1412,7 @@
   }
   function pauseSession() {
     if (!session || session.paused) return;
+    flushHeldFix();
     session.elapsed += Date.now() - session.resumedAt;
     session.paused = true;
     persistSession(); syncGPS(); renderSession();
@@ -1370,6 +1429,7 @@
   }
   function endSession() {
     if (!session) return;
+    flushHeldFix();
     if (!session.paused) session.elapsed += Date.now() - session.resumedAt;
     const s = session; session = null;
     if (s.elapsed >= 120000) {   // los paseos de menos de 2 minutos no se guardan en el historial (lo pintado sí cuenta)
@@ -1442,7 +1502,7 @@
     const keys = [...new Set((w.track || []).filter(Boolean).map((q) => W.tileKeyOf(q[0], q[1])))].filter((k) => !(W.tiles[k] && W.tiles[k].loaded));
     if (keys.length && keys.length <= 40) { toast('🗺️ Cargando las calles del recorrido…', 'info', 2000); await W.ensureKeys(keys); }
     const geo = {};
-    for (const id in S().painted) { const pc = W.pieces[id]; if (pc) geo[id] = pc.pts; }
+    for (const id in S().painted) { const pc = W.pieces[id]; if (pc) geo[id] = pc.pts; else if (pgeo.has(id)) geo[id] = pgeo.get(id).p; }   // (también lo de zonas no cargadas)
     await PM.need('lib/mp4-muxer.js', 'js/replay.js');
     PM.replay.open(w, { geo, color: paintColor(), player: PM.player && PM.player.name });
   }
@@ -2236,7 +2296,7 @@
     if (S().avatar) { const d = document.createElement('button'); d.className = 'av-del'; d.textContent = 'Quitar foto'; d.addEventListener('click', () => { FUN.removeAvatar(); panelProfile(); }); $('.av-wrap').appendChild(d); }
     $('#pf-lvl').addEventListener('click', panelLevel);
     $('#pf-week') && $('#pf-week').addEventListener('click', openWeek);
-    $('#pf-poster') && $('#pf-poster').addEventListener('click', () => PM.need('lib/mp4-muxer.js', 'js/replay.js', 'js/poster.js').then(() => PM.poster.open({ S, W })));
+    $('#pf-poster') && $('#pf-poster').addEventListener('click', () => PM.need('lib/mp4-muxer.js', 'js/replay.js', 'js/poster.js').then(() => PM.poster.open(artCtx())));
     const go = { walks: panelWalks, album: panelAlbum, ach: panelAchievements, week: openWeek, cit: () => { profTab = 'cit'; panelProfile(); } };
     document.querySelectorAll('.pf-quick [data-go]').forEach((b) => b.addEventListener('click', () => go[b.dataset.go]()));
     document.querySelectorAll('.pf-tile[data-act]').forEach((b) => b.addEventListener('click', () => go[b.dataset.act]()));

@@ -9,7 +9,7 @@ PM.wrapped = (function () {
   const RN = { comun: 'Común', raro: 'Rara', epico: 'Épica', legendario: 'Legendaria' };
 
   // ---------- datos de la semana ----------
-  function weekData(S, Wd) {
+  function weekData(S, Wd, ctx = {}) {
     const s = S(), DAY = 86400000, now = Date.now(), from = now - 7 * DAY;
     const walks = (s.walks || []).filter((w) => w.start >= from);
     const sum = (f) => walks.reduce((a, w) => a + (f(w) || 0), 0);
@@ -21,7 +21,8 @@ PM.wrapped = (function () {
     const barrios = Object.values(s.barrioCards || {}).filter((b) => b.t >= from).length;
     // calles pintadas (todas, en gris suave de fondo) dentro de la zona de la semana
     const painted = [];
-    for (const id in s.painted) { const pc = Wd.pieces[id]; if (pc) painted.push(pc.pts); }
+    if (ctx.paintedAll) for (const pc of ctx.paintedAll()) painted.push(pc.pts);   // también lo de zonas no cargadas
+    else for (const id in s.painted) { const pc = Wd.pieces[id]; if (pc) painted.push(pc.pts); }
     return { s, walks, from, to: now, walked: sum((w) => w.st.walked), painted: sum((w) => w.st.painted), ms: sum((w) => PM.movingMs(w)), pts: sum((w) => w.st.pts),
       best: lms[0] || null, nCards: lms.length, tracks, paintedAll: painted, days, barrios, streak: s.stats.streak || 0, lvl: PM.levelInfo(s.xp), color: s.color || '#2563eb' };
   }
@@ -193,7 +194,7 @@ PM.wrapped = (function () {
   let raf = 0;
   async function open(ctx) {
     close();
-    const D = weekData(ctx.S, ctx.W), A = await assets(D);
+    const D = weekData(ctx.S, ctx.W, ctx), A = await assets(D);
     const ov = document.createElement('div'); ov.id = 'wrapped-view';
     ov.innerHTML = `<div class="wr-box"><canvas width="${W}" height="${H}"></canvas>
       <div class="wr-bar"><button class="wr-replay">↻ Repetir</button><button class="wr-share">📤 Compartir vídeo</button><button class="wr-close">✕</button></div>

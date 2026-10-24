@@ -16,12 +16,12 @@ PM.poster = (function () {
     const inArea = (p) => area === 'all' || W.cityAt(p) === area;
     const painted = [], streets = [];
     let paintedM = 0, nPieces = 0;
-    for (const id in W.pieces) {
-      const pc = W.pieces[id];
-      if (s.painted[id] && inArea(pc.mid)) { painted.push(pc); if (!pc.trail) paintedM += pc.len; nPieces++; }
-    }
-    // tramos pintados de zonas no cargadas (pendientes de subir a la nube)
-    for (const [id, pts] of Object.entries(s.pendingGeo || {})) if (!W.pieces[id] && pts && pts.length > 1 && inArea(pts[0])) painted.push({ pts, len: 0 });
+    // todo lo pintado, también lo de zonas que no están en memoria (sale del almacén de formas del móvil)
+    const all = ctx.paintedAll ? ctx.paintedAll() : Object.keys(s.painted).map((id) => W.pieces[id]).filter(Boolean);
+    const seen = new Set();
+    for (const pc of all) if (inArea(pc.mid)) { painted.push(pc); seen.add(pc.id); if (!pc.trail) paintedM += pc.len; nPieces++; }
+    // tramos pendientes de subir a la nube de los que aún no hay forma guardada
+    for (const [id, pts] of Object.entries(s.pendingGeo || {})) if (!seen.has(id) && !W.pieces[id] && pts && pts.length > 1 && inArea(pts[0])) painted.push({ pts, len: 0, mid: pts[0] });
     if (!painted.length) return null;
     let a = 90, b = -90, l = 180, r = -180;
     painted.forEach((pc) => pc.pts.forEach((q) => { a = Math.min(a, q[0]); b = Math.max(b, q[0]); l = Math.min(l, q[1]); r = Math.max(r, q[1]); }));
@@ -36,6 +36,9 @@ PM.poster = (function () {
     for (const id in W.pieces) { const pc = W.pieces[id]; if (pc.mid[0] > box[0] && pc.mid[0] < box[2] && pc.mid[1] > box[1] && pc.mid[1] < box[3]) streets.push(pc); }
     const barrios = [];
     for (const [id, B] of Object.entries(W.barrios)) if (s.conqueredB[id] && B.segs) barrios.push([B, (s.barrioRank || {})[id] || 0]);
+    // los conquistados que no están cargados: con su contorno guardado
+    const shapes = ctx.barrioShapes ? ctx.barrioShapes() : {};
+    for (const [id, g] of Object.entries(shapes)) if (s.conqueredB[id] && !W.barrios[id] && g.segs && g.segs.length) barrios.push([{ id, name: g.name, segs: g.segs, pos: g.pos }, (s.barrioRank || {})[id] || 0]);
     const lms = Object.values(s.landmarks || {}).filter((v) => v.pos && v.pos[0] > box[0] && v.pos[0] < box[2] && v.pos[1] > box[1] && v.pos[1] < box[3]);
     const cities = {}; painted.forEach((pc) => { const c = pc.mid && W.cityAt(pc.mid); if (c) cities[c] = (cities[c] || 0) + 1; });
     const title = area !== 'all' ? area : (Object.entries(cities).sort((x, y) => y[1] - x[1])[0] || ['Mi mapa'])[0];
