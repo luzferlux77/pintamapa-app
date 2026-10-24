@@ -1,8 +1,8 @@
 {
-  "version": "0.6.63",
-  "notes": "Batería: el audio ya no mantiene el móvil despierto (horas con la pantalla apagada), pausa automática del paseo tras 15 min quieto, latido dorado que descansa",
+  "version": "0.6.64",
+  "notes": "Mismos lugares para todos (solo mapas vectoriales + Wikidata), fuera metro y tranvía, solo estaciones de tren históricas, comercios históricos abiertos",
   "native": 6,
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.63/pintamapa-web-0.6.63.zip",
-  "checksum": "99accb81cd0fc58fc5219d498777e9d936beeafe4fb93e83aac56b31128f73ac",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.63/PintaMapa-v0.6.63.apk"
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.64/pintamapa-web-0.6.64.zip",
+  "checksum": "0b90fbf743e013c7ab2cfef18d4ad6fc69e640918dec67fd017f42c9ccce7a84",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.64/PintaMapa-v0.6.64.apk"
 }
