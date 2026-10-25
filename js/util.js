@@ -62,7 +62,35 @@ PM.fmtDist = function (m) {
   return m >= 1000 ? (m / 1000).toFixed(m >= 10000 ? 1 : 2) + ' km' : Math.round(m) + ' m';
 };
 
-PM.fmtNum = function (n) { return Math.round(n).toLocaleString('es-ES'); };
+// Textos que vienen de fuera (nombres de lugares, barrios, ciudades, pintores, copias importadas, la nube): nunca pueden
+// colarse como HTML. PM.esc para pintarlos dentro de una plantilla; PM.limpio quita de raíz lo que podría abrir una
+// etiqueta o salirse de un atributo (ningún nombre real lleva < >; las comillas dobles pasan a tipográficas).
+PM.esc = (t) => String(t == null ? '' : t).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+PM.limpio = (t) => (t == null ? t : String(t).replace(/[<>]/g, '').replace(/"/g, '”').replace(/[\u0000-\u001f]/g, ' ').slice(0, 300));
+// ...y lo mismo con todos los nombres que guarda una partida (al cargarla, al importar una copia o al traerla de la nube)
+PM.limpiarPartida = function (d) {
+  if (!d || typeof d !== 'object') return d;
+  const L = PM.limpio, obj = (o) => (o && typeof o === 'object' && !Array.isArray(o) ? o : null);
+  for (const k of ['landmarks', 'barrioCards', 'cityCards', 'cardPhotos', 'cardInfo']) {
+    const o = obj(d[k]); if (!o) { if (d[k] != null) d[k] = {}; continue; }
+    for (const id of Object.keys(o)) {
+      const r = o[id];
+      if (!r || typeof r !== 'object') { delete o[id]; continue; }   // registro roto (null, número…): fuera
+      for (const f of ['name', 'city', 'barrio', 'kind', 'addr', 'ctx', 'desc', 'credit', 'porque']) if (typeof r[f] === 'string') r[f] = L(r[f]);
+    }
+  }
+  for (const k of ['barrioNames']) { const o = obj(d[k]); if (o) for (const id of Object.keys(o)) o[id] = typeof o[id] === 'string' ? L(o[id]) : ''; }
+  { const o = obj(d.tileNames); if (o) for (const id of Object.keys(o)) { const v = o[id]; if (!v || typeof v !== 'object') delete o[id]; else { v.name = L(v.name); v.city = L(v.city); } } }
+  { const o = obj(d.countries); if (o) for (const id of Object.keys(o)) { const v = o[id]; if (!v || typeof v !== 'object') delete o[id]; else v.name = L(v.name); } }
+  for (const k of ['citiesWon', 'cities', 'cityRank']) {   // (ciudades como clave: una clave con < > se renombra)
+    const o = obj(d[k]); if (!o) continue;
+    for (const id of Object.keys(o)) if (/[<>"]/.test(id)) { const v = o[id]; delete o[id]; o[L(id)] = v; }
+  }
+  if (Array.isArray(d.avoid)) d.avoid = d.avoid.filter((a) => a && typeof a === 'object').map((a) => Object.assign(a, { name: L(a.name) }));
+  if (d.walks && !Array.isArray(d.walks)) d.walks = [];
+  return d;
+};
+PM.fmtNum = function (n) { return Math.round(n).toLocaleString(PM.LOCALE || 'es-ES'); };
 
 // ---------- Sonido (sintetizado, sin ficheros) ----------
 PM.sound = {

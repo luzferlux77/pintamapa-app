@@ -626,3 +626,14 @@ input.sw:checked { background: var(--accent, #2563eb); } input.sw:checked::after
 .bh-ev b { display: block; font-size: 14px; } .bh-ev small { color: var(--muted); font-size: 12px; }
 .bh-best { width: 100%; border: 0; background: var(--card); border-radius: 14px; padding: 10px 12px; font: inherit; color: inherit; text-align: left; cursor: pointer; }
 .bh-row { cursor: pointer; }
+
+/* ---- Idioma ---- */
+.langs { display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; margin: -6px 0 14px; }
+.langs button { border: 1px solid var(--line); background: var(--panel); color: var(--muted); border-radius: 99px; padding: 5px 12px; font: inherit; font-size: 13px; cursor: pointer; }
+.langs button.on { background: var(--paint); border-color: var(--paint); color: #fff; font-weight: 700; }
+.langs.big { flex-direction: column; gap: 10px; margin: 18px auto 0; max-width: 280px; }
+.langs.big button { font-size: 18px; padding: 14px 18px; border-radius: 14px; color: var(--text); }
+#lang-first { position: fixed; inset: 0; z-index: 9999; background: var(--bg); display: flex; align-items: center; justify-content: center; text-align: center; padding: 24px; }
+#lang-first h2 { font-size: 15px; font-weight: 600; color: var(--muted); margin: 18px 0 0; }
+#lang-first .logo { font-size: 44px; }
+#opt-lang { font: inherit; padding: 4px 8px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); color: inherit; }

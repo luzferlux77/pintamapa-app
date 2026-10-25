@@ -9,8 +9,11 @@ PM.update = (function () {
   const U = () => (PM.isNative && window.Capacitor.Plugins && window.Capacitor.Plugins.CapacitorUpdater) || null;
   let busy = false, lastCheck = 0;
 
-  // hay que confirmar cada arranque o el actualizador vuelve a la versión anterior (protección ante fallos)
-  if (U()) U().notifyAppReady().catch(() => {});
+  // Hay que confirmar cada arranque o el actualizador vuelve a la versión anterior (protección ante fallos). Se confirma
+  // cuando el juego ha arrancado de verdad (al final de main.js), no al cargar este archivo: si una versión nueva
+  // fallara al arrancar, a los 15 s se vuelve sola a la anterior.
+  let listoHecho = false;
+  function listo() { if (listoHecho || !U()) return; listoHecho = true; U().notifyAppReady().catch(() => {}); }
 
   function newer(a, b) {
     const pa = String(a).split('.').map(Number), pb = String(b).split('.').map(Number);
@@ -66,7 +69,9 @@ PM.update = (function () {
     try {
       const cur = await U().current().catch(() => null);
       if (cur && cur.bundle && cur.bundle.version === remote.version) { setStatus(`Al día: tienes la última versión (${remote.version})`); return; }
+      const paseando = () => PM.walking && PM.walking();
       if (await prepared(remote.version)) {
+        if (paseando()) { await hold(); setStatus('Actualización en espera: se buscará al terminar el paseo'); return; }
         setStatus(`La ${remote.version} está descargada: se aplica al volver a abrir la app`);
         if (manual) await applyVersion(remote.version); else showReadyBanner(remote);
         return;
@@ -80,6 +85,8 @@ PM.update = (function () {
         setStatus(`Descargando la ${remote.version}…`);
         b = await U().download({ url: remote.bundle, version: remote.version, checksum: remote.checksum });
       }
+      // (la descarga tarda: si mientras tanto empezó un paseo, se queda apartada y no se programa hasta terminarlo)
+      if (paseando()) { setStatus('Actualización en espera: se buscará al terminar el paseo'); return; }
       await U().next({ id: b.id });
       setStatus(`La ${remote.version} está descargada: se aplica al volver a abrir la app`);
       if (manual) await U().set({ id: b.id });                 // «Actualizar ahora»: se recarga ya
@@ -100,7 +107,7 @@ PM.update = (function () {
     if (document.getElementById('apk-banner')) return;
     const el = document.createElement('div');
     el.id = 'apk-banner';
-    el.innerHTML = `<span>🆕 <b>PintaMapa ${remote.version}</b> lista${remote.notes ? '<br><small>' + remote.notes + '</small>' : ''}</span>
+    el.innerHTML = `<span>🆕 <b>PintaMapa ${remote.version}</b> lista${remote.notes ? '<br><small>' + PM.esc(remote.notes) + '</small>' : ''}</span>
       <button class="btn on">Actualizar ahora</button><button class="x">✕</button>`;
     el.querySelector('.btn').addEventListener('click', async () => {
       if (PM.walking && PM.walking()) { el.querySelector('span').innerHTML = 'Termina el paseo y la aplico 😉'; return; }
@@ -132,7 +139,7 @@ PM.update = (function () {
     setInterval(maybe, 15 * 60000);
   }
 
-  return { check, watch, status, newer, hold };
+  return { check, watch, status, newer, hold, listo };
 })();
 // se comprueba nada más abrir la app (también en la pantalla de inicio, antes de elegir pintor)
 PM.update.watch();

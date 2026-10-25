@@ -13,11 +13,24 @@ PM.cloud = (function () {
   try { cfg = JSON.parse(localStorage.getItem(KEY) || '{}'); } catch (e) {}
   let busy = false;
 
-  // clave de escritura incluida en la app al compilar (www/js/clave.js, ofuscada)
+  // Clave de escritura: ya NO va en lo que se publica (ni en la APK de GitHub ni en las actualizaciones, que son
+  // públicas: cualquiera podía sacarla). Solo la trae la APK PERSONAL que se instala desde el PC
+  // (scripts/apk-personal.mjs); al abrirla por primera vez se guarda en este móvil y las actualizaciones (sin clave)
+  // siguen usando esa copia.
+  const CK = 'pintamapa_clave';
+  function clave() {
+    if (PM.CLAVE && PM.CLAVE.d && PM.CLAVE.k) {
+      try { if (localStorage.getItem(CK) !== JSON.stringify(PM.CLAVE)) localStorage.setItem(CK, JSON.stringify(PM.CLAVE)); } catch (e) { /* sin almacenamiento */ }
+      return PM.CLAVE;
+    }
+    try { const c = JSON.parse(localStorage.getItem(CK) || 'null'); return c && c.d && c.k ? c : null; } catch (e) { return null; }
+  }
+  clave();   // (al abrir la APK personal: se guarda ya, antes de que llegue una actualización sin clave)
   function writeToken() {
-    if (!PM.CLAVE) return '';
+    const C = clave();
+    if (!C) return '';
     try {
-      const raw = atob(PM.CLAVE.d), k = PM.CLAVE.k;
+      const raw = atob(C.d), k = C.k;
       let out = '';
       for (let i = 0; i < raw.length; i++) out += String.fromCharCode(raw.charCodeAt(i) ^ k.charCodeAt(i % k.length));
       return out.split('').reverse().join('');
@@ -61,12 +74,17 @@ PM.cloud = (function () {
   async function folderOf(slug, pass) { return 'j/' + (await sha256hex(slug + '\n' + pass)).slice(0, 40) + '/'; }
 
   // ---- GitHub ----
+  // (toda petición tiene un tiempo máximo: una respuesta que no llega nunca dejaba la nube bloqueada para siempre)
+  const TIMEOUT = 30000;
+  const limite = (ms) => (typeof AbortSignal !== 'undefined' && AbortSignal.timeout ? AbortSignal.timeout(ms) : undefined);
   async function gh(path, opts = {}, token) {
     const headers = Object.assign({ 'X-GitHub-Api-Version': '2022-11-28', Accept: 'application/vnd.github+json' }, opts.headers || {});
     if (token) headers.Authorization = 'Bearer ' + token;
-    const r = await fetch(API + path + (opts.method ? '' : '?t=' + Date.now()), Object.assign({}, opts, { cache: 'no-store', headers }));
-    if (r.status === 404) return null;
-    if (r.status === 401 || r.status === 403) throw new Error('La clave de la nube de esta versión no es válida (avisa a quien te pasó la app)');
+    const r = await fetch(API + path + (opts.method ? '' : '?t=' + Date.now()), Object.assign({ signal: limite(TIMEOUT) }, opts, { cache: 'no-store', headers }));
+    // 404 al LEER = el archivo aún no existe; al ESCRIBIR es un fallo (repositorio o permiso), nunca un «guardado»
+    if (r.status === 404 && !opts.method) return null;
+    if (r.status === 404) { const e = new Error('GitHub respondió 404 al guardar'); e.status = 404; throw e; }
+    if (r.status === 401 || r.status === 403) throw new Error('La clave de la nube no es válida: instala la APK personal desde el PC');
     if (!r.ok) { const e = new Error('GitHub respondió ' + r.status); e.status = r.status; throw e; }
     return r.json();
   }
@@ -76,7 +94,7 @@ PM.cloud = (function () {
     if (!meta) return null;
     let text;
     if (meta.content && meta.encoding === 'base64') text = dec.decode(fromB64(meta.content.replace(/\n/g, '')));
-    else text = await (await fetch(meta.download_url + '?t=' + Date.now(), { cache: 'no-store' })).text();
+    else text = await (await fetch(meta.download_url + '?t=' + Date.now(), { cache: 'no-store', signal: limite(TIMEOUT * 2) })).text();
     return { data: JSON.parse(text), sha: meta.sha };
   }
   function write(path, data, sha, msg, token) {
@@ -87,9 +105,13 @@ PM.cloud = (function () {
   // Sube tu partida: lee la de la nube, las fusiona (nunca se pierde nada) y guarda la unión, cifrada.
   // huella de la partida local (sin lo que cambia solo): si no ha cambiado desde la última copia, no se sube nada.
   // (antes cada copia descargaba y subía la partida entera aunque fuera igual: en un paseo, ~8 MB de datos móviles)
-  async function huella() {
+  // (el texto se toma en el acto, sin esperas: es la foto EXACTA de la partida en ese momento)
+  function huellaTexto() {
     const d = Object.assign({}, PM.state.data); delete d.pendingGeo; delete d.session; delete d.syncedAt;
-    const buf = await crypto.subtle.digest('SHA-256', enc.encode(JSON.stringify(d)));
+    return JSON.stringify(d);
+  }
+  async function huella(txt) {
+    const buf = await crypto.subtle.digest('SHA-256', enc.encode(txt != null ? txt : huellaTexto()));
     return toB64(new Uint8Array(buf)).slice(0, 24);
   }
   const saveCfg = () => { try { localStorage.setItem(KEY, JSON.stringify(cfg)); } catch (e) {} };
@@ -99,7 +121,7 @@ PM.cloud = (function () {
     if (!writeToken()) throw new Error('Esta versión de la app no trae la clave de la nube');
     if (!PM.player) throw new Error('Elige tu pintor');
     if (!password()) throw new Error('Pon una contraseña de pintor en Perfil → Mi cuenta en la nube');
-    if (busy) return;
+    if (busy) return 'ocupado';   // (otra copia en marcha: NO es un «guardado»)
     busy = true;
     try {
       const token = writeToken(), slug = PM.player.slug, pass = password();
@@ -109,22 +131,28 @@ PM.cloud = (function () {
       const hk = 'h_' + slug, photosPend = Object.values(PM.state.data.cardPhotos || {}).some((v) => !(v.up && v.up >= (v.t || 0)));
       const sinCambios = !force && cfg[hk] && cfg[hk] === await huella();
       if (sinCambios && !Object.keys(PM.state.data.pendingGeo || {}).length && !photosPend) return 'sin cambios';
-      for (let attempt = 0; attempt < 3 && !sinCambios; attempt++) {
-        const local = PM.state.data;
-        const mine = Object.assign({}, local); delete mine.pendingGeo; delete mine.session;
+      let subida = sinCambios;
+      for (let attempt = 0; attempt < 3 && !subida; attempt++) {
+        // foto de la partida que se sube (copia profunda: lo que se pinte mientras tanto no la cambia)
+        const snap = huellaTexto();
+        const mine = JSON.parse(snap);
         mine.player = PM.player.name;
         const remote = await readRaw(base + 'partida.json', token);
         let remoteSave = null;
-        if (remote) { try { remoteSave = await decrypt(key, remote.data); } catch (e) { throw new Error('No se pudo descifrar la partida de la nube'); } }
+        if (remote) { try { remoteSave = PM.limpiarPartida(await decrypt(key, remote.data)); } catch (e) { throw new Error('No se pudo descifrar la partida de la nube'); } }
         const merged = PM.merge(remoteSave, mine);
         try { await write(base + 'partida.json', await encrypt(key, merged), remote && remote.sha, 'progreso', token); }
         catch (e) { if (e.status === 409 || e.status === 422) continue; throw e; }   // otro móvil escribió a la vez
+        subida = true;
+        const cambiadaDurante = huellaTexto() !== snap;
         const cur = PM.state.data;
         // se vuelve a fusionar con lo actual: lo pintado durante la subida (segundos) no se pierde
         PM.state.replace(Object.assign({}, PM.merge(merged, cur), { session: cur.session, pendingGeo: cur.pendingGeo, syncedAt: Date.now() }));
-        cfg[hk] = await huella(); saveCfg();
-        break;
+        // la huella solo se apunta si la nube tiene TODO lo de aquí; si cambió algo durante la subida, la próxima
+        // copia vuelve a subir (antes decía «sin cambios» y la nube se quedaba atrás)
+        cfg[hk] = cambiadaDurante ? null : await huella(); saveCfg();
       }
+      if (!subida) throw new Error('La nube está ocupada (otro dispositivo guardando a la vez): se reintentará');
       const pend = PM.state.data.pendingGeo || {};
       const ids = Object.keys(pend);
       if (ids.length) {
@@ -176,7 +204,7 @@ PM.cloud = (function () {
   // Silenciosa: al abrir la app y al terminar un paseo. Sin cobertura no pasa nada: se reintenta más tarde.
   async function auto(toast, force) {
     if (!ready() || PM.profile !== 'real') return;
-    try { const r = await now(force); if (toast && r !== 'sin cambios') toast('☁️ Progreso guardado en la nube', 'info'); }
+    try { const r = await now(force); if (toast && r === true) toast('☁️ Progreso guardado en la nube', 'info'); }
     catch (e) { console.warn('Guardado en la nube pendiente', e); }
   }
 
@@ -187,7 +215,7 @@ PM.cloud = (function () {
     const base = await folderOf(slug, pass);
     const p = await readRaw(base + 'partida.json');
     if (!p) return null;
-    const save = await decrypt(key, p.data);
+    const save = PM.limpiarPartida(await decrypt(key, p.data));
     const geo = {};
     const files = (await gh(base.replace(/\/$/, ''))) || [];
     for (const f of files) {

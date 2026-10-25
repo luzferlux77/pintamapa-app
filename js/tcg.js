@@ -26,37 +26,46 @@ PM.tcg = (function () {
   // ajusta al cuadro (fitClass).
   const ROM = ['', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI', 'XII', 'XIII', 'XIV', 'XV', 'XVI', 'XVII', 'XVIII', 'XIX', 'XX', 'XXI'];
   const cap1 = (t) => t.charAt(0).toUpperCase() + t.slice(1);
+  const T = (s, v) => (PM.t ? PM.t(s, v) : s);   // (todo en el idioma elegido)
+  const num = (x, dec) => x.toLocaleString(PM.LOCALE || 'es-ES', { maximumFractionDigits: dec || 0 });
   function datos(d) {
     const out = [], her = +d.her || 0, y = +d.anio || 0, vis = +d.vis || 0, wp = +d.wp || 0;
-    if (her === 3) out.push('Es Patrimonio de la Humanidad por la UNESCO.');
-    else if (her === 2) out.push('Está protegido como patrimonio nacional.');
-    else if (her === 1) out.push('Está catalogado como patrimonio protegido.');
-    if (y > 0 && y < 1800) { const sg = Math.floor((y - 1) / 100) + 1; out.push(`Data del siglo ${ROM[sg] || sg}.`); }
-    else if (y >= 1800) out.push(`Es de ${y}.`);
-    if (vis >= 1e6) out.push(`Recibe unos ${(vis / 1e6).toFixed(1).replace('.', ',').replace(',0', '')} millones de visitantes al año.`);
-    else if (vis >= 20000) out.push(`Recibe unos ${Math.round(vis / 1000).toLocaleString('es-ES')} mil visitantes al año.`);
-    if (wp >= 10) out.push(`Tiene artículo en la Wikipedia de ${wp} idiomas.`);
+    if (her === 3) out.push(T('Es Patrimonio de la Humanidad por la UNESCO.'));
+    else if (her === 2) out.push(T('Está protegido como patrimonio nacional.'));
+    else if (her === 1) out.push(T('Está catalogado como patrimonio protegido.'));
+    if (y > 0 && y < 1800) { const sg = Math.floor((y - 1) / 100) + 1; out.push(T('Data del siglo {s}.', { s: ROM[sg] || sg })); }
+    else if (y >= 1800) out.push(T('Es de {y}.', { y }));
+    if (vis >= 1e6) out.push(T('Recibe unos {n} millones de visitantes al año.', { n: num(vis / 1e6, 1) }));
+    else if (vis >= 20000) out.push(T('Recibe unos {n} mil visitantes al año.', { n: num(Math.round(vis / 1000)) }));
+    if (wp >= 10) out.push(T('Tiene artículo en la Wikipedia de {n} idiomas.', { n: wp }));
     return out;
   }
+  // para no repetir lo que el texto ya dice (en cualquiera de los cuatro idiomas)
+  const YA = {
+    her: /patrimoni|unesco|bien de inter[eé]s|b[eé] cultural|monumento nacional|monument historique|heritage|protegi|prot[eé]g|listed/i,
+    vis: /visitantes|visitas|visitants|visites|visitors|visiteurs/i,
+    any: /siglo|segle|si[eè]cle|century|\b1\d{3}\b|\b20\d{2}\b/i,
+  };
   function descText(d) {
     let t = String(d.text || '').replace(/\s*\([^)]*\)/g, '').replace(/\s*\[[^\]]*\]/g, '').replace(/\s+/g, ' ').trim();
-    const where = d.barrio && d.city ? `en ${d.barrio}, ${d.city}` : d.city ? `en ${d.city}` : d.barrio ? `en ${d.barrio}` : '';
+    const lugar = d.barrio && d.city ? `${d.barrio}, ${d.city}` : d.city || d.barrio || '';
+    const where = lugar ? T('en {lugar}', { lugar }) : '';
     if (t.length < 90) {
       // sin texto de Wikipedia: lo que se sabe de ESTE lugar
       const desc = String(d.desc || '').trim();
       const first = desc ? `${d.name}: ${desc}${where && !new RegExp((d.city || '###').replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i').test(desc) ? ', ' + where : ''}.`
-        : `${cap1((d.kind || 'Lugar').toLowerCase())}${where ? ' ' + where : ''}.`;
-      const dir = d.addr ? `Dirección: ${d.addr}.` : '';   // su dirección exacta
+        : `${cap1(T(d.kind || 'Lugar').toLowerCase())}${where ? ' ' + where : ''}.`;
+      const dir = d.addr ? T('Dirección: {addr}.', { addr: d.addr }) : '';   // su dirección exacta
       t = [t, first, dir, ...datos(d), d.ctx || ''].filter(Boolean).join(' ').replace(/\.\./g, '.');   // y una frase de su barrio
     } else {
       // con Wikipedia: se añade lo que la haga especial y el texto no diga ya (patrimonio, visitantes)
       const ya = (re) => re.test(t);
       for (const f of datos(d)) {
         if ((t + ' ' + f).length > DESC_MAX) break;
-        if (/patrimonio|unesco/i.test(f) && ya(/patrimonio|unesco|bien de inter[eé]s|monumento nacional|protegid/i)) continue;
-        if (/visitantes/i.test(f) && ya(/visitantes|visitas/i)) continue;
-        if (/siglo|^Es de \d/.test(f) && ya(/siglo|\b1\d{3}\b|\b20\d{2}\b/)) continue;
-        if (/Wikipedia de/.test(f)) continue;   // (con su propio artículo, el número de idiomas no aporta)
+        if (YA.her.test(f) && ya(YA.her)) continue;
+        if (YA.vis.test(f) && ya(YA.vis)) continue;
+        if ((YA.any.test(f) || /\d{4}\.$/.test(f)) && ya(YA.any)) continue;
+        if (/Wikip[eè]dia/.test(f)) continue;   // (con su propio artículo, el número de idiomas no aporta)
         t += ' ' + f;
       }
     }
@@ -84,16 +93,17 @@ PM.tcg = (function () {
   // historia más larga desde Wikipedia (introducción completa del artículo)
   async function longText(d) {
     let lang = null, title = null;
+    const L = (PM.i18n && PM.i18n.lang) || 'es';
     if (d.wiki && /^[a-z]{2,3}:/.test(d.wiki)) { [lang, title] = [d.wiki.split(':')[0], d.wiki.split(':').slice(1).join(':')]; }
     if (d.wd) {
       try {
         const j = await (await fetch(`https://www.wikidata.org/wiki/Special:EntityData/${d.wd}.json`)).json();
         const sl = (Object.values(j.entities)[0] || {}).sitelinks || {};
-        const site = ['eswiki', 'cawiki', 'glwiki', 'euwiki', 'enwiki'].find((x) => sl[x]);
-        if (site && (!lang || site === 'eswiki')) { lang = site.replace('wiki', ''); title = sl[site].title; }
+        const site = sl[L + 'wiki'] ? L + 'wiki' : null;   // (siempre en el idioma elegido)
+        if (site) { lang = L; title = sl[site].title; }
       } catch (e) {}
     }
-    if (!title) return null;
+    if (!title || lang !== L) return null;
     const j = await (await fetch(`https://${lang}.wikipedia.org/w/api.php?action=query&prop=extracts&exintro=1&explaintext=1&redirects=1&format=json&origin=*&titles=${encodeURIComponent(title)}`)).json();
     let t = (Object.values((j.query && j.query.pages) || {})[0] || {}).extract || '';
     t = t.replace(/\s+/g, ' ').trim();
@@ -158,14 +168,14 @@ PM.tcg = (function () {
   }
   function backHTML(d, R) {
     const seed = hash(d.id), uid = 'bk' + seed;
-    const date = d.t ? new Date(d.t).toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' }) : '—';
+    const date = d.t ? new Date(d.t).toLocaleDateString(PM.LOCALE, { day: 'numeric', month: 'long', year: 'numeric' }) : '—';
     const year = d.t ? new Date(d.t).getFullYear() : new Date().getFullYear();
     const base = d.points || 100, earned = base + Math.max(0, (d.visits || 1) - 1) * Math.round(base * 0.2);
     const color = d.color || '#2563eb';
     const ring = `${String(d.name || '').toUpperCase()} · ${String(d.city || 'PINTAMAPA').toUpperCase()} · ${year} · `;
     const ringTxt = ring.length > 58 ? ring.slice(0, 55) + '… · ' : ring;
     const coord = (v, pos, neg) => Math.abs(v).toFixed(4) + '° ' + (v >= 0 ? pos : neg);
-    const where = d.pos ? `${coord(d.pos[0], 'N', 'S')} · ${coord(d.pos[1], 'E', 'O')}` : '';
+    const where = d.pos ? `${coord(d.pos[0], 'N', 'S')} · ${coord(d.pos[1], 'E', PM.i18n && PM.i18n.lang === 'en' ? 'W' : 'O')}` : '';
     return `<div class="tcg-face tcg-back">
       <div class="bk">
         <svg class="bk-guil${d.pos ? ' bk-map' : ''}" ${d.pos ? `data-pos="${d.pos[0]},${d.pos[1]}"` : ''} viewBox="0 0 100 140" preserveAspectRatio="xMidYMid slice">${d.pos && STREETS.has(posKey(d.pos)) ? STREETS.get(posKey(d.pos)) : guilloche(seed)}</svg>
@@ -182,22 +192,25 @@ PM.tcg = (function () {
           <text x="100" y="114" class="se">${d.emoji || '📍'}</text>
           <text x="100" y="146" class="sr">${esc(R.sym)}</text>
         </svg>
-        <div class="bk-name">${esc(d.name)}</div>
-        <div class="bk-sub">${esc([d.barrio, d.city].filter(Boolean).join(' · ') || d.kind || '')}</div>
+        <div class="bk-name" translate="no">${esc(d.name)}</div>
+        <div class="bk-sub" translate="no">${esc([d.barrio, d.city].filter(Boolean).join(' · ') || d.kind || '')}</div>
         <div class="bk-motto"><i></i><span>Sal a la calle · Pinta tu ciudad · Conquístala</span><i></i></div>
         <div class="bk-grid">
           <div><small>Conquistado por</small><b>${esc(d.player || '—')}</b></div>
           <div><small>Fecha</small><b>${esc(date)}</b></div>
           <div><small>Visitas</small><b>${d.visits || 1}</b></div>
-          <div><small>Puntos</small><b>${earned.toLocaleString('es-ES')}</b></div>
+          <div><small>Puntos</small><b>${earned.toLocaleString(PM.LOCALE)}</b></div>
           <div><small>Colección</small><b>Nº ${d.number || 1} / ${d.total || 1}</b></div>
-          <div><small>Rareza</small><b>${esc(R.name)}</b></div>
+          <div><small>Rareza</small><b>${esc(PM.t(R.name))}</b></div>
         </div>
         <div class="bk-foot"><span>${esc(where)}</span><span>${esc(code(d))}</span></div>
       </div>
       <div class="bk-holo"></div><div class="tcg-glare"></div>
     </div>`;
   }
+
+  // «por qué merece la pena» (se guarda en castellano: se traduce cada trozo al enseñarlo)
+  const porque = (p) => String(p).split(' · ').map((x) => T(x)).join(' · ');
 
   // ---------------- HTML de la carta ----------------
   // d = { id, name, kind, emoji, rarity, city, barrio, t, visits, img, own, text, points, number, total, player, credit }
@@ -212,23 +225,23 @@ PM.tcg = (function () {
         <div class="tcg-face tcg-front">
           <div class="tcg-inner">
             <div class="tcg-top">
-              <div class="tcg-stage"><span>${esc(T.name)} · ${esc(R.name)}</span><span class="tcg-code">${code(d)}</span></div>
+              <div class="tcg-stage"><span>${esc(PM.t(T.name))} · ${esc(PM.t(R.name))}</span><span class="tcg-code">${code(d)}</span></div>
               ${d.shiny || d.must ? `<div class="tcg-shinytag ${d.must ? 'musttag' : ''}">${d.must ? '⭐ IMPRESCINDIBLE' : ''}${d.must && d.shiny ? ' · ' : ''}${d.shiny ? '✨ BRILLANTE' : ''}</div>` : ''}
-              <div class="tcg-title"><b>${esc(d.name)}</b><span class="tcg-hp"><small>PTS</small>${pts}<i class="tcg-orb">${d.emoji || '📍'}</i></span></div>
+              <div class="tcg-title"><b translate="no">${esc(d.name)}</b><span class="tcg-hp"><small>PTS</small>${pts}<i class="tcg-orb">${d.emoji || '📍'}</i></span></div>
             </div>
             <div class="tcg-art">
               <div class="tcg-photo" ${d.img ? `style="background-image:url('${esc(d.img)}')"` : ''}>${d.img ? '' : `<span>${d.emoji || '📍'}</span>`}</div>
               <div class="tcg-shine"></div><div class="tcg-glitter"></div>
             </div>
-            <div class="tcg-band">${esc(d.kind || '')}${d.city ? ' · ' + esc(d.city) : ''}</div>
-            ${d.porque ? `<div class="tcg-why">${esc(d.porque)}</div>` : ''}
+            <div class="tcg-band" translate="no">${esc(PM.t(d.kind || ''))}${d.city ? ' · ' + esc(d.city) : ''}</div>
+            ${d.porque ? `<div class="tcg-why" translate="no">${esc(porque(d.porque))}</div>` : ''}
             <div class="tcg-stats">
               <div><i>⏱</i><b>10 s</b><small>captura</small></div>
               <div><i>📍</i><b>${d.capR || (PM.capRadius ? PM.capRadius(d.kind) : 30)} m</b><small>radio</small></div>
               <div><i>✨</i><b>×2</b><small>aura 80 m</small></div>
-              <div><i>💎</i><b>${R.sym}</b><small>${esc(R.name.toLowerCase())}</small></div>
+              <div><i>💎</i><b>${R.sym}</b><small>${esc(PM.t(R.name).toLowerCase())}</small></div>
             </div>
-            ${(() => { const tx = descText(d); return `<div class="tcg-flavor ${fitClass(tx)}">${esc(tx)}</div>`; })()}
+            ${(() => { const tx = descText(d); return `<div class="tcg-flavor ${fitClass(tx)}" translate="no">${esc(tx)}</div>`; })()}
             <div class="tcg-rule"><b>REGLA</b> 🔁 Vuelve cada día y suma +${revisit} pts por visita · ✨ las calles que pintes a menos de 80 m valen el doble.</div>
             <div class="tcg-wrr">
               <div><small>debilidad</small>${w[0]} ${w[2]}</div>
@@ -294,7 +307,7 @@ PM.tcg = (function () {
       const lang = m ? m[1] : 'es', title = m ? m[2] : d.wiki;
       return `https://${lang}.wikipedia.org/wiki/${encodeURIComponent(title.replace(/ /g, '_'))}`;
     }
-    if (d.wd && /^Q\d+$/.test(d.wd)) return `https://www.wikidata.org/wiki/Special:GoToLinkedPage?site=eswiki&itemid=${d.wd}`;
+    if (d.wd && /^Q\d+$/.test(d.wd)) return `https://www.wikidata.org/wiki/Special:GoToLinkedPage?site=${(PM.i18n && PM.i18n.lang) || 'es'}wiki&itemid=${d.wd}`;
     return null;
   }
   // abre fuera de la app (en el navegador del móvil)
@@ -331,7 +344,7 @@ PM.tcg = (function () {
       if (!d.wiki && d.wd && !d._wikiUrl) fetch(`https://www.wikidata.org/w/api.php?action=wbgetentities&ids=${d.wd}&props=sitelinks/urls&format=json&origin=*`)
         .then((r) => r.json()).then((j) => {
           const sl = ((j.entities || {})[d.wd] || {}).sitelinks || {};
-          const pick = ['eswiki', 'cawiki', 'glwiki', 'euwiki', 'enwiki', 'frwiki', 'itwiki', 'ptwiki', 'dewiki'].find((k) => sl[k]) || Object.keys(sl).find((k) => /wiki$/.test(k) && !/commons|species/.test(k));
+          const pick = [((PM.i18n && PM.i18n.lang) || 'es') + 'wiki', 'eswiki', 'cawiki', 'glwiki', 'euwiki', 'enwiki', 'frwiki', 'itwiki', 'ptwiki', 'dewiki'].find((k) => sl[k]) || Object.keys(sl).find((k) => /wiki$/.test(k) && !/commons|species/.test(k));
           d._wikiUrl = pick ? sl[pick].url : `https://www.wikidata.org/wiki/${d.wd}`;
         }).catch(() => {});
       wb.addEventListener('click', () => openExternal(d._wikiUrl || wikiUrl(d)));

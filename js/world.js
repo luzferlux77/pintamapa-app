@@ -132,7 +132,7 @@ PM.world = (function () {
     try {
       const r = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=10&accept-language=es&extratags=1&polygon_geojson=1&polygon_threshold=0.0003&lat=${lat}&lon=${lon}`);
       const j = await r.json(), a = j.address || {}, g = j.geojson;
-      const name = a.city || a.town || a.village || a.municipality;
+      const name = PM.limpio(a.city || a.town || a.village || a.municipality);
       if (!name || !g || !/Polygon$/.test(g.type) || (j.name && j.name !== name)) return;   // sin contorno de municipio: se sigue por celdas
       const rnd = (ring) => ring.map((q) => [+q[0].toFixed(5), +q[1].toFixed(5)]);
       const polys = (g.type === 'Polygon' ? [g.coordinates] : g.coordinates).map((poly) => poly.map(rnd));
@@ -986,6 +986,8 @@ PM.world = (function () {
       // commitLandmarks con una regla fija, no «la primera que llega»)
       if (seen.has(el.type + el.id) && el.tags && el.tags.highway) continue;
       seen.add(el.type + el.id);
+      // (un nombre nunca entra como HTML, venga de donde venga: mapas, Overpass, Wikidata, precarga)
+      if (el.tags && typeof el.tags.name === 'string' && /[<>"]/.test(el.tags.name)) el.tags.name = PM.limpio(el.tags.name);
       if (el.type === 'way' && el.tags && el.tags.highway === 'footway' && el.geometry) { footways.push(el); continue; }
       if (el.type === 'way' && el.geometry && el.tags && el.tags.highway && (HW_RE.test(el.tags.highway) || isTrailTags(el.tags))) {
         const trail = !HW_RE.test(el.tags.highway);
@@ -1218,6 +1220,7 @@ PM.world = (function () {
         const r = await fetch(url);
         const j = await r.json();
         const a = j.address || {};
+        for (const k of Object.keys(a)) a[k] = PM.limpio(a[k]);
         t.city = a.city || a.town || a.village || a.municipality || 'Zona sin nombre';
         t.name = a.suburb || a.neighbourhood || a.quarter || a.city_district || a.hamlet || t.city;
         if (PM.state && a.country && t.city) { const cs = PM.state.data.countries || (PM.state.data.countries = {}); if (!cs[t.city]) cs[t.city] = { name: a.country, cc: a.country_code || '' }; }

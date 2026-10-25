@@ -43,7 +43,7 @@ PM.wrapped = (function () {
     c.globalAlpha = opts.o == null ? 1 : opts.o; c.fillText(s, x, y); c.globalAlpha = 1;
   }
   const km = (m) => (m / 1000).toFixed(m >= 10000 ? 1 : 2).replace('.', ',') + ' km';
-  const dmy = (t) => new Date(t).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' });
+  const dmy = (t) => new Date(t).toLocaleDateString(PM.LOCALE, { day: 'numeric', month: 'short' });
   function confettiBits(c, t, D, n = 40) {
     for (let i = 0; i < n; i++) {
       const x = (i * 137.5 % W), y = ((i * 89 + t * 260) % (H + 60)) - 30, r = (i % 5) + 4;
@@ -105,7 +105,7 @@ PM.wrapped = (function () {
     bg(c, D, '#111827', D.color);
     text(c, 'En números', W / 2, 150, 50);
     const rows = [['🚶', km(D.walked * ease(t / 2)), 'andados'], ['🖌️', km(D.painted * ease((t - 0.3) / 2)), 'de calles nuevas'],
-      ['⏱️', Math.round(D.ms / 60000 * ease((t - 0.6) / 2)) + ' min', 'en movimiento'], ['⭐', '+' + Math.round(D.pts * ease((t - 0.9) / 2)).toLocaleString('es-ES'), 'puntos']];
+      ['⏱️', Math.round(D.ms / 60000 * ease((t - 0.6) / 2)) + ' min', 'en movimiento'], ['⭐', '+' + Math.round(D.pts * ease((t - 0.9) / 2)).toLocaleString(PM.LOCALE), 'puntos']];
     rows.forEach(([ic, v, l], i) => {
       const y = 330 + i * 220, o = ease((t - i * 0.3) / 0.6);
       text(c, ic, 140, y, 70, { o });

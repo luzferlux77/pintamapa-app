@@ -17,17 +17,18 @@ PM.switchProfile = function (p) {
 // así queda preparada la separación de perfiles (varias personas en el mismo móvil o PC).
 PM.slug = (n) => String(n || '').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9_-]/g, '').slice(0, 30);
 PM.player = (function () {
-  try { const p = JSON.parse(localStorage.getItem('pintamapa_player') || 'null'); return p && p.slug ? p : null; } catch (e) { return null; }
+  try { const p = JSON.parse(localStorage.getItem('pintamapa_player') || 'null'); return p && p.slug ? Object.assign(p, { name: PM.limpio(p.name || p.slug) }) : null; } catch (e) { return null; }
 })();
 // Lista de pintores de este dispositivo (botones de la pantalla de inicio)
 PM.players = function () {
   let list = [];
   try { list = JSON.parse(localStorage.getItem('pintamapa_players') || '[]'); } catch (e) {}
+  list = (Array.isArray(list) ? list : []).filter((x) => x && x.slug).map((x) => Object.assign({}, x, { name: PM.limpio(x.name || x.slug) }));
   if (PM.player && !list.some((x) => x.slug === PM.player.slug)) list.push({ name: PM.player.name, slug: PM.player.slug, last: Date.now() });
   return list.sort((a, b) => (b.last || 0) - (a.last || 0));
 };
 PM.setPlayer = function (name) {
-  const p = { name: String(name).trim().slice(0, 24), slug: PM.slug(name) };
+  const p = { name: PM.limpio(String(name)).trim().slice(0, 24), slug: PM.slug(name) };
   const list = PM.players().filter((x) => x.slug !== p.slug);
   list.push({ name: p.name, slug: p.slug, last: Date.now() });
   try {
@@ -87,16 +88,34 @@ PM.state = (function () {
   catch (e) { data = fresh(); }
   data.stats = Object.assign(fresh().stats, data.stats);
   data.walks = (data.walks || []).filter((w) => (w.elapsed || 0) >= 120000);   // paseos de < 2 min: fuera del historial
+  PM.limpiarPartida(data);
 
   // Guardado: convertir la partida entera a texto y escribirla en disco cuesta (con muchas calles y paseos, varios MB).
   // Con la pantalla encendida se guarda a los 2 s (o a los 8 s si la partida es grande y tarda); con la pantalla apagada,
   // cada 20 s. Al apagar la pantalla o cerrar la app se guarda en el acto: no se pierde nada.
-  let dirty = false, lastSave = 0, saveCost = 0;
+  let dirty = false, lastSave = 0, saveCost = 0, failing = false, failT = 0;
   function save() { dirty = true; }
+  const aviso = (n, d) => { try { window.dispatchEvent(new CustomEvent(n, { detail: d })); } catch (e) { /* sin pantalla */ } };
+  // Escribe la partida. Solo se da por guardada si la escritura sale bien: si falla (móvil sin espacio…), sigue
+  // pendiente, se reintenta y se avisa en pantalla (evento 'pm-save-error', como mucho una vez por minuto).
+  function write() {
+    lastSave = Date.now();
+    try {
+      localStorage.setItem(KEY, JSON.stringify(data));
+      dirty = false;
+      if (failing) { failing = false; aviso('pm-save-ok'); }
+      return true;
+    } catch (e) {
+      console.warn('No se pudo guardar', e);
+      dirty = true;
+      if (!failing || Date.now() - failT > 60000) { failT = Date.now(); aviso('pm-save-error', String(e && e.name || e)); }
+      failing = true;
+      return false;
+    }
+  }
   function writeNow() {
-    dirty = false; lastSave = Date.now();
     const t0 = performance.now();
-    try { localStorage.setItem(KEY, JSON.stringify(data)); } catch (e) { console.warn('No se pudo guardar', e); }
+    write();
     saveCost = saveCost * 0.7 + (performance.now() - t0) * 0.3;
   }
   setInterval(() => {
@@ -105,7 +124,7 @@ PM.state = (function () {
     if (Date.now() - lastSave >= wait) writeNow();
   }, 2000);
   let wiping = false;
-  const flush = () => { if (!wiping) try { localStorage.setItem(KEY, JSON.stringify(data)); dirty = false; lastSave = Date.now(); } catch (e) {} };
+  const flush = () => (wiping ? true : write());
   window.addEventListener('beforeunload', flush);
   window.addEventListener('pagehide', flush);
   document.addEventListener('visibilitychange', () => { if (document.hidden && dirty) flush(); });
@@ -113,7 +132,7 @@ PM.state = (function () {
 
   function reset() { wiping = true; localStorage.removeItem(KEY); location.reload(); }
 
-  function replace(d) { data = Object.assign(fresh(), d); data.stats = Object.assign(fresh().stats, data.stats); save(); }
+  function replace(d) { data = Object.assign(fresh(), d); data.stats = Object.assign(fresh().stats, data.stats); PM.limpiarPartida(data); save(); }
 
   return { get data() { return data; }, save, reset, replace, flush };
 })();
@@ -259,14 +278,17 @@ PM.game = (function () {
   function cityProgress(city) {
     const s = S();
     let painted = 0, loadedTotal = 0;
+    // lo pintado: TODAS las zonas de esta ciudad, estén o no en memoria (antes, con alguna cargada solo contaban esas
+    // y el porcentaje subía o bajaba según lo que hubiera cargado)
+    const keys = new Set();
     for (const k in PM.world.tiles) {
       const t = PM.world.tiles[k];
       if (t.city !== city) continue;
-      painted += s.paintedByTile[k] || 0;
+      keys.add(k);
       loadedTotal += t.total;
     }
-    // si no hay barrios cargados en esta sesión, usamos lo guardado
-    if (!loadedTotal) for (const k in s.tileNames) if (s.tileNames[k].city === city) painted += s.paintedByTile[k] || 0;
+    for (const k in s.tileNames) if (s.tileNames[k] && s.tileNames[k].city === city) keys.add(k);
+    for (const k of keys) painted += s.paintedByTile[k] || 0;
     // (las «zonas a evitar» se retiraron: antes, si quedaba alguna guardada, aquí se recorrían TODOS los tramos
     // cargados por cada calle pintada)
     const real = s.cities[city] && s.cities[city].total;
@@ -323,7 +345,7 @@ PM.game = (function () {
       if (s.stats.churches >= 3) unlock('peregrino');
       if (lm.kind === 'Ayuntamiento') unlock('alcalde');
       if (lm.rarity === 'legendario') unlock('leyenda');
-      if (s.landmarks[lm.id].shiny) addXP(lm.points, 'shiny');
+      if (s.landmarks[lm.id].shiny) addXP(lm.points * (lm.must ? 2 : 1), 'shiny');   // (brillante = el doble de lo que vale: también si es imprescindible)
       emit('captured', { lm, first: true, pts: lm.points * (lm.must ? 2 : 1) * (s.landmarks[lm.id].shiny ? 2 : 1), shiny: !!s.landmarks[lm.id].shiny, must: !!lm.must });
       return true;
     }

@@ -22,15 +22,20 @@ PM.cards = (function () {
     return { text: short(j.extract), img,
       thumb: j.thumbnail && j.thumbnail.source, url: j.content_urls && j.content_urls.desktop && j.content_urls.desktop.page, lang };
   }
+  // las cartas se cuentan en el idioma elegido: su Wikipedia, su descripción de Wikidata, su barrio…
+  const LANG = () => (PM.i18n && PM.i18n.lang) || 'es';
   const commonsFile = (f) => `https://commons.wikimedia.org/wiki/Special:FilePath/${encodeURIComponent(f)}?width=960`;
   async function fromWikidata(qid) {
     const j = await getJSON(`https://www.wikidata.org/wiki/Special:EntityData/${qid}.json`);
     const e = j.entities[qid] || Object.values(j.entities)[0];
     const sl = e.sitelinks || {};
-    const site = ['eswiki', 'cawiki', 'enwiki', 'glwiki', 'euwiki', 'frwiki', 'itwiki'].find((s) => sl[s]);
+    const L = LANG(), site = sl[L + 'wiki'] ? L + 'wiki' : null;   // (el artículo solo si está en el idioma elegido)
     const p18 = e.claims && e.claims.P18 && e.claims.P18[0].mainsnak.datavalue && e.claims.P18[0].mainsnak.datavalue.value;
-    const ds = e.descriptions || {}, desc = (ds.es || ds.ca || ds.en || {}).value || null;   // «biblioteca pública de Barcelona»…
-    return { lang: site ? site.replace('wiki', '') : null, title: site ? sl[site].title : null, img: p18 ? commonsFile(p18) : null, desc };
+    const ds = e.descriptions || {}, desc = (ds[L] || {}).value || null;   // «biblioteca pública de Barcelona»…
+    // (sin artículo en el idioma: el de otro sirve para la FOTO)
+    const otro = ['eswiki', 'cawiki', 'enwiki', 'frwiki', 'itwiki', 'dewiki'].find((x) => sl[x]);
+    return { lang: site ? L : null, title: site ? sl[site].title : null, img: p18 ? commonsFile(p18) : null, desc,
+      otro: otro ? [otro.replace('wiki', ''), sl[otro].title] : null };
   }
   const words = (t) => String(t).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').split(/[^a-z0-9]+/).filter((w) => w.length > 3);
   // palabras que no identifican un sitio (tipos de lugar, ciudades, países…): no bastan para decir que una foto o un
@@ -50,8 +55,16 @@ PM.cards = (function () {
     const hits = mine.filter((w) => his.has(w)).length;
     return hits >= Math.min(2, mine.length);
   }
+  // el título de este artículo en el idioma elegido (por los enlaces entre Wikipedias)
+  async function enIdioma(lang, title) {
+    const L = LANG();
+    if (lang === L) return title;
+    const j = await getJSON(`https://${lang}.wikipedia.org/w/api.php?action=query&prop=langlinks&lllang=${L}&titles=${encodeURIComponent(title)}&format=json&origin=*`);
+    const pg = Object.values((j.query && j.query.pages) || {})[0];
+    return (pg && pg.langlinks && pg.langlinks[0] && pg.langlinks[0]['*']) || null;
+  }
   async function nearbyArticle(lm) {
-    for (const lang of ['es', 'ca']) {
+    for (const lang of [LANG()]) {
       const j = await getJSON(`https://${lang}.wikipedia.org/w/api.php?action=query&list=geosearch&gscoord=${lm.pos[0]}|${lm.pos[1]}&gsradius=120&gslimit=8&format=json&origin=*`);
       const hit = (j.query && j.query.geosearch || []).find((g) => esDeEste(g.title, lm.name));
       if (hit) return summary(lang, hit.title);
@@ -68,14 +81,14 @@ PM.cards = (function () {
   async function contexto(lm) {
     const out = {};
     try {
-      const j = await getJSON(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=18&accept-language=es&lat=${lm.pos[0]}&lon=${lm.pos[1]}`);
+      const j = await getJSON(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=18&accept-language=${LANG()}&lat=${lm.pos[0]}&lon=${lm.pos[1]}`);
       const a = (j && j.address) || {};
       if (a.road) out.addr = a.road + (a.house_number ? ', ' + a.house_number : '');
       const barrio = a.neighbourhood || a.quarter || a.suburb, city = a.city || a.town || a.village;
       if (barrio) {
         for (const t of [barrio + ' (' + city + ')', barrio]) {
           try {
-            const s = await getJSON(`https://es.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(t.replace(/ /g, '_'))}`);
+            const s = await getJSON(`https://${LANG()}.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(t.replace(/ /g, '_'))}`);
             if (s && s.type === 'standard' && s.extract && (!city || s.extract.includes(city) || t !== barrio)) { out.ctx = (s.extract.match(/^[^.!?]+[.!?]/) || [s.extract])[0]; break; }
           } catch (e) { /* sin artículo con ese título */ }
         }
@@ -83,29 +96,41 @@ PM.cards = (function () {
     } catch (e) { /* sin conexión */ }
     return out;
   }
+  const vieja = (c) => c.v !== 2 && c.credit === 'Foto: Wikimedia Commons' && !c.text;
+  const otraLengua = (c) => (c.lang || 'es') !== LANG();
+  // ¿hay que volver a buscar la información de esta carta?
+  const caduca = (c) => !c || vieja(c) || otraLengua(c) || (c.none && Date.now() - c.t > 7 * 86400000);
   async function fetchInfo(id, lm) {
-    const cache = S().cardInfo[id];
-    // (las fotos de los alrededores elegidas con la regla antigua —cualquier foto a menos de 60 m— se revisan)
-    const vieja = cache && cache.v !== 2 && cache.credit === 'Foto: Wikimedia Commons' && !cache.text;
-    if (cache && !vieja && (!cache.none || Date.now() - cache.t < 7 * 86400000)) return cache;
-    let info = null;
+    const cache = S().cardInfo[id], L = LANG();
+    // (las fotos de los alrededores elegidas con la regla antigua —cualquier foto a menos de 60 m— se revisan; y al
+    // cambiar de idioma, el texto se vuelve a buscar en el nuevo)
+    if (cache && !caduca(cache)) return cache;
+    let info = null, foto = null;
     try {
-      if (lm.wiki && /^[a-z]{2,3}:/.test(lm.wiki)) { const [lang, ...t] = lm.wiki.split(':'); info = await summary(lang, t.join(':')); }
-      if (lm.wd && (!info || !info.img || info.lang !== 'es')) {
+      // su artículo de Wikipedia EN EL IDIOMA ELEGIDO (de un artículo en otro idioma solo se aprovecha la foto)
+      if (lm.wiki && /^[a-z]{2,3}:/.test(lm.wiki)) {
+        const [lang, ...t] = lm.wiki.split(':');
+        const tl = await enIdioma(lang, t.join(':')).catch(() => null);
+        if (tl) info = await summary(L, tl);
+        else foto = (await summary(lang, t.join(':')).catch(() => ({}))).img || null;
+      }
+      if (lm.wd && (!info || !info.img || !info.text)) {
         const wd = await fromWikidata(lm.wd);
-        if (wd.title && (!info || (info.lang !== 'es' && wd.lang === 'es'))) info = Object.assign(await summary(wd.lang, wd.title), info && !info.text ? {} : {});
+        if (wd.title && (!info || !info.text)) info = await summary(L, wd.title);
+        if (!foto && !wd.img && wd.otro && !(info && info.img)) foto = (await summary(wd.otro[0], wd.otro[1]).catch(() => ({}))).img || null;
         if (info && !info.img && wd.img) info.img = wd.img;
         if (!info && (wd.img || wd.desc)) info = { img: wd.img || null, text: '' };
         if (info && wd.desc) info.desc = wd.desc;
       }
+      if (foto && !(info && info.img)) info = Object.assign(info || { text: '' }, { img: foto, credit: 'Foto: Wikipedia (CC BY-SA)' });
       if (!info || (!info.text && !info.img)) info = (await nearbyArticle(lm)) || info;
       if (!info || !info.img) { const ph = await nearbyPhoto(lm); if (ph) info = Object.assign(info || { text: '' }, { img: ph, credit: 'Foto: Wikimedia Commons' }); }
       // sin artículo propio: datos reales de ESE sitio para la descripción (su dirección y una frase de su barrio)
       if (!info || !info.text) Object.assign(info || (info = { text: '' }), await contexto(lm));
     } catch (e) { if (!info) return cache || null; }   // sin conexión: se reintentará
     const rec = info && (info.img || info.text || info.desc || info.addr || info.ctx)
-      ? { v: 2, img: info.img || null, text: info.text || '', desc: info.desc || null, addr: info.addr || null, ctx: info.ctx || null, url: info.url || null, credit: info.credit || (info.url ? 'Texto y foto: Wikipedia (CC BY-SA)' : 'Foto: Wikimedia Commons'), t: Date.now() }
-      : { none: true, t: Date.now() };
+      ? { v: 2, lang: L, img: info.img || null, text: info.text || '', desc: info.desc || null, addr: info.addr || null, ctx: info.ctx || null, url: info.url || null, credit: info.credit || (info.url ? 'Texto y foto: Wikipedia (CC BY-SA)' : 'Foto: Wikimedia Commons'), t: Date.now() }
+      : { none: true, lang: L, t: Date.now() };
     S().cardInfo[id] = rec; PM.state.save();
     return rec;
   }
@@ -116,8 +141,29 @@ PM.cards = (function () {
     if (!dbp) dbp = new Promise((res, rej) => { const r = indexedDB.open('pintamapa_fotos', 1); r.onupgradeneeded = () => r.result.createObjectStore('fotos'); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); });
     return dbp;
   }
-  async function getPhoto(id) { try { const d = await db(); return await new Promise((res) => { const q = d.transaction('fotos').objectStore('fotos').get(id); q.onsuccess = () => res(q.result || null); q.onerror = () => res(null); }); } catch (e) { return null; } }
-  async function putPhoto(id, dataUrl) { const d = await db(); d.transaction('fotos', 'readwrite').objectStore('fotos').put(dataUrl, id); }
+  // Cada pintor tiene sus fotos («pintor:lugar»): antes la clave era solo el lugar y otro pintor del mismo móvil veía
+  // (y firmaba) la foto ajena. Las fotos antiguas, guardadas solo con el lugar, siguen valiendo para el pintor que
+  // tiene esa foto apuntada en su partida.
+  const fotoKey = (id) => (PM.player ? PM.player.slug + ':' : '') + id;
+  async function getPhoto(id) {
+    if (!(S().cardPhotos || {})[id]) return null;   // (este pintor no le hizo foto)
+    try {
+      const d = await db();
+      const get = (k) => new Promise((res) => { const q = d.transaction('fotos').objectStore('fotos').get(k); q.onsuccess = () => res(q.result || null); q.onerror = () => res(null); });
+      return (await get(fotoKey(id))) || (await get(id));
+    } catch (e) { return null; }
+  }
+  // (se espera a que la escritura quede confirmada: si falla, el que llama se entera)
+  async function putPhoto(id, dataUrl) {
+    const d = await db();
+    await new Promise((ok, ko) => {
+      const tx = d.transaction('fotos', 'readwrite');
+      tx.objectStore('fotos').put(dataUrl, fotoKey(id));
+      tx.oncomplete = () => ok();
+      tx.onerror = () => ko(tx.error || new Error('No se pudo guardar la foto'));
+      tx.onabort = () => ko(tx.error || new Error('No se pudo guardar la foto'));
+    });
+  }
 
   // ---------------- Filtros de cromo ----------------
   const FILTERS = [
@@ -211,7 +257,9 @@ PM.cards = (function () {
 
   // datos de la carta (anverso estilo TCG) para un monumento conquistado
   async function dataFor(id) {
-    const rec = recOf(id), info = S().cardInfo[id] || {};
+    const rec = recOf(id), ci = S().cardInfo[id] || {};
+    // (un texto guardado en otro idioma no se enseña: mientras llega el del idioma elegido, la carta se cuenta sola)
+    const info = otraLengua(ci) ? { img: ci.img, credit: ci.credit, addr: ci.addr } : ci;
     const img = await imageFor(id);
     const all = Object.keys(S().landmarks);
     const lm = PM.world.landmarks[id] || {};
@@ -229,12 +277,11 @@ PM.cards = (function () {
       PM.tcg.open(d, {
         badge: opts.isNew ? `${recOf(id).shiny ? '✨ ¡CARTA BRILLANTE! ✨' : recOf(id).must ? '⭐ ¡IMPRESCINDIBLE! ⭐' : '¡Nueva carta!'} ${opts.pts ? '+' + opts.pts + ' pts' : ''}` : '',
         actions: [{ label: d.own ? '📸 Cambiar foto' : d.img ? '📸 Tu foto' : '📸 Hazle la foto', primary: !d.img, on: () => editPhoto(id, show) }],
-        onText: (t) => { const ci = S().cardInfo[id] || (S().cardInfo[id] = { t: Date.now() }); ci.text = t; delete ci.none; PM.state.save(); },
+        onText: (t) => { const ci = S().cardInfo[id] || (S().cardInfo[id] = { t: Date.now(), lang: LANG() }); ci.text = t; delete ci.none; PM.state.save(); },
       });
     };
     await show();
-    const cache = S().cardInfo[id];
-    if (!cache || (cache.none && Date.now() - cache.t > 7 * 86400000)) {
+    if (caduca(S().cardInfo[id])) {
       const rec = recOf(id);
       fetchInfo(id, PM.world.landmarks[id] || Object.assign({ id, pos: rec.pos }, rec)).then((inf) => {
         const ov = document.getElementById('tcg-view');
@@ -267,7 +314,8 @@ PM.cards = (function () {
     $('#fe-cancel').addEventListener('click', () => ov.remove());
     $('#fe-again').addEventListener('click', () => { ov.remove(); editPhoto(id, after); });
     $('#fe-save').addEventListener('click', async () => {
-      await putPhoto(id, cv.toDataURL('image/jpeg', 0.82));
+      try { await putPhoto(id, cv.toDataURL('image/jpeg', 0.82)); }
+      catch (e) { alert(PM.t('No se pudo guardar la foto') + ': ' + ((e && e.message) || e)); return; }
       const first = !S().cardPhotos[id];
       S().cardPhotos[id] = { filter: cur, t: Date.now() };
       PM.state.save();
@@ -349,7 +397,7 @@ PM.cards = (function () {
         const cities = Object.entries(s.cityCards || {});
         if (cities.length) html += '<h4>👑 Ciudades</h4><div class="cromos">' + cities.map(([c, v]) => `<div class="cromo r-legendario city"><div class="cromo-in"><div class="cara front">
           <div class="foto vacia"><span>👑</span></div><div class="holo"></div><div class="cinta" style="background:#ffb700">Ciudad</div>
-          <div class="pie"><b>${esc(c)}</b><small>Conquistada el ${new Date(v.t).toLocaleDateString('es-ES')}</small></div></div></div></div>`).join('') + '</div>';
+          <div class="pie"><b>${esc(c)}</b><small>Conquistada el ${new Date(v.t).toLocaleDateString(PM.LOCALE)}</small></div></div></div></div>`).join('') + '</div>';
       }
       container.innerHTML = html;
       if (tab === 'cromos' && ids.length) {
@@ -385,7 +433,7 @@ PM.cards = (function () {
     return `<div class="cromo r-epico barrio"><div class="cromo-in"><div class="cara front">
       <div class="foto vacia sil" style="--paint:${b.color || S().color}">${svg || '<span>🏘️</span>'}</div><div class="holo"></div>
       <div class="cinta" style="background:#b65cff">Barrio</div>
-      <div class="pie"><b>${esc(b.name)}</b><small>${b.city ? esc(b.city) + ' · ' : ''}${new Date(b.t).toLocaleDateString('es-ES')}</small></div></div></div></div>`;
+      <div class="pie"><b>${esc(b.name)}</b><small>${b.city ? esc(b.city) + ' · ' : ''}${new Date(b.t).toLocaleDateString(PM.LOCALE)}</small></div></div></div></div>`;
   }
 
   return { open, close, album, fetchInfo, dataFor, SETS, setCount, getPhoto, putPhoto, takePhoto, FILTERS, _img: { loadImg, cropCard, applyFilter } };

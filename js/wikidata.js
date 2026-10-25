@@ -92,7 +92,7 @@
   function parse(json) {
     const out = [];
     for (const b of (json && json.results && json.results.bindings) || []) {
-      const q = b.item.value.split('/').pop(), name = b.itemLabel && b.itemLabel.value;
+      const q = b.item.value.split('/').pop(), name = b.itemLabel && (PM.limpio ? PM.limpio(b.itemLabel.value) : b.itemLabel.value);
       if (!name || name === q) continue;
       const m = /Point\(([-\d.]+) ([-\d.]+)\)/.exec(b.coord.value);
       if (!m) continue;

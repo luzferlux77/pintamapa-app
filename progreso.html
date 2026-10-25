@@ -220,6 +220,8 @@
 
   <script src="lib/maplibre/maplibre-gl.js"></script>
   <script src="js/version.js"></script>
+  <script src="js/i18n.js"></script>
+  <script src="js/i18n-dict.js"></script>
   <script src="js/util.js"></script>
   <script src="js/wikidata.js"></script>
   <script src="js/vtiles.js"></script>
@@ -330,7 +332,7 @@
       if (s.avatar) { if (!av) { av = document.createElement('div'); av.id = 'avatar'; $('.who').insertBefore(av, $('.who-txt')); } av.style.backgroundImage = `url('${s.avatar}')`; }
       else if (av) av.remove();
       $('#lvltext').textContent = `Nivel ${LI.label}${LI.tier ? ' ' + LI.tier.icon : ''} · ${PM.fmtNum(s.xp || 0)} pts · ` + (LI.max ? '¡nivel máximo!' : `faltan ${PM.fmtNum(LI.need - LI.cur)} para el ${LI.nextLabel}`);
-      $('#synced').textContent = s.syncedAt ? 'Actualizado ' + new Date(s.syncedAt).toLocaleString('es-ES', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
+      $('#synced').textContent = s.syncedAt ? 'Actualizado ' + new Date(s.syncedAt).toLocaleString(PM.LOCALE, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
       document.documentElement.style.setProperty('--paint', s.color || '#ff2e88');
     }
 
@@ -502,7 +504,7 @@
       for (let t = start.getTime(); t <= end.getTime(); t += 86400000) {
         const d = days[dayKey(t)], v = d ? d.painted / max : 0;
         const bg = d ? `rgba(255,46,136,${(0.25 + v * 0.75).toFixed(2)})` : '';
-        html += `<i title="${new Date(t).toLocaleDateString('es-ES')}${d ? ': ' + dist(d.painted) + ' pintados' : ''}" ${bg ? `style="background:${bg}"` : ''}></i>`;
+        html += `<i title="${new Date(t).toLocaleDateString(PM.LOCALE)}${d ? ': ' + dist(d.painted) + ' pintados' : ''}" ${bg ? `style="background:${bg}"` : ''}></i>`;
       }
       return html + '</div>';
     }
@@ -535,9 +537,9 @@
       for (const m of [1, 5, 10, 25, 50, 100, 250, 500, 1000]) {
         if (m > max) break;
         const hit = c.find((q) => q.v >= m);
-        svg += `<g><circle cx="${X(hit.t).toFixed(1)}" cy="${Y(m).toFixed(1)}" r="4" fill="#fff" stroke="var(--paint)" stroke-width="2"/><text x="${Math.min(W - 18, Math.max(18, X(hit.t))).toFixed(1)}" y="${(Y(m) - 8).toFixed(1)}" font-size="10" font-weight="700" fill="#374151" text-anchor="middle">${m} km</text><title>${m} km el ${new Date(hit.t).toLocaleDateString('es-ES')}</title></g>`;
+        svg += `<g><circle cx="${X(hit.t).toFixed(1)}" cy="${Y(m).toFixed(1)}" r="4" fill="#fff" stroke="var(--paint)" stroke-width="2"/><text x="${Math.min(W - 18, Math.max(18, X(hit.t))).toFixed(1)}" y="${(Y(m) - 8).toFixed(1)}" font-size="10" font-weight="700" fill="#374151" text-anchor="middle">${m} km</text><title>${m} km el ${new Date(hit.t).toLocaleDateString(PM.LOCALE)}</title></g>`;
       }
-      svg += `<text x="4" y="${H - 2}" font-size="10" fill="#9ca3af">${new Date(t0).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}</text><text x="${W - 4}" y="${H - 2}" font-size="10" fill="#9ca3af" text-anchor="end">hoy</text>`;
+      svg += `<text x="4" y="${H - 2}" font-size="10" fill="#9ca3af">${new Date(t0).toLocaleDateString(PM.LOCALE, { day: 'numeric', month: 'short' })}</text><text x="${W - 4}" y="${H - 2}" font-size="10" fill="#9ca3af" text-anchor="end">hoy</text>`;
       return svg + '</svg>';
     }
     // mapa de calor estilo GitHub, con meses y leyenda
@@ -550,9 +552,9 @@
       ['L', '', 'X', '', 'V', '', 'D'].forEach((l, i) => { if (l) svg += `<text x="0" y="${18 + i * (cs + gap) + 10}" font-size="9" fill="#9ca3af">${l}</text>`; });
       for (let t = start.getTime(), i = 0; t <= end.getTime(); t += 86400000, i++) {
         const wk = Math.floor(i / 7), wd = i % 7, dt = new Date(t), d = days[dayKey(t)];
-        if (wd === 0 && dt.getMonth() !== lastM) { lastM = dt.getMonth(); svg += `<text x="${24 + wk * (cs + gap)}" y="10" font-size="9.5" fill="#6b7280">${dt.toLocaleDateString('es-ES', { month: 'short' })}</text>`; }
+        if (wd === 0 && dt.getMonth() !== lastM) { lastM = dt.getMonth(); svg += `<text x="${24 + wk * (cs + gap)}" y="10" font-size="9.5" fill="#6b7280">${dt.toLocaleDateString(PM.LOCALE, { month: 'short' })}</text>`; }
         const lv = d ? 0.25 + 0.75 * d.painted / max : 0;
-        svg += `<rect x="${24 + wk * (cs + gap)}" y="${18 + wd * (cs + gap)}" width="${cs}" height="${cs}" rx="3" fill="${d ? 'var(--paint)' : '#eef0f4'}" fill-opacity="${d ? lv.toFixed(2) : 1}"><title>${dt.toLocaleDateString('es-ES')}${d ? ' · ' + dist(d.painted) + ' pintados · ' + dist(d.walked) + ' andados' : ''}</title></rect>`;
+        svg += `<rect x="${24 + wk * (cs + gap)}" y="${18 + wd * (cs + gap)}" width="${cs}" height="${cs}" rx="3" fill="${d ? 'var(--paint)' : '#eef0f4'}" fill-opacity="${d ? lv.toFixed(2) : 1}"><title>${dt.toLocaleDateString(PM.LOCALE)}${d ? ' · ' + dist(d.painted) + ' pintados · ' + dist(d.walked) + ' andados' : ''}</title></rect>`;
       }
       const lx = W - 5 * (cs + gap) - 34;
       svg += `<text x="${lx - 4}" y="${H + 12}" font-size="9" fill="#9ca3af" text-anchor="end">menos</text>`;
@@ -585,7 +587,7 @@
       let svg = `<svg viewBox="0 0 ${W} ${H}" width="100%" style="display:block"><line x1="0" x2="${W}" y1="${Y(avg).toFixed(1)}" y2="${Y(avg).toFixed(1)}" stroke="#d1d5db" stroke-dasharray="4 4"/>
         <text x="${W - 2}" y="${(Y(avg) - 3).toFixed(1)}" font-size="9" fill="#9ca3af" text-anchor="end">media ${Math.floor(avg)}:${String(Math.round(avg % 1 * 60)).padStart(2, '0')}</text>
         <path d="${vals.map((v, i) => (i ? 'L' : 'M') + X(i).toFixed(1) + ',' + Y(v).toFixed(1)).join('')}" fill="none" stroke="var(--cyan)" stroke-width="2.4"/>`;
-      vals.forEach((v, i) => { svg += `<circle cx="${X(i).toFixed(1)}" cy="${Y(v).toFixed(1)}" r="3.2" fill="#fff" stroke="var(--cyan)" stroke-width="2"><title>${new Date(ws[i].start).toLocaleDateString('es-ES')} · ${Math.floor(v)}:${String(Math.round(v % 1 * 60)).padStart(2, '0')} /km</title></circle>`; });
+      vals.forEach((v, i) => { svg += `<circle cx="${X(i).toFixed(1)}" cy="${Y(v).toFixed(1)}" r="3.2" fill="#fff" stroke="var(--cyan)" stroke-width="2"><title>${new Date(ws[i].start).toLocaleDateString(PM.LOCALE)} · ${Math.floor(v)}:${String(Math.round(v % 1 * 60)).padStart(2, '0')} /km</title></circle>`; });
       return svg + '</svg>';
     }
 
@@ -615,7 +617,7 @@
             <div><b>${lms.length}</b><small>lugares</small></div>
             <div><b>${nB}</b><small>barrios 🚩</small></div>
             <div><b>${PM.fmtNum(s.xp || 0)}</b><small>puntos</small></div></div>
-          ${firstT ? `<small class="hero-since">Pintando desde el ${new Date(firstT).toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' })} · ${Object.keys(days).length} día${Object.keys(days).length === 1 ? '' : 's'} en la calle${nC ? ` · 👑 ${nC} ciudad${nC > 1 ? 'es' : ''}` : ''}</small>` : ''}</div>`;
+          ${firstT ? `<small class="hero-since">Pintando desde el ${new Date(firstT).toLocaleDateString(PM.LOCALE, { day: 'numeric', month: 'long', year: 'numeric' })} · ${Object.keys(days).length} día${Object.keys(days).length === 1 ? '' : 's'} en la calle${nC ? ` · 👑 ${nC} ciudad${nC > 1 ? 'es' : ''}` : ''}</small>` : ''}</div>`;
 
         // ---- esta semana (lunes a domingo) frente a la anterior ----
         const mon = now0.getTime() - ((now0.getDay() + 6) % 7) * DAY;
@@ -651,8 +653,8 @@
         // ---- último paseo con su recorrido ----
         const lw = walks[0];
         if (lw) h += `<div class="card lastw" data-wi="0"><h3>Último paseo <span>toca para verlo en el mapa</span></h3>
-          <div class="lw">${thumb(lw)}<div class="lw-txt"><b>${new Date(lw.start).toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' })}</b>
-            <small>${new Date(lw.start).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })} · ${dur(mov(lw))} en movimiento${mov(lw) < lw.elapsed - 60000 ? ' (total ' + dur(lw.elapsed) + ')' : ''}</small>
+          <div class="lw">${thumb(lw)}<div class="lw-txt"><b>${new Date(lw.start).toLocaleDateString(PM.LOCALE, { weekday: 'long', day: 'numeric', month: 'long' })}</b>
+            <small>${new Date(lw.start).toLocaleTimeString(PM.LOCALE, { hour: '2-digit', minute: '2-digit' })} · ${dur(mov(lw))} en movimiento${mov(lw) < lw.elapsed - 60000 ? ' (total ' + dur(lw.elapsed) + ')' : ''}</small>
             <div class="lw-g"><div><b>${dist(lw.st.walked)}</b><small>andados</small></div><div><b>${dist(lw.st.painted)}</b><small>nuevos</small></div>
               <div><b>${pace(mov(lw), lw.st.walked)}</b><small>ritmo</small></div><div><b>+${PM.fmtNum(lw.st.pts || 0)}</b><small>puntos</small></div></div></div></div></div>`;
 
@@ -696,13 +698,13 @@
           <div><span>🍫</span><b>${PM.fmtNum(Math.round(wk_ * 55 / 230))}</b><small>tabletas de chocolate quemadas</small></div></div></div>`;
 
         // ---- récords ----
-        const when = (w) => w ? new Date(w.start).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' }) : '';
+        const when = (w) => w ? new Date(w.start).toLocaleDateString(PM.LOCALE, { day: 'numeric', month: 'short' }) : '';
         const recRow = (ic, l, v, w) => `<div class="rec" ${w ? `data-wi="${walks.indexOf(w)}"` : ''}><span>${ic}</span><div><small>${l}</small><b>${v}</b></div><em>${when(w)}</em></div>`;
         h += `<div class="card"><h3>Récords <span>toca uno para verlo</span></h3><div class="recs">
           ${A.longest ? recRow('🥾', 'Paseo más largo', dist(A.longest.st.walked), A.longest) : ''}
           ${A.fastest ? recRow('⚡', 'Paseo más rápido', pace(mov(A.fastest), A.fastest.st.walked), A.fastest) : ''}
           ${A.topPts ? recRow('⭐', 'Más puntos', '+' + PM.fmtNum(A.topPts.st.pts || 0), A.topPts) : ''}
-          ${A.bestDay ? `<div class="rec"><span>📅</span><div><small>Mejor día</small><b>${dist(A.bestDay[1].painted)}</b></div><em>${new Date(A.bestDay[0] + 'T12:00').toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}</em></div>` : ''}
+          ${A.bestDay ? `<div class="rec"><span>📅</span><div><small>Mejor día</small><b>${dist(A.bestDay[1].painted)}</b></div><em>${new Date(A.bestDay[0] + 'T12:00').toLocaleDateString(PM.LOCALE, { day: 'numeric', month: 'short' })}</em></div>` : ''}
           <div class="rec"><span>🔥</span><div><small>Racha más larga</small><b>${A.maxStreak} días</b></div></div>
           <div class="rec"><span>✖️</span><div><small>Mejor combo</small><b>x${st.bestCombo || 0}</b></div></div></div></div>`;
       }
@@ -728,7 +730,7 @@
         const buckets = [];
         if (per.unit === 'd') for (let i = per.n - 1; i >= 0; i--) { const t0 = today0.getTime() - i * DAY; buckets.push({ t0, t1: t0 + DAY, lab: new Date(t0).getDate() + '/' + (new Date(t0).getMonth() + 1) }); }
         else if (per.unit === 'w') for (let i = per.n - 1; i >= 0; i--) { const mon = today0.getTime() - ((today0.getDay() + 6) % 7) * DAY - i * 7 * DAY; buckets.push({ t0: mon, t1: mon + 7 * DAY, lab: 'sem ' + new Date(mon).getDate() + '/' + (new Date(mon).getMonth() + 1) }); }
-        else { const d0 = new Date(firstWalk); for (let y = d0.getFullYear(), m = d0.getMonth(); new Date(y, m, 1) <= new Date(); m++) { const t0 = new Date(y, m, 1).getTime(), t1 = new Date(y, m + 1, 1).getTime(); buckets.push({ t0, t1, lab: new Date(t0).toLocaleDateString('es-ES', { month: 'short' }) }); } }
+        else { const d0 = new Date(firstWalk); for (let y = d0.getFullYear(), m = d0.getMonth(); new Date(y, m, 1) <= new Date(); m++) { const t0 = new Date(y, m, 1).getTime(), t1 = new Date(y, m + 1, 1).getTime(); buckets.push({ t0, t1, lab: new Date(t0).toLocaleDateString(PM.LOCALE, { month: 'short' }) }); } }
         buckets.forEach((bk) => { const ws = walks.filter((w) => w.start >= bk.t0 && w.start < bk.t1); bk.w = sum(ws, (w) => w.st.walked) / 1000; bk.p = sum(ws, (w) => w.st.painted) / 1000; });
         h += `<div class="card"><h3>Andado y pintado <span>km por ${per.unit === 'd' ? 'día' : per.unit === 'w' ? 'semana' : 'mes'}</span></h3>${area(buckets)}
           <div class="legend"><span><i style="background:#93c5fd"></i>andado</span><span><i style="background:var(--paint)"></i>calles nuevas</span></div></div>`;
@@ -747,19 +749,19 @@
         const last14 = []; for (let i = 13; i >= 0; i--) { const k = dayKey(today0.getTime() - i * DAY); last14.push(!!days[k]); }
         let streak = 0; for (let i = 0; ; i++) { const k = dayKey(today0.getTime() - i * DAY); if (days[k]) streak++; else if (i > 0 || streak) break; else continue; if (i > 400) break; }
         h += `<div class="card"><h3>Rachas</h3><div class="streak"><div><b>🔥 ${streak}</b><small>días seguidos ahora</small></div><div><b>🏆 ${A.maxStreak}</b><small>tu mejor racha</small></div>
-          <div class="dots">${last14.map((on, i) => `<i class="${on ? 'on' : ''}" title="${new Date(today0.getTime() - (13 - i) * DAY).toLocaleDateString('es-ES')}"></i>`).join('')}<small>últimos 14 días</small></div></div></div>`;
+          <div class="dots">${last14.map((on, i) => `<i class="${on ? 'on' : ''}" title="${new Date(today0.getTime() - (13 - i) * DAY).toLocaleDateString(PM.LOCALE)}"></i>`).join('')}<small>últimos 14 días</small></div></div></div>`;
         // ---- récords ----
         const timed = walks.filter((w) => (w.st.walked || 0) > 500 && (w.track || []).some((q) => q && q[2] != null));
         const best = (f, ws = walks) => ws.slice().sort((x, y) => f(y) - f(x))[0];
         const rLong = best((w) => w.st.walked || 0), rPaint = best((w) => w.st.painted || 0), rTime = best((w) => w.elapsed || 0), rPts = best((w) => w.st.pts || 0);
         const rFast = timed.slice().sort((x, y) => mov(x) / x.st.walked - mov(y) / y.st.walked)[0];
-        const when = (w) => w ? new Date(w.start).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' }) : '';
+        const when = (w) => w ? new Date(w.start).toLocaleDateString(PM.LOCALE, { day: 'numeric', month: 'short' }) : '';
         const recRow = (ic, l, v, w) => `<div class="rec" ${w ? `data-wi="${walks.indexOf(w)}"` : ''}><span>${ic}</span><div><small>${l}</small><b>${v}</b></div><em>${when(w)}</em></div>`;
         h += `<div class="card"><h3>Récords <span>toca uno para verlo</span></h3><div class="recs">
           ${rLong ? recRow('🥾', 'Paseo más largo', dist(rLong.st.walked), rLong) : ''}${rPaint ? recRow('🖌️', 'Más calles nuevas', dist(rPaint.st.painted), rPaint) : ''}
           ${rTime ? recRow('⏱️', 'Más tiempo', dur(rTime.elapsed), rTime) : ''}${rPts ? recRow('⭐', 'Más puntos', '+' + PM.fmtNum(rPts.st.pts || 0), rPts) : ''}
           ${rFast ? recRow('⚡', 'Ritmo más rápido', pace(mov(rFast), rFast.st.walked), rFast) : ''}
-          ${A.bestDay ? `<div class="rec"><span>📅</span><div><small>Mejor día</small><b>${dist(A.bestDay[1].painted)} pintados</b></div><em>${new Date(A.bestDay[0] + 'T12:00').toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}</em></div>` : ''}
+          ${A.bestDay ? `<div class="rec"><span>📅</span><div><small>Mejor día</small><b>${dist(A.bestDay[1].painted)} pintados</b></div><em>${new Date(A.bestDay[0] + 'T12:00').toLocaleDateString(PM.LOCALE, { day: 'numeric', month: 'short' })}</em></div>` : ''}
           </div></div>`;
         // ---- ritmo por paseo (solo paseos con hora en cada punto) ----
         const tl = timed.slice().sort((x, y) => x.start - y.start).slice(-20);
@@ -779,14 +781,14 @@
           const a = n ? 0.25 + 0.75 * Math.min(1, kmDay(k) / maxKm) : 0;
           cells += `<button class="cd ${n ? 'on' : ''} ${k === calDay ? 'sel' : ''} ${k === dayKey(Date.now()) ? 'today' : ''}" data-day="${k}" ${n ? `style="--a:${a.toFixed(2)}"` : 'disabled'}>${d}${n > 1 ? `<i>${n}</i>` : ''}</button>`;
         }
-        const monthName = calMonth.toLocaleDateString('es-ES', { month: 'long', year: 'numeric' });
+        const monthName = calMonth.toLocaleDateString(PM.LOCALE, { month: 'long', year: 'numeric' });
         const inMonth = walks.filter((w) => new Date(w.start).getFullYear() === y && new Date(w.start).getMonth() === mo);
         h += `<div class="card"><div class="calhead"><button class="calnav" data-m="-1">‹</button><b>${monthName}</b><button class="calnav" data-m="1">›</button></div>
           <div class="calgrid"><small>L</small><small>M</small><small>X</small><small>J</small><small>V</small><small>S</small><small>D</small>${cells}</div>
           <p class="calsum">${inMonth.length ? `${new Set(inMonth.map((w) => dayKey(w.start))).size} días · ${inMonth.length} paseos · ${dist(inMonth.reduce((a, w) => a + (w.st.walked || 0), 0))} andados · ${dist(inMonth.reduce((a, w) => a + (w.st.painted || 0), 0))} pintados` : 'Sin paseos este mes'}</p></div>`;
         const dayList = calDay && byDay[calDay] ? byDay[calDay] : [];
-        h += `<div class="card" style="padding:8px"><h3 style="padding:8px 8px 0">${calDay ? new Date(calDay + 'T12:00').toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' }) : 'Paseos'} <span>${dayList.length ? dayList.length + ' paseo' + (dayList.length > 1 ? 's' : '') + ' · toca uno para verlo en el mapa' : ''}</span></h3>` + (dayList.length ? dayList.map((i) => walks[i]).map((w) => [w, walks.indexOf(w)]).map(([w, i]) => `
-          <div class="walk" data-i="${i}"><b>${new Date(w.start).toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric', month: 'short' })} · ${new Date(w.start).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}</b>
+        h += `<div class="card" style="padding:8px"><h3 style="padding:8px 8px 0">${calDay ? new Date(calDay + 'T12:00').toLocaleDateString(PM.LOCALE, { weekday: 'long', day: 'numeric', month: 'long' }) : 'Paseos'} <span>${dayList.length ? dayList.length + ' paseo' + (dayList.length > 1 ? 's' : '') + ' · toca uno para verlo en el mapa' : ''}</span></h3>` + (dayList.length ? dayList.map((i) => walks[i]).map((w) => [w, walks.indexOf(w)]).map(([w, i]) => `
+          <div class="walk" data-i="${i}"><b>${new Date(w.start).toLocaleDateString(PM.LOCALE, { weekday: 'short', day: 'numeric', month: 'short' })} · ${new Date(w.start).toLocaleTimeString(PM.LOCALE, { hour: '2-digit', minute: '2-digit' })}</b>
           <div class="pts">+${PM.fmtNum(w.st.pts || 0)}</div>
           <small>⏱ ${dur(mov(w))}${mov(w) < w.elapsed - 60000 ? ' (total ' + dur(w.elapsed) + ')' : ''} · 🚶 ${dist(w.st.walked)} · 🖌️ ${dist(w.st.painted)} nuevos · ⚡ ${pace(mov(w), w.st.walked)} · 📸 ${w.st.captures || 0}${w.st.conquests ? ' · 🚩 ' + w.st.conquests : ''}${w.imported ? ' · ⌚' : ''}</small>
           <button class="wdet" data-w="${i}">📊 Estadísticas, vídeo y exportar</button></div>`).join('')
@@ -807,7 +809,7 @@
         h += `<div class="card"><h3>Logros <span>${Object.keys(got).filter((k) => ach[k]).length}/${Object.keys(ach).length}</span></h3><div class="ach">${Object.entries(ach).map(([id, a]) =>
           `<div class="${got[id] ? '' : 'off'}" title="${esc(a.desc)}"><span>${a.icon}</span>${esc(a.name)}</div>`).join('')}</div></div>`;
         const bc = Object.entries(s.barrioCards || {}).map(([id, v]) => Object.assign({ id }, v));
-        h += `<div class="card"><h3>Barrios conquistados <span>${bc.length}</span></h3>${bc.length ? bc.map((b) => { const rk = (s.barrioRank || {})[b.id] != null ? s.barrioRank[b.id] : ((s.perfectB || {})[b.id] ? 2 : 0); return `<div class="row"><span>${PM.RANKS[rk].ic} ${esc(b.name)} <small class="muted">· ${PM.RANKS[rk].name}</small></span><b>${new Date(b.t).toLocaleDateString('es-ES')}</b></div>`; }).join('') : '<div class="empty">Pinta el 60 % de un barrio para conquistarlo (80 % plata, 90 % oro).</div>'}</div>`;
+        h += `<div class="card"><h3>Barrios conquistados <span>${bc.length}</span></h3>${bc.length ? bc.map((b) => { const rk = (s.barrioRank || {})[b.id] != null ? s.barrioRank[b.id] : ((s.perfectB || {})[b.id] ? 2 : 0); return `<div class="row"><span>${PM.RANKS[rk].ic} ${esc(b.name)} <small class="muted">· ${PM.RANKS[rk].name}</small></span><b>${new Date(b.t).toLocaleDateString(PM.LOCALE)}</b></div>`; }).join('') : '<div class="empty">Pinta el 60 % de un barrio para conquistarlo (80 % plata, 90 % oro).</div>'}</div>`;
       }
       P.innerHTML = h;
       if (tab === 'con' && P.querySelector('#city-stacks') && !A.countriesAsked) {   // países que falten: se averiguan y se redibuja

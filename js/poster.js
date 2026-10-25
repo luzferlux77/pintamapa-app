@@ -94,7 +94,7 @@ PM.poster = (function () {
     drawSpaced(title, px * 0.18, y);
     y += 62; c.fillStyle = D.color; c.fillRect(cx - 180, y, 360, 7);
     y += 95; c.fillStyle = T.soft; c.font = font(600, 46);
-    drawSpaced(`PINTADO POR ${D.player.toUpperCase()} · DESDE ${new Date(D.first).toLocaleDateString('es-ES', { month: 'long', year: 'numeric' }).toUpperCase()}`, 7, y);
+    drawSpaced(`PINTADO POR ${D.player.toUpperCase()} · DESDE ${new Date(D.first).toLocaleDateString(PM.LOCALE, { month: 'long', year: 'numeric' }).toUpperCase()}`, 7, y);
     // cifras
     y += 170;
     const stats = [[(D.paintedM / 1000).toFixed(D.paintedM >= 100000 ? 0 : 1).replace('.', ','), 'KM PINTADOS'], [PM.fmtNum ? PM.fmtNum(D.nPieces) : D.nPieces, 'TRAMOS'], [D.nB, 'BARRIOS'], [D.nL, 'LUGARES']];

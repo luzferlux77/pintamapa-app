@@ -210,8 +210,8 @@ PM.replay = (function () {
     const segs = [[]]; P.pts.forEach((q) => { if (q.cut) segs.push([]); segs[segs.length - 1].push(q); });
     return `<?xml version="1.0" encoding="UTF-8"?>
 <gpx version="1.1" creator="PintaMapa" xmlns="http://www.topografix.com/GPX/1/1">
-<metadata><name>Paseo PintaMapa ${new Date(walk.start).toLocaleDateString('es-ES')}</name><time>${new Date(walk.start).toISOString()}</time></metadata>
-<trk><name>Paseo ${new Date(walk.start).toLocaleString('es-ES')}</name><type>walking</type>
+<metadata><name>Paseo PintaMapa ${new Date(walk.start).toLocaleDateString(PM.LOCALE)}</name><time>${new Date(walk.start).toISOString()}</time></metadata>
+<trk><name>Paseo ${new Date(walk.start).toLocaleString(PM.LOCALE)}</name><type>walking</type>
 ${segs.map((s) => `<trkseg>\n${s.map((q) => `<trkpt lat="${q.lat.toFixed(6)}" lon="${q.lon.toFixed(6)}">${q.e != null ? `<ele>${q.e.toFixed(1)}</ele>` : ''}<time>${iso(walk, q)}</time></trkpt>`).join('\n')}\n</trkseg>`).join('\n')}
 </trk></gpx>`;
   }
@@ -229,7 +229,7 @@ ${P.pts.map((q) => `<Trackpoint><Time>${iso(walk, q)}</Time><Position><LatitudeD
     const c = (q) => `${q.lon.toFixed(6)},${q.lat.toFixed(6)},${(q.e || 0).toFixed(1)}`;
     const a = P.pts[0], b = P.pts[P.pts.length - 1];
     return `<?xml version="1.0" encoding="UTF-8"?>
-<kml xmlns="http://www.opengis.net/kml/2.2"><Document><name>Paseo PintaMapa ${new Date(walk.start).toLocaleDateString('es-ES')}</name>
+<kml xmlns="http://www.opengis.net/kml/2.2"><Document><name>Paseo PintaMapa ${new Date(walk.start).toLocaleDateString(PM.LOCALE)}</name>
 <description>${esc(fmtKm(A.dTot))} · ${esc(fmtT(A.moving))} en movimiento · desnivel +${Math.round(A.up)} m</description>
 <Style id="ruta"><LineStyle><color>ff2e57e4</color><width>5</width></LineStyle></Style>
 <Placemark><name>Salida</name><Point><coordinates>${c(a)}</coordinates></Point></Placemark>
@@ -411,12 +411,12 @@ ${segs.map((s) => `<LineString><tessellate>1</tessellate><altitudeMode>clampToGr
     ctx.textAlign = 'left';
     ctx.font = '600 30px system-ui, -apple-system, Segoe UI, Roboto, sans-serif';
     ctx.fillStyle = 'rgba(255,255,255,.7)';
-    ctx.fillText(new Date(walk.start).toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }), 60, 110);
+    ctx.fillText(new Date(walk.start).toLocaleDateString(PM.LOCALE, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }), 60, 110);
     ctx.fillStyle = '#fff'; ctx.font = '800 54px system-ui, -apple-system, Segoe UI, Roboto, sans-serif';
     ctx.fillText(opts.title || 'Mi paseo', 60, 175);
     const st = walk.st || {};
     const stats = [['Distancia', fmtKm(A.dTot * f)], ['Tiempo', fmtT(A.moving * f)], ['Ritmo medio', fmtPace(A.avgPace)], ['Desnivel', A.hasEle ? '+' + Math.round(A.up * f) + ' m' : '—'],
-      ['Calles nuevas', fmtKm((st.painted || 0) * f)], ['Puntos', '+' + Math.round((st.pts || 0) * f).toLocaleString('es-ES')]];
+      ['Calles nuevas', fmtKm((st.painted || 0) * f)], ['Puntos', '+' + Math.round((st.pts || 0) * f).toLocaleString(PM.LOCALE)]];
     stats.forEach(([k, v], i) => {
       const x = 60 + (i % 2) * 310, y = H - 330 + Math.floor(i / 2) * 100;
       ctx.fillStyle = 'rgba(255,255,255,.6)'; ctx.font = '500 25px system-ui, sans-serif'; ctx.fillText(k, x, y);
@@ -434,8 +434,8 @@ ${segs.map((s) => `<LineString><tessellate>1</tessellate><altitudeMode>clampToGr
     close();
     const ov = document.createElement('div');
     ov.id = 'replay-view';
-    ov.innerHTML = `<div class="rp-box"><div class="rp-head"><div><small>${esc(new Date(walk.start).toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }))}</small>
-      <h2>${esc(opts.title || 'Paseo')} · ${new Date(walk.start).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}</h2></div><button class="rp-x" data-a="close">✕</button></div>
+    ov.innerHTML = `<div class="rp-box"><div class="rp-head"><div><small>${esc(new Date(walk.start).toLocaleDateString(PM.LOCALE, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }))}</small>
+      <h2>${esc(opts.title || 'Paseo')} · ${new Date(walk.start).toLocaleTimeString(PM.LOCALE, { hour: '2-digit', minute: '2-digit' })}</h2></div><button class="rp-x" data-a="close">✕</button></div>
       <div class="rp-body"><p class="rp-loading">Calculando estadísticas y altitud…</p></div></div>`;
     document.body.appendChild(ov);
     ov.querySelector('[data-a=close]').onclick = close;
@@ -453,11 +453,11 @@ ${segs.map((s) => `<LineString><tessellate>1</tessellate><altitudeMode>clampToGr
         ${tile('Velocidad media', (A.avgV * 3.6).toFixed(1).replace('.', ',') + ' km/h', A.maxV > 0 ? 'máx. ' + (A.maxV * 3.6).toFixed(1).replace('.', ',') + ' km/h' : '')}
         ${tile('Desnivel positivo', A.hasEle ? '+' + Math.round(A.up) + ' m' : '—', A.hasEle ? '−' + Math.round(A.down) + ' m negativo' : '')}
         ${tile('Altitud', A.hasEle ? Math.round(A.minE) + '–' + Math.round(A.maxE) + ' m' : '—', A.hasEle ? 'mín. – máx.' : '')}
-        ${tile('Pasos', '≈ ' + A.steps.toLocaleString('es-ES'), 'estimados')}
+        ${tile('Pasos', '≈ ' + A.steps.toLocaleString(PM.LOCALE), 'estimados')}
         ${tile('Calorías', '≈ ' + A.kcal + ' kcal', 'estimadas (70 kg)')}
         ${tile('Calles nuevas', fmtKm(st.painted || 0), st.repassed ? fmtKm(st.repassed) + ' repasadas' : '')}
-        ${tile('Puntos', '+' + Math.round(st.pts || 0).toLocaleString('es-ES'), (st.captures || 0) + ' lugares capturados')}
-        ${tile('Inicio', new Date(A.startT).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }), 'fin ' + new Date(A.endT).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }))}
+        ${tile('Puntos', '+' + Math.round(st.pts || 0).toLocaleString(PM.LOCALE), (st.captures || 0) + ' lugares capturados')}
+        ${tile('Inicio', new Date(A.startT).toLocaleTimeString(PM.LOCALE, { hour: '2-digit', minute: '2-digit' }), 'fin ' + new Date(A.endT).toLocaleTimeString(PM.LOCALE, { hour: '2-digit', minute: '2-digit' }))}
         ${tile('Mejor combo', 'x' + (st.bestCombo || 0), st.conquests ? st.conquests + ' barrio(s) conquistado(s)' : '')}
       </div>
       <h3>Perfil de altitud</h3>${A.hasEle ? chart(P.pts, (q) => q.e, { color: '#16a34a', unit: 'm', fmt: (v) => Math.round(v) }) : '<div class="rp-empty">Sin datos de altitud (sin conexión)</div>'}
@@ -566,12 +566,13 @@ ${segs.map((s) => `<LineString><tessellate>1</tessellate><altitudeMode>clampToGr
       if (PM.isNative && window.Capacitor.Plugins.Filesystem && window.Capacitor.Plugins.Share) {
         const b64 = await new Promise((r) => { const fr = new FileReader(); fr.onload = () => r(String(fr.result).split(',')[1]); fr.readAsDataURL(blob); });
         const f = await window.Capacitor.Plugins.Filesystem.writeFile({ path: name, data: b64, directory: 'CACHE' });
-        await window.Capacitor.Plugins.Share.share({ title: title || name, files: [f.uri] }).catch(() => {});
-        return;
+        // (true = compartida; false = cancelada o fallida: quien llama no debe darla por guardada)
+        return await window.Capacitor.Plugins.Share.share({ title: title || name, files: [f.uri] }).then(() => true, () => false);
       }
       const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; a.click();
       setTimeout(() => URL.revokeObjectURL(a.href), 60000);
-    } catch (e) { alert('No se pudo guardar: ' + (e.message || e)); }
+      return true;
+    } catch (e) { alert('No se pudo guardar: ' + (e.message || e)); return false; }
   }
   function close() { const ov = document.getElementById('replay-view'); if (ov) ov.remove(); }
 

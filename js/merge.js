@@ -10,7 +10,13 @@
       out[k] = Object.assign({}, a[k] || {});
       for (const [id, v] of Object.entries(b[k] || {})) out[k][id] = out[k][id] ? Math.min(out[k][id], v) : v;
     };
-    ['painted', 'cansTaken', 'tileNames', 'barrioNames', 'cardInfo', 'cardPhotos', 'barrioCards', 'cityCards'].forEach(union);
+    ['painted', 'cansTaken', 'tileNames', 'barrioNames', 'cardInfo', 'barrioCards', 'cityCards'].forEach(union);
+    // fotos propias: por cada carta gana la foto MÁS RECIENTE (antes, siempre la del segundo: una copia vieja tapaba una nueva)
+    out.cardPhotos = Object.assign({}, a.cardPhotos || {});
+    for (const [id, v] of Object.entries(b.cardPhotos || {})) { const o = out.cardPhotos[id]; if (!o || !v || (v.t || 0) >= (o.t || 0)) out.cardPhotos[id] = v; }
+    // país de cada ciudad: se juntan (antes se perdían los de una de las dos partidas)
+    out.countries = Object.assign({}, a.countries || {});
+    for (const [k, v] of Object.entries(b.countries || {})) { const o = out.countries[k]; if (!o || (v && v.cc && !o.cc)) out.countries[k] = v; }
     // longitud de calles de cada ciudad: gana la medida exacta (Overpass) a la aproximada (mapas vectoriales, src 'vt')
     out.cities = Object.assign({}, a.cities);
     for (const [k, v] of Object.entries(b.cities || {})) { const o = out.cities[k]; out.cities[k] = o && o.total && !o.src && v && v.src ? o : v; }
@@ -37,6 +43,13 @@
     [...(a.walks || []), ...(b.walks || [])].forEach((w) => { const o = walks[w.id]; if (!o || (w.elapsed || 0) >= (o.elapsed || 0)) walks[w.id] = w; });
     out.walks = Object.values(walks).filter((w) => (w.elapsed || 0) >= 120000).sort((x, y) => x.start - y.start);   // < 2 min: no cuentan
     if (a.daily && b.daily && a.daily.date > b.daily.date) out.daily = a.daily;
+    else if (a.daily && b.daily && a.daily.date === b.daily.date) {
+      // el mismo día (las misiones del día son las mismas en todos los dispositivos): misión a misión, el mayor
+      // progreso y hecha si lo está en cualquiera; el cofre, abierto si se abrió en alguno (sin premios dobles)
+      const ma = a.daily.missions || [], mb = b.daily.missions || [];
+      out.daily = Object.assign({}, b.daily, { chest: !!(a.daily.chest || b.daily.chest),
+        missions: mb.map((m, i) => { const o = ma[i]; return o && o.type === m.type && o.goal === m.goal ? Object.assign({}, m, { progress: Math.max(o.progress || 0, m.progress || 0), done: !!(o.done || m.done) }) : m; }) });
+    }
     // foto de perfil: la más reciente (también si la quitaste)
     const newer = (a.avatarT || 0) > (b.avatarT || 0) ? a : b;
     if (newer.avatarT) { out.avatarT = newer.avatarT; if (newer.avatar) out.avatar = newer.avatar; else delete out.avatar; }
