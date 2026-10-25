@@ -20,42 +20,64 @@ PM.tcg = (function () {
   const RES = [['☔', 'Lluvia', '−20'], ['🌙', 'Noche', '−20'], ['🥶', 'Frío', '−20'], ['🔥', 'Calor', '−20']];
   const hash = (s) => { let h = 0; for (const c of String(s)) h = (h * 31 + c.charCodeAt(0)) | 0; return Math.abs(h); };
 
-  // Descripción del sitio: IGUAL PARA TODOS (sin datos personales). La historia de Wikipedia y, si es corta,
-  // una descripción según su tipo, su barrio y su ciudad, hasta llegar a unas 4-6 líneas.
-  const ABOUT = {
-    ayto: (d) => `Es la sede del gobierno municipal${d.city ? ' de ' + d.city : ''}: aquí se decide el día a día de sus calles, plazas y servicios. Corazón institucional de la ciudad y punto de encuentro de fiestas, celebraciones y protestas vecinales.`,
-    templo: (d) => `Templo y lugar de reunión del vecindario durante generaciones${d.barrio ? ' en ' + d.barrio : ''}. Su arquitectura y su campanario forman parte del paisaje de la zona y de la memoria de quienes viven en ella.`,
-    historia: (d) => `Uno de los lugares con más historia${d.city ? ' de ' + d.city : ''}. Sus piedras han visto pasar siglos de cambios y hoy recuerdan el origen de la ciudad a quien se detiene a mirarlas.`,
-    cultura: (d) => `Espacio de cultura${d.city ? ' de ' + d.city : ''}: un lugar para aprender, descubrir y compartir. Exposiciones, libros, funciones y encuentros lo convierten en un punto vivo del barrio.`,
-    deporte: (d) => `Aquí late el deporte${d.city ? ' de ' + d.city : ''}. Partidos, entrenamientos y aficiones llenan este lugar de energía casi cada día de la semana.`,
-    verde: (d) => `Un respiro verde${d.city ? ' en ' + d.city : ''}: árboles, bancos y espacio para pasear, jugar o simplemente parar un momento y mirar la ciudad desde otro ritmo.`,
-    ciudad: (d) => `Un rincón con carácter${d.barrio ? ' de ' + d.barrio : ''}${d.city ? (d.barrio ? ', en ' : ' de ') + d.city : ''}. De esos lugares que hacen barrio y que todo vecino reconoce al pasar.`,
-  };
-  function descText(d) {
-    const [tk] = typeOf(d.kind);
-    let t = (d.text || '').trim();
-    const where = [d.barrio, d.city].filter(Boolean).join(', ');
-    const intro = `${d.name} es ${/^[AEIOUÁÉÍÓÚ]/i.test(d.kind || '') ? 'un' : 'un'} ${(d.kind || 'lugar').toLowerCase()}${where ? ' situado en ' + where : ''}.`;
-    if (t.length < 300) t = (t ? t + ' ' : intro + ' ') + (ABOUT[tk] || ABOUT.ciudad)(d);
-    if (t.length < 260) t += ' Un sitio que merece la pena descubrir caminando, con calma y con los ojos bien abiertos.';
-    return clip4(t, (ABOUT[tk] || ABOUT.ciudad)(d));
-  }
-  // Como máximo 4 líneas y SIEMPRE frases completas (acabadas en punto), nunca un texto cortado.
-  // Todo en la carta se mide en "em" del ancho de la carta, así que el nº de letras por línea es el mismo en cualquier tamaño.
-  const DESC_MAX = 235;
-  function clip4(t, extra) {
-    t = t.replace(/\s*\([^)]*\)/g, '').replace(/\s*\[[^\]]*\]/g, '').replace(/\s+/g, ' ').trim();
-    const sentences = (s) => (s.match(/[^.!?]+[.!?]+(\s|$)/g) || [s]).map((x) => x.trim()).filter(Boolean);
-    let out = '';
-    for (const s of sentences(t)) { if ((out + ' ' + s).trim().length > DESC_MAX) break; out = (out + ' ' + s).trim(); }
-    if (!out) {   // una sola frase larguísima: se acorta en una coma o espacio y se cierra con punto
-      const c = t.slice(0, DESC_MAX - 1);
-      const cm = c.lastIndexOf(', ');
-      out = c.slice(0, cm > DESC_MAX * 0.5 ? cm : c.lastIndexOf(' '))
-        .replace(/(\s+(de|del|la|el|los|las|y|e|o|a|en|con|por|para|que|un|una|al|su|sus))+$/i, '').replace(/[,;:\s]+$/, '') + '.';
-    }
-    if (out.length < 140 && extra) for (const s of sentences(extra)) { if ((out + ' ' + s).length > DESC_MAX) break; if (!out.includes(s)) out += ' ' + s; }
+  // Descripción del sitio: IGUAL PARA TODOS (sin datos personales) y SIEMPRE de ese lugar en concreto: el texto de
+  // Wikipedia y, si no hay, frases con sus datos reales (descripción de Wikidata, barrio y ciudad, siglo, patrimonio,
+  // visitantes). Nunca frases de plantilla iguales para todas las cartas. Entera, sin cortar: el tamaño de la letra se
+  // ajusta al cuadro (fitClass).
+  const ROM = ['', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI', 'XII', 'XIII', 'XIV', 'XV', 'XVI', 'XVII', 'XVIII', 'XIX', 'XX', 'XXI'];
+  const cap1 = (t) => t.charAt(0).toUpperCase() + t.slice(1);
+  function datos(d) {
+    const out = [], her = +d.her || 0, y = +d.anio || 0, vis = +d.vis || 0, wp = +d.wp || 0;
+    if (her === 3) out.push('Es Patrimonio de la Humanidad por la UNESCO.');
+    else if (her === 2) out.push('Está protegido como patrimonio nacional.');
+    else if (her === 1) out.push('Está catalogado como patrimonio protegido.');
+    if (y > 0 && y < 1800) { const sg = Math.floor((y - 1) / 100) + 1; out.push(`Data del siglo ${ROM[sg] || sg}.`); }
+    else if (y >= 1800) out.push(`Es de ${y}.`);
+    if (vis >= 1e6) out.push(`Recibe unos ${(vis / 1e6).toFixed(1).replace('.', ',').replace(',0', '')} millones de visitantes al año.`);
+    else if (vis >= 20000) out.push(`Recibe unos ${Math.round(vis / 1000).toLocaleString('es-ES')} mil visitantes al año.`);
+    if (wp >= 10) out.push(`Tiene artículo en la Wikipedia de ${wp} idiomas.`);
     return out;
+  }
+  function descText(d) {
+    let t = String(d.text || '').replace(/\s*\([^)]*\)/g, '').replace(/\s*\[[^\]]*\]/g, '').replace(/\s+/g, ' ').trim();
+    const where = d.barrio && d.city ? `en ${d.barrio}, ${d.city}` : d.city ? `en ${d.city}` : d.barrio ? `en ${d.barrio}` : '';
+    if (t.length < 90) {
+      // sin texto de Wikipedia: lo que se sabe de ESTE lugar
+      const desc = String(d.desc || '').trim();
+      const first = desc ? `${d.name}: ${desc}${where && !new RegExp((d.city || '###').replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i').test(desc) ? ', ' + where : ''}.`
+        : `${cap1((d.kind || 'Lugar').toLowerCase())}${where ? ' ' + where : ''}.`;
+      const dir = d.addr ? `Dirección: ${d.addr}.` : '';   // su dirección exacta
+      t = [t, first, dir, ...datos(d), d.ctx || ''].filter(Boolean).join(' ').replace(/\.\./g, '.');   // y una frase de su barrio
+    } else {
+      // con Wikipedia: se añade lo que la haga especial y el texto no diga ya (patrimonio, visitantes)
+      const ya = (re) => re.test(t);
+      for (const f of datos(d)) {
+        if ((t + ' ' + f).length > DESC_MAX) break;
+        if (/patrimonio|unesco/i.test(f) && ya(/patrimonio|unesco|bien de inter[eé]s|monumento nacional|protegid/i)) continue;
+        if (/visitantes/i.test(f) && ya(/visitantes|visitas/i)) continue;
+        if (/siglo|^Es de \d/.test(f) && ya(/siglo|\b1\d{3}\b|\b20\d{2}\b/)) continue;
+        if (/Wikipedia de/.test(f)) continue;   // (con su propio artículo, el número de idiomas no aporta)
+        t += ' ' + f;
+      }
+    }
+    return clip(t);
+  }
+  // Frases completas hasta DESC_MAX letras (nunca un texto cortado a media frase)
+  const DESC_MAX = 540;
+  function clip(t) {
+    if (t.length <= DESC_MAX) return t;
+    const sentences = t.match(/[^.!?]+[.!?]+(\s|$)/g) || [t];
+    let out = '';
+    for (const x of sentences) { if ((out + ' ' + x.trim()).trim().length > DESC_MAX) break; out = (out + ' ' + x.trim()).trim(); }
+    if (!out) { const c = t.slice(0, DESC_MAX - 1); out = c.slice(0, c.lastIndexOf(' ')).replace(/[,;:\s]+$/, '') + '.'; }
+    return out;
+  }
+  // tamaño de letra según lo largo del texto: siempre cabe entero en el cuadro
+  const fitClass = (t) => { const n = t.length; return n <= 300 ? 'f1' : n <= 390 ? 'f2' : n <= 470 ? 'f3' : 'f4'; };
+  // ya en pantalla: la letra más grande con la que el texto cabe ENTERO (medido de verdad, no por número de letras)
+  function autofit(el) {
+    if (!el || !el.clientHeight) return;
+    for (const c of ['f1', 'f2', 'f3', 'f4']) { el.className = 'tcg-flavor ' + c; if (el.scrollHeight <= el.clientHeight + 1) return; }
   }
   const code = (d) => ((d.city || 'PM').normalize('NFD').replace(/[^A-Za-z]/g, '').slice(0, 4).toUpperCase() || 'PM') + '·' + String(hash(d.id) % 10000).padStart(4, '0');
 
@@ -199,17 +221,14 @@ PM.tcg = (function () {
               <div class="tcg-shine"></div><div class="tcg-glitter"></div>
             </div>
             <div class="tcg-band">${esc(d.kind || '')}${d.city ? ' · ' + esc(d.city) : ''}</div>
+            ${d.porque ? `<div class="tcg-why">${esc(d.porque)}</div>` : ''}
             <div class="tcg-stats">
               <div><i>⏱</i><b>10 s</b><small>captura</small></div>
               <div><i>📍</i><b>${d.capR || (PM.capRadius ? PM.capRadius(d.kind) : 30)} m</b><small>radio</small></div>
               <div><i>✨</i><b>×2</b><small>aura 80 m</small></div>
               <div><i>💎</i><b>${R.sym}</b><small>${esc(R.name.toLowerCase())}</small></div>
             </div>
-            <div class="tcg-moves">
-              <div class="tcg-move">${energy(2)}<b>Conquista</b><span>+${pts}</span></div>
-              <div class="tcg-move">${energy(1)}<b>Revisita</b><span>+${revisit}</span></div>
-            </div>
-            <div class="tcg-flavor">${esc(descText(d))}</div>
+            ${(() => { const tx = descText(d); return `<div class="tcg-flavor ${fitClass(tx)}">${esc(tx)}</div>`; })()}
             <div class="tcg-rule"><b>REGLA</b> 🔁 Vuelve cada día y suma +${revisit} pts por visita · ✨ las calles que pintes a menos de 80 m valen el doble.</div>
             <div class="tcg-wrr">
               <div><small>debilidad</small>${w[0]} ${w[2]}</div>
@@ -318,14 +337,14 @@ PM.tcg = (function () {
       wb.addEventListener('click', () => openExternal(d._wikiUrl || wikiUrl(d)));
     }
     (opts.actions || []).forEach((a, i) => ov.querySelector(`[data-x="${i}"]`).addEventListener('click', a.on));
+    requestAnimationFrame(() => autofit(ov.querySelector(`.tcg[data-id="${d.id}"] .tcg-flavor`)));
     ov.onclick = (e) => { if (e.target === ov) close(); };
     if ((d.wiki || d.wd) && (!d.text || d.text.length < 350)) {
       longText(d).then((t) => {
         if (!t || t.length <= (d.text || '').length) return;
         d.text = t;
         const f = ov.querySelector(`.tcg[data-id="${d.id}"] .tcg-flavor`);
-        const [, T] = typeOf(d.kind);
-        if (f) f.textContent = descText(d);
+        if (f) { f.textContent = descText(d); autofit(f); }
         if (opts.onText) opts.onText(t);
       }).catch(() => {});
     }
@@ -396,6 +415,7 @@ PM.tcg = (function () {
   .tcg-photo { position: absolute; inset: 0; background: center / cover no-repeat; display: grid; place-items: center; background-color: #e9e2d4; }
   .tcg-photo span { font-size: 4.5em; filter: drop-shadow(0 .1em .2em rgba(0,0,0,.3)); }
   .tcg-own { position: absolute; right: .4em; bottom: .4em; background: #ff2e88; color: #fff; font-size: .62em; font-weight: 800; padding: .2em .6em; border-radius: 99px; transform: rotate(-4deg); z-index: 3; }
+  .tcg-why { margin: .15em auto 0; font-size: .55em; font-weight: 800; text-align: center; color: #7a4a00; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; padding: 0 1em; letter-spacing: .01em; }
   .tcg-band { margin: -.1em auto 0; font-size: .6em; font-style: italic; font-weight: 600; text-align: center; color: #3a2a00; background: linear-gradient(90deg, transparent, rgba(255,255,255,.75), transparent); padding: .2em 1.5em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
   .tcg-moves { display: flex; flex-direction: column; justify-content: center; gap: .05em; margin-top: .2em; }
   .tcg-move { display: flex; align-items: center; gap: .45em; } .tcg-move b { flex: 1; font-size: .95em; font-weight: 900; color: #1b1b1b; } .tcg-move span { font-size: 1.05em; font-weight: 900; color: #1b1b1b; }
@@ -404,8 +424,12 @@ PM.tcg = (function () {
   .tcg-en { display: inline-flex; gap: .15em; min-width: 2.6em; } .tcg-en i { width: .95em; height: .95em; border-radius: 50%; box-shadow: inset 0 -.1em .15em rgba(0,0,0,.35), 0 0 0 .08em rgba(255,255,255,.7); }
   .tcg-wrr { display: flex; justify-content: space-between; border-top: .1em solid rgba(0,0,0,.25); padding-top: .2em; font-size: .7em; font-weight: 700; color: #222; }
   .tcg-wrr small { display: block; font-size: .7em; font-weight: 600; color: rgba(0,0,0,.55); text-transform: lowercase; }
-  .tcg-flavor { flex: none; height: calc(4 * 1.32em + .9em); font-size: .74em; font-style: italic; line-height: 1.32; color: #2c2c2c; border: .12em solid rgba(160,120,20,.55); border-radius: .4em; padding: .4em .6em; background: rgba(255,255,255,.4);
-    overflow: hidden; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; text-align: left; hyphens: auto; font-weight: 500; color: #1d1d1d; }
+  /* cuadro de descripción: alto fijo (ocupa también el hueco de las antiguas filas de conquista/revisita) y la letra
+     se ajusta a lo largo del texto para que quepa ENTERO (f1 corto … f4 largo) */
+  .tcg-flavor { flex: none; height: 7.9em; box-sizing: border-box; font-size: 1em; font-style: italic; line-height: 1.3; border: .12em solid rgba(160,120,20,.55); border-radius: .4em; padding: .35em .55em; background: rgba(255,255,255,.4);
+    overflow: hidden; text-align: left; hyphens: auto; font-weight: 500; color: #1d1d1d; }
+  .tcg-flavor.f1 { font-size: .74em; height: calc(7.9em / .74); } .tcg-flavor.f2 { font-size: .66em; height: calc(7.9em / .66); }
+  .tcg-flavor.f3 { font-size: .59em; height: calc(7.9em / .59); } .tcg-flavor.f4 { font-size: .53em; height: calc(7.9em / .53); }
   .tcg-foot { display: flex; justify-content: space-between; align-items: center; font-size: .5em; color: rgba(0,0,0,.6); font-weight: 600; }
   .tcg-set b { color: #111; margin-left: .3em; }
   /* --- brillo holográfico --- */

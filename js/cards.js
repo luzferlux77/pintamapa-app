@@ -29,7 +29,8 @@ PM.cards = (function () {
     const sl = e.sitelinks || {};
     const site = ['eswiki', 'cawiki', 'enwiki', 'glwiki', 'euwiki', 'frwiki', 'itwiki'].find((s) => sl[s]);
     const p18 = e.claims && e.claims.P18 && e.claims.P18[0].mainsnak.datavalue && e.claims.P18[0].mainsnak.datavalue.value;
-    return { lang: site ? site.replace('wiki', '') : null, title: site ? sl[site].title : null, img: p18 ? commonsFile(p18) : null };
+    const ds = e.descriptions || {}, desc = (ds.es || ds.ca || ds.en || {}).value || null;   // «biblioteca pública de Barcelona»…
+    return { lang: site ? site.replace('wiki', '') : null, title: site ? sl[site].title : null, img: p18 ? commonsFile(p18) : null, desc };
   }
   const words = (t) => String(t).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').split(/[^a-z0-9]+/).filter((w) => w.length > 3);
   async function nearbyArticle(lm) {
@@ -46,6 +47,25 @@ PM.cards = (function () {
     const pages = Object.values((j.query && j.query.pages) || {}).filter((p) => p.imageinfo && /\.(jpe?g|png)$/i.test(p.title));
     return pages.length ? pages[0].imageinfo[0].thumburl : null;
   }
+  // dirección (OpenStreetMap) y primera frase del artículo de su barrio en Wikipedia
+  async function contexto(lm) {
+    const out = {};
+    try {
+      const j = await getJSON(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=18&accept-language=es&lat=${lm.pos[0]}&lon=${lm.pos[1]}`);
+      const a = (j && j.address) || {};
+      if (a.road) out.addr = a.road + (a.house_number ? ', ' + a.house_number : '');
+      const barrio = a.neighbourhood || a.quarter || a.suburb, city = a.city || a.town || a.village;
+      if (barrio) {
+        for (const t of [barrio + ' (' + city + ')', barrio]) {
+          try {
+            const s = await getJSON(`https://es.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(t.replace(/ /g, '_'))}`);
+            if (s && s.type === 'standard' && s.extract && (!city || s.extract.includes(city) || t !== barrio)) { out.ctx = (s.extract.match(/^[^.!?]+[.!?]/) || [s.extract])[0]; break; }
+          } catch (e) { /* sin artículo con ese título */ }
+        }
+      }
+    } catch (e) { /* sin conexión */ }
+    return out;
+  }
   async function fetchInfo(id, lm) {
     const cache = S().cardInfo[id];
     if (cache && (!cache.none || Date.now() - cache.t < 7 * 86400000)) return cache;
@@ -56,13 +76,16 @@ PM.cards = (function () {
         const wd = await fromWikidata(lm.wd);
         if (wd.title && (!info || (info.lang !== 'es' && wd.lang === 'es'))) info = Object.assign(await summary(wd.lang, wd.title), info && !info.text ? {} : {});
         if (info && !info.img && wd.img) info.img = wd.img;
-        if (!info && wd.img) info = { img: wd.img, text: '' };
+        if (!info && (wd.img || wd.desc)) info = { img: wd.img || null, text: '' };
+        if (info && wd.desc) info.desc = wd.desc;
       }
       if (!info || (!info.text && !info.img)) info = (await nearbyArticle(lm)) || info;
       if (!info || !info.img) { const ph = await nearbyPhoto(lm); if (ph) info = Object.assign(info || { text: '' }, { img: ph, credit: 'Foto: Wikimedia Commons' }); }
+      // sin artículo propio: datos reales de ESE sitio para la descripción (su dirección y una frase de su barrio)
+      if (!info || !info.text) Object.assign(info || (info = { text: '' }), await contexto(lm));
     } catch (e) { if (!info) return cache || null; }   // sin conexión: se reintentará
-    const rec = info && (info.img || info.text)
-      ? { img: info.img || null, text: info.text || '', url: info.url || null, credit: info.credit || (info.url ? 'Texto y foto: Wikipedia (CC BY-SA)' : 'Foto: Wikimedia Commons'), t: Date.now() }
+    const rec = info && (info.img || info.text || info.desc || info.addr || info.ctx)
+      ? { img: info.img || null, text: info.text || '', desc: info.desc || null, addr: info.addr || null, ctx: info.ctx || null, url: info.url || null, credit: info.credit || (info.url ? 'Texto y foto: Wikipedia (CC BY-SA)' : 'Foto: Wikimedia Commons'), t: Date.now() }
       : { none: true, t: Date.now() };
     S().cardInfo[id] = rec; PM.state.save();
     return rec;
@@ -174,7 +197,8 @@ PM.cards = (function () {
     const all = Object.keys(S().landmarks);
     const lm = PM.world.landmarks[id] || {};
     return { id, capR: lm.capR, shiny: !!rec.shiny, must: !!rec.must, name: rec.name, kind: rec.kind, emoji: rec.emoji, rarity: rec.rarity, city: rec.city, barrio: rec.barrio, t: rec.t, visits: rec.visits, pos: rec.pos || lm.pos, color: S().color,
-      wiki: rec.wiki || lm.wiki, wd: rec.wd || lm.wd,
+      wiki: rec.wiki || lm.wiki, wd: rec.wd || lm.wd, porque: rec.porque || (lm.id && PM.lugares ? PM.lugares.porQue(lm) : ''), desc: info.desc, addr: info.addr, ctx: info.ctx,
+      her: rec.her != null ? rec.her : lm.her, anio: rec.anio || lm.anio, vis: rec.vis || lm.vis, wp: rec.wp || lm.wp,
       img: img && img.src, own: !!(img && img.own), text: info.text, credit: img && img.own ? 'Foto: ' + (PM.player ? PM.player.name : 'tuya') : info.credit,
       points: 100 * ((PM.world.RARITY[rec.rarity] || {}).mult || 1) * (rec.must ? 2 : 1) * (rec.shiny ? 2 : 1), number: number(id), total: all.length, player: PM.player && PM.player.name };
   }

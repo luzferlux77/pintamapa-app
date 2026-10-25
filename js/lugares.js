@@ -26,6 +26,7 @@
     MIN_GAP: 60, TOWNHALL_GAP: 100, SHOP_GAP: 25, FAMOUS_GAP: 35,   // separaciones (m)
     ZONE_QUOTA: 12, KIND_QUOTA: 4, SERVICE_QUOTA: 1, SHOP_QUOTA: 2,  // cupo por zona de ~1 km², por tipo, por servicio y de comercios (sin icónicos)
     RELLENO: 60, RELLENO_HASTA: 6,                                   // lo flojo (< 60 puntos) solo si la zona tiene menos de 6 lugares
+    SIN_SEPARACION: 75, IMPORTANTE: 110,                             // lo que importa sale aunque tenga otro al lado; lo muy importante, sin cupos
     ICON_MAX: 18, ICON_KIND_MAX: 6, ZONE_MAX: 26,                    // topes en ciudades monumentales
     WORLD_FAMOUS: 20,                                                // idiomas: entra siempre
     GRID: 0.0015,                                                    // celda del índice de separación (~160 m)
@@ -213,6 +214,7 @@
     const tipo = TIPO_GUIA[c.kind] != null ? TIPO_GUIA[c.kind] : c.prio, trampa = TRAMPA.test(tags.name) ? -30 : 0;
     const prot = [0, 4, 12, 30][her], prio = tipo + fame + prot + ajuste + uso + edad + vis + atr + trampa;
     const lm = { id: el.type[0] + el.id, name: tags.name, kind: c.kind, emoji: c.emoji, rarity, pos, prio, fromWd: !!tags._wp, wp, her, wiki: tags.wikipedia, wd: tags.wikidata,
+      vis: +tags._vis || 0, anio: +tags.start_date || 0,
       desglose: { tipo, fama: fame, proteccion: prot, ajuste, uso, antiguedad: edad, visitantes: vis, atraccion: atr, trampa },
       townhall: c.kind === 'Ayuntamiento', church: /^(Iglesia|Basílica|Catedral)$/.test(c.kind), points: 100 * RARITY[rarity].mult,
       // icónicos: SIEMPRE visibles, sin separación mínima ni cupo de zona: ayuntamiento, catedral, basílica, castillo,
@@ -224,6 +226,22 @@
         || (/^(Palacio|Museo|Estadio|Zoo \/ Acuario|Parque temático|Ermita \/ Monasterio)$/.test(c.kind) && wp >= 5)),
       capR: capRadius(c.kind, wiki || wp >= 2) };
     return { lm };
+  }
+
+  // ---------------- Por qué merece la pena (línea corta de la carta, como en una guía) ----------------
+  // «🌍 UNESCO · 4,8 M visitas/año · s. XIV»: lo que lo hace especial, como mucho 3 cosas
+  const ROMANO = ['', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI', 'XII', 'XIII', 'XIV', 'XV', 'XVI', 'XVII', 'XVIII', 'XIX', 'XX', 'XXI'];
+  function porQue(x) {
+    if (!x) return '';
+    const out = [], her = +x.her || 0, vis = +x.vis || 0, y = +x.anio || 0, wp = +x.wp || 0;
+    if (her === 3) out.push('🌍 Patrimonio de la Humanidad'); else if (her === 2) out.push('🏛️ Patrimonio nacional');
+    if (vis >= 1e6) out.push((vis / 1e6).toFixed(1).replace('.', ',').replace(',0', '') + ' M visitas/año');
+    else if (vis >= 20000) out.push(Math.round(vis / 1000).toLocaleString('es-ES') + ' mil visitas/año');
+    if (y && y < 1800) { const s = Math.floor((y - 1) / 100) + 1; out.push(y < 0 ? 'antigüedad' : s >= 1 && s <= 21 ? 's. ' + ROMANO[s] : String(y)); }
+    else if (y && y <= 1950 && out.length < 2) out.push('de ' + y);
+    if (wp >= 10 && out.length < 3) out.push('famoso en ' + wp + ' idiomas');
+    if (her === 1 && out.length < 2) out.push('🏛️ patrimonio protegido');
+    return out.slice(0, 3).join(' · ');
   }
 
   // ---------------- Nombres parecidos («Palau Güell» / «Palacio Güell» no; «Catedral del Salvador» / «… de Albarracín» sí) ----------------
@@ -325,20 +343,22 @@
       // (pasado el tope, compite como los demás; lo famoso en todo el mundo, 20+ idiomas, entra siempre: el Arco de Tito)
       const icon = lm.principal && (((iconN[zk] || 0) < C.ICON_MAX && (iconKindN[kk] || 0) < C.ICON_KIND_MAX) || lm.wp >= C.WORLD_FAMOUS);
       const shop = lm.kind === 'Comercio emblemático';
+      // lo importante aparece siempre: desde 110 puntos, sin cupos ni separación (como los icónicos, pero contando cupo)
+      const imp = icon || lm.prio >= C.IMPORTANTE;
       if (!isC) {
-        if (!icon && ((zoneN[zk] || 0) >= C.ZONE_QUOTA || (allN[zk] || 0) >= C.ZONE_MAX) && !shop) { why.set(lm.id, 'zona completa (' + ((allN[zk] || 0) >= C.ZONE_MAX ? C.ZONE_MAX + ' en total' : C.ZONE_QUOTA + ' normales') + ')'); continue; }
+        if (!imp && ((zoneN[zk] || 0) >= C.ZONE_QUOTA || (allN[zk] || 0) >= C.ZONE_MAX) && !shop) { why.set(lm.id, 'zona completa (' + ((allN[zk] || 0) >= C.ZONE_MAX ? C.ZONE_MAX + ' en total' : C.ZONE_QUOTA + ' normales') + ')'); continue; }
         const kq = SERVICIO.test(lm.kind) ? C.SERVICE_QUOTA : shop ? C.SHOP_QUOTA : C.KIND_QUOTA;
-        if (!icon && (kindN[kk] || 0) >= kq) { why.set(lm.id, 'ya hay ' + kq + ' de su tipo en la zona'); continue; }
+        if (!imp && (kindN[kk] || 0) >= kq) { why.set(lm.id, 'ya hay ' + kq + ' de su tipo en la zona'); continue; }
         // lo flojo solo rellena zonas con poco (en el Gòtic no hace falta; en un barrio sin monumentos, sí)
-        if (!icon && !shop && lm.prio < C.RELLENO && (allN[zk] || 0) >= C.RELLENO_HASTA) { why.set(lm.id, 'poco interés para una zona que ya tiene ' + (allN[zk] || 0) + ' lugares'); continue; }
+        if (!imp && !shop && lm.prio < C.RELLENO && (allN[zk] || 0) >= C.RELLENO_HASTA) { why.set(lm.id, 'poco interés para una zona que ya tiene ' + (allN[zk] || 0) + ' lugares'); continue; }
         // varios edificios del mismo sitio (TV3…): uno
         if (near(kept, lm, 2, (o) => o.name === lm.name && d2(o, lm) < (o.kind === lm.kind ? 90000 : 6400))) { why.set(lm.id, 'mismo nombre que otro ya elegido'); continue; }
         if (lm.kind === 'Estación' && !lm.wiki && !lm.wd) {
           const parque = (o) => o.kind === 'Parque' && d2(o, lm) < 250000 && sameN(o, lm);
           if (near(osmGrid, lm, 3, parque) || near(kept, lm, 3, parque)) { why.set(lm.id, 'estación que se llama como el parque'); continue; }
         }
-        // separación: 60 m, pero lo muy conocido se conforma con menos (en el Foro o el Gòtic los monumentos se tocan)
-        if (!icon) {
+        // separación (60 m) solo para el relleno: lo que tiene interés de guía (75+) sale aunque tenga otro al lado
+        if (!imp && lm.prio < C.SIN_SEPARACION) {
           const gap2 = sq(lm.wp >= 8 ? C.FAMOUS_GAP : C.MIN_GAP);
           const vecino = near(kept, lm, 1, (o) => (d2(o, lm) < (o.townhall && lm.wp < 8 ? th2 : shop || o.kind === 'Comercio emblemático' ? sh2 : gap2)) && o);
           if (vecino) { why.set(lm.id, 'demasiado cerca de ' + vecino.name + ' (' + Math.round(Math.sqrt(d2(vecino, lm))) + ' m)'); continue; }
@@ -355,5 +375,5 @@
   }
 
   PM.capRadius = capRadius;
-  PM.lugares = { RARITY, RANK, CONF, MUST_NO, TIPO_GUIA, SERVICIO, clasificar, candidato, evangelica, seleccionar, interes, elegirImprescindibles, usoNoTuristico, sameName, norm, capRadius };
+  PM.lugares = { RARITY, RANK, CONF, MUST_NO, TIPO_GUIA, SERVICIO, porQue, clasificar, candidato, evangelica, seleccionar, interes, elegirImprescindibles, usoNoTuristico, sameName, norm, capRadius };
 })(typeof window !== 'undefined' ? window : globalThis);
