@@ -1,8 +1,8 @@
 {
-  "version": "0.6.77",
-  "notes": "Motor de lugares como una guía turística: más selectivo y mejor repartido por barrios. Arriba lo que recomiendan las guías (catedrales, palacios, museos, monumentos, miradores, mercados y plazas históricas, como La Boqueria o la Plaça de Sant Jaume); cuenta los visitantes al año de museos y monumentos; los servicios (hospitales, bibliotecas, campos de fútbol) solo rellenan zonas con poco; fuera trampas para turistas, juntas de distrito, columbarios y cienciología",
+  "version": "0.6.78",
+  "notes": "Motor de lugares revisado a fondo: ya no se penalizan por error lugares como el Liceu, el Pabellón Mies van der Rohe, los Pabellones Güell o el Hôtel de Ville de París; dos imprescindibles contiguos (Casa Batlló y Casa Amatller) ya pueden salir los dos; las estaciones solo son icónicas si son históricas de verdad",
   "native": 6,
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.77/pintamapa-web-0.6.77.zip",
-  "checksum": "5e9f18161a4ba79787b03d03dc25a06ca14f8b4a056cc4eb00494d55b2b825c4",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.77/PintaMapa-v0.6.77.apk"
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.78/pintamapa-web-0.6.78.zip",
+  "checksum": "1107467f957644a3ae4fba7c650d764c040f422f26a5f1ec9061c90076ae2315",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.78/PintaMapa-v0.6.78.apk"
 }
