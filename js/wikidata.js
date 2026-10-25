@@ -10,9 +10,11 @@
     Q22698: { leisure: 'park' }, Q1107656: { leisure: 'park' }, Q167346: { leisure: 'park' },
     Q23413: { historic: 'castle' }, Q751876: { historic: 'castle' }, Q57821: { historic: 'fort' }, Q1785071: { historic: 'fort' }, Q16748868: { historic: 'city_gate' },
     Q16560: { building: 'palace' }, Q1802963: { building: 'palace' }, Q879050: { building: 'palace' },
-    Q12518: { man_made: 'tower' }, Q1440300: { man_made: 'tower' }, Q200334: { man_made: 'tower' }, Q2551475: { man_made: 'tower' }, Q11303: { man_made: 'tower' }, Q170980: { man_made: 'tower' },
+    Q12518: { man_made: 'tower' }, Q1440300: { man_made: 'tower' }, Q200334: { man_made: 'tower' }, Q2551475: { man_made: 'tower' }, Q11303: { building: 'skyscraper' }, Q170980: { man_made: 'tower' },
     Q16970: { amenity: 'place_of_worship', religion: 'christian' }, Q108325: { amenity: 'place_of_worship', religion: 'christian' },
     Q44613: { amenity: 'place_of_worship', religion: 'christian' }, Q1128397: { amenity: 'place_of_worship', religion: 'christian' }, Q56750657: { amenity: 'place_of_worship', religion: 'christian' },
+    Q5393308: { amenity: 'place_of_worship', religion: 'buddhist' }, Q199451: { amenity: 'place_of_worship', religion: 'buddhist' },   // templo budista, pagoda
+    Q845945: { amenity: 'place_of_worship', religion: 'shinto' }, Q842402: { amenity: 'place_of_worship', religion: 'hindu' }, Q622425: { amenity: 'place_of_worship', religion: 'sikh' },
     Q32815: { amenity: 'place_of_worship', religion: 'muslim' }, Q34627: { amenity: 'place_of_worship', religion: 'jewish' }, Q44539: { amenity: 'place_of_worship', religion: 'other' },
     Q2977: { building: 'cathedral' }, Q163687: { building: 'basilica' },
     Q4989906: { historic: 'monument' }, Q5003624: { historic: 'monument' }, Q179700: { historic: 'monument' }, Q860861: { historic: 'monument' }, Q557141: { historic: 'monument' },
@@ -37,7 +39,8 @@
   };
   // descripciones de viviendas/conjuntos de catálogo: protegidos, pero no los conoce nadie
   // metro, tranvía y estaciones subterráneas: nunca (no son lugares que visitar)
-  const NO_CLS = new Set(['Q928830', 'Q2175765', 'Q22808403']);
+  // y barrios (Gion, el Born…) y obras de arte guardadas en un museo (cuadros, retratos, biombos): no son lugares que visitar
+  const NO_CLS = new Set(['Q928830', 'Q2175765', 'Q22808403', 'Q123705', 'Q1574228', 'Q10564515', 'Q2983893', 'Q188509', 'Q3305213', 'Q134307', 'Q1144689']);
   // nivel de protección (P1435): 3 Patrimonio de la Humanidad · 2 nacional (BIC, BCIN, monumento histórico clasificado,
   // Grado I, monumento nacional…) · 1 el resto · 0 catálogos que no protegen (arte público de Barcelona)
   const HER3 = new Set(['Q9259']);
@@ -47,26 +50,26 @@
   const DULL = /^(habitatges?|edificis?|edifici d'habitatges|casa al |cases al |casa a la |conjunt|carrer|farmàcia|porteria|masoveria|viviendas?|edificio de viviendas|bloque)/i;
 
   function query(s, w, n, e) {
-    return `SELECT ?item ?itemLabel ?coord (COUNT(DISTINCT ?art) AS ?wp) (GROUP_CONCAT(DISTINCT STRAFTER(STR(?h), "entity/"); separator=",") AS ?her) (MIN(YEAR(?inc)) AS ?y) (GROUP_CONCAT(DISTINCT STRAFTER(STR(?c), "entity/"); separator=",") AS ?cls) WHERE {
+    return `SELECT ?item ?itemLabel ?coord (COUNT(DISTINCT ?art) AS ?wp) (GROUP_CONCAT(DISTINCT STRAFTER(STR(?h), "entity/"); separator=",") AS ?her) (MIN(YEAR(?inc)) AS ?y) (SAMPLE(?col) AS ?coll) (GROUP_CONCAT(DISTINCT STRAFTER(STR(?c), "entity/"); separator=",") AS ?cls) WHERE {
  SERVICE wikibase:box { ?item wdt:P625 ?coord. bd:serviceParam wikibase:cornerSouthWest "Point(${w} ${s})"^^geo:wktLiteral. bd:serviceParam wikibase:cornerNorthEast "Point(${e} ${n})"^^geo:wktLiteral. }
  ?art schema:about ?item; schema:isPartOf/wikibase:wikiGroup "wikipedia".
  FILTER NOT EXISTS { ?item wdt:P1082 [] } FILTER (!EXISTS { ?item wdt:P81 [] } || EXISTS { ?item wdt:P1435 [] })
  FILTER NOT EXISTS { ?item wdt:P576 [] } FILTER NOT EXISTS { ?item wdt:P5817 wd:Q56556915 }
- OPTIONAL { ?item wdt:P1435 ?h } OPTIONAL { ?item wdt:P31 ?c } OPTIONAL { ?item wdt:P571 ?inc }
+ OPTIONAL { ?item wdt:P1435 ?h } OPTIONAL { ?item wdt:P31 ?c } OPTIONAL { ?item wdt:P571 ?inc } OPTIONAL { ?item wdt:P195 ?col }
  SERVICE wikibase:label { bd:serviceParam wikibase:language "es,ca,en,fr,de,it,pt,nl,mul". }
 } GROUP BY ?item ?itemLabel ?coord`;   // (P576 / derribado: lo que ya cerró o no existe no sale; P81 / con línea: estaciones, solo las protegidas)
   }
 
   // Los lugares más conocidos de una zona grande (una ciudad entera): por número de artículos en wikis (sitelinks), de más a menos
   function topQuery(s, w, n, e, minSl) {
-    return `SELECT ?item ?itemLabel ?coord (?sl AS ?wp) (GROUP_CONCAT(DISTINCT STRAFTER(STR(?h), "entity/"); separator=",") AS ?her) (MIN(YEAR(?inc)) AS ?y) (GROUP_CONCAT(DISTINCT STRAFTER(STR(?c), "entity/"); separator=",") AS ?cls) WHERE {
+    return `SELECT ?item ?itemLabel ?coord (?sl AS ?wp) (GROUP_CONCAT(DISTINCT STRAFTER(STR(?h), "entity/"); separator=",") AS ?her) (MIN(YEAR(?inc)) AS ?y) (SAMPLE(?col) AS ?coll) (GROUP_CONCAT(DISTINCT STRAFTER(STR(?c), "entity/"); separator=",") AS ?cls) WHERE {
  { SELECT ?item ?coord ?sl WHERE {
    SERVICE wikibase:box { ?item wdt:P625 ?coord. bd:serviceParam wikibase:cornerSouthWest "Point(${w} ${s})"^^geo:wktLiteral. bd:serviceParam wikibase:cornerNorthEast "Point(${e} ${n})"^^geo:wktLiteral. }
    ?item wikibase:sitelinks ?sl. FILTER(?sl >= ${minSl})
    FILTER NOT EXISTS { ?item wdt:P1082 [] } FILTER (!EXISTS { ?item wdt:P81 [] } || EXISTS { ?item wdt:P1435 [] })
    FILTER NOT EXISTS { ?item wdt:P576 [] } FILTER NOT EXISTS { ?item wdt:P5817 wd:Q56556915 }
  } ORDER BY DESC(?sl) LIMIT 400 }
- OPTIONAL { ?item wdt:P1435 ?h } OPTIONAL { ?item wdt:P31 ?c } OPTIONAL { ?item wdt:P571 ?inc }
+ OPTIONAL { ?item wdt:P1435 ?h } OPTIONAL { ?item wdt:P31 ?c } OPTIONAL { ?item wdt:P571 ?inc } OPTIONAL { ?item wdt:P195 ?col }
  SERVICE wikibase:label { bd:serviceParam wikibase:language "es,ca,en,fr,de,it,pt,nl,mul". }
 } GROUP BY ?item ?itemLabel ?coord ?sl`;
   }
@@ -86,6 +89,7 @@
       for (const c of cls) if (CLS[c] && (!tags || tags.building === 'yes')) tags = CLS[c];
       if (tags && tags._tren && !her) continue;       // estación de tren moderna: solo las históricas (protegidas)
       if (!tags && !her) continue;                    // ni lugar reconocible ni patrimonio: barrio, empresa, colegio, evento…
+      if (!tags && b.coll) continue;                  // pieza de la colección de un museo (cuadros, esculturas de sala…)
       if (tags && tags.building === 'yes' && !her) continue;
       if (!her && wp < 2) continue;                   // sin protección y casi sin artículos: poco conocido (cines cerrados, etc.)
       if (DULL.test(name) && wp < 2) continue;

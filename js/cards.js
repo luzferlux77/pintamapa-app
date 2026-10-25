@@ -245,7 +245,7 @@ PM.cards = (function () {
     { id: 'cultura', name: 'Cultura', icon: '🎭', kinds: ['Museo', 'Teatro', 'Biblioteca', 'Universidad'], goals: [3, 10, 25] },
     { id: 'deporte', name: 'Deporte', icon: '🏟️', kinds: ['Estadio', 'Campo de fútbol'], goals: [2, 5, 15] },
     { id: 'verde', name: 'Parques y miradores', icon: '🌳', kinds: ['Parque', 'Mirador', 'Zoo / Acuario'], goals: [3, 10, 30] },
-    { id: 'ciudad', name: 'Vida de ciudad', icon: '🏙️', kinds: ['Plaza', 'Fuente', 'Mercado', 'Estación', 'Arte urbano', 'Faro', 'Atracción', 'Parque temático'], goals: [5, 15, 40] },
+    { id: 'ciudad', name: 'Vida de ciudad', icon: '🏙️', kinds: ['Plaza', 'Fuente', 'Mercado', 'Estación', 'Arte urbano', 'Faro', 'Atracción', 'Parque temático', 'Rascacielos'], goals: [5, 15, 40] },
     { id: 'fotos', name: 'Fotógrafo', icon: '📸', photos: true, goals: [1, 10, 30] },
   ];
   const TIER = ['🥉 Bronce', '🥈 Plata', '🥇 Oro'];

@@ -12,7 +12,7 @@ PM.tcg = (function () {
     cultura:  { name: 'Cultura',   c1: '#e3f1ff', c2: '#9cc7f2', orb: '#2563eb', kinds: ['Museo', 'Teatro', 'Biblioteca', 'Universidad', 'Estudio de televisión'] },
     deporte:  { name: 'Deporte',   c1: '#ffe6e1', c2: '#f5a08f', orb: '#e53e1f', kinds: ['Estadio', 'Campo de fútbol'] },
     verde:    { name: 'Naturaleza', c1: '#e3f7e3', c2: '#9fd89f', orb: '#16a34a', kinds: ['Parque', 'Mirador', 'Zoo / Acuario'] },
-    ciudad:   { name: 'Ciudad',    c1: '#eef0f4', c2: '#c3c9d4', orb: '#64748b', kinds: ['Parque temático'] },
+    ciudad:   { name: 'Ciudad',    c1: '#eef0f4', c2: '#c3c9d4', orb: '#64748b', kinds: ['Parque temático', 'Rascacielos'] },
   };
   const typeOf = (kind) => Object.entries(TYPES).find(([, t]) => t.kinds.includes(kind)) || ['ciudad', TYPES.ciudad];
   const RAR = { comun: { sym: '●', name: 'Común', holo: 0.15 }, raro: { sym: '◆', name: 'Rara', holo: 0.45 }, epico: { sym: '★', name: 'Épica', holo: 0.8 }, legendario: { sym: '★★', name: 'Legendaria', holo: 1 } };

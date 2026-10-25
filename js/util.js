@@ -109,6 +109,12 @@ PM.sound = {
     [392, 523, 659, 784, 659, 784, 1046].forEach((f, i) => this.tone(f, 0.25, 'sawtooth', 0.04, i * 0.13));
   },
   levelUp() { [440, 554, 659, 880].forEach((f, i) => this.tone(f, 0.18, 'square', 0.05, i * 0.08)); },
+  // combo: arpegio que sube; cuanto más combo, más notas y más agudo (10 → 4 notas … 80+ → 8 notas)
+  combo(n) {
+    const steps = Math.min(8, 3 + Math.floor(n / 10)), base = 392 * Math.pow(2, Math.min(n, 80) / 120);
+    for (let i = 0; i < steps; i++) this.tone(base * Math.pow(2, [0, 4, 7, 12, 16, 19, 24, 28][i] / 12), 0.16, 'triangle', 0.06, i * 0.07);
+    this.tone(base * 4, 0.35, 'sine', 0.035, steps * 0.07);   // brillo final
+  },
   warn() { this.tone(180, 0.3, 'sawtooth', 0.05); },
 };
 

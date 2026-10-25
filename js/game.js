@@ -487,7 +487,7 @@ PM.game = (function () {
   const KINDS = [['Ayuntamiento', '🏛️'], ['Catedral', '⛪'], ['Basílica', '⛪'], ['Castillo', '🏰'], ['Palacio', '🏰'], ['Estadio', '🏟️'], ['Iglesia', '⛪'],
     ['Templo', '🛕'], ['Museo', '🖼️'], ['Monumento', '🗽'], ['Torre / Puerta', '🗼'], ['Teatro', '🎭'], ['Estudio de televisión', '📺'], ['Universidad', '🎓'], ['Plaza', '🏙️'], ['Faro', '🗼'],
     ['Estación', '🚉'], ['Parada de tranvía', '🚋'], ['Ermita / Monasterio', '⛪'], ['Comercio emblemático', '☕'], ['Parque', '🌳'], ['Ruinas', '🏺'], ['Mirador', '🔭'], ['Campo de fútbol', '⚽'], ['Mercado', '🛒'], ['Biblioteca', '📚'],
-    ['Atracción', '⭐'], ['Memorial', '🗿'], ['Fuente', '⛲'], ['Arte urbano', '🎨'], ['Hospital', '🏥'], ['Bomberos', '🚒'], ['Patrimonio', '🏛️'], ['Molino', '🌬️'], ['Lugar histórico', '📜'], ['Zoo / Acuario', '🦁'], ['Parque temático', '🎢']];
+    ['Atracción', '⭐'], ['Memorial', '🗿'], ['Fuente', '⛲'], ['Arte urbano', '🎨'], ['Hospital', '🏥'], ['Bomberos', '🚒'], ['Patrimonio', '🏛️'], ['Molino', '🌬️'], ['Lugar histórico', '📜'], ['Zoo / Acuario', '🦁'], ['Parque temático', '🎢'], ['Rascacielos', '🏙️']];
   for (const [k, ic] of KINDS) {
     const slug = k.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z]+/g, '');
     serie('k' + slug, ic, [1, 5, 15], (t, i) => `${k}: ${['primera', 'coleccionista', 'experto'][i]}`, (t) => `Captura ${t} ${t > 1 ? 'lugares' : 'lugar'} de tipo «${k}»`, (s) => byKind(s, k));

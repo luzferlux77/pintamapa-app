@@ -1770,23 +1770,30 @@
   }
   $('#celebrate').addEventListener('click', () => $('#celebrate').classList.remove('show'));
 
-  function confetti() {
-    const cv = $('#confetti'), ctx = cv.getContext('2d');
+  // confeti: estallido desde el centro (logros) o lluvia por toda la pantalla desde arriba (combos)
+  let confettiRun = 0;
+  function confetti(o = {}) {
+    const cv = $('#confetti'), ctx = cv.getContext('2d'), run = ++confettiRun;
     cv.width = innerWidth; cv.height = innerHeight;
     const cols = [paintColor(), '#22d3ee', '#facc15', '#a3e635', '#ffffff', '#a855f7'];
-    const parts = Array.from({ length: 160 }, () => ({
-      x: innerWidth / 2, y: innerHeight / 2, vx: (Math.random() - 0.5) * 14, vy: -Math.random() * 14 - 4,
-      s: 4 + Math.random() * 6, c: cols[Math.floor(Math.random() * cols.length)], r: Math.random() * 6,
-    }));
-    let f = 0;
-    (function frame() {
+    const parts = Array.from({ length: o.n || 160 }, () => (o.lluvia
+      ? { x: Math.random() * innerWidth, y: -20 - Math.random() * innerHeight * 0.5, vx: (Math.random() - 0.5) * 3, vy: 2 + Math.random() * 4,
+        s: 5 + Math.random() * 6, c: cols[Math.floor(Math.random() * cols.length)], r: Math.random() * 6, g: 0.12 }
+      : { x: innerWidth / 2, y: innerHeight / 2, vx: (Math.random() - 0.5) * 14, vy: -Math.random() * 14 - 4,
+        s: 4 + Math.random() * 6, c: cols[Math.floor(Math.random() * cols.length)], r: Math.random() * 6, g: 0.35 }));
+    // (en tiempo real: igual de rápido en una pantalla de 60 Hz que en una de 120 Hz)
+    const t0 = performance.now(), dur = o.lluvia ? 2600 : 2200;
+    let last = t0, f = 0;
+    (function frame(now = performance.now()) {
+      if (run !== confettiRun) return;   // (otro confeti más nuevo toma el relevo)
+      const k = Math.min(3, (now - last) / 16.7); last = now; f += k;
       ctx.clearRect(0, 0, cv.width, cv.height);
       parts.forEach((p) => {
-        p.vy += 0.35; p.x += p.vx; p.y += p.vy; p.r += 0.1;
+        p.vy += p.g * k; p.x += (p.vx + (o.lluvia ? Math.sin((f + p.r * 10) / 12) * 0.8 : 0)) * k; p.y += p.vy * k; p.r += 0.1 * k;
         ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.r); ctx.fillStyle = p.c;
         ctx.fillRect(-p.s / 2, -p.s / 2, p.s, p.s * 0.6); ctx.restore();
       });
-      if (f++ < 150) requestAnimationFrame(frame); else ctx.clearRect(0, 0, cv.width, cv.height);
+      if (now - t0 < dur) requestAnimationFrame(frame); else ctx.clearRect(0, 0, cv.width, cv.height);
     })();
   }
 
@@ -1821,9 +1828,12 @@
           splat();
           PM.sound.splat(d.combo);
         }
-        if (d.combo === 10 || d.combo === 25 || d.combo === 50 || d.combo === 100) {
-          toast(`🔥 ¡Combo x${d.combo}! Sigue pintando calles nuevas`, 'combo');
-          PM.vibrate(40);
+        // combo: cada vez que sube el multiplicador (cada 10 calles nuevas seguidas, hasta ×3) y luego cada 50,
+        // lluvia de confeti, sonido y vibración (solo con la pantalla encendida: en el bolsillo, nada que gastar)
+        if (d.combo % 10 === 0 && (d.combo <= 80 || d.combo % 50 === 0)) {
+          toast(`🔥 ¡Combo ${d.combo}! Pintura ×${d.mult.toFixed(2).replace(/\.?0+$/, '')} · sigue pintando calles nuevas`, 'combo');
+          PM.vibrate([30, 40, 60]);
+          if (!document.hidden) { confetti({ lluvia: true, n: Math.min(220, 70 + d.combo * 2) }); PM.sound.combo(d.combo); }
         }
         break;
       }
