@@ -683,7 +683,7 @@
     if (painting && !isTeleport) session.lastSeen = Date.now();   // si Android cierra la app, se sabe desde cuándo falta el recorrido
     PM.state.save();
 
-    if (painting) checkLandmarksAndCans(p, visible, now);
+    if (painting) { checkLandmarksAndCans(p, visible, now); if (!visible) checkNearCard(p); }
     const tk = W.tileKeyOf(p[0], p[1]);
     if (tk !== curTile) { curTile = tk; W.ensureAround(p[0], p[1]); }
     if (visible) updateSpeedBadge();
@@ -2001,6 +2001,31 @@
     const at = new Date(); at.setHours(20, 30, 0, 0);
     if (at <= new Date()) return;
     try { await L.schedule({ notifications: [{ id: 7001, title: `🔥 Tu racha de ${streak} día${streak > 1 ? 's' : ''} termina hoy`, body: 'Sal a pintar un ratito para no perderla.', schedule: { at } }] }); } catch (e) {}
+  }
+  // Carta por conquistar a menos de 100 m con el móvil en el bolsillo (pantalla apagada): vibra y avisa.
+  // (navigator.vibrate no funciona con la pantalla apagada: se usa una notificación del sistema con vibración, en su
+  // propio canal «Cartas cerca»). Una vez al día por carta, la más cercana y como mucho un aviso cada 45 s.
+  const NEAR_CARD_M = 100;
+  let nearCardT = 0, nearChannel = false;
+  function checkNearCard(p) {
+    if (!session || session.paused || Date.now() - nearCardT < 45000) return;
+    let best = null, bd = NEAR_CARD_M + 0.01;
+    for (const id in W.landmarks) {
+      if (S().landmarks[id]) continue;   // ya la tienes
+      const d = PM.geo.dist(p, W.landmarks[id].pos);
+      if (d < bd && !(S().notified && S().notified['cerca:' + id] === PM.today())) { bd = d; best = W.landmarks[id]; }
+    }
+    if (!best || !once('cerca:' + best.id)) return;
+    nearCardT = Date.now();
+    const L = LN(), title = `${best.emoji} ${best.name}`, body = `Carta por conquistar a ${Math.max(10, Math.round(bd / 10) * 10)} m. ¡Saca el móvil y quédate 10 s a su lado!`;
+    if (!L) { PM.vibrate([200, 100, 200]); return; }
+    (async () => {
+      if (!nearChannel) {
+        nearChannel = true;
+        try { await L.createChannel({ id: 'cerca', name: 'Cartas cerca', description: 'Vibra cuando pasas a menos de 100 m de una carta que aún no tienes', importance: 4, vibration: true, visibility: 1 }); } catch (e) {}
+      }
+      try { await L.schedule({ notifications: [{ id: 7100, channelId: 'cerca', title, body, schedule: { at: new Date(Date.now() + 300) } }] }); } catch (e) {}
+    })();
   }
   // imprescindible cerca (≤ 200 m, una vez al día cada uno)
   function checkNearMust(p) {
