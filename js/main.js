@@ -1944,6 +1944,7 @@
       if (PM.fillLandmarkCities(S()) + W.fixRecords(S())) PM.state.save();
       return;
     }
+    if (ev === 'lmMigrated') { lmDirty = true; flushLandmarks(true); return; }   // (cartas pasadas al lugar vigente: se redibujan)
     if (ev === 'lmRemoved') { if (lmIndex[d.id]) { delete lmIndex[d.id]; flushLandmarks(true); } return; }
     if (ev === 'loaded' || ev === 'partial') {
       if (ev === 'loaded') { retryGaps(); geoHarvest(d.tiles); }
@@ -2051,7 +2052,8 @@
     let best = null, bd = NEAR_CARD_M + 0.01;
     for (const id in W.landmarks) {
       if (S().landmarks[id]) continue;   // ya la tienes
-      const d = PM.geo.dist(p, W.landmarks[id].pos);
+      // (distancia hasta donde ya se captura: un aeropuerto se captura a 1,5-2,5 km de su punto)
+      const lmc = W.landmarks[id], d = Math.max(0, PM.geo.dist(p, lmc.pos) - Math.max(0, (lmc.capR || CAPTURE_RADIUS) - CAPTURE_RADIUS));
       if (d < bd && !(S().notified && S().notified['cerca:' + id] === PM.today())) { bd = d; best = W.landmarks[id]; }
     }
     if (!best || !once('cerca:' + best.id)) return;

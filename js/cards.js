@@ -153,6 +153,15 @@ PM.cards = (function () {
       return (await get(fotoKey(id))) || (await get(id));
     } catch (e) { return null; }
   }
+  // la foto de una carta que pasa a otro identificador (mismo sitio, identificador nuevo)
+  async function moverFoto(oldId, newId) {
+    try {
+      const d = await db();
+      const get = (k) => new Promise((res) => { const q = d.transaction('fotos').objectStore('fotos').get(k); q.onsuccess = () => res(q.result || null); q.onerror = () => res(null); });
+      const img = (await get(fotoKey(oldId))) || (await get(oldId));
+      if (img && !(await get(fotoKey(newId)))) await putPhoto(newId, img);
+    } catch (e) { /* sin fotos */ }
+  }
   // (se espera a que la escritura quede confirmada: si falla, el que llama se entera)
   async function putPhoto(id, dataUrl) {
     const d = await db();
@@ -436,5 +445,5 @@ PM.cards = (function () {
       <div class="pie"><b>${esc(b.name)}</b><small>${b.city ? esc(b.city) + ' · ' : ''}${new Date(b.t).toLocaleDateString(PM.LOCALE)}</small></div></div></div></div>`;
   }
 
-  return { open, close, album, fetchInfo, dataFor, SETS, setCount, getPhoto, putPhoto, takePhoto, FILTERS, _img: { loadImg, cropCard, applyFilter } };
+  return { open, close, album, fetchInfo, dataFor, SETS, setCount, getPhoto, putPhoto, moverFoto, takePhoto, FILTERS, _img: { loadImg, cropCard, applyFilter } };
 })();

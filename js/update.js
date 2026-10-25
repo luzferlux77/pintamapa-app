@@ -14,6 +14,9 @@ PM.update = (function () {
   // fallara al arrancar, a los 15 s se vuelve sola a la anterior.
   let listoHecho = false;
   function listo() { if (listoHecho || !U()) return; listoHecho = true; U().notifyAppReady().catch(() => {}); }
+  // (red de seguridad: si el juego está en marcha —partida, mapa, cartas y paseos cargados— aunque algo del final de
+  // main.js fallara, la versión vale; solo vuelve atrás una versión que de verdad no arranca)
+  setTimeout(() => { if (PM.state && PM.world && PM.game && PM.cards && PM.walking) listo(); }, 6000);
 
   function newer(a, b) {
     const pa = String(a).split('.').map(Number), pb = String(b).split('.').map(Number);

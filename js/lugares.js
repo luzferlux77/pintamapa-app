@@ -18,7 +18,10 @@
   const RANK = { comun: 0, raro: 1, epico: 2, legendario: 3 };
 
   // Radio de captura: estadios y estudios de TV, desde fuera (no se suele poder entrar)
-  const capRadius = (kind, big) => (kind === 'Estadio' && big ? 240 : ({ Estadio: 200, 'Estudio de televisión': 200, 'Campo de fútbol': 70, Parque: 45, 'Zoo / Acuario': 80, 'Parque temático': 120 })[kind]) || 30;
+  // (aeropuertos: se capturan desde fuera de sus instalaciones —la terminal, el parking, la carretera de acceso—: 1,5 km
+  // desde su punto, 2,5 km en los grandes)
+  const capRadius = (kind, big) => (kind === 'Estadio' && big ? 240 : kind === 'Aeropuerto' ? (big === 'grande' ? 2500 : 1500)
+    : ({ Estadio: 200, 'Estudio de televisión': 200, 'Campo de fútbol': 70, Parque: 45, 'Zoo / Acuario': 80, 'Parque temático': 120 })[kind]) || 30;
 
   // Reglas de la selección (ver LUGARES.md)
   // Como una buena guía: lo que de verdad merece la visita, bien repartido por cada barrio, sin saturar.
@@ -36,9 +39,23 @@
   // ---------------- Qué es cada sitio ----------------
   // nombres de otra cosa: aunque lleven «catedral», «basílica», «palau» o «castell», no son eso
   const NO_POR_NOMBRE = /^(hotel|h[oô]tel |hostal|hostel|apartament|apartamento|apartments|parking|aparcamiento|aparcament|restaurante?|bar |cafeter[ií]a|caf[eé] |cervecer[ií]a|tienda|botiga|shop |farmacia|farm[aà]cia|mercado|mercat|museo|museu|museum|mus[eé]e|plaza|pla[çc]a|piazza|place |carrer|calle|avinguda|avenida|via |rua |paseo|passeig|escuela|escola|colegio|instituto|parada|estaci[oó]n|metro )/i;
+  // Universidades y facultades: NO van (el usuario, 25-oct-2026). Solo si es patrimonio protegido o histórica
+  // (Salamanca, Alcalá…) sale, como el monumento que es (Patrimonio). Por el nombre también, porque Wikidata a veces las
+  // trae con otra clase (la Universidad Católica Andrés Bello de Caracas salía como «Patrimonio»).
+  const UNI_NAME = /(^|[^a-zà-ÿ])(universidad|universitat|university|universit[eé]|universit[äà]t?|universiteit|universidade|uniwersytet|universitet[a-z]*|[üu]niversitesi|universitas|polit[eé]cnic[ao]|politecnico|polytechnic|facultad de|faculty of|facult[eé] de|institute of (technology|science|sciences|health)|instituto (tecnol[oó]gico|polit[eé]cnico))([^a-zà-ÿ]|$)/i;
+  // (lo que pertenece a una universidad pero se visita por sí mismo —su museo, su jardín botánico, su capilla, su
+  // biblioteca histórica, su teatro— sigue siendo eso)
+  const UNI_OTRO = /(^|[^a-zà-ÿ])(museo|museu|museum|mus[eé]e|jard[ií]n|jardí|garden|bot[aá]ni|capilla|capella|chapel|iglesia|church|templo|temple|observatori|biblioteca|library|teatro|theatre|theater|estadio|stadium|hospital|palacio|palau|palace|torre|tower|monumento|monument|plaza|pla[çc]a|place|square|piazza|pra[çc]a|platz|calle|carrer|street|avenida|avinguda|parque|parc|park|puerta|porta|gate|fuente|font|fountain|estatua|statue)([^a-zà-ÿ]|$)/i;
+  // ¿es patrimonio protegido? (de Wikidata: cualquier nivel de protección real; del mapa: la etiqueta heritage)
+  const esPatrimonio = (tags) => (tags._her != null ? +tags._her >= 1 : !!tags.heritage);
+  // una universidad histórica también entra (Oxford, Bolonia, Salamanca, Coimbra, la Carolina de Praga, Harvard…):
+  // fundada antes de 1800 y conocida
+  const universidadHistorica = (tags) => esPatrimonio(tags) || ((+tags.start_date || 9999) < 1800 && (+tags._wp || 0) >= 15);
+  const esUniversidad = (tags) => tags.amenity === 'university' || (UNI_NAME.test(tags.name || '') && !UNI_OTRO.test(tags.name || ''));
   function clasificar(tags) {
     // prio: importancia para la conquista (decide qué se queda cuando dos están muy cerca). El ayuntamiento, siempre el primero.
     const a = tags.amenity, h = tags.historic, t = tags.tourism, b = tags.building, l = tags.leisure, n = tags.name || '';
+    if (esUniversidad(tags)) return universidadHistorica(tags) ? { kind: 'Patrimonio', emoji: '🏛️', rarity: 'raro', prio: 62 } : null;
     if (a === 'townhall' && /区役所|区民|ward office|junta (municipal )?de distrito|junta municipal|seu del districte|districte|distrito|arrondissement|mairie (du|annexe)|bezirksamt|borough hall|municipio [ivx\d]+\b/i.test(n))
       return tags.heritage ? { kind: 'Patrimonio', emoji: '🏛️', rarity: 'raro', prio: 62 } : null;   // juntas de distrito: no son el ayuntamiento
     if (a === 'townhall' && !/税務|警察|裁判|tax office|police|polic[ií]a|comisar|juzgado|court|tribunal|hacienda|agencia tributaria/i.test(n)) return { kind: 'Ayuntamiento', emoji: '🏛️', rarity: 'legendario', prio: 100 };
@@ -63,6 +80,8 @@
     const castleName = /castell|castillo|castle|ch[aâ]teau|castello|burg|fortale|fortress|fort\b|alc[aá]zar|alcazaba|kasteel|zamek|hrad|citadel|ciutadella|ciudadela|torre/i.test(n);
     if (h === 'castle' && !palaceName && (/^(casa|cal|can|ca l'|cases|sal[oó]|edifici|mansi[oó]n?|villa)\b/i.test(n) || (!tags._wp && !castleName))) return { kind: 'Patrimonio', emoji: '🏛️', rarity: 'raro', prio: 62 };
     if ((h === 'castle' && !palaceName) || h === 'fort') return { kind: 'Castillo', emoji: '🏰', rarity: 'legendario', prio: 90 };
+    // (un rascacielos que se llama «Palais Royale» es un rascacielos)
+    if (b === 'skyscraper') return { kind: 'Rascacielos', emoji: '🏙️', rarity: 'raro', prio: 60 };
     if (b === 'palace' || palaceName) return { kind: 'Palacio', emoji: '🏰', rarity: 'epico', prio: 84 };
     if (l === 'stadium' || b === 'stadium') return { kind: 'Estadio', emoji: '🏟️', rarity: 'epico', prio: 85 };
     if (b === 'basilica' || (!otroUso && (temple || h === 'building') && /bas[ií]lica|co-?catedral|concatedral/i.test(n))) return { kind: 'Basílica', emoji: '⛪', rarity: 'epico', prio: 80 };
@@ -74,20 +93,34 @@
     if (t === 'zoo' || t === 'aquarium') return { kind: 'Zoo / Acuario', emoji: t === 'aquarium' ? '🐠' : '🦁', rarity: 'epico', prio: 68 };
     if (t === 'theme_park') return { kind: 'Parque temático', emoji: '🎢', rarity: 'epico', prio: 64 };
     if (h === 'monument') return { kind: 'Monumento', emoji: '🗽', rarity: 'epico', prio: 70 };
-    if (b === 'skyscraper') return { kind: 'Rascacielos', emoji: '🏙️', rarity: 'raro', prio: 60 };   // (no se mezclan con torres y puertas históricas)
     if (h === 'city_gate' || h === 'tower' || tags.man_made === 'tower' || tags.man_made === 'obelisk' || b === 'tower') return { kind: 'Torre / Puerta', emoji: '🗼', rarity: 'epico', prio: 65 };
-    if (a === 'hospital') return { kind: 'Hospital', emoji: '🏥', rarity: 'raro', prio: 57 };
-    if (a === 'fire_station') return { kind: 'Bomberos', emoji: '🚒', rarity: 'raro', prio: 56 };
+    if (tags.man_made === 'bridge') return { kind: 'Puente', emoji: '🌉', rarity: 'epico', prio: 64 };
+    // aeropuertos (los comerciales e internacionales conocidos; no aeródromos de avionetas ni helipuertos)
+    if (tags.aeroway === 'aerodrome') return (+tags._wp || 0) >= 10 ? { kind: 'Aeropuerto', emoji: '✈️', rarity: 'epico', prio: 60 } : null;
+    // mercados: un mercado histórico es un mercado (antes, si era patrimonio, salía como «Patrimonio» genérico)
+    if (a === 'marketplace') return { kind: 'Mercado', emoji: '🛒', rarity: tags.heritage || (+tags._wp || 0) >= 10 ? 'raro' : 'comun', prio: 52 };
+    // hospitales: NO van (el usuario, 25-oct-2026); solo uno histórico y protegido que se visita como monumento
+    // (el Hospital de Sant Pau de Barcelona, Patrimonio de la Humanidad), y como eso: Patrimonio
+    if (a === 'hospital') return esPatrimonio(tags) ? { kind: 'Patrimonio', emoji: '🏛️', rarity: 'raro', prio: 62 } : null;
+    // parques de bomberos: NO van (el usuario, 25-oct-2026); solo uno histórico y protegido, como Patrimonio
+    if (a === 'fire_station') return esPatrimonio(tags) ? { kind: 'Patrimonio', emoji: '🏛️', rarity: 'raro', prio: 62 } : null;
     // estudios de televisión (no los de vídeo, radio o audio); las grandes cadenas, épicas
     if (a === 'studio' && /(^|;)\s*(television|tv)\s*(;|$)/.test(tags.studio || ''))
       return { kind: 'Estudio de televisión', emoji: '📺', prio: 62,
         rarity: /(^|[^a-zà-ÿ])(tv3|televisi[oó] de catalunya|rtve|tve|antena ?3|telecinco|mediaset|atresmedia|la ?sexta|cuatro|telemadrid|canal sur|[àa] punt|etb|tvg|crtvg|ib3|aragón tv|bbc|rai|tf1|france t[eé]l[eé]visions|zdf|ard)([^a-zà-ÿ]|$)/i.test(n) ? 'epico' : 'raro' };
     if (a === 'theatre') return { kind: 'Teatro', emoji: '🎭', rarity: 'raro', prio: 60 };
-    if (a === 'university') return { kind: 'Universidad', emoji: '🎓', rarity: 'raro', prio: 58 };
     if (tags.place === 'square') return { kind: 'Plaza', emoji: '🏙️', rarity: 'raro', prio: 55 };
     if (tags.man_made === 'lighthouse') return { kind: 'Faro', emoji: '🗼', rarity: 'raro', prio: 55 };
     // estaciones: solo las de tren históricas (protegidas como patrimonio); nunca metro, tranvía ni apeaderos
-    if (tags.railway === 'station' && tags.heritage && tags.station !== 'subway' && !/\bmetro\b/i.test(n)) return { kind: 'Estación', emoji: '🚉', rarity: 'epico', prio: 66 };
+    // (histórica DE VERDAD: protegida a nivel nacional o mundial, anterior a 1930 o muy conocida; un catálogo local no
+    // basta —la estación de Cornellà, un intercambiador de metro, tranvía y Cercanías, salía como carta—)
+    const swp = +tags._wp || 0, sy = +tags.start_date || 9999;
+    const estHistorica = (+tags._her || 0) >= 2 || sy < 1930 || swp >= 15 || (tags._her == null && tags.heritage && !tags.wikidata);
+    // estación monumental: protegida y antigua o conocida; o antigua y conocida aunque no esté protegida (Atocha, 1851);
+    // o de un arquitecto conocido (Liège-Guillemins). Nunca metro ni apeaderos.
+    // y las PRINCIPALES de las grandes ciudades (muy conocidas: Sants, Chamartín, Shinjuku, Berlín Central…)
+    const estMonumental = (tags.heritage && estHistorica) || (sy < 1930 && swp >= 10) || (tags._arq && swp >= 10) || swp >= 15;
+    if (tags.railway === 'station' && estMonumental && tags.station !== 'subway' && !/\bmetro\b|intercambiador|interchange/i.test(n)) return { kind: 'Estación', emoji: '🚉', rarity: 'epico', prio: 66 };
     if (/^(station|halt|tram_stop|subway_entrance)$/.test(tags.railway || '') || tags.station === 'subway') return null;
     // comercios históricos o de gran interés que siguen abiertos: protegidos, famosos en el mundo (8+ idiomas) o conocidos
     // y fundados antes de 1950 (no los restaurantes de moda); los cerrados ya no llegan de Wikidata
@@ -101,7 +134,6 @@
     if (t === 'viewpoint') return { kind: 'Mirador', emoji: '🔭', rarity: 'raro', prio: 45 };
     if (tags.heritage) return { kind: 'Patrimonio', emoji: /f[aàá]bri|factory|usine|fabbrica/i.test(n) ? '🏭' : '🏛️', rarity: 'raro', prio: 62 };
     if (l === 'pitch' && tags.sport === 'soccer') return { kind: 'Campo de fútbol', emoji: '⚽', rarity: 'raro', prio: 44 };
-    if (a === 'marketplace') return { kind: 'Mercado', emoji: '🛒', rarity: 'comun', prio: 40 };
     if (a === 'library') return { kind: 'Biblioteca', emoji: '📚', rarity: 'comun', prio: 38 };
     if (t === 'attraction') return { kind: 'Atracción', emoji: '⭐', rarity: 'raro', prio: 35 };
     if (h === 'memorial') return { kind: 'Memorial', emoji: '🗿', rarity: 'comun', prio: 30 };
@@ -116,10 +148,10 @@
   // zonas que no tienen nada mejor.
   const TIPO_GUIA = { Ayuntamiento: 100, Catedral: 95, Castillo: 90, Basílica: 85, Palacio: 84, Museo: 78, Monumento: 75, 'Ermita / Monasterio': 74,
     Ruinas: 72, 'Torre / Puerta': 70, Estadio: 70, Iglesia: 66, Templo: 66, Estación: 66, 'Zoo / Acuario': 64, Mirador: 62, 'Iglesia principal': 75,
-    Faro: 60, Rascacielos: 60, Plaza: 60, Patrimonio: 58, Teatro: 58, 'Parque temático': 58, Parque: 55, Mercado: 55, Molino: 55,
-    'Comercio emblemático': 52, Atracción: 45, 'Estudio de televisión': 45, Fuente: 40, Universidad: 45, Hospital: 35, Memorial: 35,
+    Faro: 60, Rascacielos: 60, Plaza: 60, Puente: 64, Aeropuerto: 60, Patrimonio: 58, Teatro: 58, 'Parque temático': 58, Parque: 55, Mercado: 55, Molino: 55,
+    'Comercio emblemático': 52, Atracción: 45, 'Estudio de televisión': 45, Fuente: 40, Hospital: 35, Memorial: 35,
     Biblioteca: 32, Bomberos: 30, 'Campo de fútbol': 30, 'Arte urbano': 50, 'Lugar histórico': 30 };
-  const SERVICIO = /^(Hospital|Bomberos|Biblioteca|Campo de fútbol|Universidad|Estudio de televisión)$/;
+  const SERVICIO = /^(Hospital|Bomberos|Biblioteca|Campo de fútbol|Estudio de televisión)$/;
   // trampas para turistas (museos del cannabis, eróticos, de ilusiones, de selfies…): puntúan menos y nunca son icónicas
   const TRAMPA = /(^|[^a-z])hash([^a-z]|$)|marihuana|marijuana|cannabis|er[oó]ti[ck]|sex museum|museo del sexo|selfie|museo de (la )?ilusi[oó]n|museum of illusions|upside ?down|museo de cera|wax museum|instagram/i;
 
@@ -136,22 +168,42 @@
   const antiguedad = (tags) => { const y = +tags.start_date; return !y ? 0 : y < 1500 ? 10 : y < 1800 ? 6 : 0; };
   // Interés turístico de un tipo de lugar (para los imprescindibles): lo que de verdad se visita, arriba
   const INTERES_TIPO = { Catedral: 25, Basílica: 20, Castillo: 20, Ruinas: 15, 'Ermita / Monasterio': 12, Palacio: 12, Museo: 10, Monumento: 10,
-    'Torre / Puerta': 8, 'Zoo / Acuario': 8, Iglesia: 6, Templo: 6, Estadio: 5, Plaza: 5, 'Parque temático': 5, Teatro: 3, Faro: 3, Molino: 3,
-    Parque: 2, Patrimonio: 0, Mirador: 0, Universidad: -5, Rascacielos: -10 };
+    'Torre / Puerta': 8, 'Zoo / Acuario': 8, Iglesia: 6, Templo: 6, Estadio: -15, Plaza: 12, Puente: 8, Mercado: 8, 'Parque temático': 5, Teatro: 3, Faro: 3, Molino: 3,
+    Parque: 2, Patrimonio: 0, Mirador: 0, Rascacielos: -10 };
   // Interés de un lugar como IMPRESCINDIBLE de su ciudad: fama (sitelinks) + protección + tipo + antigüedad.
   // Devuelve null si no puede ser imprescindible (uso no turístico, hospitales, estaciones, cementerios…).
-  const MUST_NO = /^(Estación|Parada de tranvía|Hospital|Bomberos|Arte urbano|Memorial|Comercio emblemático|Biblioteca|Mercado|Campo de fútbol)$/;
+  const MUST_NO = /^(Aeropuerto|Parada de tranvía|Hospital|Bomberos|Arte urbano|Memorial|Comercio emblemático|Biblioteca|Campo de fútbol)$/;
   const CEMENTERIO = /納骨|霊園|墓地|columbari|tanatori|crematori|cementeri|cementiri|cemetery|friedhof|cimeti[eè]re|cimitero|panteó|panteón/i;
   function interes(el) {
     const tags = el.tags || {}, c = clasificar(tags), nm = tags.name || '';
-    if (!c || MUST_NO.test(c.kind) || CEMENTERIO.test(nm)) return null;
-    const sl = +tags._wp || 0;
-    if (usoNoTuristico(tags) && !(c.kind === 'Estadio' && sl >= 10)) return null;   // (los estadios de equipos profesionales, sí)
+    const sl = +tags._wp || 0, her = tags._her != null ? +tags._her : tags.heritage ? 1 : 0;
+    // (los cementerios famosos —la Recoleta, Père-Lachaise, Highgate— sí son imprescindibles)
+    if (!c || MUST_NO.test(c.kind) || (CEMENTERIO.test(nm) && sl < 15)) return null;
+    // estaciones: solo las que son Patrimonio de la Humanidad o famosísimas (Chhatrapati Shivaji, Grand Central, St Pancras)
+    if (c.kind === 'Estación' && her < 3 && sl < 40) return null;
+    // mercados: solo los históricos o famosos (la Boqueria, el Gran Bazar, el Mercado del Puerto)
+    if (c.kind === 'Mercado' && !tags.heritage && sl < 10) return null;
+    // puentes: solo los conocidos
+    if (c.kind === 'Puente' && !tags.heritage && sl < 8) return null;
+    // Estadios: cartas sí, pero imprescindible solo uno de fama mundial (Camp Nou, Bernabéu, el Nido de Pekín…). Ni los
+    // artículos de Wikipedia ni sus visitas distinguen un estadio turístico de uno cualquiera (los inflan la liga y los
+    // conciertos): salían estadios de primero en 226 de 500 ciudades.
+    if (c.kind === 'Estadio' && sl < ESTADIO_MUST) return null;
+    if (usoNoTuristico(tags) && c.kind !== 'Estadio') return null;
     if (TRAMPA.test(nm)) return null;   // (las trampas para turistas, nunca)
-    const her = tags._her != null ? +tags._her : tags.heritage ? 1 : 0;
     const vis = +tags._vis > 10000 ? Math.min(20, Math.round(4 * Math.log2(+tags._vis / 10000))) : 0;   // visitantes al año
-    return { c, puntos: Math.round(10 * Math.log2(1 + sl)) + [0, 4, 15, 30][Math.max(0, Math.min(3, her))] + (INTERES_TIPO[c.kind] || 0) + antiguedad(tags) + vis + (tags._atr ? 6 : 0) };
+    // (una catedral pequeña —de otro rito, casi sin artículos— no suma como la catedral de la ciudad)
+    const tipo = (c.kind === 'Catedral' || c.kind === 'Basílica') && sl < 10 ? 6 : (INTERES_TIPO[c.kind] || 0);
+    return { c, puntos: Math.round(10 * Math.log2(1 + sl)) + [0, 4, 15, 30][Math.max(0, Math.min(3, her))] + tipo + antiguedad(tags) + vis + (tags._atr ? 6 : 0) };
   }
+  const ESTADIO_MUST = 60;
+  // como mucho tantos imprescindibles de un mismo tipo (una lista de guía es variada: no cinco rascacielos ni tres estadios)
+  // y ningún tipo pasa del 30 % de la lista (Montevideo tenía once «palacios», casi todos edificios de viviendas)
+  const MUST_TOPE = { Estadio: 1, Rascacielos: 3, Teatro: 3, 'Zoo / Acuario': 2, Parque: 4, 'Parque temático': 1, Mercado: 2, Puente: 3, Catedral: 3 };
+  const topeMust = (list, kind, N) => {
+    const n = list.filter((x) => x.kind === kind).length;
+    return (MUST_TOPE[kind] != null && n >= MUST_TOPE[kind]) || n >= Math.max(3, Math.ceil((N || list.length + 1) * 0.3));
+  };
   // Los imprescindibles de una ciudad: los N lugares de más interés dentro de su término (sin repetir el mismo sitio)
   function elegirImprescindibles(els, N) {
     const sc = [];
@@ -160,6 +212,7 @@
     const list = [];
     for (const { el, r } of sc) {
       const pos = [el.lat, el.lon], nm = el.tags.name;
+      if (topeMust(list, r.c.kind, N)) continue;
       if (list.some((x) => geo().dist(x.pos, pos) < 40 || (sameName(x.name, nm) && geo().dist(x.pos, pos) < 400))) continue;   // el mismo sitio dos veces (no lo que está al lado)
       list.push({ q: el.id, name: nm, pos, kind: r.c.kind, emoji: r.c.emoji, sl: el.tags._wp || 0, interes: r.puntos });
       if (list.length >= N) break;
@@ -181,6 +234,10 @@
     if (/^\d+([\s\-–]|$)/.test(tags.name) && (tags._wp || 0) < 15) return { motivo: 'nombre de dirección' };
     const important = !!(tags.wikipedia || tags.wikidata || tags._wp || tags.heritage);
     if (/plaque|stolperstein|blue_plaque|bench/.test(tags.memorial || '') && !(tags.wikipedia || tags.wikidata || tags._wp)) return { motivo: 'placa sin artículo' };
+    // hospitales y centros de salud (por su clase de Wikidata o por el nombre): no, salvo los históricos protegidos
+    if ((tags._uso === 'salud' || /^(hospital|h[oô]pital|ospedale|krankenhaus|cl[ií]nica|clinic|sanatori)/i.test(tags.name)) && !(tags.tourism === 'museum') && !esPatrimonio(tags)) return { motivo: 'hospital' };
+    // puentes: los conocidos o protegidos (no cada paso elevado con su artículo)
+    if (tags.man_made === 'bridge' && !tags.heritage && (+tags._wp || 0) < 5) return { motivo: 'puente sin fama' };
     // iglesias evangélicas / pentecostales / testigos…: no (sí las demás religiones y templos del mundo)
     if (evangelica(tags)) return { motivo: 'iglesia evangélica' };
     if (/scientolog|dian[eé]tic/i.test(tags.name)) return { motivo: 'no es un lugar de interés' };   // (cienciología)
@@ -233,7 +290,7 @@
       principal: c.kind !== 'Comercio emblemático' && !trampa && (/^(Ayuntamiento|Catedral|Basílica|Castillo)$/.test(c.kind) || (c.kind === 'Estación' && (her >= 2 || wp >= 5))
         || her === 3 || (her === 2 && wp >= 4) || (wp >= 12 && (c.kind !== 'Rascacielos' || wp >= 25))   // (rascacielos: solo los famosos en todo el mundo)
         || (/^(Palacio|Museo|Estadio|Zoo \/ Acuario|Parque temático|Ermita \/ Monasterio)$/.test(c.kind) && wp >= 5)),
-      capR: capRadius(c.kind, wiki || wp >= 2) };
+      capR: capRadius(c.kind, c.kind === 'Aeropuerto' ? (wp >= 30 ? 'grande' : '') : wiki || wp >= 2) };
     return { lm };
   }
 
@@ -395,5 +452,44 @@
     return { kind: 'Patrimonio', emoji: '🏛️', rarity: 'comun' };
   }
 
-  PM.lugares = { RARITY, RANK, CONF, MUST_NO, TIPO_GUIA, SERVICIO, porQue, revisarRegistro, clasificar, candidato, evangelica, seleccionar, interes, elegirImprescindibles, usoNoTuristico, sameName, norm, capRadius };
+  // Una carta conquistada de algo que el motor ya no pone (universidad, hospital o bomberos que no son patrimonio,
+  // iglesia evangélica, hotel, metro, trampa para turistas…): se quita del álbum (los puntos ganados no se tocan).
+  // Devuelve 'quitar', unos cambios (una universidad histórica pasa a «Patrimonio») o null si sigue vigente.
+  function vigencia(r) {
+    if (!r || !r.name) return null;
+    const n = r.name;
+    // (lo que no depende de si es patrimonio: siempre)
+    if (/^(Iglesia|Iglesia principal|Templo)$/.test(r.kind || '') && NO_EVANG_NAME.test(n)) return 'quitar';
+    if (r.kind === 'Estación' && /(^|[^a-zà-ÿ])metro([^a-zà-ÿ]|$)/i.test(n)) return 'quitar';
+    if (TRAMPA.test(n)) return 'quitar';
+    const dudoso = r.kind === 'Universidad' || r.kind === 'Hospital' || r.kind === 'Bomberos' || r.kind === 'Estación' || USO_RE.test(n) || (UNI_NAME.test(n) && !UNI_OTRO.test(n));
+    if (!dudoso) return null;
+    // las cartas antiguas no guardaban si eran patrimonio: sin ese dato no se decide aquí ('dudosa': lo decide el mapa,
+    // mirando si el lugar sigue en el motor cuando los datos de su zona están completos)
+    if (r.her == null) return 'dudosa';
+    const her = +r.her || 0, wp = +r.wp || 0, viejo = (+r.anio || 9999) < 1800;
+    if (r.kind === 'Universidad' || (UNI_NAME.test(n) && !UNI_OTRO.test(n))) return her >= 1 || (viejo && wp >= 15) ? (r.kind === 'Patrimonio' ? null : { kind: 'Patrimonio', emoji: '🏛️', rarity: 'raro' }) : 'quitar';
+    // (solo las históricas de verdad; sin año guardado —las cartas de antes no lo tenían— lo decide el mapa con los datos nuevos)
+    if (r.kind === 'Estación') return her >= 2 || (+r.anio || 9999) < 1930 || wp >= 15 ? null : !r.anio ? 'dudosa' : 'quitar';
+    if (r.kind === 'Hospital' || r.kind === 'Bomberos') return her >= 1 ? { kind: 'Patrimonio', emoji: '🏛️', rarity: 'raro' } : 'quitar';
+    return her < 2 && wp < 15 ? 'quitar' : null;   // (hotel, oficinas…: salvo un edificio histórico reutilizado)
+  }
+  // ¿Es el mismo sitio? (una carta conquistada con el identificador de otra fuente o de una versión anterior, y el lugar
+  // que llega ahora: la iglesia de la Gavarra salía dos veces, la conquistada dentro del edificio y otra en la calle)
+  const GRUPO = (k) => (/^(Iglesia|Iglesia principal|Catedral|Basílica|Templo|Ermita \/ Monasterio)$/.test(k || '') ? 'templo' : k || '');
+  const GEN = new Set(('iglesia esglesia església parroquia parròquia parroquial capilla capella ermita santuario santuari convento convent monasterio monestir ' +
+    'catedral basilica basílica templo temple church chapel cathedral saint sant santa santo san nuestra senora señora mare deu museo museu museum ' +
+    'plaza plaça place parque parc park fuente font palacio palau castillo castell torre').split(' '));
+  const palabras = (t) => norm(t).split(' ').filter((w) => w.length > 3 && !GEN.has(w));
+  function mismoSitio(a, b) {
+    if (!a || !b || !a.pos || !b.pos) return false;
+    const d = geo().dist(a.pos, b.pos);
+    if (d < 250 && sameName(a.name, b.name)) return true;
+    if (GRUPO(a.kind) !== GRUPO(b.kind)) return false;
+    if (d < 60) return true;
+    const pa = palabras(a.name), pb = new Set(palabras(b.name));
+    return d < 150 && pa.some((w) => pb.has(w));
+  }
+
+  PM.lugares = { RARITY, RANK, CONF, MUST_NO, TIPO_GUIA, SERVICIO, porQue, revisarRegistro, vigencia, mismoSitio, clasificar, candidato, evangelica, seleccionar, interes, elegirImprescindibles, topeMust, esUniversidad, usoNoTuristico, sameName, norm, capRadius };
 })(typeof window !== 'undefined' ? window : globalThis);

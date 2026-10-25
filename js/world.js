@@ -89,7 +89,7 @@ PM.world = (function () {
   // los lugares más conocidos de TODO el municipio según Wikidata (en cuántas wikis salen), no los que
   // haya cargados a tu alrededor (por eso antes iban cambiando). Se piden una vez y se guardan.
   // Cuántos, según su tamaño: un pueblo, unos pocos; una gran ciudad, muchos más.
-  const CITY_V = 7;   // 7: con las clases nuevas; 6: sin falsos «usos no turísticos» (Liceu, Hôtel de Ville…) y lugares contiguos (Batlló y Amatller); 5: con visitantes y sin trampas para turistas; 4:   // 4: imprescindibles por interés turístico (no solo por fama: hoteles y residencias salían en L'Hospitalet o Sant Joan Despí); 3: «ciudad grande» por población
+  const CITY_V = 8;   // 8: imprescindibles de guía (sin universidades ni estadios corrientes, con topes por tipo); 7: con las clases nuevas; 6: sin falsos «usos no turísticos» (Liceu, Hôtel de Ville…) y lugares contiguos (Batlló y Amatller); 5: con visitantes y sin trampas para turistas; 4:   // 4: imprescindibles por interés turístico (no solo por fama: hoteles y residencias salían en L'Hospitalet o Sant Joan Despí); 3: «ciudad grande» por población
   let mustCache = null;   // imprescindibles con su lugar del mapa (mustLists)
   function mustCount(ci, els) {
     const pop = ci.pop || 0;
@@ -222,7 +222,54 @@ PM.world = (function () {
     selectLandmarks();
   }
   let lastWhy = new Map();   // por qué entra o se queda fuera cada candidato (para depurar: W.porque)
+  // Tu carta conquistada pasa al lugar VIGENTE cuando es el mismo sitio con otro identificador (de otra fuente o de una
+  // versión anterior): así no sale dos veces (la conquistada y otra «sin conquistar» al lado) y cuenta como el
+  // imprescindible que es. Se conservan fecha, visitas, foto y puntos; la posición y los datos pasan a ser los de ahora.
+  function trasladar(s, oldId, newId, lm) {
+    const r = s.landmarks[oldId];
+    if (!r || oldId === newId) return;
+    s.landmarks[newId] = Object.assign({}, r, lm ? { name: lm.name, kind: lm.kind, emoji: lm.emoji, rarity: lm.rarity,
+      pos: [+lm.pos[0].toFixed(6), +lm.pos[1].toFixed(6)], wiki: lm.wiki || r.wiki || null, wd: lm.wd || r.wd || null } : {});
+    delete s.landmarks[oldId];
+    for (const k of ['cardInfo', 'cardPhotos']) if (s[k] && s[k][oldId]) { if (!s[k][newId]) s[k][newId] = s[k][oldId]; delete s[k][oldId]; }
+    if (PM.cards && PM.cards.moverFoto) PM.cards.moverFoto(oldId, newId);
+    (s.lmGone || (s.lmGone = {}))[oldId] = newId;   // (para que la copia de la nube no la devuelva con el identificador viejo)
+  }
+  // ¿están ya todos los datos de la zona de este punto? (sus calles cargadas y, si el lugar venía de Wikidata, también
+  // los lugares de Wikidata de esa zona: se nota en que ya hay alguno)
+  function zonaCompleta(pos, id) {
+    if (!pos) return false;
+    const k = tileKeyOf(pos[0], pos[1]), t = tiles[k];
+    if (!t || !t.loaded) return false;
+    if (!/^Q\d+$/.test(id)) return true;
+    return Object.values(pool).some((lm) => /^Q\d+$/.test(lm.id) && lm.pos && tileKeyOf(lm.pos[0], lm.pos[1]) === k);
+  }
+  function migrarConquistas() {
+    const s = PM.state && PM.state.data;
+    if (!s || !s.landmarks) return 0;
+    const sueltas = Object.entries(s.landmarks).filter(([id, r]) => r.pos && !pool[id]);
+    if (!sueltas.length) return 0;
+    const cel = (p) => Math.floor(p[0] / 0.005) + '_' + Math.floor(p[1] / 0.005), grid = new Map();
+    for (const lm of Object.values(pool)) if (lm.pos && !s.landmarks[lm.id]) { const k = cel(lm.pos); (grid.get(k) || grid.set(k, []).get(k)).push(lm); }
+    let n = 0;
+    for (const [id, r] of sueltas) {
+      // de los lugares de ahora que son el mismo sitio, el mejor: el del mismo nombre y, si no, el más cercano
+      const i = Math.floor(r.pos[0] / 0.005), j = Math.floor(r.pos[1] / 0.005);
+      let best = null, bs = Infinity;
+      for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) {
+        for (const lm of grid.get((i + a) + '_' + (j + b)) || []) {
+          if (s.landmarks[lm.id] || !L.mismoSitio(r, lm)) continue;
+          const sc = PM.geo.dist(r.pos, lm.pos) - (L.sameName(r.name, lm.name) ? 1000 : 0);
+          if (sc < bs) { bs = sc; best = lm; }
+        }
+      }
+      if (best) { trasladar(s, id, best.id, best); n++; }
+    }
+    if (n) { PM.state.save(); emit('lmMigrated', { n }); }
+    return n;
+  }
   function selectLandmarks() {
+    migrarConquistas();
     const isCap = (o) => !!(PM.state && PM.state.data.landmarks[o.id]);
     const { keep, why } = L.seleccionar(Object.values(pool), { isCap, zona: (p) => tileKeyOf(p[0], p[1]) });
     lastWhy = why;
@@ -470,7 +517,7 @@ PM.world = (function () {
   // ---------------- Caché local de barrios (IndexedDB) ----------------
   // Cada barrio se descarga una vez y se guarda 30 días: menos datos móviles, menos batería y arranque instantáneo.
   const CACHE_DAYS = 90;
-  const CACHE_V = 18;   // 18: clases por orden fijo (lo que el edificio ES), catedrales católicas/anglicanas/ortodoxas, sin conjuntos ni esculturas de museo; 17: visitantes al año y atracción turística (puntuación de guía); 16: uso de cada edificio (hotel, escuela…) para la puntuación; 15: templos budistas y sintoístas, rascacielos, sin barrios ni cuadros de museo; 14: nivel de patrimonio, zoos, acuarios, puertas de muralla (puntuación igual para todos); 13: estaciones de tren históricas de Wikidata (antes se perdían); 12: lugares solo de mapas vectoriales + Wikidata   // súbelo si cambia lo que se descarga (p. ej. nuevos tipos de puntos): fuerza a renovar la caché
+  const CACHE_V = 19;   // 19: año también de la inauguración (P1619: estaciones antiguas como la de Cornellà); 18: clases por orden fijo (lo que el edificio ES), catedrales católicas/anglicanas/ortodoxas, sin conjuntos ni esculturas de museo; 17: visitantes al año y atracción turística (puntuación de guía); 16: uso de cada edificio (hotel, escuela…) para la puntuación; 15: templos budistas y sintoístas, rascacielos, sin barrios ni cuadros de museo; 14: nivel de patrimonio, zoos, acuarios, puertas de muralla (puntuación igual para todos); 13: estaciones de tren históricas de Wikidata (antes se perdían); 12: lugares solo de mapas vectoriales + Wikidata   // súbelo si cambia lo que se descarga (p. ej. nuevos tipos de puntos): fuerza a renovar la caché
   const cache = (function () {
     let dbp = null;
     function db() {
@@ -798,7 +845,7 @@ PM.world = (function () {
       nwr["leisure"~"^(park|garden)$"]["name"](${bb});
       out tags bb;
       (
-        nwr["amenity"~"^(townhall|place_of_worship|fountain|theatre|library|marketplace|university|hospital|fire_station)$"]["name"](${bb});
+        nwr["amenity"~"^(townhall|place_of_worship|fountain|theatre|library|marketplace)$"]["name"](${bb});
         nwr["amenity"="studio"]["studio"~"television|tv"]["name"](${bb});
         nwr["historic"]["name"](${bb});
         nwr["tourism"~"^(museum|attraction|viewpoint|artwork)$"]["name"](${bb});
@@ -856,7 +903,7 @@ PM.world = (function () {
     if (demoMode) return null;
     const c = await cache.get(k);
     if (!(c && c.v >= 4 && Date.now() - c.t < CACHE_DAYS * 86400000)) return null;
-    if (c.v < 18) return null;   // guardado antes (librerías como bibliotecas, sin estudios de TV…): se vuelve a pedir igual en todos los móviles
+    if (c.v < 19) return null;   // guardado antes (librerías como bibliotecas, sin estudios de TV…): se vuelve a pedir igual en todos los móviles
     if (c.v < 10) { c.extrasMiss = true; c.wdMiss = true; }   // tipos nuevos (estudios de TV…): se completan los extras y Wikidata
     if (c.v < 6) c.wdMiss = true;   // guardado antes de Wikidata: se completa en segundo plano
     if (c.wdMiss || c.extrasMiss || (!c.src && !c.vtPois)) setTimeout(() => completeTile(k, c), 3000);
@@ -1103,10 +1150,11 @@ PM.world = (function () {
       .then((j) => (preIndex = Array.isArray(j) ? j : []));
     return preIndexP;
   }
-  async function precarga(q) {
+  // ver: versión que da el índice (si la guardada es de otra, se vuelve a descargar: precarga regenerada)
+  async function precarga(q, ver) {
     if (preData[q]) return preData[q];
     let d = await cache.get('pre:' + q);
-    if (!d || Date.now() - (d.tt || 0) > PRE_DIAS * 86400000) {
+    if (!d || Date.now() - (d.tt || 0) > PRE_DIAS * 86400000 || (ver && d.t !== ver)) {
       try { const r = await fetch(PRE_CDN + q + '.json'); if (r.ok) { d = await r.json(); d.tt = Date.now(); cache.put('pre:' + q, d); } } catch (e) { /* sin conexión: lo de la caché, si había */ }
     }
     if (d && PM.precargaFormato) d = PM.precargaFormato.decode(d);   // (formato compacto v2 → elementos como la consulta por zona)
@@ -1118,7 +1166,7 @@ PM.world = (function () {
     for (const c of await preIdx()) {
       if (preDone.has(c.q) || PM.geo.dist([lat, lon], c.c) > c.r * 1000 + 3000) continue;
       preDone.add(c.q);
-      const d = await precarga(c.q);
+      const d = await precarga(c.q, c.t);
       if (!d) { preDone.delete(c.q); continue; }   // (se reintentará al moverte)
       lmBatch = []; for (const el of d.els) addLandmark(el);
       const b = lmBatch; lmBatch = null; commitLandmarks(b);
@@ -1359,7 +1407,45 @@ PM.world = (function () {
     },
     // tus lugares y cromos de barrio ya conseguidos: ciudad según el contorno real y si son imprescindibles de la lista fija
     fixRecords(s) {
-      let n = 0;
+      // (primero se pasan al lugar vigente las que solo han cambiado de identificador: así no se quita ninguna por error)
+      let n = migrarConquistas();
+      // cartas de lo que el motor ya no pone (universidades, hospitales, bomberos que no son patrimonio, iglesias
+      // evangélicas, hoteles, metro…): fuera del álbum (los puntos ganados se quedan)
+      for (const [id, r] of Object.entries(s.landmarks || {})) {
+        let v = L.vigencia(r);
+        if (v === 'dudosa') {
+          // carta antigua sin el dato de patrimonio: si el lugar sigue en el motor, se toman de ahí su tipo y protección;
+          // si los datos de su zona están completos y ya no aparece, ya no existe; si no, se espera
+          const lm = pool[id];
+          if (lm) { r.her = lm.her || 0; r.wp = lm.wp || r.wp || 0; r.anio = lm.anio || r.anio || 0; if (r.kind !== lm.kind) { r.kind = lm.kind; r.emoji = lm.emoji; r.rarity = lm.rarity; } n++; v = null; }
+          else v = zonaCompleta(r.pos, id) ? 'quitar' : null;
+        }
+        if (v === 'quitar') {
+          delete s.landmarks[id];
+          for (const k of ['cardInfo', 'cardPhotos']) if (s[k]) delete s[k][id];
+          (s.lmGone || (s.lmGone = {}))[id] = 1; n++;
+        } else if (v) { Object.assign(r, v); delete r.porque; n++; }
+      }
+      // la misma carta dos veces (conquistada con dos identificadores): se juntan en la más antigua
+      const ids = Object.keys(s.landmarks || {}).sort((a, b) => (s.landmarks[a].t || 0) - (s.landmarks[b].t || 0));
+      for (let i = 0; i < ids.length; i++) {
+        const A = s.landmarks[ids[i]];
+        if (!A) continue;
+        for (let j = i + 1; j < ids.length; j++) {
+          const B = s.landmarks[ids[j]];
+          if (!B || !L.mismoSitio(A, B)) continue;
+          // (se queda el identificador que esté en el mapa ahora; si ninguno, el de la más antigua)
+          const keep = landmarks[ids[j]] && !landmarks[ids[i]] ? ids[j] : ids[i], drop = keep === ids[i] ? ids[j] : ids[i];
+          const K = s.landmarks[keep], D = s.landmarks[drop];
+          K.t = Math.min(K.t || Infinity, D.t || Infinity); K.visits = Math.max(K.visits || 1, D.visits || 1); K.last = Math.max(K.last || 0, D.last || 0);
+          if (D.shiny) K.shiny = 1;
+          if (s.cardPhotos && s.cardPhotos[drop] && !s.cardPhotos[keep]) { s.cardPhotos[keep] = s.cardPhotos[drop]; if (PM.cards && PM.cards.moverFoto) PM.cards.moverFoto(drop, keep); }
+          for (const k of ['cardInfo', 'cardPhotos']) if (s[k]) delete s[k][drop];
+          delete s.landmarks[drop];
+          (s.lmGone || (s.lmGone = {}))[drop] = keep; n++;
+          if (drop === ids[i]) break;
+        }
+      }
       for (const [id, r] of Object.entries(s.landmarks || {})) {
         // tipo que el nombre contradice (conquistas antiguas: el «Hotel Catalonia Catedral» era una catedral legendaria)
         const fix = L.revisarRegistro(r);

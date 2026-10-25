@@ -35,6 +35,14 @@
       out.landmarks[id] = o ? Object.assign({}, o, v, { t: Math.min(o.t, v.t), visits: Math.max(o.visits || 1, v.visits || 1),
         last: Math.max(o.last || 0, v.last || 0), pos: v.pos || o.pos }) : v;
     }
+    // cartas quitadas o trasladadas a otro identificador (duplicados, lugares que ya no están): la copia de la otra partida
+    // no las devuelve; si allí solo está la vieja, pasa al identificador nuevo
+    out.lmGone = Object.assign({}, a.lmGone || {}, b.lmGone || {});
+    for (const [old, nuevo] of Object.entries(out.lmGone)) {
+      if (!out.landmarks[old]) continue;
+      if (nuevo !== 1 && !out.landmarks[nuevo]) out.landmarks[nuevo] = out.landmarks[old];
+      delete out.landmarks[old];
+    }
     out.xp = Math.max(a.xp || 0, b.xp || 0);
     out.stats = Object.assign({}, a.stats);
     for (const [k, v] of Object.entries(b.stats || {})) out.stats[k] = typeof v === 'number' ? Math.max(out.stats[k] || 0, v) : v;
