@@ -1,8 +1,8 @@
 {
-  "version": "0.6.67",
-  "notes": "Pintado sin cortes: al cruzar plazas o donde dos calles del mapa no llegan a tocarse; lo andado mientras llegan las calles de una zona ya no se pierde. Nuevo motor de lugares: puntuación por fama y nivel de patrimonio (UNESCO, nacional, local), selección equilibrada por zona (icónicos siempre, cupos por zona y tipo), comercios históricos con cupo propio, zoos, acuarios, parques temáticos y puertas de muralla; corregidas iglesias que salían como catedrales y edificios que salían como castillos",
+  "version": "0.6.68",
+  "notes": "Batería: con la pantalla apagada ya no se refresca el marcador 4 veces por segundo ni se revisan los logros cada 8 s; guardado de la partida más espaciado en el bolsillo (y siempre al apagar la pantalla); menos animaciones sin fin en el mapa. Fallos: los mismos lugares para todos también en la iglesia principal de cada pueblo y en el tipo de lugar; lo pendiente al terminar un paseo ya no se pierde; sin rayitas entre calzadas muy juntas",
   "native": 6,
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.67/pintamapa-web-0.6.67.zip",
-  "checksum": "f77b4a964bc308f27e8307fe13f5565d5f0451d16b0fd9c7d98a32a8fd27c157",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.67/PintaMapa-v0.6.67.apk"
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.68/pintamapa-web-0.6.68.zip",
+  "checksum": "4dd5a4e9a7d661c0cd7d16f1c16c9199df3782385d2337959ba3bb05e51036ca",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.68/PintaMapa-v0.6.68.apk"
 }
