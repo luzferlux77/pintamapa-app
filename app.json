@@ -1,8 +1,8 @@
 {
-  "version": "0.6.78",
-  "notes": "Motor de lugares revisado a fondo: ya no se penalizan por error lugares como el Liceu, el Pabellón Mies van der Rohe, los Pabellones Güell o el Hôtel de Ville de París; dos imprescindibles contiguos (Casa Batlló y Casa Amatller) ya pueden salir los dos; las estaciones solo son icónicas si son históricas de verdad",
+  "version": "0.6.79",
+  "notes": "Cartas: fuera las filas de conquista y revisita; cuadro de descripción más grande y SIEMPRE del lugar en concreto (texto de Wikipedia o sus datos reales: dirección, barrio, siglo, patrimonio, visitantes), entero y con la letra ajustada al cuadro; línea con por qué merece la pena (UNESCO, visitas, siglo). Los lugares importantes salen aunque tengan otro al lado",
   "native": 6,
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.78/pintamapa-web-0.6.78.zip",
-  "checksum": "1107467f957644a3ae4fba7c650d764c040f422f26a5f1ec9061c90076ae2315",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.78/PintaMapa-v0.6.78.apk"
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.79/pintamapa-web-0.6.79.zip",
+  "checksum": "9fb21ee078715a9ba532ba23eb70f42b8bf70349261b57d2bcf1d42372206c37",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.79/PintaMapa-v0.6.79.apk"
 }
