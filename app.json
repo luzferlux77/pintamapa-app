@@ -1,8 +1,8 @@
 {
-  "version": "0.6.73",
-  "notes": "El aviso de imprescindible cerca también vibra con el móvil en el bolsillo",
+  "version": "0.6.74",
+  "notes": "Menos datos móviles: la copia en la nube ya no sube la partida si no ha cambiado, las calles pintadas se suben por día (no el mes entero cada vez) y durante el paseo se guarda cada 30 min (al terminar, siempre)",
   "native": 6,
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.73/pintamapa-web-0.6.73.zip",
-  "checksum": "e903f5069d3b0c4eae29ece3c7925ed375986fa60a50a78cb251b5bf566d2a10",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.73/PintaMapa-v0.6.73.apk"
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.74/pintamapa-web-0.6.74.zip",
+  "checksum": "6ad3a71f3d30730e91b03e45b9823b02739f18309aae9ccc311c1e6abd78374d",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.74/PintaMapa-v0.6.74.apk"
 }
