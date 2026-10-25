@@ -469,11 +469,14 @@
     const want = new Map();
     if (!placesOff) {
       const c = map.getCenter(), ctr = [c.lat, c.lng];
+      const halos = [];
       for (const { lm, got } of Object.values(lmIndex)) {
         const must = !!(lm.must || (S().landmarks[lm.id] || {}).must);
         if (!got && must && PM.geo.dist(lm.pos, ctr) < 5000) want.set('m' + lm.id, [lm, 'fx-must']);
-        else if (got && haloOn && PM.geo.dist(lm.pos, pos) < 1500) want.set('h' + lm.id, [lm, 'fx-halo' + (must ? ' gold' : '')]);
+        else if (got && haloOn) { const d = PM.geo.dist(lm.pos, pos); if (d < 800) halos.push([d, lm, must]); }
       }
+      // ondas solo en los 6 conquistados más cercanos (antes, en todos a menos de 1,5 km: decenas de animaciones sin fin)
+      halos.sort((a, b) => a[0] - b[0]).slice(0, 6).forEach(([, lm, must]) => want.set('h' + lm.id, [lm, 'fx-halo' + (must ? ' gold' : '')]));
     }
     for (const [k, mk] of fxMarks) if (!want.has(k) || mk._pmCls !== want.get(k)[1]) { mk.remove(); fxMarks.delete(k); }
     for (const [k, [lm, cls]] of want) {
@@ -712,12 +715,13 @@
       for (const dy of [-0.006, 0, 0.006]) for (const dx of [-0.006, 0, 0.006]) keys.add(W.tileKeyOf(q[0] + dy, q[1] + dx));
     }
     const miss = [...keys].filter((k) => !(W.tiles[k] && W.tiles[k].loaded));
-    if (miss.length && miss.length <= 40) W.ensureKeys(miss).then(retryGaps).catch(() => {});
-    else setTimeout(retryGaps, 1500);
+    if (miss.length && miss.length <= 40) W.ensureKeys(miss).then(() => retryGaps()).catch(() => {});
+    else setTimeout(() => retryGaps(), 1500);
   }
   let pendingGaps = [];
   setInterval(() => { if (pendingGaps.length) retryGaps(); }, 20000);
-  function retryGaps() {
+  // final: al terminar el paseo, lo que siga sin camino ya no espera más
+  function retryGaps(final) {
     if (!pendingGaps.length) return;
     if (!session) { pendingGaps = []; return; }
     const keep = [];
@@ -725,9 +729,13 @@
       const maxLen = Math.max(g.d * 2, g.d + 250), dt = (g.tb - g.ta) / 1000;
       const r = (g.via.length && routeVia(g.a, g.b, g.via)) || W.route(g.a, g.b, maxLen);
       if (r && r.len <= Math.max(maxLen, r.via ? r.len : 0) && (dt <= 0 || r.len / dt <= MAX_SPEED * 1.5)) { fillGap(r, g.a, g.b, g.ta, g.tb); continue; }
-      if (Date.now() - g.since < (g.noStreets ? 30 : 3) * 60000) { keep.push(g); continue; }   // (sin calles aún: sin cobertura, hasta media hora)
-      // 3 minutos sin camino posible (de verdad no lo hay): como antes, lo que haya justo en línea recta (si es corto)
+      if (!final && Date.now() - g.since < (g.noStreets ? 30 : 3) * 60000) { keep.push(g); continue; }   // (sin calles aún: sin cobertura, hasta media hora)
+      // sin camino posible (de verdad no lo hay): como antes, lo que haya justo en línea recta (si es corto)
       if (g.d < 400) { const st = Math.ceil(g.d / 4), h = [g.b[0] - g.a[0], (g.b[1] - g.a[1]) * Math.cos(g.b[0] * Math.PI / 180)]; for (let i = 1; i <= st; i++) paintAround(PM.geo.lerp(g.a, g.b, i / st), h); }
+      // y lo andado cuenta igual: metros y recorrido por tus puntos (antes ese trozo desaparecía del paseo)
+      const way = [g.a, ...g.via, g.b];
+      let len = 0; for (let i = 1; i < way.length; i++) len += PM.geo.dist(way[i - 1], way[i]);
+      fillGap({ len, pieces: [], path: way.slice(0, -1) }, g.a, g.b, g.ta, g.tb);
     }
     pendingGaps = keep;
     paintedDirty = true; PM.state.save();
@@ -1493,6 +1501,9 @@
   function endSession() {
     if (!session) return;
     flushHeldFix();
+    // huecos pendientes (GPS en el bolsillo justo al final, calles aún sin llegar): se pintan si ya se puede; si no, al
+    // menos cuentan los metros y el recorrido (antes se tiraban al cerrar el paseo)
+    retryGaps(true);
     if (!session.paused) session.elapsed += Date.now() - session.resumedAt;
     const s = session; session = null;
     if (s.elapsed >= 120000) {   // los paseos de menos de 2 minutos no se guardan en el historial (lo pintado sí cuenta)
@@ -1664,6 +1675,7 @@
   const setW = (sel, v) => hudSet('w' + sel, sel, (e, x) => { e.style.width = x; }, String(v));
   const setH = (el, v) => hudSet('h' + el.id, el, (e, x) => { e.innerHTML = x; }, String(v));
   function updateHUD() {
+    if (document.hidden) return;   // pantalla apagada: nada que pintar (antes, 4 veces por segundo en el bolsillo)
     const lp = G.levelProgress();
     setT('#lvl', lp.short); hudSet('lvlc', '#lvl', (e, x) => { e.title = 'Nivel ' + lp.label; e.style.color = x; }, lp.tier ? lp.tier.color : '');
     setW('#xpbar i', (lp.pct * 100).toFixed(1) + '%');
@@ -1775,6 +1787,7 @@
   let splatThrottle = 0, achQueue = [], achTimer = null;
   const cardQueue = [];
   function showNextCard() {
+    if (document.hidden) return;
     const v = document.getElementById('tcg-view');
     if (!cardQueue.length || (v && v.classList.contains('show'))) return;
     const [id, pts] = cardQueue.shift();

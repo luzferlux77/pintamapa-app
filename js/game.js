@@ -88,16 +88,27 @@ PM.state = (function () {
   data.stats = Object.assign(fresh().stats, data.stats);
   data.walks = (data.walks || []).filter((w) => (w.elapsed || 0) >= 120000);   // paseos de < 2 min: fuera del historial
 
-  let dirty = false;
+  // Guardado: convertir la partida entera a texto y escribirla en disco cuesta (con muchas calles y paseos, varios MB).
+  // Con la pantalla encendida se guarda a los 2 s (o a los 8 s si la partida es grande y tarda); con la pantalla apagada,
+  // cada 20 s. Al apagar la pantalla o cerrar la app se guarda en el acto: no se pierde nada.
+  let dirty = false, lastSave = 0, saveCost = 0;
   function save() { dirty = true; }
-  setInterval(() => {
-    if (!dirty) return;
-    dirty = false;
+  function writeNow() {
+    dirty = false; lastSave = Date.now();
+    const t0 = performance.now();
     try { localStorage.setItem(KEY, JSON.stringify(data)); } catch (e) { console.warn('No se pudo guardar', e); }
+    saveCost = saveCost * 0.7 + (performance.now() - t0) * 0.3;
+  }
+  setInterval(() => {
+    if (!dirty || wiping) return;
+    const wait = document.hidden ? 20000 : saveCost > 25 ? 8000 : 2000;
+    if (Date.now() - lastSave >= wait) writeNow();
   }, 2000);
   let wiping = false;
-  const flush = () => { if (!wiping) try { localStorage.setItem(KEY, JSON.stringify(data)); } catch (e) {} };
+  const flush = () => { if (!wiping) try { localStorage.setItem(KEY, JSON.stringify(data)); dirty = false; lastSave = Date.now(); } catch (e) {} };
   window.addEventListener('beforeunload', flush);
+  window.addEventListener('pagehide', flush);
+  document.addEventListener('visibilitychange', () => { if (document.hidden && dirty) flush(); });
   document.addEventListener('visibilitychange', () => { if (document.hidden) flush(); }); // Android puede matar la app oculta
 
   function reset() { wiping = true; localStorage.removeItem(KEY); location.reload(); }
@@ -517,8 +528,11 @@ PM.game = (function () {
   serie('puntos', '🏆', [10000, 50000, 100000, 250000, 500000, 1000000, 2000000, 5000000], 'Puntos', (t) => `Consigue ${PM.fmtNum ? PM.fmtNum(t) : t} puntos`, (s) => s.xp || 0);
 
   let achReady = false;
+  let achT = 0;
   function checkAll() {
     if (!document.getElementById('hud') || !PM.state) return;   // solo en el juego (no en la web de progreso)
+    if (document.hidden && Date.now() - achT < 120000) return;   // en el bolsillo, cada 2 min (más de 200 logros que mirar)
+    achT = Date.now();
     const s = S();
     const first = !s.achInit;   // la primera vez (partidas antiguas): se apuntan sin avisar de golpe
     for (const id in ACHIEVEMENTS) {

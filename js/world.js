@@ -206,24 +206,26 @@ PM.world = (function () {
     for (let di = -r; di <= r; di++) for (let dj = -r; dj <= r; dj++) out.push(...(lmGrid[(ci + di) + ':' + (cj + dj)] || []));
     return out;
   }
-  // Respaldo: si en un pueblo ninguna iglesia es "importante" (Wikipedia, patrimonio, catedral…), se toma
-  // como principal la más cercana a su ayuntamiento (a menos de 800 m). Se recuerdan las iglesias descartadas
-  // por si su ayuntamiento llega en una carga posterior.
+  // Respaldo: si en un pueblo ninguna iglesia es "importante" (catedral, basílica, muy conocida…), se toma como
+  // principal la más cercana a su ayuntamiento (a menos de 800 m). Se decide en cada selección con TODOS los
+  // candidatos (antes, con lo que hubiera llegado hasta entonces: si luego llegaba una más cercana, cada móvil
+  // podía quedarse con una distinta).
   const MAIN_CHURCH_M = 800;
-  const churchPool = [];
-  function markMainChurches(list) {
-    for (const lm of list) if (lm.church && !churchPool.some((c) => c.id === lm.id)) churchPool.push(lm);
-    const halls = [...list, ...Object.values(landmarks)].filter((x) => x.townhall);
-    const promoted = [];
-    for (const th of halls) {
+  function markMainChurches(all) {
+    for (const lm of all) if (lm._main) { Object.assign(lm, lm._main); delete lm._main; delete lm.mainChurch; }
+    const churches = all.filter((x) => x.church), byId = (x, y) => (x.id < y.id ? -1 : x.id > y.id ? 1 : 0);
+    for (const th of all.filter((x) => x.townhall).sort(byId)) {
       // ¿ya hay una iglesia principal en este pueblo? (a menos de 1,5 km de su ayuntamiento)
-      if (churchPool.some((c) => c.principal && PM.geo.dist(th.pos, c.pos) < 1500)) continue;
+      if (churches.some((c) => c.principal && PM.geo.dist(th.pos, c.pos) < 1500)) continue;
       let best = null, bd = MAIN_CHURCH_M;
-      for (const c of churchPool) { const d = PM.geo.dist(th.pos, c.pos); if (d < bd) { bd = d; best = c; } }
-      if (best && !best.principal) { best.principal = true; best.mainChurch = true; best.kind = 'Iglesia principal';
-        if (RANK[best.rarity] < RANK.epico) best.rarity = 'epico'; best.points = 100 * RARITY[best.rarity].mult; promoted.push(best); }
+      for (const c of churches) { const d = PM.geo.dist(th.pos, c.pos); if (d < bd || (d === bd && best && c.id < best.id)) { bd = d; best = c; } }
+      if (best && !best.principal) {
+        best._main = { principal: best.principal, kind: best.kind, rarity: best.rarity, points: best.points };   // (para deshacerlo)
+        best.principal = true; best.mainChurch = true; best.kind = 'Iglesia principal';
+        if (RANK[best.rarity] < RANK.epico) best.rarity = 'epico';
+        best.points = 100 * RARITY[best.rarity].mult;
+      }
     }
-    return promoted;
   }
   const normMemo = new Map();   // (cada nombre se normaliza una sola vez: la selección compara miles)
   const norm = (s) => {
@@ -365,12 +367,15 @@ PM.world = (function () {
   const _pool = () => pool;
   function commitLandmarks(list) {
     for (const lm of list) if (!pool[lm.id]) pool[lm.id] = lm;
-    markMainChurches(list);
     selectLandmarks();
   }
   function selectLandmarks() {
     const isCap = (o) => !!(PM.state && PM.state.data.landmarks[o.id]);
     const byId = (x, y) => (x.id < y.id ? -1 : x.id > y.id ? 1 : 0);
+    // lo que se decide en cada pasada se recalcula desde cero (tipo heredado del mapa, iglesia principal): así el
+    // resultado no depende de cuántas veces ni en qué orden se haya recalculado antes
+    for (const lm of Object.values(pool)) if (lm._spec) { lm.kind = 'Patrimonio'; lm.emoji = lm._spec; delete lm._spec; }
+    markMainChurches(Object.values(pool));
     const all = Object.values(pool).sort((x, y) => (isCap(y) - isCap(x)) || (y.principal - x.principal) || (y.prio - x.prio) || byId(x, y));
     const cellOf = (q) => [Math.floor(q[0] / GRID), Math.floor(q[1] / GRID)];
     const gridAdd = (G, lm) => { const [i, j] = cellOf(lm.pos); (G[i + ':' + j] = G[i + ':' + j] || []).push(lm); };
@@ -393,7 +398,7 @@ PM.world = (function () {
         close.forEach((o) => { if (!isCap(o)) drop.add(o.id); });
         // Wikidata solo sabe que es «patrimonio» y el mapa dice qué es (el Alcázar de Toledo, un castillo): ese tipo
         const spec = close.filter((o) => o.kind !== 'Patrimonio' && sameName(o.name, lm.name)).sort((x, y) => y.prio - x.prio || (x.id < y.id ? -1 : 1))[0];
-        if (lm.kind === 'Patrimonio' && spec) { lm.kind = spec.kind; lm.emoji = spec.emoji; }
+        if (lm.kind === 'Patrimonio' && spec) { lm._spec = lm.emoji; lm.kind = spec.kind; lm.emoji = spec.emoji; }
       }
       else if (!isCap(lm)) drop.add(lm.id);
     }
@@ -765,7 +770,9 @@ PM.world = (function () {
     const out = [];
     for (const q of [piece.pts[0], piece.pts[piece.pts.length - 1]]) {
       const n = gnodes.get(gkey(q));
-      if (n) for (const ed of n.e) if (!ed.piece && ed.to.e.some((x) => x.piece && x.piece !== piece.id && isPainted(x.piece))) out.push([n.p, ed.to.p]);
+      // solo donde la calle se acaba de verdad (no en cada corte de ~11 m: entre dos calzadas muy juntas salía una escalera)
+      if (!n || n.e.filter((ed) => ed.piece).length !== 1) continue;
+      for (const ed of n.e) if (!ed.piece && ed.to.e.some((x) => x.piece && x.piece !== piece.id && isPainted(x.piece))) out.push([n.p, ed.to.p]);
     }
     return out;
   }
