@@ -110,7 +110,11 @@ PM.vtiles = (function () {
     else if (c === 'pitch' && s === 'soccer') { t.leisure = 'pitch'; t.sport = 'soccer'; }
     else if (c === 'hospital' && s === 'hospital') t.amenity = 'hospital';
     else if (c === 'fire_station') t.amenity = 'fire_station';
-    else if (c === 'castle') t.historic = s === 'fort' ? 'fort' : 'castle';
+    else if (c === 'castle') t.historic = s === 'fort' ? 'fort' : s === 'ruins' ? 'ruins' : 'castle';   // (las ruinas no son castillos)
+    else if (c === 'sally_port' || s === 'city_gate') t.historic = 'city_gate';   // puertas de muralla (Portal de Santa Madrona, Puerta del Cambrón…)
+    else if (c === 'zoo' && s === 'zoo') t.tourism = 'zoo';
+    else if (c === 'aquarium') t.tourism = 'aquarium';
+    else if (c === 'theme_park' || s === 'theme_park') t.tourism = 'theme_park';
     else if (c === 'monument') t.historic = s === 'memorial' ? 'memorial' : 'monument';
     else if (c === 'attraction') { if (s === 'viewpoint') t.tourism = 'viewpoint'; else if (s === 'attraction') t.tourism = 'attraction'; else if (s === 'fountain') t.amenity = 'fountain'; else return null; }
     else if (c === 'grocery' && s === 'marketplace') t.amenity = 'marketplace';

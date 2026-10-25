@@ -24,8 +24,8 @@
     Q2080521: { amenity: 'marketplace' }, Q1192284: { amenity: 'marketplace' }, Q7075: { amenity: 'library' }, Q28564: { amenity: 'library' }, Q3918: { amenity: 'university' },
     Q511355: { amenity: 'studio', studio: 'television' }, Q1474414: { amenity: 'studio', studio: 'television' },   // estudios de televisión y sedes de emisión
     Q543654: { amenity: 'townhall' }, Q25550691: { amenity: 'townhall' }, Q112793351: { amenity: 'townhall' },
-    Q43501: { tourism: 'attraction' }, Q194195: { tourism: 'attraction' }, Q6017969: { tourism: 'viewpoint' }, Q12280: { historic: 'monument' },
-    Q38720: { man_made: 'tower' }, Q39614: { historic: 'monument' },
+    Q43501: { tourism: 'zoo' }, Q2281788: { tourism: 'aquarium' }, Q2416723: { tourism: 'theme_park' }, Q148319: { tourism: 'museum' }, Q194195: { tourism: 'attraction' }, Q6017969: { tourism: 'viewpoint' }, Q12280: { historic: 'monument' },
+    Q38720: { man_made: 'windmill' }, Q39614: { historic: 'monument' },
     Q1154710: { leisure: 'stadium' }, Q120560: { building: 'basilica' }, Q22746: { leisure: 'park' }, Q143912: { historic: 'city_gate' }, Q2293362: { historic: 'monument' },
     // comercios históricos (tiendas, bares, cafés, restaurantes, pastelerías, farmacias, librerías, heladerías)
     Q213441: { shop: 'yes' }, Q19471285: { shop: 'pastry' }, Q274393: { shop: 'bakery' }, Q200764: { shop: 'books' }, Q1311064: { shop: 'ice_cream' },
@@ -38,10 +38,16 @@
   // descripciones de viviendas/conjuntos de catálogo: protegidos, pero no los conoce nadie
   // metro, tranvía y estaciones subterráneas: nunca (no son lugares que visitar)
   const NO_CLS = new Set(['Q928830', 'Q2175765', 'Q22808403']);
+  // nivel de protección (P1435): 3 Patrimonio de la Humanidad · 2 nacional (BIC, BCIN, monumento histórico clasificado,
+  // Grado I, monumento nacional…) · 1 el resto · 0 catálogos que no protegen (arte público de Barcelona)
+  const HER3 = new Set(['Q9259']);
+  const HER2 = new Set(['Q23712', 'Q1019352', 'Q10387684', 'Q15700818', 'Q908411', 'Q1967454']);
+  const HER0 = new Set(['Q15945449']);
+  const herLevel = (list) => list.reduce((m, h) => Math.max(m, HER3.has(h) ? 3 : HER2.has(h) ? 2 : HER0.has(h) ? 0 : 1), 0);
   const DULL = /^(habitatges?|edificis?|edifici d'habitatges|casa al |cases al |casa a la |conjunt|carrer|farmàcia|porteria|masoveria|viviendas?|edificio de viviendas|bloque)/i;
 
   function query(s, w, n, e) {
-    return `SELECT ?item ?itemLabel ?coord (COUNT(DISTINCT ?art) AS ?wp) (SAMPLE(?h) AS ?her) (MIN(YEAR(?inc)) AS ?y) (GROUP_CONCAT(DISTINCT STRAFTER(STR(?c), "entity/"); separator=",") AS ?cls) WHERE {
+    return `SELECT ?item ?itemLabel ?coord (COUNT(DISTINCT ?art) AS ?wp) (GROUP_CONCAT(DISTINCT STRAFTER(STR(?h), "entity/"); separator=",") AS ?her) (MIN(YEAR(?inc)) AS ?y) (GROUP_CONCAT(DISTINCT STRAFTER(STR(?c), "entity/"); separator=",") AS ?cls) WHERE {
  SERVICE wikibase:box { ?item wdt:P625 ?coord. bd:serviceParam wikibase:cornerSouthWest "Point(${w} ${s})"^^geo:wktLiteral. bd:serviceParam wikibase:cornerNorthEast "Point(${e} ${n})"^^geo:wktLiteral. }
  ?art schema:about ?item; schema:isPartOf/wikibase:wikiGroup "wikipedia".
  FILTER NOT EXISTS { ?item wdt:P1082 [] } FILTER (!EXISTS { ?item wdt:P81 [] } || EXISTS { ?item wdt:P1435 [] })
@@ -53,7 +59,7 @@
 
   // Los lugares más conocidos de una zona grande (una ciudad entera): por número de artículos en wikis (sitelinks), de más a menos
   function topQuery(s, w, n, e, minSl) {
-    return `SELECT ?item ?itemLabel ?coord (?sl AS ?wp) (SAMPLE(?h) AS ?her) (MIN(YEAR(?inc)) AS ?y) (GROUP_CONCAT(DISTINCT STRAFTER(STR(?c), "entity/"); separator=",") AS ?cls) WHERE {
+    return `SELECT ?item ?itemLabel ?coord (?sl AS ?wp) (GROUP_CONCAT(DISTINCT STRAFTER(STR(?h), "entity/"); separator=",") AS ?her) (MIN(YEAR(?inc)) AS ?y) (GROUP_CONCAT(DISTINCT STRAFTER(STR(?c), "entity/"); separator=",") AS ?cls) WHERE {
  { SELECT ?item ?coord ?sl WHERE {
    SERVICE wikibase:box { ?item wdt:P625 ?coord. bd:serviceParam wikibase:cornerSouthWest "Point(${w} ${s})"^^geo:wktLiteral. bd:serviceParam wikibase:cornerNorthEast "Point(${e} ${n})"^^geo:wktLiteral. }
    ?item wikibase:sitelinks ?sl. FILTER(?sl >= ${minSl})
@@ -73,7 +79,8 @@
       if (!name || name === q) continue;
       const m = /Point\(([-\d.]+) ([-\d.]+)\)/.exec(b.coord.value);
       if (!m) continue;
-      const wp = +b.wp.value, her = !!b.her, cls = (b.cls && b.cls.value || '').split(',').filter(Boolean);
+      const hers = (b.her && b.her.value || '').split(',').filter(Boolean), her = hers.length > 0, cls = (b.cls && b.cls.value || '').split(',').filter(Boolean);
+      const wp = +b.wp.value;
       if (cls.some((c) => NO_CLS.has(c))) continue;   // metro, tranvía
       let tags = null;
       for (const c of cls) if (CLS[c] && (!tags || tags.building === 'yes')) tags = CLS[c];
@@ -85,7 +92,7 @@
       const t = Object.assign({ historic: 'building' }, tags && tags.building !== 'yes' ? tags : {}, { name, wikidata: q, _wp: wp });
       delete t._tren;
       if (tags && tags.building === 'yes') t.building = 'yes';
-      if (her) t.heritage = 'yes';
+      if (her) { t.heritage = 'yes'; t._her = herLevel(hers); }
       if (b.y && +b.y.value) t.start_date = String(+b.y.value);   // año de fundación (comercios centenarios)
       out.push({ type: 'node', id: q, lat: +(+m[2]).toFixed(6), lon: +(+m[1]).toFixed(6), tags: t });
     }

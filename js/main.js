@@ -243,7 +243,8 @@
     const f = [], painted = S().painted, cos = [];
     for (const k of viewTiles()) {   // por zona, una figura por intensidad (0-3) en vez de una por tramo
       const by = [[], [], [], []], t = W.tiles[k], seen = new Set();
-      if (t) for (const p of t.pieces) if (painted[p.id]) { by[heatLevel(p.id)].push(p.pts); seen.add(p.id); }
+      const isP = (id) => !!painted[id];
+      if (t) for (const p of t.pieces) if (painted[p.id]) { const h = heatLevel(p.id); by[h].push(p.pts); seen.add(p.id); for (const j of W.joinsOf(p, isP)) by[h].push(j); }   // (y sus uniones de cruce: sin cortes)
       const ids = pgeoTile.get(k);
       if (ids) for (const id of ids) if (painted[id] && !seen.has(id)) by[heatLevel(id)].push(pgeo.get(id).p);
       by.forEach((list, h) => { if (list.length) f.push({ type: 'Feature', properties: { h }, geometry: { type: 'MultiLineString', coordinates: list.map((pts) => pts.map(ll)) } }); });
@@ -633,6 +634,21 @@
           routed = true;
         }
       }
+      // Calles de la zona aún sin llegar (zona nueva, caché renovada, red lenta): lo andado no se pierde. Se guarda
+      // como un hueco pendiente (con puntos intermedios para seguir tu camino) y se pinta por las calles al llegar.
+      if (!routed && !jump && !tooFast && d > 0.01 && d < 400 && !(streetsReady(p) && streetsReady(lastP))) {
+        const g = pendingGaps[pendingGaps.length - 1];
+        if (g && g.noStreets && PM.geo.dist(g.b, lastP) < 1) {
+          if (PM.geo.dist(g.via.length ? g.via[g.via.length - 1] : g.a, g.b) > 30) g.via.push(g.b.slice());
+          g.b = p.slice(); g.tb = now; g.d = PM.geo.dist(g.a, p); g.since = Date.now();
+          if ((g.n = (g.n || 0) + 1) % 12 === 0) loadAlong(lastP, p);
+        } else {
+          pendingGaps.push({ a: lastP.slice(), b: p.slice(), ta: lastT, tb: now, via: [], d, since: Date.now(), noStreets: true });
+          loadAlong(lastP, p);
+        }
+        walkAnchor = p.slice(); paintPrev = null; recentP = [];
+        routed = true;
+      }
       if (!routed && !jump && d > 0.01 && d < 400) {
         if (!tooFast) {
           const steps = Math.ceil(d / 4);
@@ -709,7 +725,7 @@
       const maxLen = Math.max(g.d * 2, g.d + 250), dt = (g.tb - g.ta) / 1000;
       const r = (g.via.length && routeVia(g.a, g.b, g.via)) || W.route(g.a, g.b, maxLen);
       if (r && r.len <= Math.max(maxLen, r.via ? r.len : 0) && (dt <= 0 || r.len / dt <= MAX_SPEED * 1.5)) { fillGap(r, g.a, g.b, g.ta, g.tb); continue; }
-      if (Date.now() - g.since < 3 * 60000) { keep.push(g); continue; }
+      if (Date.now() - g.since < (g.noStreets ? 30 : 3) * 60000) { keep.push(g); continue; }   // (sin calles aún: sin cobertura, hasta media hora)
       // 3 minutos sin camino posible (de verdad no lo hay): como antes, lo que haya justo en línea recta (si es corto)
       if (g.d < 400) { const st = Math.ceil(g.d / 4), h = [g.b[0] - g.a[0], (g.b[1] - g.a[1]) * Math.cos(g.b[0] * Math.PI / 180)]; for (let i = 1; i <= st; i++) paintAround(PM.geo.lerp(g.a, g.b, i / st), h); }
     }
@@ -732,7 +748,7 @@
       const i0 = Math.floor(B.bbox[0] / T), i1 = Math.floor(B.bbox[2] / T), j0 = Math.floor(B.bbox[1] / T), j1 = Math.floor(B.bbox[3] / T);
       if ((i1 - i0 + 1) * (j1 - j0 + 1) <= 30) for (let i = i0; i <= i1; i++) for (let j = j0; j <= j1; j++) keep.add(i + '_' + j);
     }
-    for (const g of pendingGaps) { around(g.a, 1); around(g.b, 1); }
+    for (const g of pendingGaps) { around(g.a, 1); around(g.b, 1); g.via.forEach((q) => around(q, 0)); }
     return keep;
   }
   function trimMemory() {
@@ -854,6 +870,31 @@
       if (!piece.wide && dist > best + (PM.debug.margen != null ? PM.debug.margen : 3) && !(piece.len < 8 && dist <= 5)) continue;   // (3 m: un tercio menos de calles paralelas pintadas sin pisarlas, misma cobertura)
       if (S().painted[piece.id]) G.repass(piece); else G.paintPiece(piece, aura);
     }
+    if (!walkedPts.length || PM.geo.dist(walkedPts[walkedPts.length - 1], p) > 3) { walkedPts.push(p); if (walkedPts.length > 40) walkedPts.shift(); }
+    if (nearest && S().painted[nearest[0].id]) bridgeTo(nearest[0], p, aura);
+  }
+  // Sin cortes en lo pintado: si la calle que pintas ahora no enlaza con la anterior (cruzando una plaza en diagonal,
+  // dos calles que en el mapa no llegan a tocarse…), se pinta también lo que las une POR LAS CALLES, solo si el
+  // camino es casi recto y va por donde has andado: nada de rodeos ni de calles que no has pisado.
+  // En plazas y calles peatonales (sus líneas del mapa no siguen tu paso) se permite más hueco y más separación.
+  let bridgePc = null, bridgeP = null, bridgeT = 0;
+  const walkedPts = [];   // tus últimas posiciones (para saber si la unión va por donde has andado)
+  function bridgeTo(pc, p, aura) {
+    const prev = bridgePc, pp = bridgeP, now = Date.now(), fresh = now - bridgeT < 60000;
+    bridgePc = pc; bridgeP = p; bridgeT = now;
+    if (!prev || !fresh || prev === pc || !W.pieces[prev.id] || PM.debug.sinPuentes || PM.geo.dist(pp, p) > 70) return;
+    const ends = (x) => [x.pts[0], x.pts[x.pts.length - 1]];
+    let gap = Infinity, a = null, b = null;
+    for (const u of ends(prev)) for (const v of ends(pc)) { const d = PM.geo.dist(u, v); if (d < gap) { gap = d; a = u; b = v; } }
+    if (gap < 1 || gap > 50) return;   // ya se tocan, o demasiado lejos para ser la misma marcha
+    const r = W.route(a, b, gap * 1.5 + 12);
+    if (!r || !r.pieces.length) return;
+    const pcs = r.pieces.map((id) => W.pieces[id]).filter(Boolean);
+    const ped = pcs.every((q) => q.ped);
+    if (!ped && gap > 25) return;
+    const track = walkedPts.filter((q) => PM.geo.dist(q, p) < 120);
+    if (track.length > 1 && Math.max(...(r.path || []).map((q) => PM.geo.distToPolyline(q, track))) > (ped ? 25 : 12)) return;
+    for (const q of pcs) { if (S().painted[q.id]) G.repass(q); else G.paintPiece(q, aura); }
   }
 
   // Radar: el monumento sin capturar y el bote más cercanos, con distancia y flecha (anima a desviarse un poco)
@@ -1749,7 +1790,8 @@
         break;
       }
       case 'painted': {
-        paintedF.push(lineF(d.piece.pts, { h: 0 })); paintedAdd = true;   // solo el tramo nuevo
+        paintedF.push(lineF(d.piece.pts, { h: 0 })); paintedAdd = true;   // solo el tramo nuevo (y sus uniones con lo ya pintado)
+        for (const j of W.joinsOf(d.piece, (id) => !!S().painted[id])) paintedF.push(lineF(j, { h: 0 }));
         geoAdd(d.piece);
         if (session) { session.st.painted += d.piece.len; session.st.pieces++; session.st.bestCombo = Math.max(session.st.bestCombo, d.combo); }
         const now = performance.now();
