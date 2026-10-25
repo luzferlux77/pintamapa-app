@@ -563,7 +563,10 @@
     map.jumpTo({ center: ll(disp), padding: viewPadding() });
   }
   function drawPlayer() { player.setLngLat(ll(disp)); camera(); }
+  const playerBox = playerEl.querySelector('.player');
+  function beat() { playerBox.classList.remove('beat'); void playerBox.offsetWidth; playerBox.classList.add('beat'); }   // un latido por posición
   function showAt(p, smooth) {
+    if (smooth && (!disp || PM.geo.dist(disp, p) > 0.5)) beat();
     if (!disp || !smooth || PM.geo.dist(disp, p) > 300) { disp = p.slice(); anim = null; drawPlayer(); return; }
     anim = { from: disp.slice(), to: p.slice(), start: performance.now(), dur: 900 };
     wakeLoop();
@@ -1081,6 +1084,7 @@
   function nativePlugin(name) { const C = window.Capacitor; return (PM.isNative && C && ((C.Plugins && C.Plugins[name]) || (C.registerPlugin && C.registerPlugin(name)))) || null; }
   const CompassN = nativePlugin('Compass');
   let compassT = 0, compassOn = false, compassListen = false;
+  let compassWoke = null;
   function compassSync() {
     if (!CompassN) return;
     const want = orient === 'heading' && !document.hidden;
@@ -1091,7 +1095,10 @@
         CompassN.addListener('heading', (d) => {
           const h = d.heading;
           compass = compass == null ? h : (compass + angDiff(compass, h) * 0.35 + 360) % 360;
-          compassT = Date.now(); wakeLoop();
+          compassT = Date.now();
+          // (16 avisos por segundo: solo se despierta el dibujo si el rumbo ha cambiado 1° desde la última vez, no por
+          // el temblor del sensor con el móvil quieto)
+          if (compassWoke == null || Math.abs(angDiff(compassWoke, compass)) >= 1) { compassWoke = compass; wakeLoop(); }
         });
       }
       CompassN.start().catch(() => { compassOn = false; });

@@ -70,7 +70,11 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .player { position: relative; width: 44px; height: 44px; pointer-events: none; }   /* el dedo pasa al mapa (pinza encima de ti) */
 .player .dot { position: absolute; inset: 7px; border-radius: 50%; background: var(--paint); display: grid; place-items: center; font-size: 17px;
   border: 3px solid #fff; box-shadow: 0 0 16px var(--paint); }
-.player .pulse { position: absolute; inset: 0; border-radius: 50%; background: var(--paint); opacity: .4; animation: pulse 1.6s infinite; }
+/* BATERÍA: nada de animaciones infinitas en la pantalla del mapa. En una pantalla de 120 Hz obligan a recomponer la
+   pantalla entera (mapa incluido) sin parar: medido en un móvil real, ~93 % de un núcleo con el mapa quieto frente a
+   ~13 % sin ellas. El pulso late una vez con cada posición nueva del GPS (parado, no late). */
+.player .pulse { position: absolute; inset: 0; border-radius: 50%; background: var(--paint); opacity: 0; }
+.player.beat .pulse { animation: pulse 1.6s ease-out 1; }
 @keyframes pulse { from { transform: scale(.6); opacity: .6; } to { transform: scale(1.8); opacity: 0; } }
 
 /* Monumentos */
@@ -214,7 +218,7 @@ kbd { background: var(--btn); border-radius: 5px; padding: 1px 6px; color: var(-
 .sinfo { flex: 1; min-width: 0; }
 .sinfo b { display: flex; align-items: center; gap: 7px; font-size: 18px; font-variant-numeric: tabular-nums; }
 .sinfo small { display: block; color: var(--muted); font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.rec { width: 10px; height: 10px; border-radius: 50%; background: #ef4444; display: inline-block; animation: blink 1s infinite; }
+.rec { width: 10px; height: 10px; border-radius: 50%; background: #ef4444; display: inline-block; box-shadow: 0 0 0 3px rgba(239,68,68,.25); }   /* fijo (parpadear sin fin gastaba batería) */
 @keyframes blink { 50% { opacity: .2; } }
 .sbtn { width: 48px; height: 48px; padding: 0; font-size: 20px; border-radius: 14px; flex: none; }
 .sbtn.go { background: #16a34a; border-color: #16a34a; }
@@ -237,7 +241,7 @@ kbd { background: var(--btn); border-radius: 5px; padding: 1px 6px; color: var(-
 .fx-must i:first-child { background: radial-gradient(circle closest-side, rgba(250, 204, 21, 0) 50%, rgba(250, 204, 21, .75) 58%, rgba(250, 204, 21, 0) 100%); animation: fxBreath 2.6s ease-in-out 3; }   /* 3 latidos y descansa (infinito obligaba a dibujar sin parar: batería) */
 .fx-must i:last-child, .fx-halo.off i { display: none; }
 @keyframes fxBreath { 0%, 100% { transform: scale(.9); opacity: .3; } 50% { transform: scale(1.12); opacity: .9; } }
-.fx-halo i { border: 3px solid var(--fxc, #2563eb); opacity: 0; animation: fxWave 1.8s ease-out infinite; }
+.fx-halo i { border: 3px solid var(--fxc, #2563eb); opacity: 0; animation: fxWave 1.8s ease-out 3; }   /* 3 ondas al aparecer y descansa (batería) */
 .fx-halo i:last-child { animation-delay: .9s; }
 .fx-halo.gold i { border-color: #eab308; }
 @keyframes fxWave { 0% { transform: scale(.42); opacity: .85; } 100% { transform: scale(1.25); opacity: 0; } }
@@ -452,7 +456,7 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 #badges #gps.gpsi.show { display: inline-flex; }
 #gps.gpsi small { font-size: 10.5px; line-height: 1; font-weight: 700; }
 #gps svg circle { fill: none; stroke: currentColor; stroke-width: 1.8; } #gps svg .g-dot { fill: currentColor; stroke: none; }
-#gps.gps-search { color: #6b7280; } #gps.gps-search .g-r1, #gps.gps-search .g-r2 { transform-origin: 12px 12px; animation: gpsping 1.4s ease-out infinite; }
+#gps.gps-search { color: #6b7280; } #gps.gps-search .g-r1, #gps.gps-search .g-r2 { transform-origin: 12px 12px; animation: gpsping 1.4s ease-out 5; }   /* unas ondas y quieto */
 #gps.gps-search .g-r2 { animation-delay: .5s; }
 @keyframes gpsping { 0% { opacity: .9; transform: scale(.4); } 100% { opacity: 0; transform: scale(1.05); } }
 #gps.gps-ok { color: #16a34a; border-color: #86efac; } #gps.gps-ok .g-r2 { opacity: .35; }
