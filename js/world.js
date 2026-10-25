@@ -407,6 +407,8 @@ PM.world = (function () {
       // la separación mínima)
       const close = near.filter((o) => { const d = PM.geo.dist(o.pos, lm.pos); return (o.kind === lm.kind && d < 60) || (sameName(o.name, lm.name) && d < 300); });
       if (!close.length) continue;
+      // si ya conquistaste la versión del mapa, se queda esa (antes salían las dos: «Ajuntament» y «casa consistorial»)
+      if (close.some(isCap) && !isCap(lm)) { drop.add(lm.id); continue; }
       if (close.every((o) => !o.wd && !o.wiki) && lm.prio >= Math.max(...close.map((o) => o.prio))) {
         close.forEach((o) => { if (!isCap(o)) drop.add(o.id); });
         // Wikidata solo sabe que es «patrimonio» y el mapa dice qué es (el Alcázar de Toledo, un castillo): ese tipo
