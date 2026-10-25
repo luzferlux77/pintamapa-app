@@ -1,8 +1,8 @@
 {
-  "version": "0.6.76",
-  "notes": "Vídeo del paseo: los lugares que conquistaste aparecen con su círculo dorado, su nombre y una explosión de confeti cuando el recorrido pasa por ellos; al final quedan todos marcados. Precarga de grandes ciudades: sus lugares e imprescindibles (elegidos también por las visitas reales en Wikipedia) llegan al momento",
+  "version": "0.6.77",
+  "notes": "Motor de lugares como una guía turística: más selectivo y mejor repartido por barrios. Arriba lo que recomiendan las guías (catedrales, palacios, museos, monumentos, miradores, mercados y plazas históricas, como La Boqueria o la Plaça de Sant Jaume); cuenta los visitantes al año de museos y monumentos; los servicios (hospitales, bibliotecas, campos de fútbol) solo rellenan zonas con poco; fuera trampas para turistas, juntas de distrito, columbarios y cienciología",
   "native": 6,
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.76/pintamapa-web-0.6.76.zip",
-  "checksum": "39917cae72491afdc8c5265c6497dcf8b8f304b2ff04ad7589a89ff609805300",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.76/PintaMapa-v0.6.76.apk"
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.77/pintamapa-web-0.6.77.zip",
+  "checksum": "5e9f18161a4ba79787b03d03dc25a06ca14f8b4a056cc4eb00494d55b2b825c4",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.77/PintaMapa-v0.6.77.apk"
 }
