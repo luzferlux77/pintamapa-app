@@ -1,8 +1,8 @@
 {
-  "version": "0.6.70",
-  "notes": "Combos con confeti y sonido: cada vez que sube el multiplicador (cada 10 calles nuevas seguidas) llueve confeti por la pantalla con una melodía que crece con el combo. Motor de lugares más robusto: los mismos lugares para todos también con edificios que salen en varias teselas o con varias coordenadas; templos budistas y sintoístas, rascacielos y fuentes bien clasificados; fuera barrios, cuadros de museo y edificios con nombre de dirección; lo famoso en todo el mundo (Arco de Tito) entra siempre; nueva batería de pruebas con 6 ciudades reales",
+  "version": "0.6.71",
+  "notes": "Sin lugares repetidos junto a los que ya conquistaste: si conquistaste la versión del mapa (Ajuntament, Castell de Cornellà), ya no aparece al lado la misma de Wikidata con otro nombre",
   "native": 6,
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.70/pintamapa-web-0.6.70.zip",
-  "checksum": "9298cc6399a01f049fbe5cecf1898fd1b36f7c23f3b8aca0e725c78c1e89054b",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.70/PintaMapa-v0.6.70.apk"
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.71/pintamapa-web-0.6.71.zip",
+  "checksum": "5094e8e00d174d0cde1375da5da2714bf9cba26b821d611d46026a8db6758fb7",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.71/PintaMapa-v0.6.71.apk"
 }
