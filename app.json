@@ -1,8 +1,8 @@
 {
-  "version": "0.6.66",
-  "notes": "Versión web: sin halo alrededor de los lugares conquistados; el acceso del escritorio ya no abre otra app",
+  "version": "0.6.67",
+  "notes": "Pintado sin cortes: al cruzar plazas o donde dos calles del mapa no llegan a tocarse; lo andado mientras llegan las calles de una zona ya no se pierde. Nuevo motor de lugares: puntuación por fama y nivel de patrimonio (UNESCO, nacional, local), selección equilibrada por zona (icónicos siempre, cupos por zona y tipo), comercios históricos con cupo propio, zoos, acuarios, parques temáticos y puertas de muralla; corregidas iglesias que salían como catedrales y edificios que salían como castillos",
   "native": 6,
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.66/pintamapa-web-0.6.66.zip",
-  "checksum": "9af4523e00ec1a042d3e7dca559dd7297251bc83977b6ce2f4aa8a7b19285782",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.66/PintaMapa-v0.6.66.apk"
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.67/pintamapa-web-0.6.67.zip",
+  "checksum": "f77b4a964bc308f27e8307fe13f5565d5f0451d16b0fd9c7d98a32a8fd27c157",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.67/PintaMapa-v0.6.67.apk"
 }
