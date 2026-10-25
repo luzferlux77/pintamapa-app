@@ -1585,7 +1585,11 @@
     const geo = {};
     for (const id in S().painted) { const pc = W.pieces[id]; if (pc) geo[id] = pc.pts; else if (pgeo.has(id)) geo[id] = pgeo.get(id).p; }   // (también lo de zonas no cargadas)
     await PM.need('lib/mp4-muxer.js', 'js/replay.js');
-    PM.replay.open(w, { geo, color: paintColor(), player: PM.player && PM.player.name });
+    // lugares conquistados (o vueltos a visitar) durante ESTE paseo: salen en el vídeo con su círculo y confeti
+    const fin = w.start + Math.max(w.elapsed || 0, ...(w.track || []).filter(Boolean).map((q) => (q[2] || 0) * 1000)) + 60000;
+    const caps = Object.values(S().landmarks).filter((r) => r && r.pos && ((r.t >= w.start && r.t <= fin) || (r.last >= w.start && r.last <= fin)))
+      .map((r) => ({ pos: r.pos, name: r.name, emoji: r.emoji || '📍', nuevo: r.t >= w.start, must: !!r.must }));
+    PM.replay.open(w, { geo, color: paintColor(), player: PM.player && PM.player.name, caps });
   }
   function panelWalks() {
     const ws = (S().walks || []).slice().reverse();

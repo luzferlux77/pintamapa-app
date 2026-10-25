@@ -61,7 +61,6 @@ PM.world = (function () {
     if (PM.state && !PM.state.data.landmarks[lm.id]) {
       for (const [cid, r] of Object.entries(PM.state.data.landmarks)) if (r.name === lm.name && r.pos && PM.geo.dist(r.pos, lm.pos) < 60) { lm.id = cid; break; }
     }
-    if (landmarks[lm.id] && PM.geo.dist(landmarks[lm.id].pos, lm.pos) < 1) return;   // (el mismo con otra posición: lo decide commitLandmarks)
     if (lmBatch) lmBatch.push(lm); else commitLandmarks([lm]);
   }
 
@@ -153,6 +152,10 @@ PM.world = (function () {
     if (!ci || ci.must || mustBusy.has(name) || !PM.wikidata || !PM.wikidata.fetchTop) return;
     mustBusy.add(name);
     try {
+      // gran ciudad con precarga: sus imprescindibles ya vienen elegidos (interés turístico + visitas reales en Wikipedia)
+      const pc = ci.q && (await preIdx()).find((c) => c.q === ci.q), pd = pc && await precarga(pc.q);
+      const pm = pd && (pd.must || []).filter((m) => inCity(m.pos, ci));
+      if (pm && pm.length >= 3) { cityInfo[name].must = pm; mustCache = null; saveCityInfo(); emit('named', { city: name }); return; }
       const [s0, w0, n0, e0] = ci.bbox;
       const big = ci.pop ? ci.pop >= 400000 : (n0 - s0) * (e0 - w0) > 0.02;   // ciudad grande: solo lo bastante conocido (la consulta es más ligera)
       const ctl = new AbortController(), to = setTimeout(() => ctl.abort(), 60000);
@@ -206,7 +209,10 @@ PM.world = (function () {
   // Un edificio grande sale en varias teselas del mapa con posiciones distintas (cada una mide su trozo): de todas las
   // copias con el mismo id se queda SIEMPRE la misma (la más al sur y al oeste), lleguen en el orden que lleguen.
   // Antes se quedaba la primera que llegaba: según el orden de carga caía en una zona u otra y cambiaba la selección.
-  const before = (a, b) => a.pos[0] < b.pos[0] || (a.pos[0] === b.pos[0] && a.pos[1] < b.pos[1]);
+  // Y si son el mismo sitio con datos de días distintos (la precarga y la consulta por zona), gana el que tiene más
+  // artículos (y luego más protección): tampoco depende de cuál llegue antes.
+  const before = (a, b) => a.pos[0] < b.pos[0] || (a.pos[0] === b.pos[0] && (a.pos[1] < b.pos[1]
+    || (a.pos[1] === b.pos[1] && ((a.wp || 0) > (b.wp || 0) || ((a.wp || 0) === (b.wp || 0) && (a.her || 0) > (b.her || 0))))));
   function commitLandmarks(list) {
     for (const lm of list) {
       const o = pool[lm.id];
@@ -1082,7 +1088,42 @@ PM.world = (function () {
   }
 
   let around = null, pending = null;   // carga en curso y la última petición llegada mientras tanto
+  // ---------- Precarga de las grandes ciudades del mundo (capital y principales ciudades de cada país) ----------
+  // Sus lugares más conocidos ya vienen preparados (scripts/pois/precarga.mjs → GitHub Pages): al acercarte se
+  // descargan una vez (unos 40-100 KB) y salen al momento, sin esperar a Wikidata. Son los mismos datos que la
+  // consulta por zona: la selección es igual para todos, tengan o no la precarga.
+  const PRE_CDN = 'https://luzferlux77.github.io/pintamapa-app/lugares/', PRE_DIAS = 60;
+  let preIndex = null, preIndexP = null;
+  const preDone = new Set(), preData = {};
+  function preIdx() {
+    if (preIndex) return Promise.resolve(preIndex);
+    if (!preIndexP) preIndexP = (typeof fetch === 'undefined' ? Promise.resolve([]) : fetch('data/ciudades.json').then((r) => (r.ok ? r.json() : [])).catch(() => []))
+      .then((j) => (preIndex = Array.isArray(j) ? j : []));
+    return preIndexP;
+  }
+  async function precarga(q) {
+    if (preData[q]) return preData[q];
+    let d = await cache.get('pre:' + q);
+    if (!d || Date.now() - (d.tt || 0) > PRE_DIAS * 86400000) {
+      try { const r = await fetch(PRE_CDN + q + '.json'); if (r.ok) { d = await r.json(); d.tt = Date.now(); cache.put('pre:' + q, d); } } catch (e) { /* sin conexión: lo de la caché, si había */ }
+    }
+    if (d && Array.isArray(d.els)) preData[q] = d;
+    return preData[q] || null;
+  }
+  async function precargaCerca(lat, lon) {
+    if (demoMode || typeof fetch === 'undefined') return;
+    for (const c of await preIdx()) {
+      if (preDone.has(c.q) || PM.geo.dist([lat, lon], c.c) > c.r * 1000 + 3000) continue;
+      preDone.add(c.q);
+      const d = await precarga(c.q);
+      if (!d) { preDone.delete(c.q); continue; }   // (se reintentará al moverte)
+      lmBatch = []; for (const el of d.els) addLandmark(el);
+      const b = lmBatch; lmBatch = null; commitLandmarks(b);
+      emit('loaded', { tiles: [] });
+    }
+  }
   async function ensureAround(lat, lon) {
+    precargaCerca(lat, lon);
     if (around) { pending = [lat, lon]; return around; }
     around = (async () => {
       const cur = tileKeyOf(lat, lon);
@@ -1341,7 +1382,7 @@ PM.world = (function () {
       for (let i = i0; i <= i1; i++) for (let j = j0; j <= j1; j++) if (!ensureTile(i + '_' + j).loaded) need.push(i + '_' + j);
       if (need.length && need.length <= 12) loadTiles(need).catch(() => {});
     },
-    _graph: () => gnodes, _pool: () => pool, _classify: classify, _conf: L.CONF, porque, _why: () => lastWhy, _reselect: () => selectLandmarks(), _ingest: (els, keys) => { keys.forEach((k) => ensureTile(k)); ingest(els, new Set(keys)); }, _measureCity: (c) => measureCityVT(c),   // (pruebas)
+    _graph: () => gnodes, _pool: () => pool, _classify: classify, _conf: L.CONF, porque, _why: () => lastWhy, precargaCerca, _precarga: () => preData, _reselect: () => selectLandmarks(), _ingest: (els, keys) => { keys.forEach((k) => ensureTile(k)); ingest(els, new Set(keys)); }, _measureCity: (c) => measureCityVT(c),   // (pruebas)
     isDemo: () => demoMode,
     setDemo: (v) => { demoMode = v; },
   };

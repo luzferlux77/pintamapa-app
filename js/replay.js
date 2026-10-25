@@ -291,7 +291,63 @@ ${segs.map((s) => `<LineString><tessellate>1</tessellate><altitudeMode>clampToGr
       if (a && a[0] > mS && a[0] < mN && a[1] > mW && a[1] < mE) bg.push(line.map(P));
       if (bg.length > 6000) break;
     }
-    return { path, total: acc, bg, area, P, streets: [] };
+    // lugares conquistados en el paseo: dónde (y cuándo) pasa la línea por su lado
+    const caps = (opts.caps || []).map((c, i) => {
+      const q = P(c.pos); let best = null, bd = Infinity;
+      for (const a of path) { const dd = (a.p[0] - q[0]) ** 2 + (a.p[1] - q[1]) ** 2; if (dd < bd) { bd = dd; best = a; } }
+      return Object.assign({}, c, { p: q, d: best ? best.d : 0, i });
+    }).sort((a, b) => a.d - b.d);
+    return { path, total: acc, bg, area, P, streets: [], caps };
+  }
+  // Círculo de conquista con destello y confeti cuando la línea llega a un lugar conquistado en el paseo.
+  // (el confeti sale siempre igual, con semilla fija: el vídeo grabado es idéntico a la vista previa)
+  const CONF_COL = ['#facc15', '#22d3ee', '#f472b6', '#a3e635', '#ffffff', '#fb923c', '#a855f7'];
+  function drawCaps(ctx, sc, t) {
+    if (!sc.caps || !sc.caps.length) return;
+    const now = t * DRAW_S;
+    for (const c of sc.caps) {
+      const age = now - (c.d / Math.max(1, sc.total)) * DRAW_S;   // segundos desde que la línea pasó por allí
+      if (age < 0) continue;
+      const [x, y] = c.p, gold = c.must ? '#fde047' : '#facc15';
+      const grow = Math.min(1, age / 0.45), ease = 1 + 2.2 * Math.pow(grow - 1, 3) + 1.2 * Math.pow(grow - 1, 2);   // crece con un pequeño rebote
+      const R = 30 * Math.max(0, ease);
+      // onda que se expande al aparecer
+      if (age < 1.2) {
+        const k = age / 1.2;
+        ctx.save(); ctx.strokeStyle = gold; ctx.globalAlpha = 0.8 * (1 - k); ctx.lineWidth = 6 * (1 - k) + 1;
+        ctx.beginPath(); ctx.arc(x, y, 30 + 70 * k, 0, Math.PI * 2); ctx.stroke(); ctx.restore();
+      }
+      // círculo de conquista
+      ctx.save();
+      const rg = ctx.createRadialGradient(x, y, 0, x, y, R + 1);
+      rg.addColorStop(0, 'rgba(250,204,21,.55)'); rg.addColorStop(1, 'rgba(250,204,21,.15)');
+      ctx.fillStyle = rg; ctx.shadowColor = gold; ctx.shadowBlur = 24;
+      ctx.beginPath(); ctx.arc(x, y, R, 0, Math.PI * 2); ctx.fill();
+      ctx.shadowBlur = 0; ctx.strokeStyle = gold; ctx.lineWidth = 4; ctx.stroke();
+      if (R > 8) { ctx.font = `${Math.round(R * 1.05)}px system-ui, "Segoe UI Emoji", "Noto Color Emoji", sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(c.emoji, x, y + 1); }
+      ctx.restore();
+      // nombre del lugar unos segundos
+      if (age < 2.8) {
+        const a = age < 0.3 ? age / 0.3 : age > 2.2 ? (2.8 - age) / 0.6 : 1;
+        ctx.save(); ctx.globalAlpha = Math.max(0, a); ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+        ctx.font = '800 24px system-ui, -apple-system, Segoe UI, Roboto, sans-serif'; ctx.lineWidth = 6; ctx.strokeStyle = 'rgba(11,18,32,.85)';
+        const label = (c.nuevo ? '🏆 ' : '↻ ') + (c.name.length > 26 ? c.name.slice(0, 25) + '…' : c.name);
+        ctx.strokeText(label, x, y - R - 16); ctx.fillStyle = '#fff'; ctx.fillText(label, x, y - R - 16); ctx.restore();
+      }
+      // confeti (1,6 s)
+      if (age < 1.6) {
+        let seed = 7 + c.i * 977;
+        const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
+        ctx.save();
+        for (let k = 0; k < 44; k++) {
+          const ang = rnd() * Math.PI * 2, v = 160 + rnd() * 280, rot = rnd() * 6, sz = 8 + rnd() * 8, col = CONF_COL[Math.floor(rnd() * CONF_COL.length)];
+          const px = x + Math.cos(ang) * v * age, py = y + Math.sin(ang) * v * age - 120 * age + 260 * age * age;   // sale disparado y cae
+          ctx.globalAlpha = Math.max(0, 1 - age / 1.6); ctx.fillStyle = col;
+          ctx.translate(px, py); ctx.rotate(rot + age * 8); ctx.fillRect(-sz / 2, -sz / 4, sz, sz / 2); ctx.setTransform(1, 0, 0, 1, 0, 0);
+        }
+        ctx.restore();
+      }
+    }
   }
   // calles de fondo desde los mapas vectoriales (OpenFreeMap…). Sin conexión, el vídeo sale igual sobre fondo liso.
   async function loadStreets(sc) {
@@ -350,6 +406,7 @@ ${segs.map((s) => `<LineString><tessellate>1</tessellate><altitudeMode>clampToGr
     ctx.save(); ctx.fillStyle = '#fff'; ctx.shadowColor = color; ctx.shadowBlur = 20;
     ctx.beginPath(); ctx.arc(head[0], head[1], 11, 0, Math.PI * 2); ctx.fill(); ctx.restore();
     ctx.fillStyle = color; ctx.beginPath(); ctx.arc(head[0], head[1], 6, 0, Math.PI * 2); ctx.fill();
+    drawCaps(ctx, sc, t);
     const f = Math.min(1, t);
     ctx.textAlign = 'left';
     ctx.font = '600 30px system-ui, -apple-system, Segoe UI, Roboto, sans-serif';
@@ -548,5 +605,13 @@ ${segs.map((s) => `<LineString><tessellate>1</tessellate><altitudeMode>clampToGr
   #replay-view .rp-msg { color: #374151; font-size: 14px; margin: 0; min-height: 1.2em; }`;
   document.head.appendChild(st);
 
-  return { open, close, save, analyze: (w) => analyze(w, points(w)) };
+  // (pruebas) un fotograma del vídeo en el instante t (0 = inicio, 1 = recorrido completo), como imagen
+  async function _frame(walk, opts, t) {
+    const sc = scene(walk, opts); if (!sc) return null;
+    await loadStreets(sc);
+    const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+    draw(cv.getContext('2d'), sc, t, walk, opts, analyze(walk, points(walk)));
+    return cv.toDataURL('image/jpeg', 0.85);
+  }
+  return { open, close, save, analyze: (w) => analyze(w, points(w)), _frame };
 })();
