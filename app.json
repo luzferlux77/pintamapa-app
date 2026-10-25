@@ -1,8 +1,8 @@
 {
-  "version": "0.6.81",
-  "notes": "Seguridad y robustez (auditoría): la clave de la nube ya no va en lo publicado (solo en la APK personal), nombres nunca se ejecutan como HTML, guardado que avisa si falla, nube con tiempo máximo y sin falsos «guardado», GPS que no se queda encendido, sin actualizaciones a mitad de paseo, copias validadas antes de importar, fotos separadas por pintor, huecos del recorrido guardados, fusiones correctas (fotos, misiones, países), % de ciudad estable, puntos de brillantes imprescindibles. Precarga de 500 ciudades del mundo.",
+  "version": "0.6.82",
+  "notes": "Motor de lugares: imprescindibles de guía (sin estadios corrientes ni universidades, variados), fuera universidades/hospitales/bomberos salvo patrimonio, estaciones históricas y principales (Cornellà, Atocha, Sants, Chamartín), aeropuertos (se capturan desde fuera), puentes, museos y monumentos que faltaban (Art Institute, Big Ben, Puente de Carlos, Times Square…). Tus cartas duplicadas se juntan en el lugar vigente y las que ya no existen salen del álbum (los puntos se quedan). Lista de ciudades arreglada (Roma, Barcelona, Nueva York…) y ciudades turísticas (Kioto, Florencia, Granada…).",
   "native": 6,
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.81/pintamapa-web-0.6.81.zip",
-  "checksum": "b438532d2ff95abc680fa07fe44970b16616dfa9aeb4b75da9925186fe3090ad",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.81/PintaMapa-v0.6.81.apk"
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.82/pintamapa-web-0.6.82.zip",
+  "checksum": "500d31f82b17e5d46402eb7c6b26e33b0b10379d2e5a8131c306f4c728dc3f21",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.82/PintaMapa-v0.6.82.apk"
 }
