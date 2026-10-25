@@ -89,7 +89,7 @@ PM.world = (function () {
   // los lugares más conocidos de TODO el municipio según Wikidata (en cuántas wikis salen), no los que
   // haya cargados a tu alrededor (por eso antes iban cambiando). Se piden una vez y se guardan.
   // Cuántos, según su tamaño: un pueblo, unos pocos; una gran ciudad, muchos más.
-  const CITY_V = 5;   // 5: con visitantes y sin trampas para turistas; 4:   // 4: imprescindibles por interés turístico (no solo por fama: hoteles y residencias salían en L'Hospitalet o Sant Joan Despí); 3: «ciudad grande» por población
+  const CITY_V = 6;   // 6: sin falsos «usos no turísticos» (Liceu, Hôtel de Ville…) y lugares contiguos (Batlló y Amatller); 5: con visitantes y sin trampas para turistas; 4:   // 4: imprescindibles por interés turístico (no solo por fama: hoteles y residencias salían en L'Hospitalet o Sant Joan Despí); 3: «ciudad grande» por población
   let mustCache = null;   // imprescindibles con su lugar del mapa (mustLists)
   function mustCount(ci, els) {
     const pop = ci.pop || 0;
@@ -1382,7 +1382,7 @@ PM.world = (function () {
       for (let i = i0; i <= i1; i++) for (let j = j0; j <= j1; j++) if (!ensureTile(i + '_' + j).loaded) need.push(i + '_' + j);
       if (need.length && need.length <= 12) loadTiles(need).catch(() => {});
     },
-    _graph: () => gnodes, _pool: () => pool, _classify: classify, _conf: L.CONF, porque, _why: () => lastWhy, precargaCerca, _precarga: () => preData, _reselect: () => selectLandmarks(), _ingest: (els, keys) => { keys.forEach((k) => ensureTile(k)); ingest(els, new Set(keys)); }, _measureCity: (c) => measureCityVT(c),   // (pruebas)
+    _graph: () => gnodes, _pool: () => pool, _classify: classify, _usoNoTuristico: L.usoNoTuristico, _conf: L.CONF, porque, _why: () => lastWhy, precargaCerca, _precarga: () => preData, _reselect: () => selectLandmarks(), _ingest: (els, keys) => { keys.forEach((k) => ensureTile(k)); ingest(els, new Set(keys)); }, _measureCity: (c) => measureCityVT(c),   // (pruebas)
     isDemo: () => demoMode,
     setDemo: (v) => { demoMode = v; },
   };

@@ -111,14 +111,17 @@
     Biblioteca: 32, Bomberos: 30, 'Campo de fútbol': 30, 'Arte urbano': 30, 'Lugar histórico': 30 };
   const SERVICIO = /^(Hospital|Bomberos|Biblioteca|Campo de fútbol|Universidad|Estudio de televisión)$/;
   // trampas para turistas (museos del cannabis, eróticos, de ilusiones, de selfies…): puntúan menos y nunca son icónicas
-  const TRAMPA = /hash|marihuana|marijuana|cannabis|er[oó]ti[ck]|sex museum|museo del sexo|selfie|ilusi[oó]n|illusion|upside ?down|museo de cera|wax museum|instagram/i;
+  const TRAMPA = /(^|[^a-z])hash([^a-z]|$)|marihuana|marijuana|cannabis|er[oó]ti[ck]|sex museum|museo del sexo|selfie|museo de (la )?ilusi[oó]n|museum of illusions|upside ?down|museo de cera|wax museum|instagram/i;
 
   // ---------------- Uso e interés turístico ----------------
   // Usos que no son para visitar, por la clase de Wikidata (tags._uso) o por el nombre en varios idiomas: hoteles,
   // residencias, centros de salud, escuelas, polideportivos, oficinas, centros comerciales, aparcamientos.
   // Como carta normal restan puntos (a veces es un edificio histórico reutilizado); como imprescindible, nunca.
-  const USO_RE = /(^|[^a-zà-ÿ])(hotel|h[oô]tel|hostal|resid[eè]nci[ae]|geri[aà]tric|asilo|nursing home|retirement|centro de salud|centre de salut|cap |ambulatori|salud mental|salut mental|escola|escuela|colegio|col·legi|liceo|lyc[eé]e|primary school|high school|polideportiv|poliesportiu|pabell[oó]n|pavell[oó]|complejo deportivo|complex esportiu|oficinas|office|centro comercial|centre comercial|shopping|mall|aparcament|aparcamiento|parking)([^a-zà-ÿ]|$)/i;
-  const usoNoTuristico = (tags) => !!tags._uso || USO_RE.test(tags.name || '');
+  // (por el nombre, solo lo inequívoco: «hôtel de …» en francés es un palacete —el Hôtel de Ville, los Invalides—;
+  // el Liceu, el Pabellón Mies van der Rohe, The Mall, el General Post Office o el Cap de Creus NO son esto)
+  const USO_RE = /(^|[^a-zà-ÿ])(hotel(?!\s+(de|des|du|d')(\s|$))|hostal(?!\s+(de|dos|dels)\s)|resid[eè]ncia geri[aà]trica|residencia (de ancianos|geri[aà]trica|de mayores)|geri[aà]tric[a-zà-ÿ]*|nursing home|retirement home|centro de salud|centre de salut|centre d'atenció primària|ambulatori[a-zà-ÿ]*|salud mental|salut mental|escola (p[uú]blica|bressol)|escuela (infantil|primaria)|colegio p[uú]blico|ceip|primary school|high school|polideportiv[a-zà-ÿ]*|poliesportiu|pabell[oó]n (deportivo|polideportivo|municipal)|pavell[oó] (esportiu|poliesportiu|municipal)|complejo deportivo|complex esportiu|edificio de oficinas|office building|centro comercial|centre comercial|shopping center|shopping centre|aparcament|aparcamiento|parking)([^a-zà-ÿ]|$)/i;
+  // un edificio histórico reutilizado (el Hostal dels Reis Catòlics de Santiago es hotel) no pierde su sitio
+  const usoNoTuristico = (tags) => (!!tags._uso || USO_RE.test(tags.name || '')) && !((+tags._her || 0) >= 2 || (+tags._wp || 0) >= 15);
   // antigüedad (año de fundación de Wikidata): lo medieval o anterior a 1800 tiene más interés
   const antiguedad = (tags) => { const y = +tags.start_date; return !y ? 0 : y < 1500 ? 10 : y < 1800 ? 6 : 0; };
   // Interés turístico de un tipo de lugar (para los imprescindibles): lo que de verdad se visita, arriba
@@ -128,9 +131,10 @@
   // Interés de un lugar como IMPRESCINDIBLE de su ciudad: fama (sitelinks) + protección + tipo + antigüedad.
   // Devuelve null si no puede ser imprescindible (uso no turístico, hospitales, estaciones, cementerios…).
   const MUST_NO = /^(Estación|Parada de tranvía|Hospital|Bomberos|Arte urbano|Memorial|Comercio emblemático|Biblioteca|Mercado|Campo de fútbol)$/;
+  const CEMENTERIO = /納骨|霊園|墓地|columbari|tanatori|crematori|cementeri|cementiri|cemetery|friedhof|cimeti[eè]re|cimitero|panteó|panteón/i;
   function interes(el) {
     const tags = el.tags || {}, c = clasificar(tags), nm = tags.name || '';
-    if (!c || MUST_NO.test(c.kind) || /cementeri|cementiri|panteó|panteón|tanatori|cemetery/i.test(nm)) return null;
+    if (!c || MUST_NO.test(c.kind) || CEMENTERIO.test(nm)) return null;
     const sl = +tags._wp || 0;
     if (usoNoTuristico(tags) && !(c.kind === 'Estadio' && sl >= 10)) return null;   // (los estadios de equipos profesionales, sí)
     if (TRAMPA.test(nm)) return null;   // (las trampas para turistas, nunca)
@@ -146,7 +150,7 @@
     const list = [];
     for (const { el, r } of sc) {
       const pos = [el.lat, el.lon], nm = el.tags.name;
-      if (list.some((x) => geo().dist(x.pos, pos) < 120 || (sameName(x.name, nm) && geo().dist(x.pos, pos) < 400))) continue;   // el museo dentro del estadio…
+      if (list.some((x) => geo().dist(x.pos, pos) < 40 || (sameName(x.name, nm) && geo().dist(x.pos, pos) < 400))) continue;   // el mismo sitio dos veces (no lo que está al lado)
       list.push({ q: el.id, name: nm, pos, kind: r.c.kind, emoji: r.c.emoji, sl: el.tags._wp || 0, interes: r.puntos });
       if (list.length >= N) break;
     }
@@ -170,7 +174,7 @@
     // iglesias evangélicas / pentecostales / testigos…: no (sí las demás religiones y templos del mundo)
     if (evangelica(tags)) return { motivo: 'iglesia evangélica' };
     if (/scientolog|dian[eé]tic/i.test(tags.name)) return { motivo: 'no es un lugar de interés' };   // (cienciología)
-    if (/納骨|霊園|墓地|columbari|tanatori|crematori|cementeri|cementiri|cemetery|friedhof|cimeti[eè]re|cimitero/i.test(tags.name) && (+tags._wp || 0) < 8) return { motivo: 'cementerio o columbario sin fama' };
+    if (CEMENTERIO.test(tags.name) && (+tags._wp || 0) < 8) return { motivo: 'cementerio o columbario sin fama' };   // (Père-Lachaise o la Recoleta, sí)
     const c = clasificar(tags);
     if (!c) return { motivo: 'no es un lugar del juego' };
     if (c.kind === 'Atracción' && !(tags.wikipedia || tags.wikidata)) return { motivo: 'atracción sin artículo' };   // casi siempre ruido
@@ -215,7 +219,7 @@
       // estación histórica, Patrimonio de la Humanidad o nacional, lo famoso de verdad (12+ idiomas) y los palacios,
       // museos, estadios, zoos, parques temáticos y monasterios con artículo en 5+ idiomas. El resto compite por su
       // sitio con cupo por zona y por tipo (seleccionar).
-      principal: c.kind !== 'Comercio emblemático' && !trampa && (/^(Ayuntamiento|Catedral|Basílica|Castillo|Estación)$/.test(c.kind)
+      principal: c.kind !== 'Comercio emblemático' && !trampa && (/^(Ayuntamiento|Catedral|Basílica|Castillo)$/.test(c.kind) || (c.kind === 'Estación' && (her >= 2 || wp >= 5))
         || her === 3 || (her === 2 && wp >= 4) || (wp >= 12 && (c.kind !== 'Rascacielos' || wp >= 25))   // (rascacielos: solo los famosos en todo el mundo)
         || (/^(Palacio|Museo|Estadio|Zoo \/ Acuario|Parque temático|Ermita \/ Monasterio)$/.test(c.kind) && wp >= 5)),
       capR: capRadius(c.kind, wiki || wp >= 2) };
