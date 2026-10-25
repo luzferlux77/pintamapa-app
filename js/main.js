@@ -1986,9 +1986,19 @@
     const L = LN(); if (!L || lnAsked) return; lnAsked = true;
     try { const p = await L.checkPermissions(); if (p.display !== 'granted') await L.requestPermissions(); } catch (e) {}
   }
-  function notify(title, body, kind = 'gold') {
+  // (vibrar: por el canal «Cartas cerca», que vibra; el canal por defecto de Android viene sin vibración)
+  let nearChannel = false;
+  async function nearChannelReady(L) {
+    if (nearChannel) return;
+    nearChannel = true;
+    try { await L.createChannel({ id: 'cerca', name: 'Cartas cerca', description: 'Vibra cuando pasas cerca de una carta que aún no tienes', importance: 4, vibration: true, visibility: 1 }); } catch (e) {}
+  }
+  function notify(title, body, kind = 'gold', vibrar = false) {
     const L = LN();
-    if (L && document.hidden) L.schedule({ notifications: [{ id: Math.floor(Date.now() % 2e9), title, body, schedule: { at: new Date(Date.now() + 500) } }] }).catch(() => {});
+    if (L && document.hidden) (async () => {
+      if (vibrar) await nearChannelReady(L);
+      L.schedule({ notifications: [{ id: Math.floor(Date.now() % 2e9), title, body, ...(vibrar ? { channelId: 'cerca' } : {}), schedule: { at: new Date(Date.now() + 500) } }] }).catch(() => {});
+    })();
     else toast(`<b>${title}</b> ${body}`, kind, 5000);
   }
   const once = (key) => { const s = S(), d = PM.today(); s.notified = s.notified || {}; if (s.notified[key] === d) return false; s.notified[key] = d; PM.state.save(); return true; };
@@ -2006,7 +2016,7 @@
   // (navigator.vibrate no funciona con la pantalla apagada: se usa una notificación del sistema con vibración, en su
   // propio canal «Cartas cerca»). Una vez al día por carta, la más cercana y como mucho un aviso cada 45 s.
   const NEAR_CARD_M = 100;
-  let nearCardT = 0, nearChannel = false;
+  let nearCardT = 0;
   function checkNearCard(p) {
     if (!session || session.paused || Date.now() - nearCardT < 45000) return;
     let best = null, bd = NEAR_CARD_M + 0.01;
@@ -2020,10 +2030,7 @@
     const L = LN(), title = `${best.emoji} ${best.name}`, body = `Carta por conquistar a ${Math.max(10, Math.round(bd / 10) * 10)} m. ¡Saca el móvil y quédate 10 s a su lado!`;
     if (!L) { PM.vibrate([200, 100, 200]); return; }
     (async () => {
-      if (!nearChannel) {
-        nearChannel = true;
-        try { await L.createChannel({ id: 'cerca', name: 'Cartas cerca', description: 'Vibra cuando pasas a menos de 100 m de una carta que aún no tienes', importance: 4, vibration: true, visibility: 1 }); } catch (e) {}
-      }
+      await nearChannelReady(L);
       try { await L.schedule({ notifications: [{ id: 7100, channelId: 'cerca', title, body, schedule: { at: new Date(Date.now() + 300) } }] }); } catch (e) {}
     })();
   }
@@ -2034,7 +2041,7 @@
       const lm = W.landmarks[id];
       if (!lm.must || S().landmarks[id]) continue;
       const d = PM.geo.dist(p, lm.pos);
-      if (d > 40 && d <= 200 && once('must:' + id)) notify('⭐ Imprescindible cerca', `${lm.name} está a ${Math.round(d / 10) * 10} m. ¡Vale el doble!`);
+      if (d > 40 && d <= 200 && once('must:' + id)) notify('⭐ Imprescindible cerca', `${lm.name} está a ${Math.round(d / 10) * 10} m. ¡Vale el doble!`, 'gold', true);
     }
   }
   // barrio a punto de conquistarse o de subir de rango (a menos de un 3 %)
