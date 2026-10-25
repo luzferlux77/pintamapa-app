@@ -46,6 +46,8 @@
   const HER3 = new Set(['Q9259']);
   const HER2 = new Set(['Q23712', 'Q1019352', 'Q10387684', 'Q15700818', 'Q908411', 'Q1967454']);
   const HER0 = new Set(['Q15945449']);
+  // uso que no es para visitar (un hotel, una escuela, un polideportivo…): el motor lo puntúa a la baja y nunca es imprescindible
+  const USO = { Q27686: 'hotel', Q1021645: 'oficinas', Q3914: 'escuela', Q9842: 'escuela', Q1076486: 'deporte', Q11315: 'comercial', Q4287745: 'salud', Q1059324: 'salud', Q16917: 'salud' };
   const herLevel = (list) => list.reduce((m, h) => Math.max(m, HER3.has(h) ? 3 : HER2.has(h) ? 2 : HER0.has(h) ? 0 : 1), 0);
   const DULL = /^(habitatges?|edificis?|edifici d'habitatges|casa al |cases al |casa a la |conjunt|carrer|farmàcia|porteria|masoveria|viviendas?|edificio de viviendas|bloque)/i;
 
@@ -95,6 +97,7 @@
       if (DULL.test(name) && wp < 2) continue;
       const t = Object.assign({ historic: 'building' }, tags && tags.building !== 'yes' ? tags : {}, { name, wikidata: q, _wp: wp });
       delete t._tren;
+      for (const c of cls) if (USO[c]) { t._uso = USO[c]; break; }
       if (tags && tags.building === 'yes') t.building = 'yes';
       if (her) { t.heritage = 'yes'; t._her = herLevel(hers); }
       if (b.y && +b.y.value) t.start_date = String(+b.y.value);   // año de fundación (comercios centenarios)
