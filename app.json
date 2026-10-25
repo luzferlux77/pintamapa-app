@@ -1,8 +1,8 @@
 {
-  "version": "0.6.68",
-  "notes": "Batería: con la pantalla apagada ya no se refresca el marcador 4 veces por segundo ni se revisan los logros cada 8 s; guardado de la partida más espaciado en el bolsillo (y siempre al apagar la pantalla); menos animaciones sin fin en el mapa. Fallos: los mismos lugares para todos también en la iglesia principal de cada pueblo y en el tipo de lugar; lo pendiente al terminar un paseo ya no se pierde; sin rayitas entre calzadas muy juntas",
+  "version": "0.6.69",
+  "notes": "Batería: el mapa ya no se redibuja sin parar con la pantalla encendida (las animaciones sin fin del pulso de tu posición y del icono del GPS gastaban hasta 6 veces más procesador); el pulso late una vez con cada posición nueva; la brújula ya no despierta el dibujo por el temblor del sensor",
   "native": 6,
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.68/pintamapa-web-0.6.68.zip",
-  "checksum": "4dd5a4e9a7d661c0cd7d16f1c16c9199df3782385d2337959ba3bb05e51036ca",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.68/PintaMapa-v0.6.68.apk"
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.69/pintamapa-web-0.6.69.zip",
+  "checksum": "2c30a2bba1fbd5c29dbdce1746c2e7077a8735207e270a0de084ef09bf2b2ccf",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.69/PintaMapa-v0.6.69.apk"
 }
