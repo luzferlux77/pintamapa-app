@@ -1,8 +1,8 @@
 {
-  "version": "0.6.75",
-  "notes": "Motor de lugares renovado: imprescindibles por interés turístico (fama, protección, tipo de lugar y antigüedad; nunca hoteles, residencias, escuelas, polideportivos ni centros de salud): en L'Hospitalet, Sant Boi, El Prat o Sant Joan Despí ahora salen sus iglesias, castillos, termas romanas y masías históricas; las listas de cada ciudad se recalculan. Selección de lugares 4 veces más rápida",
+  "version": "0.6.76",
+  "notes": "Vídeo del paseo: los lugares que conquistaste aparecen con su círculo dorado, su nombre y una explosión de confeti cuando el recorrido pasa por ellos; al final quedan todos marcados. Precarga de grandes ciudades: sus lugares e imprescindibles (elegidos también por las visitas reales en Wikipedia) llegan al momento",
   "native": 6,
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.75/pintamapa-web-0.6.75.zip",
-  "checksum": "f0d3b66d8b82f3b79a97a1e33b867c099390cbd1100f3e5845031ecf267270a8",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.75/PintaMapa-v0.6.75.apk"
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.76/pintamapa-web-0.6.76.zip",
+  "checksum": "39917cae72491afdc8c5265c6497dcf8b8f304b2ff04ad7589a89ff609805300",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.76/PintaMapa-v0.6.76.apk"
 }
