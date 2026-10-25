@@ -1,8 +1,8 @@
 {
-  "version": "0.6.71",
-  "notes": "Sin lugares repetidos junto a los que ya conquistaste: si conquistaste la versión del mapa (Ajuntament, Castell de Cornellà), ya no aparece al lado la misma de Wikidata con otro nombre",
+  "version": "0.6.72",
+  "notes": "Con el móvil en el bolsillo (pantalla apagada y de paseo), vibra y avisa cuando pasas a menos de 100 m de una carta que aún no tienes (una vez al día por carta)",
   "native": 6,
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.71/pintamapa-web-0.6.71.zip",
-  "checksum": "5094e8e00d174d0cde1375da5da2714bf9cba26b821d611d46026a8db6758fb7",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.71/PintaMapa-v0.6.71.apk"
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.72/pintamapa-web-0.6.72.zip",
+  "checksum": "e2fd4103b6a539e284909a6050ead760ccb76dd0d68666a8757a71451645184f",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.72/PintaMapa-v0.6.72.apk"
 }
