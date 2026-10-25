@@ -1,8 +1,8 @@
 {
-  "version": "0.6.69",
-  "notes": "Batería: el mapa ya no se redibuja sin parar con la pantalla encendida (las animaciones sin fin del pulso de tu posición y del icono del GPS gastaban hasta 6 veces más procesador); el pulso late una vez con cada posición nueva; la brújula ya no despierta el dibujo por el temblor del sensor",
+  "version": "0.6.70",
+  "notes": "Combos con confeti y sonido: cada vez que sube el multiplicador (cada 10 calles nuevas seguidas) llueve confeti por la pantalla con una melodía que crece con el combo. Motor de lugares más robusto: los mismos lugares para todos también con edificios que salen en varias teselas o con varias coordenadas; templos budistas y sintoístas, rascacielos y fuentes bien clasificados; fuera barrios, cuadros de museo y edificios con nombre de dirección; lo famoso en todo el mundo (Arco de Tito) entra siempre; nueva batería de pruebas con 6 ciudades reales",
   "native": 6,
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.69/pintamapa-web-0.6.69.zip",
-  "checksum": "2c30a2bba1fbd5c29dbdce1746c2e7077a8735207e270a0de084ef09bf2b2ccf",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.69/PintaMapa-v0.6.69.apk"
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.70/pintamapa-web-0.6.70.zip",
+  "checksum": "9298cc6399a01f049fbe5cecf1898fd1b36f7c23f3b8aca0e725c78c1e89054b",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.70/PintaMapa-v0.6.70.apk"
 }
