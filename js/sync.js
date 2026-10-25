@@ -2,7 +2,7 @@
 // Cada jugador solo pone su nombre de pintor y una contraseña. Su partida se CIFRA con esa contraseña
 // (AES-256-GCM) antes de subirse al repositorio público luzferlux77/pintamapa-progreso: nadie más puede leerla.
 //   j/<huella>/partida.json   → progreso, logros, paseos, monumentos (cifrado)
-//   j/<huella>/calles-AAAA-MM.json → geometría de las calles pintadas (cifrado)
+//   j/<huella>/calles-AAAA-MM-DD.json → geometría de las calles pintadas cada día (cifrado; antes, un archivo por mes)
 // <huella> = SHA-256(pintor + contraseña): ni siquiera el nombre se ve en el repositorio.
 // Funciona por Wi-Fi o datos, sin depender de ningún PC encendido. «Mi progreso» lo lee con pintor + contraseña.
 PM.cloud = (function () {
@@ -85,7 +85,16 @@ PM.cloud = (function () {
   }
 
   // Sube tu partida: lee la de la nube, las fusiona (nunca se pierde nada) y guarda la unión, cifrada.
-  async function now() {
+  // huella de la partida local (sin lo que cambia solo): si no ha cambiado desde la última copia, no se sube nada.
+  // (antes cada copia descargaba y subía la partida entera aunque fuera igual: en un paseo, ~8 MB de datos móviles)
+  async function huella() {
+    const d = Object.assign({}, PM.state.data); delete d.pendingGeo; delete d.session; delete d.syncedAt;
+    const buf = await crypto.subtle.digest('SHA-256', enc.encode(JSON.stringify(d)));
+    return toB64(new Uint8Array(buf)).slice(0, 24);
+  }
+  const saveCfg = () => { try { localStorage.setItem(KEY, JSON.stringify(cfg)); } catch (e) {} };
+  // force: comprobar la nube aunque aquí no haya cambios (al abrir la app: puede haber novedades de otro dispositivo)
+  async function now(force) {
     if (!allowed()) throw new Error('La nube de momento solo está disponible para el dueño de la app');
     if (!writeToken()) throw new Error('Esta versión de la app no trae la clave de la nube');
     if (!PM.player) throw new Error('Elige tu pintor');
@@ -97,7 +106,10 @@ PM.cloud = (function () {
       const key = await deriveKey(slug, pass);
       const base = await folderOf(slug, pass);
       PM.state.flush();
-      for (let attempt = 0; attempt < 3; attempt++) {
+      const hk = 'h_' + slug, photosPend = Object.values(PM.state.data.cardPhotos || {}).some((v) => !(v.up && v.up >= (v.t || 0)));
+      const sinCambios = !force && cfg[hk] && cfg[hk] === await huella();
+      if (sinCambios && !Object.keys(PM.state.data.pendingGeo || {}).length && !photosPend) return 'sin cambios';
+      for (let attempt = 0; attempt < 3 && !sinCambios; attempt++) {
         const local = PM.state.data;
         const mine = Object.assign({}, local); delete mine.pendingGeo; delete mine.session;
         mine.player = PM.player.name;
@@ -110,13 +122,15 @@ PM.cloud = (function () {
         const cur = PM.state.data;
         // se vuelve a fusionar con lo actual: lo pintado durante la subida (segundos) no se pierde
         PM.state.replace(Object.assign({}, PM.merge(merged, cur), { session: cur.session, pendingGeo: cur.pendingGeo, syncedAt: Date.now() }));
+        cfg[hk] = await huella(); saveCfg();
         break;
       }
       const pend = PM.state.data.pendingGeo || {};
       const ids = Object.keys(pend);
       if (ids.length) {
-        const d = new Date(), month = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
-        const path = base + 'calles-' + month + '.json';
+        // un archivo por día: cada copia sube solo lo de hoy (antes, el del mes entero, cada vez más grande)
+        const d = new Date(), day = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+        const path = base + 'calles-' + day + '.json';
         for (let attempt = 0; attempt < 3; attempt++) {
           const cur = await readRaw(path, token);
           const prev = cur ? await decrypt(key, cur.data) : {};
@@ -160,9 +174,9 @@ PM.cloud = (function () {
   }
 
   // Silenciosa: al abrir la app y al terminar un paseo. Sin cobertura no pasa nada: se reintenta más tarde.
-  async function auto(toast) {
+  async function auto(toast, force) {
     if (!ready() || PM.profile !== 'real') return;
-    try { await now(); if (toast) toast('☁️ Progreso guardado en la nube', 'info'); }
+    try { const r = await now(force); if (toast && r !== 'sin cambios') toast('☁️ Progreso guardado en la nube', 'info'); }
     catch (e) { console.warn('Guardado en la nube pendiente', e); }
   }
 

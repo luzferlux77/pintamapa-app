@@ -1555,7 +1555,7 @@
   }
   setInterval(updateSessionInfo, 1000);
   // copia en la nube cada 10 min mientras paseas (si Android cierra la app, no se pierde lo pintado)
-  setInterval(() => { if (session && !session.paused) PM.sync.auto(); }, 10 * 60000);
+  setInterval(() => { if (session && !session.paused) PM.sync.auto(); }, 30 * 60000);   // (cada 30 min en un paseo; al terminar, siempre)
 
   function showSummary(s) {
     const st = s.st, movMs = PM.movingMs(s), min = movMs / 60000;   // velocidad con el tiempo en movimiento (como Strava)
@@ -2445,7 +2445,7 @@
       if (pw) { if (pw.length < 4) { $('#cl-msg').textContent = '❌ Mínimo 4 caracteres'; return; } PM.cloud.setPassword(pw); }
       if (!PM.cloud.password()) { $('#cl-pass').focus(); return; }
       $('#cl-msg').textContent = '⏳ Guardando en la nube…';
-      try { await PM.cloud.now(); $('#cl-msg').textContent = '✅ ¡Guardado! Ya lo puedes ver en «Mi progreso» con tu pintor y contraseña.'; recolorAll(); }
+      try { await PM.cloud.now(true); $('#cl-msg').textContent = '✅ ¡Guardado! Ya lo puedes ver en «Mi progreso» con tu pintor y contraseña.'; recolorAll(); }
       catch (e) { $('#cl-msg').textContent = '❌ ' + (e.message || e); }
     });
     if ($('#opt-upd')) $('#opt-upd').addEventListener('click', async () => {
@@ -2663,7 +2663,7 @@
     setOrient(orient);
     renderSession();
     requestAnimationFrame(loop);
-    PM.sync.auto();
+    PM.sync.auto(null, true);   // al abrir: se mira la nube aunque aquí no haya cambios
     PM.update.watch(toast);
     compressOldWalks();
     scheduleStreakReminder();
