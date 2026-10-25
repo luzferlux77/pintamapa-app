@@ -1,8 +1,8 @@
 {
-  "version": "0.6.74",
-  "notes": "Menos datos móviles: la copia en la nube ya no sube la partida si no ha cambiado, las calles pintadas se suben por día (no el mes entero cada vez) y durante el paseo se guarda cada 30 min (al terminar, siempre)",
+  "version": "0.6.75",
+  "notes": "Motor de lugares renovado: imprescindibles por interés turístico (fama, protección, tipo de lugar y antigüedad; nunca hoteles, residencias, escuelas, polideportivos ni centros de salud): en L'Hospitalet, Sant Boi, El Prat o Sant Joan Despí ahora salen sus iglesias, castillos, termas romanas y masías históricas; las listas de cada ciudad se recalculan. Selección de lugares 4 veces más rápida",
   "native": 6,
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.74/pintamapa-web-0.6.74.zip",
-  "checksum": "6ad3a71f3d30730e91b03e45b9823b02739f18309aae9ccc311c1e6abd78374d",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.74/PintaMapa-v0.6.74.apk"
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.75/pintamapa-web-0.6.75.zip",
+  "checksum": "f0d3b66d8b82f3b79a97a1e33b867c099390cbd1100f3e5845031ecf267270a8",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.75/PintaMapa-v0.6.75.apk"
 }
