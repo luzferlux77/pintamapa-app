@@ -1,8 +1,8 @@
 {
-  "version": "0.6.72",
-  "notes": "Con el móvil en el bolsillo (pantalla apagada y de paseo), vibra y avisa cuando pasas a menos de 100 m de una carta que aún no tienes (una vez al día por carta)",
+  "version": "0.6.73",
+  "notes": "El aviso de imprescindible cerca también vibra con el móvil en el bolsillo",
   "native": 6,
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.72/pintamapa-web-0.6.72.zip",
-  "checksum": "e2fd4103b6a539e284909a6050ead760ccb76dd0d68666a8757a71451645184f",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.72/PintaMapa-v0.6.72.apk"
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.73/pintamapa-web-0.6.73.zip",
+  "checksum": "e903f5069d3b0c4eae29ece3c7925ed375986fa60a50a78cb251b5bf566d2a10",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.73/PintaMapa-v0.6.73.apk"
 }
