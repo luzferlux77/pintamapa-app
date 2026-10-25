@@ -1,8 +1,8 @@
 {
-  "version": "0.6.79",
-  "notes": "Cartas: fuera las filas de conquista y revisita; cuadro de descripción más grande y SIEMPRE del lugar en concreto (texto de Wikipedia o sus datos reales: dirección, barrio, siglo, patrimonio, visitantes), entero y con la letra ajustada al cuadro; línea con por qué merece la pena (UNESCO, visitas, siglo). Los lugares importantes salen aunque tengan otro al lado",
+  "version": "0.6.80",
+  "notes": "Lugares bien catalogados al 100 %: un nombre con «Catedral», «Basílica» o «Palau» ya no convierte un hotel, un parking o un restaurante en monumento (el Hotel Catalonia Catedral salía como catedral legendaria) y las cartas ya conquistadas así se corrigen; las fotos y textos de los alrededores solo se usan si son de ese sitio (ya no sale el mural del beso en otra carta); el mural del beso entra como arte urbano; varias clases de Wikidata se resuelven por lo que el edificio ES (el Foro Romano son ruinas, la Torre del Oro una torre); fuera esculturas de museo y fichas de conjuntos; precarga más ligera",
   "native": 6,
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.79/pintamapa-web-0.6.79.zip",
-  "checksum": "9fb21ee078715a9ba532ba23eb70f42b8bf70349261b57d2bcf1d42372206c37",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.79/PintaMapa-v0.6.79.apk"
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.80/pintamapa-web-0.6.80.zip",
+  "checksum": "79ef032e65f2e259dd291667bd20972fcd33cf59b3821a96df2a3e35d3af795d",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.80/PintaMapa-v0.6.80.apk"
 }
