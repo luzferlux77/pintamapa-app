@@ -89,7 +89,7 @@ PM.world = (function () {
   // los lugares más conocidos de TODO el municipio según Wikidata (en cuántas wikis salen), no los que
   // haya cargados a tu alrededor (por eso antes iban cambiando). Se piden una vez y se guardan.
   // Cuántos, según su tamaño: un pueblo, unos pocos; una gran ciudad, muchos más.
-  const CITY_V = 6;   // 6: sin falsos «usos no turísticos» (Liceu, Hôtel de Ville…) y lugares contiguos (Batlló y Amatller); 5: con visitantes y sin trampas para turistas; 4:   // 4: imprescindibles por interés turístico (no solo por fama: hoteles y residencias salían en L'Hospitalet o Sant Joan Despí); 3: «ciudad grande» por población
+  const CITY_V = 7;   // 7: con las clases nuevas; 6: sin falsos «usos no turísticos» (Liceu, Hôtel de Ville…) y lugares contiguos (Batlló y Amatller); 5: con visitantes y sin trampas para turistas; 4:   // 4: imprescindibles por interés turístico (no solo por fama: hoteles y residencias salían en L'Hospitalet o Sant Joan Despí); 3: «ciudad grande» por población
   let mustCache = null;   // imprescindibles con su lugar del mapa (mustLists)
   function mustCount(ci, els) {
     const pop = ci.pop || 0;
@@ -470,7 +470,7 @@ PM.world = (function () {
   // ---------------- Caché local de barrios (IndexedDB) ----------------
   // Cada barrio se descarga una vez y se guarda 30 días: menos datos móviles, menos batería y arranque instantáneo.
   const CACHE_DAYS = 90;
-  const CACHE_V = 17;   // 17: visitantes al año y atracción turística (puntuación de guía); 16: uso de cada edificio (hotel, escuela…) para la puntuación; 15: templos budistas y sintoístas, rascacielos, sin barrios ni cuadros de museo; 14: nivel de patrimonio, zoos, acuarios, puertas de muralla (puntuación igual para todos); 13: estaciones de tren históricas de Wikidata (antes se perdían); 12: lugares solo de mapas vectoriales + Wikidata   // súbelo si cambia lo que se descarga (p. ej. nuevos tipos de puntos): fuerza a renovar la caché
+  const CACHE_V = 18;   // 18: clases por orden fijo (lo que el edificio ES), catedrales católicas/anglicanas/ortodoxas, sin conjuntos ni esculturas de museo; 17: visitantes al año y atracción turística (puntuación de guía); 16: uso de cada edificio (hotel, escuela…) para la puntuación; 15: templos budistas y sintoístas, rascacielos, sin barrios ni cuadros de museo; 14: nivel de patrimonio, zoos, acuarios, puertas de muralla (puntuación igual para todos); 13: estaciones de tren históricas de Wikidata (antes se perdían); 12: lugares solo de mapas vectoriales + Wikidata   // súbelo si cambia lo que se descarga (p. ej. nuevos tipos de puntos): fuerza a renovar la caché
   const cache = (function () {
     let dbp = null;
     function db() {
@@ -856,7 +856,7 @@ PM.world = (function () {
     if (demoMode) return null;
     const c = await cache.get(k);
     if (!(c && c.v >= 4 && Date.now() - c.t < CACHE_DAYS * 86400000)) return null;
-    if (c.v < 17) return null;   // guardado antes (librerías como bibliotecas, sin estudios de TV…): se vuelve a pedir igual en todos los móviles
+    if (c.v < 18) return null;   // guardado antes (librerías como bibliotecas, sin estudios de TV…): se vuelve a pedir igual en todos los móviles
     if (c.v < 10) { c.extrasMiss = true; c.wdMiss = true; }   // tipos nuevos (estudios de TV…): se completan los extras y Wikidata
     if (c.v < 6) c.wdMiss = true;   // guardado antes de Wikidata: se completa en segundo plano
     if (c.wdMiss || c.extrasMiss || (!c.src && !c.vtPois)) setTimeout(() => completeTile(k, c), 3000);
@@ -1107,6 +1107,7 @@ PM.world = (function () {
     if (!d || Date.now() - (d.tt || 0) > PRE_DIAS * 86400000) {
       try { const r = await fetch(PRE_CDN + q + '.json'); if (r.ok) { d = await r.json(); d.tt = Date.now(); cache.put('pre:' + q, d); } } catch (e) { /* sin conexión: lo de la caché, si había */ }
     }
+    if (d && PM.precargaFormato) d = PM.precargaFormato.decode(d);   // (formato compacto v2 → elementos como la consulta por zona)
     if (d && Array.isArray(d.els)) preData[q] = d;
     return preData[q] || null;
   }
@@ -1357,6 +1358,9 @@ PM.world = (function () {
     fixRecords(s) {
       let n = 0;
       for (const [id, r] of Object.entries(s.landmarks || {})) {
+        // tipo que el nombre contradice (conquistas antiguas: el «Hotel Catalonia Catedral» era una catedral legendaria)
+        const fix = L.revisarRegistro(r);
+        if (fix) { Object.assign(r, fix); delete r.porque; n++; }
         if (!r.pos) continue;
         const c = shapeCity(r.pos);
         if (c && r.city !== c) { r.city = c; n++; }
@@ -1382,7 +1386,7 @@ PM.world = (function () {
       for (let i = i0; i <= i1; i++) for (let j = j0; j <= j1; j++) if (!ensureTile(i + '_' + j).loaded) need.push(i + '_' + j);
       if (need.length && need.length <= 12) loadTiles(need).catch(() => {});
     },
-    _graph: () => gnodes, _pool: () => pool, _classify: classify, _usoNoTuristico: L.usoNoTuristico, _conf: L.CONF, porque, _why: () => lastWhy, precargaCerca, _precarga: () => preData, _reselect: () => selectLandmarks(), _ingest: (els, keys) => { keys.forEach((k) => ensureTile(k)); ingest(els, new Set(keys)); }, _measureCity: (c) => measureCityVT(c),   // (pruebas)
+    _graph: () => gnodes, _pool: () => pool, _classify: classify, _usoNoTuristico: L.usoNoTuristico, _revisar: (r) => { const f = L.revisarRegistro(r); if (f) Object.assign(r, f); return f; }, _conf: L.CONF, porque, _why: () => lastWhy, precargaCerca, _precarga: () => preData, _reselect: () => selectLandmarks(), _ingest: (els, keys) => { keys.forEach((k) => ensureTile(k)); ingest(els, new Set(keys)); }, _measureCity: (c) => measureCityVT(c),   // (pruebas)
     isDemo: () => demoMode,
     setDemo: (v) => { demoMode = v; },
   };

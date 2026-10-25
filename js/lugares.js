@@ -34,6 +34,8 @@
   };
 
   // ---------------- Qué es cada sitio ----------------
+  // nombres de otra cosa: aunque lleven «catedral», «basílica», «palau» o «castell», no son eso
+  const NO_POR_NOMBRE = /^(hotel|h[oô]tel |hostal|hostel|apartament|apartamento|apartments|parking|aparcamiento|aparcament|restaurante?|bar |cafeter[ií]a|caf[eé] |cervecer[ií]a|tienda|botiga|shop |farmacia|farm[aà]cia|mercado|mercat|museo|museu|museum|mus[eé]e|plaza|pla[çc]a|piazza|place |carrer|calle|avinguda|avenida|via |rua |paseo|passeig|escuela|escola|colegio|instituto|parada|estaci[oó]n|metro )/i;
   function clasificar(tags) {
     // prio: importancia para la conquista (decide qué se queda cuando dos están muy cerca). El ayuntamiento, siempre el primero.
     const a = tags.amenity, h = tags.historic, t = tags.tourism, b = tags.building, l = tags.leisure, n = tags.name || '';
@@ -44,20 +46,26 @@
     if (!a && /^(plaza|place|piazza|square|pra[çc]a|platz|pla[çc]a|largo|rynek|n[aá]m[eě]st[ií])(\s|$)/i.test(n) && !/toros|bullring|arena|stadium|estadio/i.test(n)) return { kind: 'Plaza', emoji: '🏙️', rarity: 'raro', prio: 55 };
     // por el nombre, solo templos y edificios (no la «Piazza del Duomo»); «Dom» solo como en alemán (Kölner Dom, Dom St. Peter):
     // antes «Sant Domènec» o «Justo Domínguez» salían como catedrales (la tilde cortaba la palabra)
-    const worship = a === 'place_of_worship' || h === 'building' || b === 'church';
-    if (b === 'cathedral' || (worship && (/catedral|cathedral|cathédrale|cattedrale|kathedrale|domkirke|(^|[^a-zà-ÿ])duomo([^a-zà-ÿ]|$)/i.test(n) || /(^|\s)dom$|^dom\s+(st\.?|sankt|unser|zu|mari)/i.test(n))))
+    // El tipo por el NOMBRE solo cuando encaja: en un templo, la palabra en cualquier parte; en otro edificio, solo si el
+    // nombre EMPIEZA por ella («Catedral de…»). Y un nombre que empieza por hotel, parking, restaurante, museo, plaza o
+    // calle nunca es catedral, basílica, castillo ni palacio por llevar esa palabra (el «Hotel Catalonia Catedral» salía
+    // como catedral legendaria).
+    const otroUso = NO_POR_NOMBRE.test(n) || !!tags._uso;
+    const temple = a === 'place_of_worship' || b === 'church';
+    const catName = /catedral|cathedral|cathédrale|cattedrale|kathedrale|domkirke|(^|[^a-zà-ÿ])duomo([^a-zà-ÿ]|$)/i.test(n) || /(^|\s)dom$|^dom\s+(st\.?|sankt|unser|zu|mari)/i.test(n);
+    if (b === 'cathedral' || (!otroUso && catName && (temple || (h === 'building' && /^(la |le |the |santa |s\.\s*)?(catedral|cathedral|cathédrale|cattedrale|kathedrale|duomo|concatedral)/i.test(n)))))
       return { kind: 'Catedral', emoji: '⛪', rarity: 'legendario', prio: 95 };
     // palacios y casas señoriales que OpenStreetMap marca como «castillo» (los del Gòtic y el Born): palacio o patrimonio
     const palaceName = /(^|[^a-zà-ÿ])(palau|palauet|palacio|palacete|palace|palais|palazzo|palazzetto|pałac|palácio|schloss|paleis)([^a-zà-ÿ]|$)/i.test(n)
       && !tags.place && !/^(pla|plaça|plaza|piazza|place|platz|carrer|calle|via|rua|font|fuente|fanals|farolas|estaci|parada|jardins?|jardines|parc|parque)\b/i.test(n)   // «Pla de Palau» es una plaza
-      && !/esport|deport|sport|congr[eé]s|cinema|cine\b|sant jordi|blaugrana|fira|firal|vela|gel\b|hielo|theat|teatr|th[eé][aâ]tre|hotel|casino|ballroom/i.test(n);   // ni pabellones, cines, teatros ni hoteles que se llaman «Palau»/«Palace»
+      && !/esport|deport|sport|congr[eé]s|cinema|cine\b|sant jordi|blaugrana|fira|firal|vela|gel\b|hielo|theat|teatr|th[eé][aâ]tre|hotel|casino|ballroom/i.test(n) && !otroUso;   // ni pabellones, cines, teatros ni hoteles que se llaman «Palau»/«Palace»
     // un «castillo» del mapa base que no se llama castillo (aduana, asilo, casa señorial…): patrimonio; los de Wikidata, sí
     const castleName = /castell|castillo|castle|ch[aâ]teau|castello|burg|fortale|fortress|fort\b|alc[aá]zar|alcazaba|kasteel|zamek|hrad|citadel|ciutadella|ciudadela|torre/i.test(n);
     if (h === 'castle' && !palaceName && (/^(casa|cal|can|ca l'|cases|sal[oó]|edifici|mansi[oó]n?|villa)\b/i.test(n) || (!tags._wp && !castleName))) return { kind: 'Patrimonio', emoji: '🏛️', rarity: 'raro', prio: 62 };
     if ((h === 'castle' && !palaceName) || h === 'fort') return { kind: 'Castillo', emoji: '🏰', rarity: 'legendario', prio: 90 };
     if (b === 'palace' || palaceName) return { kind: 'Palacio', emoji: '🏰', rarity: 'epico', prio: 84 };
     if (l === 'stadium' || b === 'stadium') return { kind: 'Estadio', emoji: '🏟️', rarity: 'epico', prio: 85 };
-    if (b === 'basilica' || /bas[ií]lica|co-?catedral|concatedral/i.test(n)) return { kind: 'Basílica', emoji: '⛪', rarity: 'epico', prio: 80 };
+    if (b === 'basilica' || (!otroUso && (temple || h === 'building') && /bas[ií]lica|co-?catedral|concatedral/i.test(n))) return { kind: 'Basílica', emoji: '⛪', rarity: 'epico', prio: 80 };
     // ermitas y monasterios (siempre visibles si son patrimonio o tienen Wikipedia)
     if (a === 'place_of_worship' && /christian/.test(tags.religion || 'christian') && (b === 'chapel' || /ermita|eremitori|santuari|monasteri|monestir|convent|abad[ií]a|cartuja|cartoixa|hermitage|monastery|abbey/i.test(n)))
       return { kind: 'Ermita / Monasterio', emoji: '⛪', rarity: 'epico', prio: 74 };
@@ -85,12 +93,13 @@
     // y fundados antes de 1950 (no los restaurantes de moda); los cerrados ya no llegan de Wikidata
     if ((tags.heritage || (tags._wp || 0) >= 8 || ((tags._wp || 0) >= 2 && +tags.start_date && +tags.start_date <= 1950)) && (tags.shop || /^(cafe|bar|restaurant|pharmacy|pub|ice_cream)$/.test(a || ''))) return { kind: 'Comercio emblemático', emoji: '☕', rarity: 'raro', prio: 52 };
     if (tags.shop || /^(cafe|bar|restaurant|pharmacy|pub|ice_cream)$/.test(a || '')) return null;   // el resto de tiendas y bares: no
-    if (l === 'park' || l === 'garden') return { kind: 'Parque', emoji: '🌳', rarity: 'raro', prio: 48 };
+    if (l === 'park' || l === 'garden') return { kind: 'Parque', emoji: '🌳', rarity: 'raro', prio: 48 };   // (jardines botánicos incluidos)
     if (tags.man_made === 'windmill' || tags.man_made === 'watermill') return { kind: 'Molino', emoji: '🌬️', rarity: 'raro', prio: 52 };
     if (a === 'fountain') return { kind: 'Fuente', emoji: '⛲', rarity: 'comun', prio: 30 };
-    if (tags.heritage) return { kind: 'Patrimonio', emoji: /f[aàá]bri|factory|usine|fabbrica/i.test(n) ? '🏭' : '🏛️', rarity: 'raro', prio: 62 };
+    // (ruinas y miradores antes que el «patrimonio» genérico: unas ruinas protegidas son ruinas —el Foro Romano—)
     if (h === 'ruins' || h === 'archaeological_site') return { kind: 'Ruinas', emoji: '🏺', rarity: 'raro', prio: 45 };
     if (t === 'viewpoint') return { kind: 'Mirador', emoji: '🔭', rarity: 'raro', prio: 45 };
+    if (tags.heritage) return { kind: 'Patrimonio', emoji: /f[aàá]bri|factory|usine|fabbrica/i.test(n) ? '🏭' : '🏛️', rarity: 'raro', prio: 62 };
     if (l === 'pitch' && tags.sport === 'soccer') return { kind: 'Campo de fútbol', emoji: '⚽', rarity: 'raro', prio: 44 };
     if (a === 'marketplace') return { kind: 'Mercado', emoji: '🛒', rarity: 'comun', prio: 40 };
     if (a === 'library') return { kind: 'Biblioteca', emoji: '📚', rarity: 'comun', prio: 38 };
@@ -109,7 +118,7 @@
     Ruinas: 72, 'Torre / Puerta': 70, Estadio: 70, Iglesia: 66, Templo: 66, Estación: 66, 'Zoo / Acuario': 64, Mirador: 62, 'Iglesia principal': 75,
     Faro: 60, Rascacielos: 60, Plaza: 60, Patrimonio: 58, Teatro: 58, 'Parque temático': 58, Parque: 55, Mercado: 55, Molino: 55,
     'Comercio emblemático': 52, Atracción: 45, 'Estudio de televisión': 45, Fuente: 40, Universidad: 45, Hospital: 35, Memorial: 35,
-    Biblioteca: 32, Bomberos: 30, 'Campo de fútbol': 30, 'Arte urbano': 30, 'Lugar histórico': 30 };
+    Biblioteca: 32, Bomberos: 30, 'Campo de fútbol': 30, 'Arte urbano': 50, 'Lugar histórico': 30 };
   const SERVICIO = /^(Hospital|Bomberos|Biblioteca|Campo de fútbol|Universidad|Estudio de televisión)$/;
   // trampas para turistas (museos del cannabis, eróticos, de ilusiones, de selfies…): puntúan menos y nunca son icónicas
   const TRAMPA = /(^|[^a-z])hash([^a-z]|$)|marihuana|marijuana|cannabis|er[oó]ti[ck]|sex museum|museo del sexo|selfie|museo de (la )?ilusi[oó]n|museum of illusions|upside ?down|museo de cera|wax museum|instagram/i;
@@ -329,7 +338,7 @@
       if (close.every((o) => !o.wd && !o.wiki) && lm.prio >= Math.max(...close.map((o) => o.prio))) {
         close.forEach((o) => { if (!cap.get(o)) drop.set(o.id, 'duplicado de ' + lm.name + ' (Wikidata sabe más)'); });
         // Wikidata solo sabe que es «patrimonio» y el mapa dice qué es (el Alcázar de Toledo, un castillo): ese tipo
-        const spec = close.filter((o) => o.kind !== 'Patrimonio' && sameN(o, lm)).sort((x, y) => y.prio - x.prio || (x.id < y.id ? -1 : 1))[0];
+        const spec = close.filter((o) => o.kind !== 'Patrimonio' && o._n && o._n === lm._n).sort((x, y) => y.prio - x.prio || (x.id < y.id ? -1 : 1))[0];
         if (lm.kind === 'Patrimonio' && spec) { lm._spec = lm.emoji; lm.kind = spec.kind; lm.emoji = spec.emoji; }
       } else if (!cap.get(lm)) drop.set(lm.id, 'duplicado de ' + close[0].name + ' (del mapa)');
     }
@@ -375,5 +384,16 @@
   }
 
   PM.capRadius = capRadius;
-  PM.lugares = { RARITY, RANK, CONF, MUST_NO, TIPO_GUIA, SERVICIO, porQue, clasificar, candidato, evangelica, seleccionar, interes, elegirImprescindibles, usoNoTuristico, sameName, norm, capRadius };
+  // Una carta ya conquistada con un tipo que su nombre contradice (de cuando cualquier nombre con «Catedral» era una
+  // catedral): se corrige el tipo y la rareza (los puntos ganados no se tocan). Devuelve los cambios o null.
+  function revisarRegistro(r) {
+    if (!r || !r.name || !/^(Catedral|Basílica|Iglesia|Templo|Castillo|Palacio)$/.test(r.kind || '') || !NO_POR_NOMBRE.test(r.name)) return null;
+    const n = r.name;
+    if (/^(museo|museu|museum|mus[eé]e)/i.test(n)) return { kind: 'Museo', emoji: '🖼️', rarity: 'raro' };
+    if (/^(plaza|pla[çc]a|piazza|place )/i.test(n)) return { kind: 'Plaza', emoji: '🏙️', rarity: 'raro' };
+    if (/^(mercado|mercat)/i.test(n)) return { kind: 'Mercado', emoji: '🛒', rarity: 'comun' };
+    return { kind: 'Patrimonio', emoji: '🏛️', rarity: 'comun' };
+  }
+
+  PM.lugares = { RARITY, RANK, CONF, MUST_NO, TIPO_GUIA, SERVICIO, porQue, revisarRegistro, clasificar, candidato, evangelica, seleccionar, interes, elegirImprescindibles, usoNoTuristico, sameName, norm, capRadius };
 })(typeof window !== 'undefined' ? window : globalThis);

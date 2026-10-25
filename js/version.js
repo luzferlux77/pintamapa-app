@@ -1,3 +1,3 @@
 // Generado por scripts/release.mjs — no editar a mano
 window.PM = window.PM || {};
-PM.VERSION = { app: '0.6.79', native: 6, date: '2026-10-25' };
+PM.VERSION = { app: '0.6.80', native: 6, date: '2026-10-25' };

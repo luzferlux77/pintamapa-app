@@ -17,6 +17,11 @@
     Q845945: { amenity: 'place_of_worship', religion: 'shinto' }, Q842402: { amenity: 'place_of_worship', religion: 'hindu' }, Q622425: { amenity: 'place_of_worship', religion: 'sikh' },
     Q32815: { amenity: 'place_of_worship', religion: 'muslim' }, Q34627: { amenity: 'place_of_worship', religion: 'jewish' }, Q44539: { amenity: 'place_of_worship', religion: 'other' },
     Q2977: { building: 'cathedral' }, Q163687: { building: 'basilica' },
+    Q56242215: { building: 'cathedral' }, Q56242250: { building: 'cathedral' }, Q56242225: { building: 'cathedral' },   // catedral católica, anglicana, ortodoxa
+    Q1088552: { amenity: 'place_of_worship', religion: 'christian' }, Q2031836: { amenity: 'place_of_worship', religion: 'christian' }, Q1129743: { amenity: 'place_of_worship', religion: 'christian' },
+    Q160742: { amenity: 'place_of_worship', religion: 'christian', building: 'monastery' }, Q24398318: { amenity: 'place_of_worship', religion: 'other' },
+    Q181368: { place: 'square' }, Q167346: { leisure: 'garden' },
+    Q1279431: { tourism: 'artwork' }, Q219423: { tourism: 'artwork' },   // fotomosaico (el mural del beso de Barcelona), mural
     Q4989906: { historic: 'monument' }, Q5003624: { historic: 'monument' }, Q179700: { historic: 'monument' }, Q860861: { historic: 'monument' }, Q557141: { historic: 'monument' },
     Q12277: { historic: 'city_gate' }, Q82117: { historic: 'city_gate' }, Q53060: { historic: 'city_gate' }, Q19675: { historic: 'city_gate' },
     Q483453: { amenity: 'fountain' }, Q174782: { place: 'square' },
@@ -40,7 +45,8 @@
   // descripciones de viviendas/conjuntos de catálogo: protegidos, pero no los conoce nadie
   // metro, tranvía y estaciones subterráneas: nunca (no son lugares que visitar)
   // y barrios (Gion, el Born…) y obras de arte guardadas en un museo (cuadros, retratos, biombos): no son lugares que visitar
-  const NO_CLS = new Set(['Q928830', 'Q2175765', 'Q22808403', 'Q123705', 'Q1574228', 'Q10564515', 'Q2983893', 'Q188509', 'Q3305213', 'Q134307', 'Q1144689']);
+  // y conjuntos y cascos antiguos (la ficha UNESCO «Catedral, Alcázar y Archivo de Indias», «Centro histórico de…»)
+  const NO_CLS = new Set(['Q928830', 'Q2175765', 'Q22808403', 'Q123705', 'Q1574228', 'Q10564515', 'Q2983893', 'Q188509', 'Q3305213', 'Q134307', 'Q1144689', 'Q676050', 'Q3317612']);
   // nivel de protección (P1435): 3 Patrimonio de la Humanidad · 2 nacional (BIC, BCIN, monumento histórico clasificado,
   // Grado I, monumento nacional…) · 1 el resto · 0 catálogos que no protegen (arte público de Barcelona)
   const HER3 = new Set(['Q9259']);
@@ -48,6 +54,12 @@
   const HER0 = new Set(['Q15945449']);
   // uso que no es para visitar (un hotel, una escuela, un polideportivo…): el motor lo puntúa a la baja y nunca es imprescindible
   const USO = { Q27686: 'hotel', Q1021645: 'oficinas', Q3914: 'escuela', Q9842: 'escuela', Q1076486: 'deporte', Q11315: 'comercial', Q4287745: 'salud', Q1059324: 'salud', Q16917: 'salud' };
+  // preferencia entre clases (menor = más específica): catedral > basílica > castillo > palacio > ruinas > museo > …
+  // (lo que el edificio ES va antes que el museo que tenga dentro: un monasterio, una torre o un jardín botánico)
+  const PREF = ['cathedral', 'basilica', 'castle', 'fort', 'palace', 'ruins', 'monastery', 'place_of_worship', 'city_gate', 'tower', 'skyscraper',
+    'lighthouse', 'windmill', 'garden', 'museum', 'zoo', 'aquarium', 'theme_park', 'stadium', 'theatre', 'monument', 'station', 'townhall',
+    'marketplace', 'library', 'university', 'studio', 'park', 'square', 'fountain', 'viewpoint', 'attraction', 'shop', 'cafe', 'bar', 'restaurant', 'pharmacy', 'yes'];
+  const rango = (tg) => { const v = tg.building === 'yes' ? 'yes' : tg.building || (tg.amenity === 'place_of_worship' ? 'place_of_worship' : '') || tg.historic || tg.tourism || tg.man_made || tg.leisure || tg.railway || tg.place || tg.amenity || (tg.shop ? 'shop' : ''); const i = PREF.indexOf(v); return i < 0 ? PREF.length - 1 : i; };
   const herLevel = (list) => list.reduce((m, h) => Math.max(m, HER3.has(h) ? 3 : HER2.has(h) ? 2 : HER0.has(h) ? 0 : 1), 0);
   const DULL = /^(habitatges?|edificis?|edifici d'habitatges|casa al |cases al |casa a la |conjunt|carrer|farmàcia|porteria|masoveria|viviendas?|edificio de viviendas|bloque)/i;
 
@@ -86,12 +98,16 @@
       if (!m) continue;
       const hers = (b.her && b.her.value || '').split(',').filter(Boolean), her = hers.length > 0, cls = (b.cls && b.cls.value || '').split(',').filter(Boolean);
       const wp = +b.wp.value;
-      if (cls.some((c) => NO_CLS.has(c))) continue;   // metro, tranvía
-      let tags = null;
-      for (const c of cls) if (CLS[c] && (!tags || tags.building === 'yes')) tags = CLS[c];
+      if (cls.some((c) => NO_CLS.has(c))) continue;   // metro, tranvía, barrios, cuadros, cascos antiguos
+      if (cls.includes('Q1497375') && /,| y | e | and | et | i /.test(name)) continue;   // conjunto de varios monumentos (cada uno sale por su cuenta)
+      // varias clases: gana la más específica por un orden FIJO (antes, la primera que llegara: Wikidata no garantiza
+      // el orden y el Foro Romano salía como «iglesia»; y dos móviles podían clasificar distinto el mismo sitio)
+      let tags = null, best = 1e9;
+      for (const c of cls) { const tg = CLS[c]; if (!tg) continue; const r = rango(tg); if (r < best || (r === best && tags && c < tags.__c)) { best = r; tags = Object.assign({ __c: c }, tg); } }
+      if (tags) delete tags.__c;
       if (tags && tags._tren && !her) continue;       // estación de tren moderna: solo las históricas (protegidas)
       if (!tags && !her) continue;                    // ni lugar reconocible ni patrimonio: barrio, empresa, colegio, evento…
-      if (!tags && b.coll) continue;                  // pieza de la colección de un museo (cuadros, esculturas de sala…)
+      if (b.coll && (!tags || tags.historic === 'monument' || tags.tourism === 'artwork')) continue;   // pieza de la colección de un museo (la Venus de Milo, los Mármoles de Elgin)
       if (tags && tags.building === 'yes' && !her) continue;
       if (!her && wp < 2) continue;                   // sin protección y casi sin artículos: poco conocido (cines cerrados, etc.)
       if (DULL.test(name) && wp < 2) continue;

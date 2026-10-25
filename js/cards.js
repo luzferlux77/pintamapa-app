@@ -33,18 +33,35 @@ PM.cards = (function () {
     return { lang: site ? site.replace('wiki', '') : null, title: site ? sl[site].title : null, img: p18 ? commonsFile(p18) : null, desc };
   }
   const words = (t) => String(t).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').split(/[^a-z0-9]+/).filter((w) => w.length > 3);
+  // palabras que no identifican un sitio (tipos de lugar, ciudades, países…): no bastan para decir que una foto o un
+  // artículo de los alrededores es de ESTE lugar (con «catedral», el «Hotel Catalonia Catedral» cogía la foto del mural
+  // del beso y podía coger el artículo de la catedral)
+  const GENERICAS = new Set(('catedral cathedral iglesia esglesia eglise church chiesa basilica capilla capella chapel ermita convento convent monasterio monestir ' +
+    'hotel hostal hostel apartamentos restaurante restaurant cafe cafeteria plaza placa piazza place square carrer calle avenida avinguda passeig paseo street ' +
+    'museo museu museum musee palacio palau palace castillo castell castle torre tower puerta porta gate parque park jardin jardi garden fuente font fountain ' +
+    'mercado mercat market teatro teatre theatre theater biblioteca library escuela escola school casa house edificio edifici building monumento monument estatua statue ' +
+    'barcelona madrid valencia sevilla catalonia catalunya cataluna spain espana espanya europe paris london londres roma rome mexico city ciudad ciutat ' +
+    'santa santo sant saint nuestra senora mare deu').split(' '));
+  const propias = (t) => words(t).filter((w) => !GENERICAS.has(w));
+  // ¿el título (de un artículo o una foto) es de este lugar? Hace falta compartir sus palabras PROPIAS (todas si son 1-2)
+  function esDeEste(title, name) {
+    const mine = propias(name), his = new Set(propias(title));
+    if (!mine.length) return false;   // nombre sin nada propio («Catedral», «Hotel Plaza»): mejor sin foto que con la de otro
+    const hits = mine.filter((w) => his.has(w)).length;
+    return hits >= Math.min(2, mine.length);
+  }
   async function nearbyArticle(lm) {
     for (const lang of ['es', 'ca']) {
       const j = await getJSON(`https://${lang}.wikipedia.org/w/api.php?action=query&list=geosearch&gscoord=${lm.pos[0]}|${lm.pos[1]}&gsradius=120&gslimit=8&format=json&origin=*`);
-      const mine = new Set(words(lm.name));
-      const hit = (j.query && j.query.geosearch || []).find((g) => words(g.title).some((w) => mine.has(w)));
+      const hit = (j.query && j.query.geosearch || []).find((g) => esDeEste(g.title, lm.name));
       if (hit) return summary(lang, hit.title);
     }
     return null;
   }
   async function nearbyPhoto(lm) {
     const j = await getJSON(`https://commons.wikimedia.org/w/api.php?action=query&generator=geosearch&ggscoord=${lm.pos[0]}|${lm.pos[1]}&ggsradius=60&ggsnamespace=6&ggslimit=6&prop=imageinfo&iiprop=url&iiurlwidth=960&format=json&origin=*`);
-    const pages = Object.values((j.query && j.query.pages) || {}).filter((p) => p.imageinfo && /\.(jpe?g|png)$/i.test(p.title));
+    // (solo una foto cuyo nombre de archivo sea de ESTE sitio: antes valía cualquiera a menos de 60 m)
+    const pages = Object.values((j.query && j.query.pages) || {}).filter((p) => p.imageinfo && /\.(jpe?g|png)$/i.test(p.title) && esDeEste(p.title.replace(/^File:|\.[a-z]+$/gi, ''), lm.name));
     return pages.length ? pages[0].imageinfo[0].thumburl : null;
   }
   // dirección (OpenStreetMap) y primera frase del artículo de su barrio en Wikipedia
@@ -68,7 +85,9 @@ PM.cards = (function () {
   }
   async function fetchInfo(id, lm) {
     const cache = S().cardInfo[id];
-    if (cache && (!cache.none || Date.now() - cache.t < 7 * 86400000)) return cache;
+    // (las fotos de los alrededores elegidas con la regla antigua —cualquier foto a menos de 60 m— se revisan)
+    const vieja = cache && cache.v !== 2 && cache.credit === 'Foto: Wikimedia Commons' && !cache.text;
+    if (cache && !vieja && (!cache.none || Date.now() - cache.t < 7 * 86400000)) return cache;
     let info = null;
     try {
       if (lm.wiki && /^[a-z]{2,3}:/.test(lm.wiki)) { const [lang, ...t] = lm.wiki.split(':'); info = await summary(lang, t.join(':')); }
@@ -85,7 +104,7 @@ PM.cards = (function () {
       if (!info || !info.text) Object.assign(info || (info = { text: '' }), await contexto(lm));
     } catch (e) { if (!info) return cache || null; }   // sin conexión: se reintentará
     const rec = info && (info.img || info.text || info.desc || info.addr || info.ctx)
-      ? { img: info.img || null, text: info.text || '', desc: info.desc || null, addr: info.addr || null, ctx: info.ctx || null, url: info.url || null, credit: info.credit || (info.url ? 'Texto y foto: Wikipedia (CC BY-SA)' : 'Foto: Wikimedia Commons'), t: Date.now() }
+      ? { v: 2, img: info.img || null, text: info.text || '', desc: info.desc || null, addr: info.addr || null, ctx: info.ctx || null, url: info.url || null, credit: info.credit || (info.url ? 'Texto y foto: Wikipedia (CC BY-SA)' : 'Foto: Wikimedia Commons'), t: Date.now() }
       : { none: true, t: Date.now() };
     S().cardInfo[id] = rec; PM.state.save();
     return rec;
