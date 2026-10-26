@@ -11,7 +11,7 @@ PM.i18n = (function () {
   const KEY = 'pintamapa_lang';
   // idiomas que se pueden elegir: solo los que tienen el diccionario TERMINADO (un idioma a medias dejaba media app
   // en castellano). Al acabar uno, se añade aquí.
-  const LISTOS = ['es'];
+  const LISTOS = ['es', 'ca', 'en', 'fr'];
   const ELEGIBLES = Object.fromEntries(Object.entries(LANGS).filter(([k]) => LISTOS.includes(k)));
   const detect = () => { const n = String((navigator.languages && navigator.languages[0]) || navigator.language || 'es').slice(0, 2).toLowerCase(); return ELEGIBLES[n] ? n : 'es'; };
   let stored = null;
@@ -30,8 +30,10 @@ PM.i18n = (function () {
       if (!/\{\w+\}/.test(k)) { DICT[l][k] = tr; continue; }
       // (un patrón necesita texto propio: «{a} {b}» lo cazaría todo)
       if ((k.replace(/\{\w+\}/g, '').match(/[a-záéíóúñ]/gi) || []).length < 2) continue;
-      PAT[l].push({ re: toRe(k), keys: [...k.matchAll(/\{(\w+)\}/g)].map((m) => m[1]), out: tr });
+      PAT[l].push({ re: toRe(k), keys: [...k.matchAll(/\{(\w+)\}/g)].map((m) => m[1]), out: tr, lit: k.replace(/\{\w+\}/g, '').length });
     }
+    // (del más específico al más genérico: «Camina {n}» no puede quedarse con «Camina 3 km en total»)
+    PAT[l].sort((a, b) => b.lit - a.lit);
     memo.clear();
   }
   const memo = new Map();   // (lo ya buscado: el marcador se repinta cada segundo)
@@ -40,7 +42,11 @@ PM.i18n = (function () {
     if (d[k] != null) return d[k];
     if (memo.has(k)) return memo.get(k);
     let r = null;
-    for (const p of PAT[lang]) {
+    // (con un emoji o símbolo delante —«🎯 Captura 2 lugares», «❌ La copia…»—: primero se traduce el resto, con el
+    // símbolo aparte; si no, un patrón genérico se quedaba el emoji y la mitad de la frase)
+    const pre = /^([^\p{L}\p{N}]+\s)(\S.*)$/u.exec(k);
+    if (pre) { const resto = lookup(pre[2]); if (resto != null) r = pre[1] + resto; }
+    if (r == null) for (const p of PAT[lang]) {
       const m = p.re.exec(k);
       if (m) { let out = p.out; p.keys.forEach((name, i) => { const v = m[i + 1]; out = out.split('{' + name + '}').join(d[v] != null ? d[v] : v); }); r = out; break; }
     }
@@ -83,6 +89,11 @@ PM.i18n = (function () {
   function watch() {
     if (lang === 'es' || typeof MutationObserver === 'undefined') return;
     document.documentElement.lang = lang;
+    document.title = t(document.title);
+    // los diálogos del sistema (confirmar, avisar) tampoco son pantalla: se traducen al abrirse
+    const conf = window.confirm, avis = window.alert;
+    window.confirm = (m) => conf.call(window, t(m));
+    window.alert = (m) => avis.call(window, t(m));
     dom(document.body);
     new MutationObserver((muts) => {
       for (const m of muts) {

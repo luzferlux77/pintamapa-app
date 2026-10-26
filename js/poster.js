@@ -94,7 +94,7 @@ PM.poster = (function () {
     drawSpaced(title, px * 0.18, y);
     y += 62; c.fillStyle = D.color; c.fillRect(cx - 180, y, 360, 7);
     y += 95; c.fillStyle = T.soft; c.font = font(600, 46);
-    drawSpaced(`PINTADO POR ${D.player.toUpperCase()} · DESDE ${new Date(D.first).toLocaleDateString(PM.LOCALE, { month: 'long', year: 'numeric' }).toUpperCase()}`, 7, y);
+    drawSpaced(PM.t('PINTADO POR {a} · DESDE {b}', { a: D.player.toUpperCase(), b: new Date(D.first).toLocaleDateString(PM.LOCALE, { month: 'long', year: 'numeric' }).toUpperCase() }), 7, y);
     // cifras
     y += 170;
     const stats = [[(D.paintedM / 1000).toFixed(D.paintedM >= 100000 ? 0 : 1).replace('.', ','), 'KM PINTADOS'], [PM.fmtNum ? PM.fmtNum(D.nPieces) : D.nPieces, 'TRAMOS'], [D.nB, 'BARRIOS'], [D.nL, 'LUGARES']];
@@ -102,13 +102,13 @@ PM.poster = (function () {
     stats.forEach(([v, l], i) => {
       const x = MAP.x + colW * i + colW / 2;
       c.fillStyle = T.text; c.font = font(800, 108); c.fillText(String(v), x, y);
-      c.fillStyle = T.soft; c.font = font(700, 34); c.fillText(l, x, y + 62);
+      c.fillStyle = T.soft; c.font = font(700, 34); c.fillText(PM.t(l), x, y + 62);
       if (i) { c.fillStyle = T.soft; c.globalAlpha = 0.35; c.fillRect(MAP.x + colW * i, y - 100, 2, 170); c.globalAlpha = 1; }
     });
     // coordenadas y firma
     const ll = (v, p, n) => `${Math.abs(v).toFixed(4)}° ${v >= 0 ? p : n}`;
     c.fillStyle = T.soft; c.font = font(500, 36);
-    c.fillText(`${ll(D.center[0], 'N', 'S')}  ·  ${ll(D.center[1], 'E', 'O')}`, cx, PH - 120);
+    c.fillText(`${ll(D.center[0], 'N', 'S')}  ·  ${ll(D.center[1], 'E', PM.i18n && PM.i18n.lang === 'en' ? 'W' : 'O')}`, cx, PH - 120);
     c.textAlign = 'right'; c.font = font(800, 40); c.fillStyle = D.color; c.fillText('PintaMapa', PW - M, PH - 80);
     c.textAlign = 'left'; c.fillStyle = T.soft; c.font = font(500, 28); c.fillText('© OpenStreetMap', M, PH - 80);
   }

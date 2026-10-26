@@ -995,7 +995,7 @@
     nearCache = { t: performance.now(), v: n };
     auraEl.classList.toggle('on', n.d <= AURA_RADIUS);
     $('#aura').classList.toggle('show', n.d <= AURA_RADIUS);
-    if (n.lm && n.d <= AURA_RADIUS) $('#aura').textContent = `✨ Aura de ${n.lm.kind.toLowerCase()} · pintura x2`;
+    if (n.lm && n.d <= AURA_RADIUS) $('#aura').textContent = `✨ Aura de ${PM.t(n.lm.kind).toLowerCase()} · pintura x2`;
     checkDwell(p, t, visible);
     for (const id in canMarkers) {
       const c = W.cans[id];
@@ -1396,8 +1396,8 @@
     try {
       if (BG) {
         const id = await BG.addWatcher({
-          backgroundTitle: 'PintaMapa está pintando tus calles',
-          backgroundMessage: 'Toca para volver al juego. Finaliza el paseo para apagar el GPS.',
+          backgroundTitle: PM.t('PintaMapa está pintando tus calles'),
+          backgroundMessage: PM.t('Toca para volver al juego. Finaliza el paseo para apagar el GPS.'),
           requestPermissions: true, stale: false, distanceFilter: gpsSaver ? 25 : DISTANCE_FILTER,
         }, (loc, err) => {
           if (err) {
@@ -2024,6 +2024,7 @@
     try { await L.createChannel({ id: 'cerca', name: 'Cartas cerca', description: 'Vibra cuando pasas cerca de una carta que aún no tienes', importance: 4, vibration: true, visibility: 1 }); } catch (e) {}
   }
   function notify(title, body, kind = 'gold', vibrar = false) {
+    title = PM.t(title); body = PM.t(body);   // (los avisos de Android, en el idioma elegido)
     const L = LN();
     if (L && document.hidden) (async () => {
       if (vibrar) await nearChannelReady(L);
@@ -2040,7 +2041,7 @@
     if (!streak || st.lastDay === PM.today()) return;
     const at = new Date(); at.setHours(20, 30, 0, 0);
     if (at <= new Date()) return;
-    try { await L.schedule({ notifications: [{ id: 7001, title: `🔥 Tu racha de ${streak} día${streak > 1 ? 's' : ''} termina hoy`, body: 'Sal a pintar un ratito para no perderla.', schedule: { at } }] }); } catch (e) {}
+    try { await L.schedule({ notifications: [{ id: 7001, title: PM.t(`🔥 Tu racha de ${streak} día${streak > 1 ? 's' : ''} termina hoy`), body: PM.t('Sal a pintar un ratito para no perderla.'), schedule: { at } }] }); } catch (e) {}
   }
   // Carta por conquistar a menos de 100 m con el móvil en el bolsillo (pantalla apagada): vibra y avisa.
   // (navigator.vibrate no funciona con la pantalla apagada: se usa una notificación del sistema con vibración, en su
@@ -2062,7 +2063,7 @@
     if (!L) { PM.vibrate([200, 100, 200]); return; }
     (async () => {
       await nearChannelReady(L);
-      try { await L.schedule({ notifications: [{ id: 7100, channelId: 'cerca', title, body, schedule: { at: new Date(Date.now() + 300) } }] }); } catch (e) {}
+      try { await L.schedule({ notifications: [{ id: 7100, channelId: 'cerca', title: PM.t(title), body: PM.t(body), schedule: { at: new Date(Date.now() + 300) } }] }); } catch (e) {}
     })();
   }
   // imprescindible cerca (≤ 200 m, una vez al día cada uno)
@@ -2273,7 +2274,7 @@
         const fallos = await importData(d);
         toast(fallos ? `⚠️ Copia importada, pero ${fallos} foto(s) no se pudieron guardar. Recargando…` : '✅ Copia importada. Recargando…', fallos ? 'warn' : 'ok');
         setTimeout(() => location.reload(), 1200);
-      } catch (e) { toast('❌ ' + (e.message || e), 'warn', 5000); }
+      } catch (e) { toast('❌ ' + PM.t(e.message || String(e)), 'warn', 5000); }
     };
     inp.click();
   }
@@ -2523,7 +2524,7 @@
         $('#cl-msg').textContent = r === 'ocupado' ? '⏳ Ya se está guardando: inténtalo en un momento.' : '✅ ¡Guardado! Ya lo puedes ver en «Mi progreso» con tu pintor y contraseña.';
         recolorAll();
       }
-      catch (e) { $('#cl-msg').textContent = '❌ ' + (e.message || e); }
+      catch (e) { $('#cl-msg').textContent = '❌ ' + PM.t(e.message || String(e)); }
     });
     if ($('#opt-upd')) $('#opt-upd').addEventListener('click', async () => {
       $('#opt-upd').textContent = '⏳ Buscando…';
@@ -2784,7 +2785,7 @@
   if (!PM.i18n.chosen() && !(autoResumed && session && !session.paused)) {
     const el = document.createElement('div');
     el.id = 'lang-first'; el.setAttribute('translate', 'no');
-    el.innerHTML = `<div class="lf-in"><div class="logo"><span class="p">Pinta</span><span class="m">Mapa</span></div>
+    el.innerHTML = `<div class="lf-in"><div class="logo" translate="no"><span class="p">Pinta</span><span class="m">Mapa</span></div>
       <h2>🌐 Idioma · Idioma · Language · Langue</h2><div class="langs big">${langBtns()}</div></div>`;
     el.addEventListener('click', (e) => { const b = e.target.closest('[data-l]'); if (!b) return; PM.i18n.set(b.dataset.l); el.remove(); });
     document.body.appendChild(el);

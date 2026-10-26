@@ -391,11 +391,11 @@ PM.tcg = (function () {
       if (!PM.isNative && navigator.canShare) {
         const blob = await (await fetch(url)).blob();
         const file = new File([blob], `PintaMapa - ${d.name}.png`, { type: 'image/png' });
-        if (navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], title: d.name, text: `He conquistado «${d.name}» en PintaMapa 🖌️🚩` }).catch(() => {}); return; }
+        if (navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], title: d.name, text: PM.t('He conquistado «{n}» en PintaMapa 🖌️🚩', { n: d.name }) }).catch(() => {}); return; }
       }
       if (PM.isNative && window.Capacitor.Plugins.Filesystem && window.Capacitor.Plugins.Share) {
         const f = await window.Capacitor.Plugins.Filesystem.writeFile({ path: `carta-${d.id}.png`, data: url.split(',')[1], directory: 'CACHE' });
-        await window.Capacitor.Plugins.Share.share({ title: d.name, text: `He conquistado «${d.name}» en PintaMapa 🖌️🚩`, files: [f.uri] }).catch(() => {});
+        await window.Capacitor.Plugins.Share.share({ title: d.name, text: PM.t('He conquistado «{n}» en PintaMapa 🖌️🚩', { n: d.name }), files: [f.uri] }).catch(() => {});
         return;
       }
       const a = document.createElement('a'); a.href = url; a.download = `PintaMapa - ${d.name}.png`; a.click();
@@ -578,9 +578,13 @@ PM.tcg = (function () {
   // groups: [{ city, ids:[...] }] · getData(id) → datos de la carta (puede ser async) · onCell(el, id) al dibujar cada carta
   const RANKR = { legendario: 3, epico: 2, raro: 1, comun: 0 };
   // agrupa ciudades por país (con bandera) y ordena ambos alfabéticamente; "Otros" al final
+  // nombre del país en el idioma elegido (por su código: el guardado viene de OpenStreetMap en castellano)
+  let regiones = null;
+  try { regiones = new Intl.DisplayNames([PM.LOCALE || 'es-ES'], { type: 'region' }); } catch (e) { /* navegador antiguo */ }
+  const paisNombre = (c) => { try { if (regiones && c.cc && c.cc.length === 2) return regiones.of(c.cc.toUpperCase()); } catch (e) { /* código raro */ } return c.name; };
   function byCountry(groups, countries) {
-    const col = (a, b) => a.localeCompare(b, 'es', { sensitivity: 'base' });
-    groups.forEach((g) => { const c = (countries || {})[g.city]; g.country = c ? c.name : 'Otros países'; g.flag = c ? PM.flag(c.cc) : '🌍'; });
+    const col = (a, b) => a.localeCompare(b, PM.LOCALE || 'es', { sensitivity: 'base' });
+    groups.forEach((g) => { const c = (countries || {})[g.city]; g.country = c ? paisNombre(c) : 'Otros países'; g.flag = c ? PM.flag(c.cc) : '🌍'; });
     return groups.sort((a, b) => ((a.country === 'Otros países') - (b.country === 'Otros países')) || col(a.country, b.country)
       || ((a.city === 'Otros lugares') - (b.city === 'Otros lugares')) || col(a.city, b.city));
   }

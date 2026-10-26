@@ -38,6 +38,7 @@ PM.wrapped = (function () {
     c.fillStyle = g; c.fillRect(0, 0, W, H);
   }
   function text(c, s, x, y, size, opts = {}) {
+    if (PM.t) s = PM.t(s);   // (lo dibujado en el vídeo, en el idioma elegido)
     c.font = `${opts.w || 800} ${size}px system-ui, -apple-system, "Segoe UI", Roboto, sans-serif`;
     c.fillStyle = opts.c || '#fff'; c.textAlign = opts.a || 'center'; c.textBaseline = 'middle';
     c.globalAlpha = opts.o == null ? 1 : opts.o; c.fillText(s, x, y); c.globalAlpha = 1;

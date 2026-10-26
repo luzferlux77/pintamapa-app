@@ -509,9 +509,9 @@ PM.game = (function () {
   serie('anda', '👟', [1, 5, 10, 25, 50, 100, 200, 300, 500, 1000, 2000], 'Caminante', (t) => `Camina ${t} km en total`, (s) => km(s.stats.walkedM));
   serie('captura', '📸', [5, 25, 75, 100, 150, 200, 300, 500, 750, 1000], 'Cazador de lugares', (t) => `Captura ${t} lugares`, (s) => lmList(s).length);
   const KINDS = [['Ayuntamiento', '🏛️'], ['Catedral', '⛪'], ['Basílica', '⛪'], ['Castillo', '🏰'], ['Palacio', '🏰'], ['Estadio', '🏟️'], ['Iglesia', '⛪'],
-    ['Templo', '🛕'], ['Museo', '🖼️'], ['Monumento', '🗽'], ['Torre / Puerta', '🗼'], ['Puente', '🌉'], ['Aeropuerto', '✈️'], ['Teatro', '🎭'], ['Estudio de televisión', '📺'], ['Universidad', '🎓'], ['Plaza', '🏙️'], ['Faro', '🗼'],
-    ['Estación', '🚉'], ['Parada de tranvía', '🚋'], ['Ermita / Monasterio', '⛪'], ['Comercio emblemático', '☕'], ['Parque', '🌳'], ['Ruinas', '🏺'], ['Mirador', '🔭'], ['Campo de fútbol', '⚽'], ['Mercado', '🛒'], ['Biblioteca', '📚'],
-    ['Atracción', '⭐'], ['Memorial', '🗿'], ['Fuente', '⛲'], ['Arte urbano', '🎨'], ['Hospital', '🏥'], ['Bomberos', '🚒'], ['Patrimonio', '🏛️'], ['Molino', '🌬️'], ['Lugar histórico', '📜'], ['Zoo / Acuario', '🦁'], ['Parque temático', '🎢'], ['Rascacielos', '🏙️']];
+    ['Templo', '🛕'], ['Museo', '🖼️'], ['Monumento', '🗽'], ['Torre / Puerta', '🗼'], ['Puente', '🌉'], ['Aeropuerto', '✈️'], ['Teatro', '🎭'], ['Estudio de televisión', '📺'], ['Plaza', '🏙️'], ['Faro', '🗼'],
+    ['Estación', '🚉'], ['Ermita / Monasterio', '⛪'], ['Comercio emblemático', '☕'], ['Parque', '🌳'], ['Ruinas', '🏺'], ['Mirador', '🔭'], ['Campo de fútbol', '⚽'], ['Mercado', '🛒'], ['Biblioteca', '📚'],
+    ['Atracción', '⭐'], ['Memorial', '🗿'], ['Fuente', '⛲'], ['Arte urbano', '🎨'], ['Patrimonio', '🏛️'], ['Molino', '🌬️'], ['Lugar histórico', '📜'], ['Zoo / Acuario', '🦁'], ['Parque temático', '🎢'], ['Rascacielos', '🏙️']];
   for (const [k, ic] of KINDS) {
     const slug = k.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z]+/g, '');
     serie('k' + slug, ic, [1, 5, 15], (t, i) => `${k}: ${['primera', 'coleccionista', 'experto'][i]}`, (t) => `Captura ${t} ${t > 1 ? 'lugares' : 'lugar'} de tipo «${k}»`, (s) => byKind(s, k));

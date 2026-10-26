@@ -413,13 +413,13 @@ ${segs.map((s) => `<LineString><tessellate>1</tessellate><altitudeMode>clampToGr
     ctx.fillStyle = 'rgba(255,255,255,.7)';
     ctx.fillText(new Date(walk.start).toLocaleDateString(PM.LOCALE, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }), 60, 110);
     ctx.fillStyle = '#fff'; ctx.font = '800 54px system-ui, -apple-system, Segoe UI, Roboto, sans-serif';
-    ctx.fillText(opts.title || 'Mi paseo', 60, 175);
+    ctx.fillText(opts.title || PM.t('Mi paseo'), 60, 175);
     const st = walk.st || {};
     const stats = [['Distancia', fmtKm(A.dTot * f)], ['Tiempo', fmtT(A.moving * f)], ['Ritmo medio', fmtPace(A.avgPace)], ['Desnivel', A.hasEle ? '+' + Math.round(A.up * f) + ' m' : '—'],
       ['Calles nuevas', fmtKm((st.painted || 0) * f)], ['Puntos', '+' + Math.round((st.pts || 0) * f).toLocaleString(PM.LOCALE)]];
     stats.forEach(([k, v], i) => {
       const x = 60 + (i % 2) * 310, y = H - 330 + Math.floor(i / 2) * 100;
-      ctx.fillStyle = 'rgba(255,255,255,.6)'; ctx.font = '500 25px system-ui, sans-serif'; ctx.fillText(k, x, y);
+      ctx.fillStyle = 'rgba(255,255,255,.6)'; ctx.font = '500 25px system-ui, sans-serif'; ctx.fillText(PM.t(k), x, y);
       ctx.fillStyle = '#fff'; ctx.font = '800 42px system-ui, sans-serif'; ctx.fillText(v, x, y + 46);
     });
     ctx.fillStyle = 'rgba(255,255,255,.45)'; ctx.font = '600 24px system-ui, sans-serif'; ctx.textAlign = 'right';
