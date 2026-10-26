@@ -1,8 +1,8 @@
 {
-  "version": "0.6.83",
-  "notes": "Idiomas: castellano, català, English y français. Se elige al abrir la app (y se cambia en Perfil → Ajustes). Toda la app traducida y las cartas con su descripción en el idioma elegido (Wikipedia de ese idioma). Logros imposibles retirados (311). Estaciones históricas y principales, aeropuertos. Más ciudades precargadas.",
+  "version": "0.6.84",
+  "notes": "Precarga completa: 646 ciudades del mundo con imprescindibles de guía (Santa Sofía, Torre de Belém, Atomium, Fontana di Trevi, Times Square…), calles emblemáticas (La Rambla, Gran Vía, Campos Elíseos), más imprescindibles en las ciudades más monumentales.",
   "native": 6,
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.83/pintamapa-web-0.6.83.zip",
-  "checksum": "a8bd17f54d4dcd740a9ae64259b6a9654325412c16d777a09fc2894f4d0fcc07",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.83/PintaMapa-v0.6.83.apk"
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.84/pintamapa-web-0.6.84.zip",
+  "checksum": "4125a160db5f7561bf27c4483432fe53b61c7ab02d64340ba511f36e3829483f",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.84/PintaMapa-v0.6.84.apk"
 }
