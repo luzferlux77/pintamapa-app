@@ -1,8 +1,8 @@
 {
-  "version": "0.6.82",
-  "notes": "Motor de lugares: imprescindibles de guía (sin estadios corrientes ni universidades, variados), fuera universidades/hospitales/bomberos salvo patrimonio, estaciones históricas y principales (Cornellà, Atocha, Sants, Chamartín), aeropuertos (se capturan desde fuera), puentes, museos y monumentos que faltaban (Art Institute, Big Ben, Puente de Carlos, Times Square…). Tus cartas duplicadas se juntan en el lugar vigente y las que ya no existen salen del álbum (los puntos se quedan). Lista de ciudades arreglada (Roma, Barcelona, Nueva York…) y ciudades turísticas (Kioto, Florencia, Granada…).",
+  "version": "0.6.83",
+  "notes": "Idiomas: castellano, català, English y français. Se elige al abrir la app (y se cambia en Perfil → Ajustes). Toda la app traducida y las cartas con su descripción en el idioma elegido (Wikipedia de ese idioma). Logros imposibles retirados (311). Estaciones históricas y principales, aeropuertos. Más ciudades precargadas.",
   "native": 6,
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.82/pintamapa-web-0.6.82.zip",
-  "checksum": "500d31f82b17e5d46402eb7c6b26e33b0b10379d2e5a8131c306f4c728dc3f21",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.82/PintaMapa-v0.6.82.apk"
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.83/pintamapa-web-0.6.83.zip",
+  "checksum": "a8bd17f54d4dcd740a9ae64259b6a9654325412c16d777a09fc2894f4d0fcc07",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.83/PintaMapa-v0.6.83.apk"
 }
