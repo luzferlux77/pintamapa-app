@@ -21,7 +21,7 @@
   // (aeropuertos: se capturan desde fuera de sus instalaciones —la terminal, el parking, la carretera de acceso—: 1,5 km
   // desde su punto, 2,5 km en los grandes)
   const capRadius = (kind, big) => (kind === 'Estadio' && big ? 240 : kind === 'Aeropuerto' ? (big === 'grande' ? 2500 : 1500)
-    : ({ Estadio: 200, 'Estudio de televisión': 200, 'Campo de fútbol': 70, Parque: 45, 'Zoo / Acuario': 80, 'Parque temático': 120 })[kind]) || 30;
+    : ({ Estadio: 200, 'Estudio de televisión': 200, 'Calle emblemática': 60, 'Campo de fútbol': 70, Parque: 45, 'Zoo / Acuario': 80, 'Parque temático': 120 })[kind]) || 30;
 
   // Reglas de la selección (ver LUGARES.md)
   // Como una buena guía: lo que de verdad merece la visita, bien repartido por cada barrio, sin saturar.
@@ -95,6 +95,7 @@
     if (h === 'monument') return { kind: 'Monumento', emoji: '🗽', rarity: 'epico', prio: 70 };
     if (h === 'city_gate' || h === 'tower' || tags.man_made === 'tower' || tags.man_made === 'obelisk' || b === 'tower') return { kind: 'Torre / Puerta', emoji: '🗼', rarity: 'epico', prio: 65 };
     if (tags.man_made === 'bridge') return { kind: 'Puente', emoji: '🌉', rarity: 'epico', prio: 64 };
+    if (tags._calle) return { kind: 'Calle emblemática', emoji: '🛣️', rarity: 'raro', prio: 58 };
     // aeropuertos (los comerciales e internacionales conocidos; no aeródromos de avionetas ni helipuertos)
     if (tags.aeroway === 'aerodrome') return (+tags._wp || 0) >= 10 ? { kind: 'Aeropuerto', emoji: '✈️', rarity: 'epico', prio: 60 } : null;
     // mercados: un mercado histórico es un mercado (antes, si era patrimonio, salía como «Patrimonio» genérico)
@@ -148,7 +149,7 @@
   // zonas que no tienen nada mejor.
   const TIPO_GUIA = { Ayuntamiento: 100, Catedral: 95, Castillo: 90, Basílica: 85, Palacio: 84, Museo: 78, Monumento: 75, 'Ermita / Monasterio': 74,
     Ruinas: 72, 'Torre / Puerta': 70, Estadio: 70, Iglesia: 66, Templo: 66, Estación: 66, 'Zoo / Acuario': 64, Mirador: 62, 'Iglesia principal': 75,
-    Faro: 60, Rascacielos: 60, Plaza: 60, Puente: 64, Aeropuerto: 60, Patrimonio: 58, Teatro: 58, 'Parque temático': 58, Parque: 55, Mercado: 55, Molino: 55,
+    Faro: 60, Rascacielos: 60, Plaza: 60, Puente: 64, Aeropuerto: 60, 'Calle emblemática': 62, Patrimonio: 58, Teatro: 58, 'Parque temático': 58, Parque: 55, Mercado: 55, Molino: 55,
     'Comercio emblemático': 52, Atracción: 45, 'Estudio de televisión': 45, Fuente: 40, Hospital: 35, Memorial: 35,
     Biblioteca: 32, Bomberos: 30, 'Campo de fútbol': 30, 'Arte urbano': 50, 'Lugar histórico': 30 };
   const SERVICIO = /^(Hospital|Bomberos|Biblioteca|Campo de fútbol|Estudio de televisión)$/;
@@ -168,7 +169,7 @@
   const antiguedad = (tags) => { const y = +tags.start_date; return !y ? 0 : y < 1500 ? 10 : y < 1800 ? 6 : 0; };
   // Interés turístico de un tipo de lugar (para los imprescindibles): lo que de verdad se visita, arriba
   const INTERES_TIPO = { Catedral: 25, Basílica: 20, Castillo: 20, Ruinas: 15, 'Ermita / Monasterio': 12, Palacio: 12, Museo: 10, Monumento: 10,
-    'Torre / Puerta': 8, 'Zoo / Acuario': 8, Iglesia: 6, Templo: 6, Estadio: -15, Plaza: 12, Puente: 8, Mercado: 8, 'Parque temático': 5, Teatro: 3, Faro: 3, Molino: 3,
+    'Torre / Puerta': 8, 'Zoo / Acuario': 8, Iglesia: 6, Templo: 6, Estadio: -15, Plaza: 12, Puente: 8, Mercado: 8, 'Calle emblemática': 8, 'Parque temático': 5, Teatro: 3, Faro: 3, Molino: 3,
     Parque: 2, Patrimonio: 0, Mirador: 0, Rascacielos: -10 };
   // Interés de un lugar como IMPRESCINDIBLE de su ciudad: fama (sitelinks) + protección + tipo + antigüedad.
   // Devuelve null si no puede ser imprescindible (uso no turístico, hospitales, estaciones, cementerios…).
@@ -199,7 +200,7 @@
   const ESTADIO_MUST = 60;
   // como mucho tantos imprescindibles de un mismo tipo (una lista de guía es variada: no cinco rascacielos ni tres estadios)
   // y ningún tipo pasa del 30 % de la lista (Montevideo tenía once «palacios», casi todos edificios de viviendas)
-  const MUST_TOPE = { Estadio: 1, Rascacielos: 3, Teatro: 3, 'Zoo / Acuario': 2, Parque: 4, 'Parque temático': 1, Mercado: 2, Puente: 3, Catedral: 3 };
+  const MUST_TOPE = { Estadio: 1, Rascacielos: 3, Teatro: 3, 'Zoo / Acuario': 2, Parque: 4, 'Parque temático': 1, Mercado: 2, Puente: 3, Catedral: 3, 'Calle emblemática': 2 };
   const topeMust = (list, kind, N) => {
     const n = list.filter((x) => x.kind === kind).length;
     return (MUST_TOPE[kind] != null && n >= MUST_TOPE[kind]) || n >= Math.max(3, Math.ceil((N || list.length + 1) * 0.3));

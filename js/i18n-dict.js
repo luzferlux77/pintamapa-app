@@ -1130,6 +1130,7 @@
     'Común {n}': ['Comú {n}', 'Common {n}', 'Commun {n}'], 'Raro {n}': ['Rar {n}', 'Rare {n}', 'Rare {n}'],
     'Épico {n}': ['Èpic {n}', 'Epic {n}', 'Épique {n}'], 'Legendario {n}': ['Llegendari {n}', 'Legendary {n}', 'Légendaire {n}'],
     'Otros países': ['Altres països', 'Other countries', 'Autres pays'],
+    'Calle emblemática': ['Carrer emblemàtic', 'Famous street', 'Rue emblématique'],
   };
   const out = {};
   for (const k in D) out[k] = D[k][i];

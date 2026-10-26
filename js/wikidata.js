@@ -78,6 +78,7 @@
   // estén protegidos: el Bósforo, el ferrocarril Transiraní, el aeropuerto de Congonhas). Solo si no tienen además una
   // clase reconocible (el Puente de Carlos también es «calle», y es un puente)
   const AREA = new Set(['Q37901', 'Q4022', 'Q23397', 'Q39594', 'Q79007', 'Q34442', 'Q7543083', 'Q54114', 'Q728937', 'Q22667', 'Q1311958']);
+  const CALLE = new Set(['Q79007', 'Q54114', 'Q7543083', 'Q907698', 'Q1251403']);   // calle, bulevar, avenida, prospekt, calle peatonal
   const herLevel = (list) => list.reduce((m, h) => Math.max(m, HER3.has(h) ? 3 : HER2.has(h) ? 2 : HER0.has(h) ? 0 : 1), 0);
   const DULL = /^(habitatges?|edificis?|edifici d'habitatges|casa al |cases al |casa a la |conjunt|carrer|farmàcia|porteria|masoveria|viviendas?|edificio de viviendas|bloque)/i;
 
@@ -86,7 +87,7 @@
  SERVICE wikibase:box { ?item wdt:P625 ?coord. bd:serviceParam wikibase:cornerSouthWest "Point(${w} ${s})"^^geo:wktLiteral. bd:serviceParam wikibase:cornerNorthEast "Point(${e} ${n})"^^geo:wktLiteral. }
  ?art schema:about ?item; schema:isPartOf/wikibase:wikiGroup "wikipedia".
  FILTER NOT EXISTS { ?item wdt:P1082 [] } 
- FILTER NOT EXISTS { ?item wdt:P576 [] } FILTER NOT EXISTS { ?item wdt:P5817 wd:Q56556915 }
+ FILTER (!EXISTS { ?item wdt:P576 [] } || EXISTS { ?item wdt:P1435 [] }) FILTER NOT EXISTS { ?item wdt:P5817 wd:Q56556915 }
  OPTIONAL { ?item wdt:P1435 ?h } OPTIONAL { ?item wdt:P31 ?c } OPTIONAL { ?item wdt:P571|wdt:P1619 ?inc } OPTIONAL { ?item wdt:P195 ?col } OPTIONAL { ?item wdt:P1174 ?vis } OPTIONAL { ?item wdt:P84 ?arq }
  SERVICE wikibase:label { bd:serviceParam wikibase:language "es,ca,en,fr,de,it,pt,nl,mul". }
 } GROUP BY ?item ?itemLabel ?coord`;   // (P576 / derribado: lo que ya cerró o no existe no sale; las estaciones las decide parse: el metro y los tranvías, nunca)
@@ -102,7 +103,7 @@
    SERVICE wikibase:box { ?item wdt:P625 ?coord. bd:serviceParam wikibase:cornerSouthWest "Point(${w} ${s})"^^geo:wktLiteral. bd:serviceParam wikibase:cornerNorthEast "Point(${e} ${n})"^^geo:wktLiteral. }
    ?item wikibase:sitelinks ?sl. FILTER(?sl >= ${minSl})
    FILTER NOT EXISTS { ?item wdt:P1082 [] } 
-   FILTER NOT EXISTS { ?item wdt:P576 [] } FILTER NOT EXISTS { ?item wdt:P5817 wd:Q56556915 }
+   FILTER (!EXISTS { ?item wdt:P576 [] } || EXISTS { ?item wdt:P1435 [] }) FILTER NOT EXISTS { ?item wdt:P5817 wd:Q56556915 }
  } ORDER BY DESC(?sl) LIMIT ${limit || 400} }
  OPTIONAL { ?item wdt:P1435 ?h } OPTIONAL { ?item wdt:P31 ?c } OPTIONAL { ?item wdt:P571|wdt:P1619 ?inc } OPTIONAL { ?item wdt:P195 ?col } OPTIONAL { ?item wdt:P1174 ?vis } OPTIONAL { ?item wdt:P84 ?arq }
  SERVICE wikibase:label { bd:serviceParam wikibase:language "es,ca,en,fr,de,it,pt,nl,mul". }
@@ -135,7 +136,11 @@
       // (y las principales de las grandes ciudades, muy conocidas: Sants, Chamartín, Shinjuku)
       if (tags && tags._tren && !her && !((anio && anio < 1930 && wp >= 10) || (arq && wp >= 10) || wp >= 15)) continue;
       if (!tags && !her) continue;                    // ni lugar reconocible ni patrimonio: barrio, empresa, colegio, evento…
-      if (!tags && cls.some((c) => AREA.has(c))) continue;   // un estrecho, una calle, un aeropuerto… (aunque sean patrimonio)
+      // calles emblemáticas (Campos Elíseos, Broadway, La Rambla, Gran Vía, Nevski): las muy conocidas o protegidas; las
+      // carreteras, solo las famosísimas. El resto de calles, estrechos, ríos o líneas de tren: no son un sitio que visitar
+      const calle = !tags && (cls.some((c) => CALLE.has(c)) ? (wp >= 15 || (her && wp >= 5)) : cls.includes('Q34442') && wp >= 25);
+      if (calle) tags = { _calle: 1 };
+      else if (!tags && cls.some((c) => AREA.has(c))) continue;   // un estrecho, una calle, un aeropuerto… (aunque sean patrimonio)
       if (b.coll && (!tags || tags.historic === 'monument' || tags.tourism === 'artwork')) continue;   // pieza de la colección de un museo (la Venus de Milo, los Mármoles de Elgin)
       if (tags && tags.building === 'yes' && !her) continue;
       if (!her && wp < 2) continue;                   // sin protección y casi sin artículos: poco conocido (cines cerrados, etc.)
