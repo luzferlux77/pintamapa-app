@@ -1,8 +1,8 @@
 {
-  "version": "0.6.84",
-  "notes": "Precarga completa: 646 ciudades del mundo con imprescindibles de guía (Santa Sofía, Torre de Belém, Atomium, Fontana di Trevi, Times Square…), calles emblemáticas (La Rambla, Gran Vía, Campos Elíseos), más imprescindibles en las ciudades más monumentales.",
+  "version": "0.6.86",
+  "notes": "Sin lugares repetidos: la misma iglesia o museo ya no sale dos veces cuando el mapa y Wikidata lo llaman distinto.",
   "native": 6,
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.84/pintamapa-web-0.6.84.zip",
-  "checksum": "4125a160db5f7561bf27c4483432fe53b61c7ab02d64340ba511f36e3829483f",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.84/PintaMapa-v0.6.84.apk"
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.86/pintamapa-web-0.6.86.zip",
+  "checksum": "02e04b23c278906d09fe2b9295de446bebb1953f1b1ef9e0e879629a008a0c03",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.86/PintaMapa-v0.6.86.apk"
 }
