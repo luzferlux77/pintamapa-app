@@ -312,10 +312,11 @@
   }
 
   // ---------------- Nombres parecidos («Palau Güell» / «Palacio Güell» no; «Catedral del Salvador» / «… de Albarracín» sí) ----------------
+  const ES = { museu: 'museo', poble: 'pueblo', espanyol: 'espanol' };   // (el mapa da el nombre local y Wikidata en español: «Museu Fran Daurel» / «Museo Fran Daurel»)
   const normMemo = new Map();   // (cada nombre se normaliza una sola vez: la selección compara miles)
   const norm = (s) => {
     s = String(s || ''); let r = normMemo.get(s);
-    if (r === undefined) { r = s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\b(de|del|la|el|les|los|las|dels|of|the|le|du|di|della)\b/g, ' ').replace(/[^a-z0-9]+/g, ' ').trim(); if (normMemo.size > 20000) normMemo.clear(); normMemo.set(s, r); }
+    if (r === undefined) { r = s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\b(de|del|la|el|les|los|las|dels|of|the|le|du|di|della)\b/g, ' ').replace(/[^a-z0-9]+/g, ' ').replace(/\b(museu|poble|espanyol)\b/g, (w) => ES[w]).trim(); if (normMemo.size > 20000) normMemo.clear(); normMemo.set(s, r); }
     return r;
   };
   function sameName(a, b) { a = norm(a); b = norm(b); return !!a && !!b && (a === b || (a.length > 5 && b.includes(a)) || (b.length > 5 && a.includes(b))); }
@@ -353,6 +354,9 @@
   // cuadrado, sin raíces ni cosenos; los vecinos se recorren por celdas sin crear listas)
   const prep = (lm) => { if (lm._p !== lm.pos) { lm._p = lm.pos; lm._y = lm.pos[0] * 110540; lm._kx = 111320 * Math.cos(lm.pos[0] * Math.PI / 180); lm._n = norm(lm.name); } };
   const d2 = (a, b) => { const dy = a._y - b._y, dx = (a.pos[1] - b.pos[1]) * (a._kx + b._kx) / 2; return dx * dx + dy * dy; };
+  // el tipo sin matices: la «Iglesia principal» del mapa y la «Iglesia» de Wikidata son lo mismo, y también el «Patrimonio»
+  // que se llama iglesia (salían dos círculos en la misma iglesia, en Cornellà y en Esplugues)
+  const tipoBase = (x) => { const k = x.kind.replace(' principal', ''); return k === 'Patrimonio' && /^(iglesia|esgl[eé]sia|parroquia|parr[oò]quia|bas[ií]lica|catedral)\b/i.test(x.name) ? 'Iglesia' : k; };
   const sameN = (a, b) => { const x = a._n, y = b._n; return !!x && !!y && (x === y || (x.length > 5 && y.includes(x)) || (y.length > 5 && x.includes(y))); };
   function seleccionar(cands, ctx) {
     const isCap = ctx.isCap || (() => false), zona = ctx.zona, C = CONF;
@@ -379,7 +383,7 @@
       const same = [], close = [];
       near(osmGrid, lm, 2, (o) => {
         if (o.wd && o.wd === lm.wd) same.push(o);
-        else { const dd = d2(o, lm); if ((o.kind === lm.kind && dd < 3600) || (dd < 90000 && sameN(o, lm))) close.push(o); }
+        else { const dd = d2(o, lm); if ((tipoBase(o) === tipoBase(lm) && dd < 3600) || (dd < 90000 && sameN(o, lm))) close.push(o); }
       });
       if (same.length) {
         if (cap.get(lm) && !same.some((o) => cap.get(o))) same.forEach((o) => drop.set(o.id, 'duplicado de ' + lm.name + ' (conquistado)'));
@@ -419,7 +423,7 @@
         // lo flojo solo rellena zonas con poco (en el Gòtic no hace falta; en un barrio sin monumentos, sí)
         if (!imp && !shop && lm.prio < C.RELLENO && (allN[zk] || 0) >= C.RELLENO_HASTA) { why.set(lm.id, 'poco interés para una zona que ya tiene ' + (allN[zk] || 0) + ' lugares'); continue; }
         // varios edificios del mismo sitio (TV3…): uno
-        if (near(kept, lm, 2, (o) => o.name === lm.name && d2(o, lm) < (o.kind === lm.kind ? 90000 : 6400))) { why.set(lm.id, 'mismo nombre que otro ya elegido'); continue; }
+        if (near(kept, lm, 2, (o) => (o.name === lm.name || (o.kind === lm.kind && sameN(o, lm))) && d2(o, lm) < (o.kind === lm.kind ? 90000 : 6400))) { why.set(lm.id, 'mismo nombre que otro ya elegido'); continue; }
         if (lm.kind === 'Estación' && !lm.wiki && !lm.wd) {
           const parque = (o) => o.kind === 'Parque' && d2(o, lm) < 250000 && sameN(o, lm);
           if (near(osmGrid, lm, 3, parque) || near(kept, lm, 3, parque)) { why.set(lm.id, 'estación que se llama como el parque'); continue; }
