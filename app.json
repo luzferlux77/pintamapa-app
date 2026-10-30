@@ -1,8 +1,8 @@
 {
-  "version": "0.6.86",
-  "notes": "Sin lugares repetidos: la misma iglesia o museo ya no sale dos veces cuando el mapa y Wikidata lo llaman distinto.",
+  "version": "0.6.87",
+  "notes": "Motor de lugares: vuelven las calles famosas, gurdwaras, fortalezas, bazares y grandes estaciones; corregidos tipos equivocados (puentes, cines, patios de comidas); protección nacional de todo el mundo; nombres con mayúscula.",
   "native": 6,
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.86/pintamapa-web-0.6.86.zip",
-  "checksum": "02e04b23c278906d09fe2b9295de446bebb1953f1b1ef9e0e879629a008a0c03",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.86/PintaMapa-v0.6.86.apk"
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.87/pintamapa-web-0.6.87.zip",
+  "checksum": "cecc5e254a86d30da459d2fc2303b8ffbef1f7e5f79bf5cad830ac0d79206f47",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.87/PintaMapa-v0.6.87.apk"
 }
