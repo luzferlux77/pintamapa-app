@@ -77,7 +77,6 @@ PM.world = (function () {
     for (let di = -r; di <= r; di++) for (let dj = -r; dj <= r; dj++) out.push(...(lmGrid[(ci + di) + ':' + (cj + dj)] || []));
     return out;
   }
-  const sameName = L.sameName;
   function accept(lm) {
     landmarks[lm.id] = lm;
     const cell = Math.floor(lm.pos[0] / GRID) + ':' + Math.floor(lm.pos[1] / GRID);
@@ -175,22 +174,11 @@ PM.world = (function () {
     } catch (e) { console.warn('Imprescindibles de', name, 'pendientes', e); }
     // (si falló, no se reintenta en esta sesión: nada de pedírselo a Wikidata en bucle)
   }
-  // qué lugar del mapa es cada imprescindible de la lista: el mismo de Wikidata, el mismo nombre o el importante que hay justo ahí
-  function matchMust(e, lms) {
-    let best = lms.find((lm) => lm.wd === e.q || lm.id === e.q);
-    if (best) return best;
-    let bd = 1e9;
-    for (const lm of lms) { const d = PM.geo.dist(lm.pos, e.pos); if (d < 400 && d < bd && sameName(lm.name, e.name)) { bd = d; best = lm; } }
-    if (best) return best;
-    bd = 80;
-    for (const lm of lms) { const d = PM.geo.dist(lm.pos, e.pos); if (d < bd && (lm.wd || lm.wiki || lm.wp) && !MUST_NO.test(lm.kind)) { bd = d; best = lm; } }
-    return best || null;
-  }
+  const matchMust = L.matchMust;
 
   // ---------- Imprescindibles: en cada ciudad, los lugares que no te puedes perder ----------
   // SOLO los de la lista fija de su ciudad (arriba): da igual por qué barrio andes o qué hay cargado.
   // Nunca estaciones, paradas, hospitales ni cementerios. Sin lista todavía (sin conexión), ninguno: llegará luego.
-  const MUST_NO = L.MUST_NO;
   function updateMustSee() {
     const allBy = {};
     for (const id in landmarks) {
@@ -214,7 +202,9 @@ PM.world = (function () {
   // Antes se quedaba la primera que llegaba: según el orden de carga caía en una zona u otra y cambiaba la selección.
   // Y si son el mismo sitio con datos de días distintos (la precarga y la consulta por zona), gana el que tiene más
   // artículos (y luego más protección): tampoco depende de cuál llegue antes.
-  const before = (a, b) => a.pos[0] < b.pos[0] || (a.pos[0] === b.pos[0] && (a.pos[1] < b.pos[1]
+  // (la copia de la precarga va por delante: solo ella sabe lo que recomiendan las guías y qué objetos del mapa es)
+  const extra = (x) => (x.guia ? 2 : 0) + (x.osm ? 1 : 0);
+  const before = (a, b) => extra(a) !== extra(b) ? extra(a) > extra(b) : a.pos[0] < b.pos[0] || (a.pos[0] === b.pos[0] && (a.pos[1] < b.pos[1]
     || (a.pos[1] === b.pos[1] && ((a.wp || 0) > (b.wp || 0) || ((a.wp || 0) === (b.wp || 0) && (a.her || 0) > (b.her || 0))))));
   function commitLandmarks(list) {
     for (const lm of list) {
@@ -244,8 +234,8 @@ PM.world = (function () {
     if (!pos) return false;
     const k = tileKeyOf(pos[0], pos[1]), t = tiles[k];
     if (!t || !t.loaded) return false;
-    if (!/^Q\d+$/.test(id)) return true;
-    return Object.values(pool).some((lm) => /^Q\d+$/.test(lm.id) && lm.pos && tileKeyOf(lm.pos[0], lm.pos[1]) === k);
+    if (!/^n?Q\d+$/.test(id)) return true;
+    return Object.values(pool).some((lm) => /^nQ\d+$/.test(lm.id) && lm.pos && tileKeyOf(lm.pos[0], lm.pos[1]) === k);
   }
   function migrarConquistas() {
     const s = PM.state && PM.state.data;
@@ -1492,7 +1482,7 @@ PM.world = (function () {
         const ci = c && cityInfo[c];
         if (!ci || !ci.must) continue;
         const lm = landmarks[id];
-        const m = lm ? !!lm.must : ci.must.some((e) => e.q === id || (sameName(e.name, r.name) && PM.geo.dist(e.pos, r.pos) < 400));
+        const m = lm ? !!lm.must : ci.must.some((e) => L.esMust(e, id, r));
         if (!!r.must !== m) { r.must = m ? 1 : 0; n++; }
       }
       for (const b of Object.values(s.barrioCards || {})) {

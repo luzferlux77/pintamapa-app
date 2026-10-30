@@ -4,7 +4,7 @@
 //   lugar: [id, lat, lon, nombre, { clave abreviada: valor }]   imprescindible: [q, nombre, lat, lon, tipo, emoji, sl, interés, visitas]
 (function (root) {
   const K = { historic: 'hi', amenity: 'am', tourism: 'to', building: 'bu', leisure: 'le', man_made: 'mm', railway: 'ra', place: 'pl', religion: 're', shop: 'sh',
-    station: 'st', _wp: 'w', heritage: 'he', _her: 'h', start_date: 'y', _uso: 'u', _vis: 'v', _atr: 'a', _arq: 'q', _calle: 'c' };
+    station: 'st', _wp: 'w', heritage: 'he', _her: 'h', start_date: 'y', _uso: 'u', _vis: 'v', _atr: 'a', _arq: 'q', _calle: 'c', _guia: 'g', _osm: 'o' };
   const R = Object.fromEntries(Object.entries(K).map(([a, b]) => [b, a]));
   const r6 = (x) => Math.round(x * 1e6) / 1e6;
   function encode(o) {

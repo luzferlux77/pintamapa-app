@@ -198,9 +198,12 @@
     // (la protección nacional pesa entera solo en lo conocido: en El Cairo, una madrasa de 8 Wikipedias dentro del sitio
     // UNESCO no puede quitarle el sitio a la mezquita de Muhammad Alí)
     const prot = her === 2 && sl < 15 ? 6 : [0, 4, 15, 30][Math.max(0, Math.min(3, her))];
-    return { c, puntos: Math.round(10 * Math.log2(1 + sl)) + prot + tipo + antiguedad(tags) + vis + (tags._atr ? 6 : 0) };
+    return { c, puntos: Math.round(10 * Math.log2(1 + sl)) + prot + tipo + antiguedad(tags) + vis + (tags._atr ? 6 : 0) + guiaPuntos(tags) };
   }
   const ESTADIO_MUST = 60;
+  // lo recomiendan las guías de viaje (Wikivoyage, de 1 a 3 idiomas o más): la mejor señal de «merece la visita»
+  const guiaN = (tags) => Math.max(0, Math.min(3, +tags._guia || 0));
+  const guiaPuntos = (tags) => 8 * guiaN(tags);
   // como mucho tantos imprescindibles de un mismo tipo (una lista de guía es variada: no cinco rascacielos ni tres estadios)
   // y ningún tipo pasa del 30 % de la lista (Montevideo tenía once «palacios», casi todos edificios de viviendas)
   const MUST_TOPE = { Estadio: 1, Rascacielos: 3, Teatro: 3, 'Zoo / Acuario': 2, Parque: 4, 'Parque temático': 1, Mercado: 2, Puente: 3, Catedral: 3, 'Calle emblemática': 2 };
@@ -288,10 +291,10 @@
     const uso = usoNoTuristico(tags) ? -25 : 0, edad = antiguedad(tags), serv = SERVICIO.test(c.kind);
     const vis = !serv && +tags._vis > 10000 ? Math.min(20, Math.round(4 * Math.log2(+tags._vis / 10000))) : 0, atr = !serv && tags._atr ? 8 : 0;
     const tipo = TIPO_GUIA[c.kind] != null ? TIPO_GUIA[c.kind] : c.prio, trampa = TRAMPA.test(tags.name) ? -30 : 0;
-    const prot = [0, 4, 12, 30][her], prio = tipo + fame + prot + ajuste + uso + edad + vis + atr + trampa;
+    const guia = serv ? 0 : guiaPuntos(tags), prot = [0, 4, 12, 30][her], prio = tipo + fame + prot + ajuste + uso + edad + vis + atr + trampa + guia;
     const lm = { id: el.type[0] + el.id, name: tags.name, kind: c.kind, emoji: c.emoji, rarity, pos, prio, fromWd: !!tags._wp, wp, her, wiki: tags.wikipedia, wd: tags.wikidata,
-      vis: +tags._vis || 0, anio: +tags.start_date || 0,
-      desglose: { tipo, fama: fame, proteccion: prot, ajuste, uso, antiguedad: edad, visitantes: vis, atraccion: atr, trampa },
+      vis: +tags._vis || 0, anio: +tags.start_date || 0, guia: guiaN(tags), osm: tags._osm ? String(tags._osm).split(',') : null,
+      desglose: { tipo, fama: fame, proteccion: prot, ajuste, uso, antiguedad: edad, visitantes: vis, atraccion: atr, trampa, guia },
       townhall: c.kind === 'Ayuntamiento', church: /^(Iglesia|Basílica|Catedral)$/.test(c.kind), points: 100 * RARITY[rarity].mult,
       // icónicos: SIEMPRE visibles, sin separación mínima ni cupo de zona: ayuntamiento, catedral, basílica, castillo,
       // estación histórica, Patrimonio de la Humanidad o nacional, lo famoso de verdad (12+ idiomas) y los palacios,
@@ -392,18 +395,24 @@
     };
     // 1) lo de Wikidata que es el MISMO sitio que algo del mapa (mismo Q, mismo tipo cerca o nombre parecido; no
     //    cualquier cosa a 40 m): se queda uno
-    const osmGrid = new Map(), drop = new Map();   // id → motivo
-    for (const o of all) if (!o.fromWd) gridAdd(osmGrid, o);
+    const osmGrid = new Map(), drop = new Map(), mapaId = new Map();   // id → motivo
+    for (const o of all) if (!o.fromWd) { gridAdd(osmGrid, o); mapaId.set(o.id, o); }
+    // enlace exacto (la precarga sabe qué objetos del mapa son cada lugar de Wikidata): se anota antes de comparar nada
+    for (const lm of all) if (lm.fromWd && lm.osm) for (const id of lm.osm) { const o = mapaId.get(id); if (o) o.wd = lm.wd; }
     for (const lm of all) {
       if (!lm.fromWd) continue;
-      const same = [], close = [];
+      const same = (lm.osm || []).map((id) => mapaId.get(id)).filter(Boolean), close = [];
       near(osmGrid, lm, 2, (o) => {
-        if (o.wd && o.wd === lm.wd) same.push(o);
-        else { const dd = d2(o, lm); if ((tipoBase(o) === tipoBase(lm) && dd < 3600) || (dd < 90000 && sameN(o, lm))) close.push(o); }
+        if (o.wd) { if (o.wd === lm.wd && !same.includes(o)) same.push(o); return; }   // (enlazado a otro lugar: es otra cosa, aunque esté al lado)
+        const dd = d2(o, lm); if ((tipoBase(o) === tipoBase(lm) && dd < 3600) || (dd < 90000 && sameN(o, lm))) close.push(o);
       });
       if (same.length) {
-        if (cap.get(lm) && !same.some((o) => cap.get(o))) same.forEach((o) => drop.set(o.id, 'duplicado de ' + lm.name + ' (conquistado)'));
-        else drop.set(lm.id, 'duplicado de ' + same[0].name + ' (mismo Wikidata)');
+        // seguro que es el mismo: se queda la versión de Wikidata (sabe más), salvo que ya conquistaras la del mapa
+        const capS = same.find((o) => cap.get(o));
+        if (capS && !cap.get(lm)) { drop.set(lm.id, 'duplicado de ' + capS.name + ' (ya conquistado)'); continue; }
+        same.forEach((o) => { if (!cap.get(o)) drop.set(o.id, 'duplicado de ' + lm.name + ' (mismo Wikidata)'); });
+        const spec = same.filter((o) => o.kind !== 'Patrimonio').sort((x, y) => y.prio - x.prio || (x.id < y.id ? -1 : 1))[0];
+        if (lm.kind === 'Patrimonio' && spec) { lm._spec = lm.emoji; lm.kind = spec.kind; lm.emoji = spec.emoji; }
         continue;
       }
       // el mismo sitio (mismo tipo cerca o nombre parecido): se queda la versión con mejor puntuación (la de Wikidata
@@ -512,5 +521,24 @@
     return d < 150 && pa.some((w) => pb.has(w));
   }
 
-  PM.lugares = { RARITY, RANK, CONF, MUST_NO, TIPO_GUIA, SERVICIO, porQue, revisarRegistro, vigencia, mismoSitio, clasificar, candidato, evangelica, seleccionar, interes, elegirImprescindibles, topeMust, repetidoMust, otraCiudad, esUniversidad, usoNoTuristico, sameName, norm, capRadius };
+  // ¿Esta carta (id y registro) es este imprescindible de la lista? Los lugares de Wikidata tienen id «nQ123». Si la que
+  // conquistaste es la versión del mapa, su nombre y su tipo pueden ser otros («Temple Expiatori» / «Templo del Sagrado
+  // Corazón», «Patrimonio» / «Palacio»): sin esto perdía la estrella.
+  function esMust(e, id, r) {
+    if (e.q === id || 'n' + e.q === id || e.q === r.wd) return true;
+    return !!r.pos && ((sameName(e.name, r.name) && geo().dist(e.pos, r.pos) < 400) || mismoSitio(e, r));
+  }
+  // qué lugar del mapa es cada imprescindible de la lista: el mismo de Wikidata, el mismo nombre o el importante que hay justo ahí
+  function matchMust(e, lms) {
+    let best = lms.find((lm) => lm.wd === e.q || lm.id === 'n' + e.q);
+    if (best) return best;
+    let bd = 1e9;
+    for (const lm of lms) { const d = geo().dist(lm.pos, e.pos); if (d < 400 && d < bd && sameName(lm.name, e.name)) { bd = d; best = lm; } }
+    if (best) return best;
+    bd = 80;
+    for (const lm of lms) { const d = geo().dist(lm.pos, e.pos); if (d < bd && (lm.wd || lm.wiki || lm.wp || mismoSitio(e, lm)) && !MUST_NO.test(lm.kind)) { bd = d; best = lm; } }
+    return best || null;
+  }
+
+  PM.lugares = { RARITY, RANK, CONF, MUST_NO, TIPO_GUIA, SERVICIO, porQue, revisarRegistro, vigencia, mismoSitio, esMust, matchMust, clasificar, candidato, evangelica, seleccionar, interes, elegirImprescindibles, topeMust, repetidoMust, otraCiudad, esUniversidad, usoNoTuristico, sameName, norm, capRadius };
 })(typeof window !== 'undefined' ? window : globalThis);

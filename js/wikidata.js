@@ -123,6 +123,18 @@
 } GROUP BY ?item ?itemLabel ?coord ?sl`;
   }
 
+  // Unos lugares concretos (los que recomiendan las guías y la consulta por fama no ha traído), con los mismos datos
+  function idsQuery(ids) {
+    return `SELECT ?item ?itemLabel ?coord (?sl AS ?wp) (GROUP_CONCAT(DISTINCT STRAFTER(STR(?h), "entity/"); separator=",") AS ?her) (MIN(YEAR(?inc)) AS ?y) (SAMPLE(?col) AS ?coll) (MAX(?vis) AS ?visit) (SAMPLE(?arq) AS ?arqs) (GROUP_CONCAT(DISTINCT STRAFTER(STR(?c), "entity/"); separator=",") AS ?cls) WHERE {
+ VALUES ?item { ${ids.map((q) => 'wd:' + q).join(' ')} }
+ ?item wdt:P625 ?coord; wikibase:sitelinks ?sl.
+ FILTER NOT EXISTS { ?item wdt:P1082 [] }
+ FILTER (!EXISTS { ?item wdt:P576 [] } || EXISTS { ?item wdt:P1435 [] }) FILTER NOT EXISTS { ?item wdt:P5817 wd:Q56556915 }
+ OPTIONAL { ?item wdt:P1435 ?h } OPTIONAL { ?item wdt:P31 ?c } OPTIONAL { ?item wdt:P571|wdt:P1619 ?inc } OPTIONAL { ?item wdt:P195 ?col } OPTIONAL { ?item wdt:P1174 ?vis } OPTIONAL { ?item wdt:P84 ?arq }
+ SERVICE wikibase:label { bd:serviceParam wikibase:language "es,en,fr,ca,de,it,pt,nl,mul". }
+} GROUP BY ?item ?itemLabel ?coord ?sl`;
+  }
+
   // Convierte la respuesta en elementos tipo OSM: { type:'node', id:'Q123', lat, lon, tags }
   // (las etiquetas en español van en minúscula —«iglesia de Santa María»—; en una carta, el nombre empieza en mayúscula. «iPhone», no)
   const capital = (s) => (/^\p{Ll}/u.test(s) && !/^\p{Ll}\p{Lu}/u.test(s) ? s[0].toUpperCase() + s.slice(1) : s);
@@ -191,7 +203,7 @@
     return parse(await r.json()).sort((a, b) => b.tags._wp - a.tags._wp);   // de más a menos conocido
   }
 
-  const api = { fetchBox, fetchTop, parse, query, topQuery, CLS };
+  const api = { fetchBox, fetchTop, parse, query, topQuery, idsQuery, CLS };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else { root.PM = root.PM || {}; root.PM.wikidata = api; }
 })(typeof window !== 'undefined' ? window : globalThis);
