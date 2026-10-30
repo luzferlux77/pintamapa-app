@@ -164,7 +164,10 @@
     paintedDirty = true; renderBarrios();
   })();
   function geoAdd(pc) {
-    if (!pc || pgeo.has(pc.id)) return;
+    if (!pc) return;
+    // (ya guardado: solo se cambia si ahora el tramo está más completo, para reparar los que quedaron recortados)
+    const ya = pgeo.get(pc.id);
+    if (ya && (ya.p.length >= pc.pts.length || PM.geo.dist(ya.p[0], ya.p[ya.p.length - 1]) + 0.5 >= PM.geo.dist(pc.pts[0], pc.pts[pc.pts.length - 1]))) return;
     pgeo.set(pc.id, { k: pc.tile, p: pc.pts.map((q) => [+q[0].toFixed(6), +q[1].toFixed(6)]) });
     (pgeoTile.get(pc.tile) || pgeoTile.set(pc.tile, new Set()).get(pc.tile)).add(pc.id);
     pgeoNew.add(pc.tile);

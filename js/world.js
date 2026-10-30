@@ -329,8 +329,24 @@ PM.world = (function () {
     return { base: 'c' + Math.floor(mid[0] / GLAT) + '_' + Math.floor(mid[1] / GLON) + '.', sec };
   }
 
+  // ¿la línea a contiene entera a la b? (a menos de 1,2 m en todos sus puntos)
+  function contiene(a, b) {
+    for (let i = 0; i < b.length; i++) {
+      if (PM.geo.distToPolyline(b[i], a) > 1.2) return false;
+      if (i && PM.geo.distToPolyline(PM.geo.lerp(b[i - 1], b[i], 0.5), a) > 1.2) return false;
+    }
+    return true;
+  }
+  // el tramo pasa a tener la geometría completa (lo pintado de ese tramo se ve entero sin volver a andarlo)
+  function ampliar(p, pts, len, mid) {
+    if (!p.trail && tiles[p.tile]) tiles[p.tile].total += len - p.len;
+    p.pts = pts; p.len = len; p.mid = mid;
+    const cells = new Set(pts.map((q) => cellKey(q[0], q[1])));
+    cells.add(cellKey(mid[0], mid[1]));
+    cells.forEach((c) => { const l = index[c] || (index[c] = []); if (!l.includes(p.id)) l.push(p.id); });
+  }
   function addWay(wayId, geom, acceptTiles, wide, trail, ped) {
-    const added = [];
+    const added = [], crecidos = [];
     for (const pts of gridCut(geom)) {
       let len = 0;
       for (let i = 0; i < pts.length - 1; i++) len += PM.geo.dist(pts[i], pts[i + 1]);
@@ -339,14 +355,26 @@ PM.world = (function () {
       const tk = tileKeyOf(mid[0], mid[1]);
       if (!acceptTiles.has(tk)) continue;
       const { base, sec } = pieceId(pts, mid);
-      let id = base + sec;
-      // el mismo tramo llegado por otra tesela o fuente: ya está
-      if (pieces[id] && PM.geo.dist(pieces[id].mid, mid) < 4) { graphAdd({ id, pts }); (pieces[id].alt = pieces[id].alt || []).push(pts); continue; }   // (pero su geometría sí une la red: si no, quedaba un hueco de un tramo)
+      let id = base + sec, gemelo = null;
+      // el mismo tramo llegado por otra tesela o fuente. Los cuadrados del mapa recortan las calles en su borde: de dos
+      // copias, una puede estar cortada. Antes se quedaba la primera que llegara, y si era la recortada faltaban metros
+      // y el pintado salía con huecos en cada borde. Ahora, la más completa; si ninguna contiene a la otra, las dos.
+      if (pieces[id] && PM.geo.dist(pieces[id].mid, mid) < 4) {
+        const e = pieces[id];
+        graphAdd({ id, pts }); (e.alt = e.alt || []).push(pts);
+        if (contiene(e.pts, pts)) continue;
+        if (contiene(pts, e.pts)) { ampliar(e, pts, len, mid); crecidos.push(e); continue; }
+        let cubierto = false;
+        for (let n = 2; pieces[id + '~' + n] && !cubierto; n++) cubierto = contiene(pieces[id + '~' + n].pts, pts);
+        if (cubierto) continue;
+        gemelo = id;
+      }   // (pero su geometría sí une la red: si no, quedaba un hueco de un tramo)
       // si la dirección cae justo en el borde entre dos sectores, se reconoce lo ya pintado con el sector vecino
       const painted = PM.state ? PM.state.data.painted : {};
       if (!painted[id]) for (const alt of [base + (sec + 1) % 8, base + (sec + 7) % 8]) if (painted[alt] && !pieces[alt]) { id = alt; break; }
       if (pieces[id]) { let n = 2; while (pieces[id + '~' + n]) n++; id = id + '~' + n; }   // dos calles en la misma casilla
       const p = { id, tile: tk, pts, len, mid, wide: !!wide, trail: !!trail, ped: !!ped };   // ped: plaza o calle peatonal
+      if (gemelo && painted[gemelo]) painted[id] = 1;   // (la otra mitad del mismo tramo: si estaba pintado, ella también)
       graphAdd(p);
       p.avoid = inAvoidCircle(mid);
       pieces[id] = p;
@@ -358,6 +386,7 @@ PM.world = (function () {
       added.push(p);
     }
     for (const p of added) linkJunctions(p);
+    for (const p of crecidos) linkJunctions(p);
     return added;
   }
   // Cruces: en los mapas vectoriales las calles que se cruzan no siempre comparten el punto exacto del cruce
