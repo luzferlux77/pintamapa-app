@@ -1,8 +1,8 @@
 {
-  "version": "0.6.87",
-  "notes": "Motor de lugares: vuelven las calles famosas, gurdwaras, fortalezas, bazares y grandes estaciones; corregidos tipos equivocados (puentes, cines, patios de comidas); protección nacional de todo el mundo; nombres con mayúscula.",
+  "version": "0.6.88",
+  "notes": "Lugares regenerados en 646 ciudades con las reglas nuevas; preparado el enlace exacto con el mapa y las guías de viaje; la estrella de imprescindible ya no se pierde",
   "native": 6,
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.87/pintamapa-web-0.6.87.zip",
-  "checksum": "cecc5e254a86d30da459d2fc2303b8ffbef1f7e5f79bf5cad830ac0d79206f47",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.87/PintaMapa-v0.6.87.apk"
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.88/pintamapa-web-0.6.88.zip",
+  "checksum": "eb6de92e03706878b7b9397e096a60eb35953b263f416c6ef1e598ccf1100d30",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.88/PintaMapa-v0.6.88.apk"
 }
