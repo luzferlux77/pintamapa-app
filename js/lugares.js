@@ -195,7 +195,10 @@
     const vis = +tags._vis > 10000 ? Math.min(20, Math.round(4 * Math.log2(+tags._vis / 10000))) : 0;   // visitantes al año
     // (una catedral pequeña —de otro rito, casi sin artículos— no suma como la catedral de la ciudad)
     const tipo = (c.kind === 'Catedral' || c.kind === 'Basílica') && sl < 10 ? 6 : (INTERES_TIPO[c.kind] || 0);
-    return { c, puntos: Math.round(10 * Math.log2(1 + sl)) + [0, 4, 15, 30][Math.max(0, Math.min(3, her))] + tipo + antiguedad(tags) + vis + (tags._atr ? 6 : 0) };
+    // (la protección nacional pesa entera solo en lo conocido: en El Cairo, una madrasa de 8 Wikipedias dentro del sitio
+    // UNESCO no puede quitarle el sitio a la mezquita de Muhammad Alí)
+    const prot = her === 2 && sl < 15 ? 6 : [0, 4, 15, 30][Math.max(0, Math.min(3, her))];
+    return { c, puntos: Math.round(10 * Math.log2(1 + sl)) + prot + tipo + antiguedad(tags) + vis + (tags._atr ? 6 : 0) };
   }
   const ESTADIO_MUST = 60;
   // como mucho tantos imprescindibles de un mismo tipo (una lista de guía es variada: no cinco rascacielos ni tres estadios)
@@ -205,6 +208,12 @@
     const n = list.filter((x) => x.kind === kind).length;
     return (MUST_TOPE[kind] != null && n >= MUST_TOPE[kind]) || n >= Math.max(3, Math.ceil((N || list.length + 1) * 0.3));
   };
+  // ¿ya está en la lista? El mismo sitio dos veces (no lo que está al lado), y una ficha de conjunto junto a lo que contiene
+  // («Conjunto arqueológico de Tarraco» y su anfiteatro, «Centre històric d'Split i Palau de Dioclecià» y el palacio)
+  const CONJUNTO = /^(conjunto|conjunt|ensemble|complejo|centre hist[oò]ric|centro hist[oó]rico|casco (antiguo|hist[oó]rico)|historic cent(er|re))\b/i;
+  function repetidoMust(list, pos, nm) {
+    return list.some((x) => { const d = geo().dist(x.pos, pos); return d < 40 || (sameName(x.name, nm) && d < 400) || (d < 150 && (CONJUNTO.test(x.name) || CONJUNTO.test(nm))); });
+  }
   // Los imprescindibles de una ciudad: los N lugares de más interés dentro de su término (sin repetir el mismo sitio)
   function elegirImprescindibles(els, N) {
     const sc = [];
@@ -214,7 +223,7 @@
     for (const { el, r } of sc) {
       const pos = [el.lat, el.lon], nm = el.tags.name;
       if (topeMust(list, r.c.kind, N)) continue;
-      if (list.some((x) => geo().dist(x.pos, pos) < 40 || (sameName(x.name, nm) && geo().dist(x.pos, pos) < 400))) continue;   // el mismo sitio dos veces (no lo que está al lado)
+      if (repetidoMust(list, pos, nm)) continue;
       list.push({ q: el.id, name: nm, pos, kind: r.c.kind, emoji: r.c.emoji, sl: el.tags._wp || 0, interes: r.puntos });
       if (list.length >= N) break;
     }
@@ -319,6 +328,13 @@
     if (r === undefined) { r = s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\b(de|del|la|el|les|los|las|dels|of|the|le|du|di|della)\b/g, ' ').replace(/[^a-z0-9]+/g, ' ').replace(/\b(museu|poble|espanyol)\b/g, (w) => ES[w]).trim(); if (normMemo.size > 20000) normMemo.clear(); normMemo.set(s, r); }
     return r;
   };
+  // ¿este nombre es otra ciudad que la que ya conocíamos? (Córdoba, Valencia, San Fernando: hay varias en el mundo)
+  function otraCiudad(prev, q, bb) {
+    if (!prev) return false;
+    if (prev.q && q) return prev.q !== q;
+    const b = prev.bbox;
+    return !b || b[0] > bb[2] || b[2] < bb[0] || b[1] > bb[3] || b[3] < bb[1];
+  }
   function sameName(a, b) { a = norm(a); b = norm(b); return !!a && !!b && (a === b || (a.length > 5 && b.includes(a)) || (b.length > 5 && a.includes(b))); }
 
   // ---------------- Iglesia principal de cada pueblo ----------------
@@ -496,5 +512,5 @@
     return d < 150 && pa.some((w) => pb.has(w));
   }
 
-  PM.lugares = { RARITY, RANK, CONF, MUST_NO, TIPO_GUIA, SERVICIO, porQue, revisarRegistro, vigencia, mismoSitio, clasificar, candidato, evangelica, seleccionar, interes, elegirImprescindibles, topeMust, esUniversidad, usoNoTuristico, sameName, norm, capRadius };
+  PM.lugares = { RARITY, RANK, CONF, MUST_NO, TIPO_GUIA, SERVICIO, porQue, revisarRegistro, vigencia, mismoSitio, clasificar, candidato, evangelica, seleccionar, interes, elegirImprescindibles, topeMust, repetidoMust, otraCiudad, esUniversidad, usoNoTuristico, sameName, norm, capRadius };
 })(typeof window !== 'undefined' ? window : globalThis);
