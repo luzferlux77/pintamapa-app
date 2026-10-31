@@ -1,8 +1,8 @@
 {
-  "version": "0.6.90",
-  "notes": "Cartas sin artefactos al girarlas en el móvil: brillo más suave y halo que gira con la carta",
+  "version": "0.6.91",
+  "notes": "Tus cartas se revisan solas: las que ya no valen desaparecen y las demás se ponen al día, con su texto y su foto correctos",
   "native": 6,
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.90/pintamapa-web-0.6.90.zip",
-  "checksum": "56bde42bce9fd6024848718c77545c243ffd9782013873d56542370a0597b9eb",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.90/PintaMapa-v0.6.90.apk"
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.91/pintamapa-web-0.6.91.zip",
+  "checksum": "72eaeae13ec13f16656d0e62a07ea71545cafae12bb5d80c1445ae01d8ae5a78",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.91/PintaMapa-v0.6.91.apk"
 }
