@@ -3,6 +3,8 @@
 // al ratón o a la inclinación del móvil; se voltea al tocarla. Se usa en la app y en «Mi progreso».
 PM.tcg = (function () {
   const esc = (t) => String(t == null ? '' : t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  // (una foto de Commons con apóstrofo —«Sant Pere d'Or.jpg»— rompía el url('…') y la carta salía sin foto)
+  const cssUrl = (u) => String(u).replace(/'/g, '%27').replace(/\\/g, '%5C');
 
   // "Tipos" según la clase de sitio: color de la carta y orbe
   const TYPES = {
@@ -166,8 +168,11 @@ PM.tcg = (function () {
       try { const svg = await streetsFor(pos); if (svg) { el.innerHTML = svg; el.classList.add('real'); } } catch (e) { /* sin conexión: se queda el grabado */ }
     });
   }
-  function backHTML(d, R) {
+  function backHTML(d, R, mini) {
     const seed = hash(d.id), uid = 'bk' + seed;
+    // la foto del lugar dentro del sello, recortada en círculo por el centro y derecha aunque el sello vaya inclinado; debajo
+    // queda el icono por si la foto tarda o no llega (las cartas pequeñas del álbum no enseñan el reverso: ahí no se carga)
+    const foto = d.img && !mini ? `<image class="sf" href="${esc(d.img)}" x="33" y="33" width="134" height="134" preserveAspectRatio="xMidYMid slice"/>` : '';
     const date = d.t ? new Date(d.t).toLocaleDateString(PM.LOCALE, { day: 'numeric', month: 'long', year: 'numeric' }) : '—';
     const year = d.t ? new Date(d.t).getFullYear() : new Date().getFullYear();
     const base = d.points || 100, earned = base + Math.max(0, (d.visits || 1) - 1) * Math.round(base * 0.2);
@@ -187,10 +192,10 @@ PM.tcg = (function () {
           </defs>
           <circle cx="100" cy="100" r="95" class="s1"/><circle cx="100" cy="100" r="89" class="s2"/>
           <text class="st"><textPath href="#${uid}" textLength="472" lengthAdjust="spacing">${esc(ringTxt)}</textPath></text>
-          <circle cx="100" cy="100" r="60" fill="${color}"/><circle cx="100" cy="100" r="60" fill="url(#${uid}g)"/>
-          <circle cx="100" cy="100" r="60" class="s3"/><circle cx="100" cy="100" r="54" class="s4"/>
-          <text x="100" y="114" class="se">${d.emoji || '📍'}</text>
-          <text x="100" y="146" class="sr">${esc(R.sym)}</text>
+          <circle cx="100" cy="100" r="${foto ? 67 : 60}" fill="${color}"/><circle cx="100" cy="100" r="${foto ? 67 : 60}" fill="url(#${uid}g)"/>
+          <text x="100" y="114" class="se">${esc(d.emoji || '📍')}</text>
+          ${foto || `<circle cx="100" cy="100" r="54" class="s4"/><text x="100" y="146" class="sr">${esc(R.sym)}</text>`}
+          <circle cx="100" cy="100" r="${foto ? 67 : 60}" class="s3"/>
         </svg>
         <div class="bk-name" translate="no">${esc(d.name)}</div>
         <div class="bk-sub" translate="no">${esc([d.barrio, d.city].filter(Boolean).join(' · ') || d.kind || '')}</div>
@@ -227,10 +232,10 @@ PM.tcg = (function () {
             <div class="tcg-top">
               <div class="tcg-stage"><span>${esc(PM.t(T.name))} · ${esc(PM.t(R.name))}</span><span class="tcg-code">${code(d)}</span></div>
               ${d.shiny || d.must ? `<div class="tcg-shinytag ${d.must ? 'musttag' : ''}">${d.must ? '⭐ IMPRESCINDIBLE' : ''}${d.must && d.shiny ? ' · ' : ''}${d.shiny ? '✨ BRILLANTE' : ''}</div>` : ''}
-              <div class="tcg-title"><b translate="no">${esc(d.name)}</b><span class="tcg-hp"><small>PTS</small>${pts}<i class="tcg-orb">${d.emoji || '📍'}</i></span></div>
+              <div class="tcg-title"><b translate="no">${esc(d.name)}</b><span class="tcg-hp"><small>PTS</small>${pts}<i class="tcg-orb">${esc(d.emoji || '📍')}</i></span></div>
             </div>
             <div class="tcg-art">
-              <div class="tcg-photo" ${d.img ? `style="background-image:url('${esc(d.img)}')"` : ''}>${d.img ? '' : `<span>${d.emoji || '📍'}</span>`}</div>
+              <div class="tcg-photo" ${d.img ? `style="background-image:url('${esc(cssUrl(d.img))}')"` : ''}>${d.img ? '' : `<span>${esc(d.emoji || '📍')}</span>`}</div>
               <div class="tcg-shine"></div><div class="tcg-glitter"></div>
             </div>
             <div class="tcg-band" translate="no">${esc(PM.t(d.kind || ''))}${d.city ? ' · ' + esc(d.city) : ''}</div>
@@ -253,7 +258,7 @@ PM.tcg = (function () {
           </div>
           <div class="tcg-foil"></div><div class="tcg-glare"></div>
         </div>
-        ${backHTML(d, R)}
+        ${backHTML(d, R, opts.mini)}
       </div>
     </div>`;
   }
@@ -261,12 +266,12 @@ PM.tcg = (function () {
   // ---------------- Interacción: inclinación 3D + brillo que sigue al puntero; tocar = voltear ----------------
   function interactive(el) {
     const rot = el.querySelector('.tcg-rot');
-    let flipped = false, raf = null, target = { x: 50, y: 50 }, cur = { x: 50, y: 50 }, active = false;
+    let flipped = false, raf = null, target = { x: 50, y: 50 }, cur = { x: 50, y: 50 }, active = false, dedo = null, movido = false;
     const touch = !!(window.matchMedia && matchMedia('(hover: none)').matches);
+    const GIRO = touch ? 0.5 : 1;   // en el móvil, la mitad que en el PC (±7° y ±9°): se nota sin marear
     const apply = () => {
       const k = el._soft ? 0.1 : 0.18; cur.x += (target.x - cur.x) * k; cur.y += (target.y - cur.y) * k;
-      // en el móvil la carta no gira en 3D (eso parpadeaba): solo se mueve el holograma; en el PC, giro con el ratón
-      const rx = touch ? 0 : (cur.y - 50) / 50 * -14, ry = touch ? 0 : (cur.x - 50) / 50 * 18;
+      const rx = (cur.y - 50) / 50 * -14 * GIRO, ry = (cur.x - 50) / 50 * 18 * GIRO;
       el.style.setProperty('--mx', cur.x + '%'); el.style.setProperty('--my', cur.y + '%');
       el.style.setProperty('--rx', rx + 'deg'); el.style.setProperty('--ry', (flipped ? 180 : 0) + ry + 'deg');
       el.style.setProperty('--hyp', Math.min(1, Math.hypot(cur.x - 50, cur.y - 50) / 50).toFixed(3));
@@ -274,9 +279,22 @@ PM.tcg = (function () {
     };
     const go = () => { if (!raf) raf = requestAnimationFrame(apply); };
     const point = (cx, cy) => { const b = el.getBoundingClientRect(); target = { x: Math.max(0, Math.min(100, (cx - b.left) / b.width * 100)), y: Math.max(0, Math.min(100, (cy - b.top) / b.height * 100)) }; active = true; el.classList.add('active'); go(); };
-    el.addEventListener('pointermove', (e) => { if (e.pointerType !== 'mouse') return; el._soft = false; point(e.clientX, e.clientY); });
-    el.addEventListener('pointerleave', () => { target = { x: 50, y: 50 }; active = false; el.classList.remove('active'); go(); });
-    el.addEventListener('click', () => { flipped = !flipped; el.classList.toggle('flipped', flipped); rot.style.transition = 'transform .8s cubic-bezier(.3,1.5,.5,1)'; go(); setTimeout(() => { rot.style.transition = ''; }, 800); });
+    const soltar = () => { target = { x: 50, y: 50 }; active = false; dedo = null; el.classList.remove('active'); go(); };
+    // en el móvil también se inclina con el dedo: arrastrarlo sobre la carta la mueve; un toque sin arrastrar le da la vuelta
+    el.addEventListener('pointerdown', (e) => { if (e.pointerType === 'mouse') return; dedo = [e.clientX, e.clientY]; movido = false; });
+    el.addEventListener('pointermove', (e) => {
+      if (e.pointerType === 'mouse') { el._soft = false; point(e.clientX, e.clientY); return; }
+      if (!dedo) return;
+      if (Math.hypot(e.clientX - dedo[0], e.clientY - dedo[1]) > 10) movido = true;
+      if (movido) { el._soft = false; point(e.clientX, e.clientY); }
+    });
+    el.addEventListener('pointerup', (e) => { if (e.pointerType !== 'mouse') soltar(); });
+    el.addEventListener('pointercancel', soltar);
+    el.addEventListener('pointerleave', soltar);
+    el.addEventListener('click', () => {
+      if (movido) { movido = false; return; }   // (venía de arrastrar: no se voltea)
+      flipped = !flipped; el.classList.toggle('flipped', flipped); rot.style.transition = 'transform .8s cubic-bezier(.3,1.5,.5,1)'; go(); setTimeout(() => { rot.style.transition = ''; }, 800);
+    });
     // móvil: al inclinarlo, el holograma se desliza por la carta (como un cromo de verdad bajo la luz).
     // La postura con la que la miras es el "centro" y se recalibra despacio si cambias de postura.
     let base = null;
@@ -287,7 +305,9 @@ PM.tcg = (function () {
       if (!base) base = { g: e.gamma, b: e.beta };
       base.g += (e.gamma - base.g) * 0.004; base.b += (e.beta - base.b) * 0.004;
       el._soft = true;
-      target = { x: 50 + clamp((e.gamma - base.g) * 1.8), y: 50 + clamp((e.beta - base.b) * 1.8) };
+      const nx = 50 + clamp((e.gamma - base.g) * 1.8), ny = 50 + clamp((e.beta - base.b) * 1.8);
+      if (Math.abs(nx - target.x) < 0.6 && Math.abs(ny - target.y) < 0.6) return;   // (el temblor del sensor no mueve la carta: así no parpadea ni gasta)
+      target = { x: nx, y: ny };
       el.classList.add('active'); go();
     };
     window.addEventListener('deviceorientation', tilt);
@@ -408,7 +428,12 @@ PM.tcg = (function () {
   .tcg.mini { font-size: 6.4px; cursor: pointer; }
   .tcg-rot { position: absolute; inset: 0; transform-style: preserve-3d; transform: rotateX(var(--rx)) rotateY(var(--ry)); will-change: transform; }
   .tcg-face { position: absolute; inset: 0; border-radius: 4.5% / 3.3%; overflow: hidden; backface-visibility: hidden; -webkit-backface-visibility: hidden; box-shadow: 0 1.4em 3em rgba(0,0,0,.35), 0 0 0 1px rgba(0,0,0,.15); }
-  .tcg-front { background: linear-gradient(135deg, #fff1a8, var(--y) 30%, #e8b923 60%, #fff3b0); padding: 3.6%; }
+  /* marco según la rareza (los mismos colores que en el mapa): gris, azul, violeta y dorado */
+  .tcg { --b1: #f1f3f6; --b2: #b9c1cc; --b3: #8e98a6; --b4: #e6e9ee; --bl: rgba(178,187,200,.75); --bl2: rgba(178,187,200,.35); }
+  .tcg.r-raro { --b1: #d9eeff; --b2: #63b7f6; --b3: #2b86d6; --b4: #d2e9ff; --bl: rgba(99,183,246,.75); --bl2: rgba(99,183,246,.35); }
+  .tcg.r-epico { --b1: #f0e0ff; --b2: #b97cf1; --b3: #8a3fd1; --b4: #e8d6ff; --bl: rgba(185,124,241,.75); --bl2: rgba(185,124,241,.35); }
+  .tcg.r-legendario { --b1: #fff1a8; --b2: #f6d44c; --b3: #d4a52c; --b4: #fff3b0; --bl: rgba(212,175,106,.75); --bl2: rgba(212,175,106,.35); }
+  .tcg-front { background: linear-gradient(135deg, var(--b1), var(--b2) 30%, var(--b3) 60%, var(--b4)); padding: 3.6%; }
   .r-legendario .tcg-front { background: linear-gradient(135deg, #fff6cf, #e6c25a 20%, #fffbe8 40%, #d4a52c 60%, #fff2b8 80%, #c99a24); }
   .tcg-inner { position: relative; height: 100%; border-radius: 2.4% / 1.7%; background: linear-gradient(170deg, var(--c1), var(--c2)); padding: 2.6% 4%; display: flex; flex-direction: column; gap: .35em; box-shadow: inset 0 0 0 .18em rgba(0,0,0,.18); }
   .tcg-stage { display: flex; justify-content: space-between; font-size: .58em; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; color: rgba(0,0,0,.55); }
@@ -487,8 +512,9 @@ PM.tcg = (function () {
   .bk-holo { position: absolute; inset: 0; pointer-events: none; z-index: 3; border-radius: inherit; mix-blend-mode: overlay; opacity: calc(.04 + var(--hyp) * .2);
     background: linear-gradient(120deg, transparent 20%, rgba(255,80,170,.55) 32%, rgba(255,220,90,.5) 40%, rgba(80,255,190,.45) 48%, rgba(90,190,255,.55) 56%, rgba(190,110,255,.5) 64%, transparent 76%);
     background-size: 280% 280%; background-position: var(--mx) var(--my); }
+  #tcg-view .tcg { touch-action: none; }   /* (el dedo inclina la carta: no desplaza la pantalla) */
   @media (hover: none) {
-    /* móvil: holograma estable (mezcla "overlay", sin destellos de ruido ni giro 3D) */
+    /* móvil: holograma estable (mezcla "overlay", sin destellos de ruido) */
     .tcg-glitter { display: none; }
     .r-legendario .tcg-inner::after { display: none; }
     .tcg-shine { mix-blend-mode: overlay; opacity: calc(var(--holo) * (.12 + var(--hyp) * .45)); filter: none;
@@ -499,10 +525,10 @@ PM.tcg = (function () {
     .tcg-glare { mix-blend-mode: soft-light; }
   }
   /* --- reverso: sello de conquista --- */
-  .tcg-back { transform: rotateY(180deg); padding: 3.2%; background: linear-gradient(135deg, #e9d7a6, #b8955a 30%, #f3e6c4 50%, #a8844a 72%, #e2cd98); }
+  .tcg-back { transform: rotateY(180deg); padding: 3.2%; background: linear-gradient(135deg, var(--b1), var(--b3) 30%, var(--b4) 50%, var(--b3) 72%, var(--b1)); }
   .bk { position: relative; height: 100%; border-radius: 2.4% / 1.7%; overflow: hidden; color: #e9edf4; font-family: Inter, system-ui, sans-serif;
     background: radial-gradient(120% 80% at 50% 30%, #1c2638 0%, #121a28 55%, #0b1019 100%);
-    box-shadow: inset 0 0 0 .14em #0b1019, inset 0 0 0 .26em rgba(212,175,106,.75), inset 0 0 0 .42em #0b1019, inset 0 0 0 .48em rgba(212,175,106,.35);
+    box-shadow: inset 0 0 0 .14em #0b1019, inset 0 0 0 .26em var(--bl), inset 0 0 0 .42em #0b1019, inset 0 0 0 .48em var(--bl2);
     display: flex; flex-direction: column; align-items: center; padding: 7% 8% 5.5%; }
   .bk-guil { position: absolute; inset: 0; width: 100%; height: 100%; -webkit-mask-image: radial-gradient(ellipse 75% 42% at 50% 30%, #000 35%, transparent 78%); mask-image: radial-gradient(ellipse 75% 42% at 50% 30%, #000 35%, transparent 78%); }
   .bk-guil path { fill: none; stroke: #d4af6a; stroke-width: .16; opacity: .26; }
@@ -516,9 +542,10 @@ PM.tcg = (function () {
   .bk > *:not(.bk-guil) { position: relative; }
   .bk-top { width: 100%; display: flex; align-items: center; gap: .6em; font-size: .52em; letter-spacing: .28em; text-transform: uppercase; color: #d4af6a; font-weight: 600; }
   .bk-top i { flex: 1; height: 1px; background: linear-gradient(90deg, rgba(212,175,106,.6), rgba(212,175,106,.1)); }
-  .bk-seal { width: 56%; margin: 6% 0 3%; transform: rotate(-7deg); filter: drop-shadow(0 .4em .8em rgba(0,0,0,.45)); }
+  .bk-seal { width: 62%; margin: 5% 0 2%; transform: rotate(-7deg); filter: drop-shadow(0 .4em .8em rgba(0,0,0,.45)); }
   .bk-seal .s1 { fill: rgba(11,16,25,.55); stroke: #d4af6a; stroke-width: 1.6; }
   .bk-seal .s2 { fill: none; stroke: #d4af6a; stroke-width: .7; stroke-dasharray: 1.5 3; opacity: .8; }
+  .bk-seal .sf { clip-path: circle(50%); transform-box: fill-box; transform-origin: center; transform: rotate(7deg); }   /* (el sello va girado -7°: la foto, derecha) */
   .bk-seal .s3 { fill: none; stroke: #f1dfb2; stroke-width: 1.4; }
   .bk-seal .s4 { fill: none; stroke: rgba(255,255,255,.35); stroke-width: .6; stroke-dasharray: 2 2.5; }
   .bk-seal .st { fill: #e3c88d; font: 600 10.5px Inter, system-ui, sans-serif; letter-spacing: 1.5px; }

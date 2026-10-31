@@ -58,6 +58,12 @@ PM.today = function () {
   return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
 };
 
+// el día anterior según el calendario (restar 24 h fallaba los días de cambio de hora, que duran 23 o 25: se rompía la racha)
+PM.ayer = function () {
+  const d = new Date(); d.setDate(d.getDate() - 1);
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+};
+
 PM.fmtDist = function (m) {
   return m >= 1000 ? (m / 1000).toFixed(m >= 10000 ? 1 : 2) + ' km' : Math.round(m) + ' m';
 };
@@ -76,7 +82,7 @@ PM.limpiarPartida = function (d) {
     for (const id of Object.keys(o)) {
       const r = o[id];
       if (!r || typeof r !== 'object') { delete o[id]; continue; }   // registro roto (null, número…): fuera
-      for (const f of ['name', 'city', 'barrio', 'kind', 'addr', 'ctx', 'desc', 'credit', 'porque']) if (typeof r[f] === 'string') r[f] = L(r[f]);
+      for (const f of ['name', 'city', 'barrio', 'kind', 'addr', 'ctx', 'desc', 'credit', 'porque', 'emoji', 'rarity', 'color']) if (typeof r[f] === 'string') r[f] = L(r[f]);
     }
   }
   for (const k of ['barrioNames']) { const o = obj(d[k]); if (o) for (const id of Object.keys(o)) o[id] = typeof o[id] === 'string' ? L(o[id]) : ''; }
@@ -88,6 +94,9 @@ PM.limpiarPartida = function (d) {
   }
   if (Array.isArray(d.avoid)) d.avoid = d.avoid.filter((a) => a && typeof a === 'object').map((a) => Object.assign(a, { name: L(a.name) }));
   if (d.walks && !Array.isArray(d.walks)) d.walks = [];
+  // (el color y la foto de perfil van dentro de un style="…": solo un color y una imagen de verdad)
+  if (d.color != null && !/^#[0-9a-f]{3,8}$/i.test(String(d.color))) d.color = '#2563eb';
+  if (d.avatar != null && !/^data:image\/[a-z+]+;base64,[A-Za-z0-9+/=]+$/.test(String(d.avatar))) delete d.avatar;
   return d;
 };
 PM.fmtNum = function (n) { return Math.round(n).toLocaleString(PM.LOCALE || 'es-ES'); };

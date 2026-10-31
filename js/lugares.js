@@ -23,6 +23,10 @@
   const capRadius = (kind, big) => (kind === 'Estadio' && big ? 240 : kind === 'Aeropuerto' ? (big === 'grande' ? 2500 : 1500)
     : ({ Estadio: 200, 'Estudio de televisión': 200, 'Calle emblemática': 60, 'Campo de fútbol': 70, Parque: 45, 'Zoo / Acuario': 80, 'Parque temático': 120 })[kind]) || 30;
 
+  // Sitio grande (la precarga sabe su tamaño, _lado: el lado corto en metros): hay que poder capturarlo desde su borde,
+  // sin entrar. Un palacio de 200 m no se alcanza a 30 m de su centro desde la calle, ni un zoo de pago.
+  const capDeLado = (lado) => (+lado > 0 ? Math.min(300, Math.round(lado / 2) + 30) : 0);
+
   // Reglas de la selección (ver LUGARES.md)
   // Como una buena guía: lo que de verdad merece la visita, bien repartido por cada barrio, sin saturar.
   const CONF = {
@@ -31,7 +35,7 @@
     RELLENO: 60, RELLENO_HASTA: 6,                                   // lo flojo (< 60 puntos) solo si la zona tiene menos de 6 lugares
     SIN_SEPARACION: 75, IMPORTANTE: 110,                             // lo que importa sale aunque tenga otro al lado; lo muy importante, sin cupos
     ICON_MAX: 18, ICON_KIND_MAX: 6, ZONE_MAX: 26,                    // topes en ciudades monumentales
-    WORLD_FAMOUS: 20,                                                // idiomas: entra siempre
+    WORLD_FAMOUS: 15,                                                // idiomas: entra siempre (lo legendario por fama no se queda fuera por un tope: la plaza de Sant Jaume)
     GRID: 0.0015,                                                    // celda del índice de separación (~160 m)
     MAIN_CHURCH_M: 800,
   };
@@ -45,13 +49,21 @@
   const UNI_NAME = /(^|[^a-zà-ÿ])(universidad|universitat|university|universit[eé]|universit[äà]t?|universiteit|universidade|uniwersytet|universitet[a-z]*|[üu]niversitesi|universitas|polit[eé]cnic[ao]|politecnico|polytechnic|facultad de|faculty of|facult[eé] de|institute of (technology|science|sciences|health)|instituto (tecnol[oó]gico|polit[eé]cnico))([^a-zà-ÿ]|$)/i;
   // (lo que pertenece a una universidad pero se visita por sí mismo —su museo, su jardín botánico, su capilla, su
   // biblioteca histórica, su teatro— sigue siendo eso)
-  const UNI_OTRO = /(^|[^a-zà-ÿ])(museo|museu|museum|mus[eé]e|jard[ií]n|jardí|garden|bot[aá]ni|capilla|capella|chapel|iglesia|church|templo|temple|observatori|biblioteca|library|teatro|theatre|theater|estadio|stadium|hospital|palacio|palau|palace|torre|tower|monumento|monument|plaza|pla[çc]a|place|square|piazza|pra[çc]a|platz|calle|carrer|street|avenida|avinguda|parque|parc|park|puerta|porta|gate|fuente|font|fountain|estatua|statue)([^a-zà-ÿ]|$)/i;
+  const UNI_OTRO = /(^|[^a-zà-ÿ])(museo|museu|museum|mus[eé]e|jard[ií]n|jardí|garden|bot[aá]ni|capilla|capella|chapel|iglesia|church|templo|temple|observatori|biblioteca|library|teatro|theatre|theater|estadio|stadium|hospital|palacio|palau|palazzo|palace|torre|tower|monumento|monument|plaza|pla[çc]a|place|square|piazza|pra[çc]a|platz|calle|carrer|street|avenida|avinguda|parque|parc|parks?|puerta|porta|gate|fuente|font|fountain|estatua|statue|puente|ponte|pont|bridge)([^a-zà-ÿ]|$)/i;
   // ¿es patrimonio protegido? (de Wikidata: cualquier nivel de protección real; del mapa: la etiqueta heritage)
   const esPatrimonio = (tags) => (tags._her != null ? +tags._her >= 1 : !!tags.heritage);
   // una universidad histórica también entra (Oxford, Bolonia, Salamanca, Coimbra, la Carolina de Praga, Harvard…):
   // fundada antes de 1800 y conocida
   const universidadHistorica = (tags) => esPatrimonio(tags) || ((+tags.start_date || 9999) < 1800 && (+tags._wp || 0) >= 15);
   const esUniversidad = (tags) => tags.amenity === 'university' || (UNI_NAME.test(tags.name || '') && !UNI_OTRO.test(tags.name || ''));
+  const otroUsoNombre = (n) => NO_POR_NOMBRE.test(n);
+  const TIPO_POR_NOMBRE = [
+    [/^(castillo|castell|castle|castello|fortaleza|fortress)\s/i, { kind: 'Castillo', emoji: '🏰', rarity: 'legendario', prio: 90 }],
+    [/^(puente|pont|ponte|bridge)\s/i, { kind: 'Puente', emoji: '🌉', rarity: 'epico', prio: 64 }],
+    [/^(iglesia|esgl[eé]sia|capilla|capella|chapel)\s/i, { kind: 'Iglesia', emoji: '⛪', rarity: 'epico', prio: 75 }],
+    [/^(abad[ií]a|abbaye|abbey|convento|convent|monasterio|monestir|monastery|priorato)\s/i, { kind: 'Ermita / Monasterio', emoji: '⛪', rarity: 'epico', prio: 74 }],
+    [/^(pir[aá]mides?|pyramids?|muro|mausoleo|tumba)\s/i, { kind: 'Monumento', emoji: '🗽', rarity: 'epico', prio: 70 }],
+  ];
   function clasificar(tags) {
     // prio: importancia para la conquista (decide qué se queda cuando dos están muy cerca). El ayuntamiento, siempre el primero.
     const a = tags.amenity, h = tags.historic, t = tags.tourism, b = tags.building, l = tags.leisure, n = tags.name || '';
@@ -60,7 +72,10 @@
       return tags.heritage ? { kind: 'Patrimonio', emoji: '🏛️', rarity: 'raro', prio: 62 } : null;   // juntas de distrito: no son el ayuntamiento
     if (a === 'townhall' && !/税務|警察|裁判|tax office|police|polic[ií]a|comisar|juzgado|court|tribunal|hacienda|agencia tributaria/i.test(n)) return { kind: 'Ayuntamiento', emoji: '🏛️', rarity: 'legendario', prio: 100 };
     // una plaza es una plaza aunque Wikidata la tenga además como sede olímpica (la Concordia de París 2024)
-    if (!a && /^(plaza|place|piazza|square|pra[çc]a|platz|pla[çc]a|largo|rynek|n[aá]m[eě]st[ií])(\s|$)/i.test(n) && !/toros|bullring|arena|stadium|estadio/i.test(n)) return { kind: 'Plaza', emoji: '🏙️', rarity: 'raro', prio: 55 };
+    // (también con mercado: la plaza de Yamaa el Fna; no una plaza de abastos, ni un centro comercial o una torre que se llaman Plaza,
+    // ni un «square» de París, que es un jardín)
+    if ((!a || (a === 'marketplace' && !/abastos|mercado|mercat|market/i.test(n))) && !tags._uso && b !== 'skyscraper' && !(l && /^square\s/i.test(n))
+      && /^(plaza|place|piazza|square|pra[çc]a|platz|pla[çc]a|largo|rynek|n[aá]m[eě]st[ií])(\s|$)/i.test(n) && !/toros|bullring|arena|stadium|estadio/i.test(n)) return { kind: 'Plaza', emoji: '🏙️', rarity: 'raro', prio: 55 };
     // por el nombre, solo templos y edificios (no la «Piazza del Duomo»); «Dom» solo como en alemán (Kölner Dom, Dom St. Peter):
     // antes «Sant Domènec» o «Justo Domínguez» salían como catedrales (la tilde cortaba la palabra)
     // El tipo por el NOMBRE solo cuando encaja: en un templo, la palabra en cualquier parte; en otro edificio, solo si el
@@ -70,19 +85,28 @@
     const otroUso = NO_POR_NOMBRE.test(n) || !!tags._uso;
     const temple = a === 'place_of_worship' || b === 'church';
     const catName = /catedral|cathedral|cathédrale|cattedrale|kathedrale|domkirke|(^|[^a-zà-ÿ])duomo([^a-zà-ÿ]|$)/i.test(n) || /(^|\s)dom$|^dom\s+(st\.?|sankt|unser|zu|mari)/i.test(n);
-    if (b === 'cathedral' || (!otroUso && catName && (temple || (h === 'building' && /^(la |le |the |santa |s\.\s*)?(catedral|cathedral|cathédrale|cattedrale|kathedrale|duomo|concatedral)/i.test(n)))))
+    if (b === 'cathedral' || (!otroUso && catName && !tags.place && !/(^|\s)(square|plaza|pla[çc]a|piazza|platz)(\s|$)/i.test(n) && (temple || (h === 'building' && /^(la |le |the |santa |s\.\s*)?(catedral|cathedral|cathédrale|cattedrale|kathedrale|duomo|concatedral)/i.test(n)))))
       return { kind: 'Catedral', emoji: '⛪', rarity: 'legendario', prio: 95 };
     // palacios y casas señoriales que OpenStreetMap marca como «castillo» (los del Gòtic y el Born): palacio o patrimonio
     const palaceName = /(^|[^a-zà-ÿ])(palau|palauet|palacio|palacete|palace|palais|palazzo|palazzetto|pałac|palácio|schloss|paleis)([^a-zà-ÿ]|$)/i.test(n)
       && !tags.place && !/^(pla|plaça|plaza|piazza|place|platz|carrer|calle|via|rua|font|fuente|fanals|farolas|estaci|parada|jardins?|jardines|parc|parque)\b/i.test(n)   // «Pla de Palau» es una plaza
-      && !/esport|deport|sport|congr[eé]s|cinema|cine\b|sant jordi|blaugrana|fira|firal|vela|gel\b|hielo|theat|teatr|th[eé][aâ]tre|hotel|casino|ballroom/i.test(n) && !otroUso;   // ni pabellones, cines, teatros ni hoteles que se llaman «Palau»/«Palace»
+      && !/esport|deport|sport|congr[eé]s|cinema|cine\b|sant jordi|blaugrana|fira|firal|vela|gel\b|hielo|\bice\b|wedding|theat|teatr|th[eé][aâ]tre|hotel|casino|ballroom/i.test(n) && !otroUso   // ni pabellones, cines, teatros ni hoteles que se llaman «Palau»/«Palace»
+      // ni lo que es parte o vecino de un palacio («Puente del Palacio», «Capilla del Palacio», «Dinosaurios de Crystal Palace»)…
+      && !/(^|\s)(de|del|della|di|al|of|du|des|the)\s+(l[ao]\s+|el\s+)?([\p{L}.-]+\s+)?(palau|palauet|palacio|palacete|palace|palais|palazzo|palazzetto|pałac|palácio|schloss|paleis)(\s|$)/iu.test(n)
+      // …ni lo que ya se sabe qué es: un teatro, un estadio, un puente, una calle, un templo (salvo el palacio que lleva su uso en la ficha: «Palacio Monasterio del Temple»)
+      && !(a === 'theatre' || l === 'stadium' || b === 'stadium' || tags.man_made || tags._calle || tags.railway || (t === 'museum' && /\bmuse(o|u|um)\b/i.test(n)) || (temple && !/^(palau|palacio|palace|palais|palazzo)\b/i.test(n)) || /chapel|capilla|capella|church|iglesia/i.test(n));
     // un «castillo» del mapa base que no se llama castillo (aduana, asilo, casa señorial…): patrimonio; los de Wikidata, sí
     const castleName = /castell|castillo|castle|ch[aâ]teau|castello|burg|fortale|fortress|fort\b|alc[aá]zar|alcazaba|kasteel|zamek|hrad|citadel|ciutadella|ciudadela|torre/i.test(n);
     if (h === 'castle' && !palaceName && (/^(casa|cal|can|ca l'|cases|sal[oó]|edifici|mansi[oó]n?|villa)\b/i.test(n) || (!tags._wp && !castleName))) return { kind: 'Patrimonio', emoji: '🏛️', rarity: 'raro', prio: 62 };
-    if ((h === 'castle' && !palaceName) || h === 'fort') return { kind: 'Castillo', emoji: '🏰', rarity: 'legendario', prio: 90 };
+    // una puerta o unas murallas de una fortificación no son un castillo (la Puerta dorada de Kiev, las murallas de Jerusalén);
+    // y la residencia de un rey, aunque Wikidata la dé como castillo, es un palacio (la Residencia de Múnich)
+    if ((h === 'castle' || h === 'fort') && /^(puertas?|portal|porta|gate)\b/i.test(n)) return { kind: 'Torre / Puerta', emoji: '🗼', rarity: 'epico', prio: 65 };
+    if ((h === 'castle' || h === 'fort') && /^(murallas?|muraille|mura|walls?|l[ií]nea)\b/i.test(n)) return { kind: 'Monumento', emoji: '🗽', rarity: 'epico', prio: 70 };
+    const residencia = h === 'castle' && /^(residencia|residenz|residence)\b/i.test(n);
+    if ((h === 'castle' && !palaceName && !residencia) || h === 'fort') return { kind: 'Castillo', emoji: '🏰', rarity: 'legendario', prio: 90 };
     // (un rascacielos que se llama «Palais Royale» es un rascacielos)
     if (b === 'skyscraper') return { kind: 'Rascacielos', emoji: '🏙️', rarity: 'raro', prio: 60 };
-    if (b === 'palace' || palaceName) return { kind: 'Palacio', emoji: '🏰', rarity: 'epico', prio: 84 };
+    if (b === 'palace' || palaceName || residencia) return { kind: 'Palacio', emoji: '🏰', rarity: 'epico', prio: 84 };
     if (l === 'stadium' || b === 'stadium') return { kind: 'Estadio', emoji: '🏟️', rarity: 'epico', prio: 85 };
     if (b === 'basilica' || (!otroUso && (temple || h === 'building') && /bas[ií]lica|co-?catedral|concatedral/i.test(n))) return { kind: 'Basílica', emoji: '⛪', rarity: 'epico', prio: 80 };
     // ermitas y monasterios (siempre visibles si son patrimonio o tienen Wikipedia)
@@ -94,6 +118,8 @@
     if (t === 'theme_park') return { kind: 'Parque temático', emoji: '🎢', rarity: 'epico', prio: 64 };
     if (h === 'monument') return { kind: 'Monumento', emoji: '🗽', rarity: 'epico', prio: 70 };
     if (h === 'city_gate' || h === 'tower' || tags.man_made === 'tower' || tags.man_made === 'obelisk' || b === 'tower') return { kind: 'Torre / Puerta', emoji: '🗼', rarity: 'epico', prio: 65 };
+    // (Wikidata da como «puente» los acueductos y algún ascensor: el de Segovia es un monumento)
+    if (tags.man_made === 'bridge' && /^(acueducto|aqueduct|aqueduc|acquedotto|aqueduto|ascensor|elevador|elevator)\b/i.test(n)) return { kind: 'Monumento', emoji: '🗽', rarity: 'epico', prio: 70 };
     if (tags.man_made === 'bridge') return { kind: 'Puente', emoji: '🌉', rarity: 'epico', prio: 64 };
     if (tags._calle) return { kind: 'Calle emblemática', emoji: '🛣️', rarity: 'raro', prio: 58 };
     // aeropuertos (los comerciales e internacionales conocidos; no aeródromos de avionetas ni helipuertos)
@@ -133,9 +159,15 @@
     // (ruinas y miradores antes que el «patrimonio» genérico: unas ruinas protegidas son ruinas —el Foro Romano—)
     if (h === 'ruins' || h === 'archaeological_site') return { kind: 'Ruinas', emoji: '🏺', rarity: 'raro', prio: 45 };
     if (t === 'viewpoint') return { kind: 'Mirador', emoji: '🔭', rarity: 'raro', prio: 45 };
-    if (tags.heritage) return { kind: 'Patrimonio', emoji: /f[aàá]bri|factory|usine|fabbrica/i.test(n) ? '🏭' : '🏛️', rarity: 'raro', prio: 62 };
+    // (una biblioteca protegida es una biblioteca: la Británica o la Bodleiana salían como «Patrimonio»)
+    if (a === 'library') return { kind: 'Biblioteca', emoji: '📚', rarity: tags.heritage ? 'raro' : 'comun', prio: 38 };
+    if (tags.heritage) {
+      // sin una clase que diga qué es, lo dice el nombre (solo lo inequívoco, y nunca un edificio con otro uso): el Castillo Edo, el Museo delle Mura
+      if (!tags._uso && !otroUsoNombre(n)) for (const [re, r] of TIPO_POR_NOMBRE) if (re.test(n)) return r;
+      if (!tags._uso && /^(museo|museu|museum|mus[eé]e)\b/i.test(n)) return { kind: 'Museo', emoji: '🖼️', rarity: 'epico', prio: 70 };
+      return { kind: 'Patrimonio', emoji: /f[aàá]bri|factory|usine|fabbrica/i.test(n) ? '🏭' : '🏛️', rarity: 'raro', prio: 62 };
+    }
     if (l === 'pitch' && tags.sport === 'soccer') return { kind: 'Campo de fútbol', emoji: '⚽', rarity: 'raro', prio: 44 };
-    if (a === 'library') return { kind: 'Biblioteca', emoji: '📚', rarity: 'comun', prio: 38 };
     if (t === 'attraction') return { kind: 'Atracción', emoji: '⭐', rarity: 'raro', prio: 35 };
     if (h === 'memorial') return { kind: 'Memorial', emoji: '🗿', rarity: 'comun', prio: 30 };
     if (t === 'artwork') return { kind: 'Arte urbano', emoji: '🎨', rarity: 'comun', prio: 15 };
@@ -204,6 +236,8 @@
   // lo recomiendan las guías de viaje (Wikivoyage, de 1 a 3 idiomas o más): la mejor señal de «merece la visita»
   const guiaN = (tags) => Math.max(0, Math.min(3, +tags._guia || 0));
   const guiaPuntos = (tags) => 8 * guiaN(tags);
+  // visitas al año a su artículo de Wikipedia, inglés + español (solo la precarga las sabe): 1 000 → +2 · 10 000 → +7 · 100 000 → +13 · 1 millón o más → +20
+  const lecturasPuntos = (tags) => (+tags._pv > 0 ? Math.min(20, Math.round(2 * Math.log2(1 + tags._pv / 1000))) : 0);
   // como mucho tantos imprescindibles de un mismo tipo (una lista de guía es variada: no cinco rascacielos ni tres estadios)
   // y ningún tipo pasa del 30 % de la lista (Montevideo tenía once «palacios», casi todos edificios de viviendas)
   const MUST_TOPE = { Estadio: 1, Rascacielos: 3, Teatro: 3, 'Zoo / Acuario': 2, Parque: 4, 'Parque temático': 1, Mercado: 2, Puente: 3, Catedral: 3, 'Calle emblemática': 2 };
@@ -235,7 +269,7 @@
 
   // ---------------- Candidato: un elemento del mapa o de Wikidata → lugar con su puntuación (o por qué no) ----------------
   const NO_EVANG_DEN = /evangel|pentecost|baptist|adventist|jehovah|protestant|neo/i;
-  const NO_EVANG_NAME = /evang[eè]li|pentecost|bautista|baptist|adventista|filad[eè]lfia|sal[oó]n del reino|kingdom hall|testigos de jehov|centro cristiano|comunidad cristiana|ministerio|iglesia de dios|asamblea de dios|cuerpo de cristo|betel|el shaddai|nueva vida|manantial de vida|fuente de vida|casa de oraci[oó]n|tabern[aá]culo|elim\b/i;
+  const NO_EVANG_NAME = /evang[eè]li|pentecost|bautista|baptist|adventista|filad[eè]lfia|sal[oó]n del reino|kingdom hall|testigos de jehov|centro cristiano|comunidad cristiana|ministerio|iglesia de dios|asamblea de dios|cuerpo de cristo|betel|el shaddai|nueva vida|manantial de vida|fuente de vida|casa de oraci[oó]n|tabern[aá]culo|\belim\b/i;   // (con \b: si no, la mezquita de Yavuz Selim salía como evangélica)
   function evangelica(tags) {
     return tags.amenity === 'place_of_worship' && (NO_EVANG_DEN.test(tags.denomination || '') || NO_EVANG_NAME.test(tags.name || ''));
   }
@@ -288,13 +322,14 @@
     if (c.kind === 'Estadio' && wiki) rarity = 'legendario';
     // uso no turístico (hotel, residencia, escuela…): resta; lo antiguo: suma; visitantes al año y «atracción
     // turística» (de Wikidata): suman, como en una guía (no en los servicios: una biblioteca muy visitada sigue siéndolo)
-    const uso = usoNoTuristico(tags) ? -25 : 0, edad = antiguedad(tags), serv = SERVICIO.test(c.kind);
+    // (una biblioteca protegida se visita como el monumento que es: no es un servicio de barrio)
+    const uso = usoNoTuristico(tags) ? -25 : 0, edad = antiguedad(tags), bibHist = c.kind === 'Biblioteca' && her >= 1, serv = SERVICIO.test(c.kind) && !bibHist;
     const vis = !serv && +tags._vis > 10000 ? Math.min(20, Math.round(4 * Math.log2(+tags._vis / 10000))) : 0, atr = !serv && tags._atr ? 8 : 0;
-    const tipo = TIPO_GUIA[c.kind] != null ? TIPO_GUIA[c.kind] : c.prio, trampa = TRAMPA.test(tags.name) ? -30 : 0;
-    const guia = serv ? 0 : guiaPuntos(tags), prot = [0, 4, 12, 30][her], prio = tipo + fame + prot + ajuste + uso + edad + vis + atr + trampa + guia;
+    const tipo = bibHist ? TIPO_GUIA.Patrimonio : TIPO_GUIA[c.kind] != null ? TIPO_GUIA[c.kind] : c.prio, trampa = TRAMPA.test(tags.name) ? -30 : 0;
+    const guia = serv ? 0 : guiaPuntos(tags), lect = serv ? 0 : lecturasPuntos(tags), prot = [0, 4, 12, 30][her], prio = tipo + fame + prot + ajuste + uso + edad + vis + atr + trampa + guia + lect;
     const lm = { id: el.type[0] + el.id, name: tags.name, kind: c.kind, emoji: c.emoji, rarity, pos, prio, fromWd: !!tags._wp, wp, her, wiki: tags.wikipedia, wd: tags.wikidata,
-      vis: +tags._vis || 0, anio: +tags.start_date || 0, guia: guiaN(tags), osm: tags._osm ? String(tags._osm).split(',') : null,
-      desglose: { tipo, fama: fame, proteccion: prot, ajuste, uso, antiguedad: edad, visitantes: vis, atraccion: atr, trampa, guia },
+      vis: +tags._vis || 0, anio: +tags.start_date || 0, guia: guiaN(tags), pv: +tags._pv || 0, osm: tags._osm ? String(tags._osm).split(',') : null,
+      desglose: { tipo, fama: fame, proteccion: prot, ajuste, uso, antiguedad: edad, visitantes: vis, atraccion: atr, trampa, guia, lecturas: lect },
       townhall: c.kind === 'Ayuntamiento', church: /^(Iglesia|Basílica|Catedral)$/.test(c.kind), points: 100 * RARITY[rarity].mult,
       // icónicos: SIEMPRE visibles, sin separación mínima ni cupo de zona: ayuntamiento, catedral, basílica, castillo,
       // estación histórica, Patrimonio de la Humanidad o nacional, lo famoso de verdad (12+ idiomas) y los palacios,
@@ -303,7 +338,7 @@
       principal: c.kind !== 'Comercio emblemático' && !trampa && (/^(Ayuntamiento|Catedral|Basílica|Castillo)$/.test(c.kind) || (c.kind === 'Estación' && (her >= 2 || wp >= 5))
         || her === 3 || (her === 2 && wp >= 4) || (wp >= 12 && (c.kind !== 'Rascacielos' || wp >= 25))   // (rascacielos: solo los famosos en todo el mundo)
         || (/^(Palacio|Museo|Estadio|Zoo \/ Acuario|Parque temático|Ermita \/ Monasterio)$/.test(c.kind) && wp >= 5)),
-      capR: capRadius(c.kind, c.kind === 'Aeropuerto' ? (wp >= 30 ? 'grande' : '') : wiki || wp >= 2) };
+      capR: Math.max(capRadius(c.kind, c.kind === 'Aeropuerto' ? (wp >= 30 ? 'grande' : '') : wiki || wp >= 2), capDeLado(tags._lado)) };
     return { lm };
   }
 
@@ -338,7 +373,9 @@
     const b = prev.bbox;
     return !b || b[0] > bb[2] || b[2] < bb[0] || b[1] > bb[3] || b[3] < bb[1];
   }
-  function sameName(a, b) { a = norm(a); b = norm(b); return !!a && !!b && (a === b || (a.length > 5 && b.includes(a)) || (b.length > 5 && a.includes(b))); }
+  // (por palabras enteras: «Santa Ana» está en «Santa Ana Vieja», no en «Santa Anastasia»)
+  const contenido = (x, y) => (' ' + y + ' ').includes(' ' + x + ' ');
+  function sameName(a, b) { a = norm(a); b = norm(b); return !!a && !!b && (a === b || (a.length > 5 && contenido(a, b)) || (b.length > 5 && contenido(b, a))); }
 
   // ---------------- Iglesia principal de cada pueblo ----------------
   // Respaldo: si en un pueblo ninguna iglesia es "importante" (catedral, basílica, muy conocida…), se toma como
@@ -376,7 +413,7 @@
   // el tipo sin matices: la «Iglesia principal» del mapa y la «Iglesia» de Wikidata son lo mismo, y también el «Patrimonio»
   // que se llama iglesia (salían dos círculos en la misma iglesia, en Cornellà y en Esplugues)
   const tipoBase = (x) => { const k = x.kind.replace(' principal', ''); return k === 'Patrimonio' && /^(iglesia|esgl[eé]sia|parroquia|parr[oò]quia|bas[ií]lica|catedral)\b/i.test(x.name) ? 'Iglesia' : k; };
-  const sameN = (a, b) => { const x = a._n, y = b._n; return !!x && !!y && (x === y || (x.length > 5 && y.includes(x)) || (y.length > 5 && x.includes(y))); };
+  const sameN = (a, b) => { const x = a._n, y = b._n; return !!x && !!y && (x === y || (x.length > 5 && contenido(x, y)) || (y.length > 5 && contenido(y, x))); };
   function seleccionar(cands, ctx) {
     const isCap = ctx.isCap || (() => false), zona = ctx.zona, C = CONF;
     const why = new Map(), byId = (x, y) => (x.id < y.id ? -1 : x.id > y.id ? 1 : 0);
@@ -436,7 +473,7 @@
     for (const lm of all) {
       if (drop.has(lm.id)) { why.set(lm.id, drop.get(lm.id)); continue; }
       const zk = zona(lm.pos), kk = zk + '|' + lm.kind.replace(' principal', ''), isC = cap.get(lm);
-      // (pasado el tope, compite como los demás; lo famoso en todo el mundo, 20+ idiomas, entra siempre: el Arco de Tito)
+      // (pasado el tope, compite como los demás; lo famoso en todo el mundo, 15+ idiomas, entra siempre: el Arco de Tito)
       const icon = lm.principal && (((iconN[zk] || 0) < C.ICON_MAX && (iconKindN[kk] || 0) < C.ICON_KIND_MAX) || lm.wp >= C.WORLD_FAMOUS);
       const shop = lm.kind === 'Comercio emblemático';
       // lo importante aparece siempre: desde 110 puntos, sin cupos ni separación (como los icónicos, pero contando cupo)
@@ -520,13 +557,26 @@
     const pa = palabras(a.name), pb = new Set(palabras(b.name));
     return d < 150 && pa.some((w) => pb.has(w));
   }
+  // ¿Dos cartas son la MISMA, o una carta es este lugar? Más estricto que mismoSitio, porque aquí se junta o se traslada una
+  // carta conquistada: dos fichas distintas de Wikidata son dos sitios, y a menos de 60 m hay sitios distintos del mismo tipo
+  // (la Casa Batlló y la Casa Amatller; dos iglesias en una misma plaza de Roma). Con dos nombres con palabras propias
+  // que no se parecen en nada, tampoco.
+  function mismaCarta(a, b) {
+    if (!mismoSitio(a, b)) return false;
+    if (a.wd && b.wd) return a.wd === b.wd;
+    if (sameName(a.name, b.name)) return true;
+    const pa = palabras(a.name), pb = new Set(palabras(b.name));
+    return !pa.length || !pb.size || pa.some((w) => pb.has(w));
+  }
 
   // ¿Esta carta (id y registro) es este imprescindible de la lista? Los lugares de Wikidata tienen id «nQ123». Si la que
   // conquistaste es la versión del mapa, su nombre y su tipo pueden ser otros («Temple Expiatori» / «Templo del Sagrado
   // Corazón», «Patrimonio» / «Palacio»): sin esto perdía la estrella.
   function esMust(e, id, r) {
     if (e.q === id || 'n' + e.q === id || e.q === r.wd) return true;
-    return !!r.pos && ((sameName(e.name, r.name) && geo().dist(e.pos, r.pos) < 400) || mismoSitio(e, r));
+    if (!r.pos) return false;
+    if (sameName(e.name, r.name) && geo().dist(e.pos, r.pos) < 400) return true;
+    return !(r.wd && r.wd !== e.q) && mismoSitio(e, r);   // (otra ficha de Wikidata es otro sitio, por cerca que esté)
   }
   // qué lugar del mapa es cada imprescindible de la lista: el mismo de Wikidata, el mismo nombre o el importante que hay justo ahí
   function matchMust(e, lms) {
@@ -536,9 +586,10 @@
     for (const lm of lms) { const d = geo().dist(lm.pos, e.pos); if (d < 400 && d < bd && sameName(lm.name, e.name)) { bd = d; best = lm; } }
     if (best) return best;
     bd = 80;
-    for (const lm of lms) { const d = geo().dist(lm.pos, e.pos); if (d < bd && (lm.wd || lm.wiki || lm.wp || mismoSitio(e, lm)) && !MUST_NO.test(lm.kind)) { bd = d; best = lm; } }
+    // (lo que tiene su propia ficha de Wikidata es otro sitio: la estrella de la Casa Batlló no puede caer en la Casa Amatller)
+    for (const lm of lms) { const d = geo().dist(lm.pos, e.pos); if (d < bd && !(lm.wd && lm.wd !== e.q) && (lm.wiki || lm.wp || mismoSitio(e, lm)) && !MUST_NO.test(lm.kind)) { bd = d; best = lm; } }
     return best || null;
   }
 
-  PM.lugares = { RARITY, RANK, CONF, MUST_NO, TIPO_GUIA, SERVICIO, porQue, revisarRegistro, vigencia, mismoSitio, esMust, matchMust, clasificar, candidato, evangelica, seleccionar, interes, elegirImprescindibles, topeMust, repetidoMust, otraCiudad, esUniversidad, usoNoTuristico, sameName, norm, capRadius };
+  PM.lugares = { RARITY, RANK, CONF, MUST_NO, TIPO_GUIA, SERVICIO, porQue, revisarRegistro, vigencia, mismoSitio, mismaCarta, esMust, matchMust, clasificar, candidato, evangelica, seleccionar, interes, elegirImprescindibles, topeMust, repetidoMust, otraCiudad, esUniversidad, usoNoTuristico, sameName, norm, capRadius };
 })(typeof window !== 'undefined' ? window : globalThis);

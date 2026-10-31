@@ -84,6 +84,8 @@ PM.cloud = (function () {
     // 404 al LEER = el archivo aún no existe; al ESCRIBIR es un fallo (repositorio o permiso), nunca un «guardado»
     if (r.status === 404 && !opts.method) return null;
     if (r.status === 404) { const e = new Error('GitHub respondió 404 al guardar'); e.status = 404; throw e; }
+    // (sin clave, GitHub deja 60 consultas por hora: eso no es una clave mala)
+    if (r.status === 403 && r.headers && r.headers.get && r.headers.get('x-ratelimit-remaining') === '0') throw new Error('GitHub ha limitado las consultas por un rato: inténtalo más tarde');
     if (r.status === 401 || r.status === 403) throw new Error('La clave de la nube no es válida: instala la APK personal desde el PC');
     if (!r.ok) { const e = new Error('GitHub respondió ' + r.status); e.status = r.status; throw e; }
     return r.json();
@@ -220,8 +222,12 @@ PM.cloud = (function () {
     const files = (await gh(base.replace(/\/$/, ''))) || [];
     for (const f of files) {
       if (!/^calles-.*\.json$/.test(f.name)) continue;
-      const c = await readRaw(base + f.name);
-      if (c) Object.assign(geo, await decrypt(key, c.data));
+      // (por la descarga directa: hay un archivo por día y la API solo deja 60 consultas por hora sin clave; a los dos meses de
+      // pasear, «Mi progreso» ya no habría podido abrirse)
+      let box = null;
+      if (f.download_url) { try { const r = await fetch(f.download_url, { cache: 'no-store', signal: limite(TIMEOUT * 2) }); if (r.ok) box = await r.json(); } catch (e) { box = null; } }
+      if (!box) { const c = await readRaw(base + f.name); box = c && c.data; }
+      if (box) Object.assign(geo, await decrypt(key, box));
     }
     // tus fotos de cromo: se descargan al abrir cada carta
     const photo = async (id) => {

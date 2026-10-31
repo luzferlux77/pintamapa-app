@@ -340,12 +340,13 @@ PM.cards = (function () {
   // ---------------- Colecciones ----------------
   const SETS = [
     { id: 'ayto', name: 'Ayuntamientos', icon: '🏛️', kinds: ['Ayuntamiento'], goals: [1, 3, 10] },
-    { id: 'templos', name: 'Iglesias y catedrales', icon: '⛪', kinds: ['Iglesia', 'Iglesia principal', 'Basílica', 'Catedral', 'Templo'], goals: [3, 10, 25] },
-    { id: 'historia', name: 'Historia', icon: '🏰', kinds: ['Castillo', 'Monumento', 'Torre / Puerta', 'Ruinas', 'Lugar histórico', 'Memorial'], goals: [3, 10, 25] },
+    // (las ermitas, los palacios, el patrimonio, los puentes, las calles… no contaban para ninguna colección)
+    { id: 'templos', name: 'Iglesias y catedrales', icon: '⛪', kinds: ['Iglesia', 'Iglesia principal', 'Basílica', 'Catedral', 'Templo', 'Ermita / Monasterio'], goals: [3, 10, 25] },
+    { id: 'historia', name: 'Historia', icon: '🏰', kinds: ['Castillo', 'Palacio', 'Monumento', 'Torre / Puerta', 'Ruinas', 'Lugar histórico', 'Memorial', 'Patrimonio', 'Molino'], goals: [3, 10, 25] },
     { id: 'cultura', name: 'Cultura', icon: '🎭', kinds: ['Museo', 'Teatro', 'Biblioteca', 'Universidad'], goals: [3, 10, 25] },
     { id: 'deporte', name: 'Deporte', icon: '🏟️', kinds: ['Estadio', 'Campo de fútbol'], goals: [2, 5, 15] },
     { id: 'verde', name: 'Parques y miradores', icon: '🌳', kinds: ['Parque', 'Mirador', 'Zoo / Acuario'], goals: [3, 10, 30] },
-    { id: 'ciudad', name: 'Vida de ciudad', icon: '🏙️', kinds: ['Plaza', 'Fuente', 'Mercado', 'Estación', 'Arte urbano', 'Faro', 'Atracción', 'Parque temático', 'Rascacielos'], goals: [5, 15, 40] },
+    { id: 'ciudad', name: 'Vida de ciudad', icon: '🏙️', kinds: ['Plaza', 'Fuente', 'Mercado', 'Estación', 'Arte urbano', 'Faro', 'Atracción', 'Parque temático', 'Rascacielos', 'Puente', 'Calle emblemática', 'Comercio emblemático', 'Aeropuerto', 'Estudio de televisión'], goals: [5, 15, 40] },
     { id: 'fotos', name: 'Fotógrafo', icon: '📸', photos: true, goals: [1, 10, 30] },
   ];
   const TIER = ['🥉 Bronce', '🥈 Plata', '🥇 Oro'];
@@ -388,7 +389,8 @@ PM.cards = (function () {
         const fixed = PM.world.mustLists();
         for (const [c, L] of Object.entries(fixed)) L.forEach((e) => {
           // sin cargar en el mapa ahora: el tuyo ya conseguido de esa lista (mismo sitio)
-          if (!e.id) { const r = Object.entries(s.landmarks).find(([id, v]) => id === e.q || (v.must && v.pos && v.city === c && PM.geo.dist(v.pos, e.pos) < 400)); if (r) e.id = r[0]; }
+          // (antes valía cualquier imprescindible tuyo a menos de 400 m: uno daba por conseguido a su vecino)
+          if (!e.id) { const r = Object.entries(s.landmarks).find(([id, v]) => PM.lugares.esMust(e, id, v)); if (r) e.id = r[0]; }
           const got = e.id && s.landmarks[e.id];
           add(c, { id: e.id || 'q:' + e.q, name: got ? got.name : e.name, emoji: got ? got.emoji : e.emoji, kind: e.kind });
         });
@@ -426,7 +428,7 @@ PM.cards = (function () {
     };
     draw();
     // completar info de los cromos que aún no la tienen (poco a poco)
-    (async () => { for (const id of ids) if (!s.cardInfo[id]) { const r = s.landmarks[id]; await fetchInfo(id, PM.world.landmarks[id] || Object.assign({ id, pos: r.pos }, r)); } if (tab === 'cromos') draw(); })();
+    (async () => { for (const id of ids) if (!s.cardInfo[id]) { const r = S().landmarks[id]; if (r) await fetchInfo(id, PM.world.landmarks[id] || Object.assign({ id, pos: r.pos }, r)); } if (tab === 'cromos') draw(); })();
   }
 
   function barrioCardHTML(b) {

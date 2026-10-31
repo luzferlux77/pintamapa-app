@@ -436,7 +436,7 @@
     try { if (map.hasImage(key)) map.removeImage(key); map.addImage(key, x.getImageData(0, 0, size, size), { pixelRatio: k }); iconMade.add(key); } catch (e) {}
     return key;
   }
-  let lmDirty = false;
+  let lmDirty = false, lmFlushT = null;
   function placeLandmark(lm) {
     const got = !!S().landmarks[lm.id], prev = lmIndex[lm.id];
     if (!prev || prev.got !== got) lmDirty = true;
@@ -1372,10 +1372,14 @@
   let gpsSaver = false, gpsSaverT = 0;
   function gpsSaverCheck() {
     if (!gpsWatch || !gpsWatch.bg || !session || session.paused || document.hidden) return;   // con la pantalla apagada no se toca el GPS
-    const still = Date.now() - Math.max(lastMoveT || 0, session.resumedAt || 0) > 90000 && speed < 0.4;
+    // (quieto no llegan lecturas y la velocidad se queda en la última: sin lecturas hace un minuto, también es estar parado)
+    const still = Date.now() - Math.max(lastMoveT || 0, session.resumedAt || 0) > 90000 && (speed < 0.4 || Date.now() - lastFixT > 60000);
     if (still !== gpsSaver && Date.now() - gpsSaverT > 60000) { gpsSaver = still; gpsSaverT = Date.now(); startGPS(); }
   }
   setInterval(gpsSaverCheck, 30000);
+  // Al guardar el móvil vuelve la precisión normal: con la pantalla apagada ya no se toca el GPS, y si estaba en ahorro
+  // (parado con la app abierta), todo el paseo en el bolsillo iría con lecturas cada 25 m
+  document.addEventListener('visibilitychange', () => { if (document.hidden && gpsSaver && gpsWatch && gpsWatch.bg) { gpsSaver = false; gpsSaverT = Date.now(); startGPS(); } });
   // Paseo olvidado: 15 min sin salir de un círculo de 50 m → se pausa solo y se apaga el GPS (si no, el GPS seguía
   // a tope toda la tarde en casa). Se reanuda con ▶ cuando vuelvas a salir.
   let stillAnchor = null;
@@ -1425,8 +1429,9 @@
       } else throw new Error('Este dispositivo no tiene GPS');
       gpsIcon('search');
     } catch (e) {
-      toast('GPS: ' + (e.message || e) + ' — paso a modo simulación', 'warn');
-      setMode('sim');
+      // (en el móvil no hay simulación: el paseo sigue y el GPS se vuelve a pedir al volver a la app)
+      if (PM.isNative) toast('GPS: ' + PM.esc(e.message || String(e)), 'warn', 5000);
+      else { toast('GPS: ' + PM.esc(e.message || String(e)) + ' — paso a modo simulación', 'warn'); setMode('sim'); }
     } finally { if (gen === gpsGen) gpsPending = false; }
   }
   function stopGPS() {
@@ -1948,7 +1953,8 @@
       return;
     }
     if (ev === 'lmMigrated') { lmDirty = true; flushLandmarks(true); return; }   // (cartas pasadas al lugar vigente: se redibujan)
-    if (ev === 'lmRemoved') { if (lmIndex[d.id]) { delete lmIndex[d.id]; flushLandmarks(true); } return; }
+    // (varios de golpe, como al llegar la precarga de una ciudad: un solo redibujado, no uno de miles de iconos por cada lugar)
+    if (ev === 'lmRemoved') { if (lmIndex[d.id]) { delete lmIndex[d.id]; clearTimeout(lmFlushT); lmFlushT = setTimeout(() => flushLandmarks(true), 60); } return; }
     if (ev === 'loaded' || ev === 'partial') {
       if (ev === 'loaded') { retryGaps(); geoHarvest(d.tiles); }
       d.tiles.forEach((k) => renderTile(k, true));
@@ -2151,7 +2157,7 @@
         <div class="pf-tile"><span>🏛️</span><b>${I.places.length}${I.totalPlaces ? '/' + I.totalPlaces : ''}</b><small>lugares</small></div>
       </div>`;
     html += `<h4>Su historia</h4><div class="bh-tl">${ev.length ? ev.map(([t, ic, tt, d]) => `<div class="bh-ev"><span>${ic}</span><div><b>${tt}</b><small>${t ? fmtD(t) : ''}${d ? (t ? ' · ' : '') + d : ''}</small></div></div>`).join('') : '<p class="muted">Aún no has pasado por aquí. ¡Empieza su historia!</p>'}</div>`;
-    if (I.best) { const w = I.best[0]; html += `<h4>Tu mejor paseo aquí</h4><button class="pf-rec bh-best" data-walk="${w.id}"><span>🥇</span><div><small>${fmtD(w.start)} · ${PM.fmtDist(w.st.walked || 0)} · +${PM.fmtNum(w.st.pts || 0)} pts</small><b>Ver estadísticas y vídeo</b></div><em>›</em></button>`; }
+    if (I.best) { const w = I.best[0]; html += `<h4>Tu mejor paseo aquí</h4><button class="pf-rec bh-best" data-walk="${esc(w.id)}"><span>🥇</span><div><small>${fmtD(w.start)} · ${PM.fmtDist(w.st.walked || 0)} · +${PM.fmtNum(w.st.pts || 0)} pts</small><b>Ver estadísticas y vídeo</b></div><em>›</em></button>`; }
     openSheet('🏘️ ' + I.name, html);
     const bb = document.querySelector('.bh-best'); if (bb) bb.addEventListener('click', () => openWalk(S().walks.find((w) => w.id === bb.dataset.walk)));
   }
@@ -2186,10 +2192,10 @@
     return { app: 'PintaMapa', version: PM.VERSION.app, player: PM.player ? PM.player.name : '', t: Date.now(), save, photos, geo, bgeo, cityinfo };
   }
   async function exportBackup() {
-    const s = S(), msg = $('#bk-msg');
+    const msg = $('#bk-msg');
     if (msg) msg.textContent = '⏳ Preparando la copia…';
     // (la fecha de «última copia» se apunta solo cuando la copia queda guardada de verdad)
-    const hecha = () => { s.backupT = Date.now(); PM.state.save(); };
+    const hecha = () => { S().backupT = Date.now(); PM.state.save(); };
     let data;
     try { data = await buildBackup(); } catch (e) { if (msg) msg.textContent = '❌ ' + PM.t('No se pudo preparar la copia') + ': ' + ((e && e.message) || e); return; }
     const blob = new Blob([JSON.stringify(data)], { type: 'application/json' });
@@ -2261,8 +2267,9 @@
       if (d.bgeo) tx.objectStore('meta').put(Object.assign({}, d.bgeo, bgeo), 'barrios');
       await idbDone(tx);
     } catch (e) { /* las formas de lo pintado se recogerán solas, zona a zona (la partida ya está importada) */ }
-    return fallos;
+    // (esto estaba después del return: los imprescindibles de la copia nunca llegaban al móvil nuevo)
     if (d.cityinfo) { try { const ci = JSON.parse(localStorage.getItem('pintamapa_cityinfo') || '{}'); localStorage.setItem('pintamapa_cityinfo', JSON.stringify(Object.assign({}, d.cityinfo, ci))); } catch (e) {} }
+    return fallos;
   }
   function importBackup() {
     const inp = document.createElement('input'); inp.type = 'file'; inp.accept = '.json,application/json';
@@ -2277,7 +2284,7 @@
         const fallos = await importData(d);
         toast(fallos ? `⚠️ Copia importada, pero ${fallos} foto(s) no se pudieron guardar. Recargando…` : '✅ Copia importada. Recargando…', fallos ? 'warn' : 'ok');
         setTimeout(() => location.reload(), 1200);
-      } catch (e) { toast('❌ ' + PM.t(e.message || String(e)), 'warn', 5000); }
+      } catch (e) { toast('❌ ' + PM.esc(PM.t(e.message || String(e))), 'warn', 5000); }   // (el mensaje puede citar texto del archivo: nunca como HTML)
     };
     inp.click();
   }
@@ -2445,7 +2452,7 @@
     }
     if (profTab === 'rec') {
       const when = (w) => w ? new Date(w.start).toLocaleDateString(PM.LOCALE, { day: 'numeric', month: 'short', year: '2-digit' }) : '';
-      const rec = (ic, l, v, w) => `<div class="pf-rec" ${w ? `data-walk="${w.id}"` : ''}><span>${ic}</span><div><small>${l}</small><b>${v}</b></div><em>${w ? when(w) + ' ›' : ''}</em></div>`;
+      const rec = (ic, l, v, w) => `<div class="pf-rec" ${w ? `data-walk="${esc(w.id)}"` : ''}><span>${ic}</span><div><small>${l}</small><b>${v}</b></div><em>${w ? when(w) + ' ›' : ''}</em></div>`;
       const L = D.best((w) => w.st.walked || 0), P = D.best((w) => w.st.painted || 0), T = D.best((w) => w.elapsed || 0), X = D.best((w) => w.st.pts || 0), C = D.best((w) => w.st.captures || 0);
       html += card('🥇 Tus mejores marcas', D.walks.length ? `
         ${rec('🥾', 'Paseo más largo', PM.fmtDist(L.st.walked), L)}
@@ -2514,7 +2521,7 @@
     document.querySelectorAll('.bh-row[data-bid]').forEach((r) => r.addEventListener('click', () => showBarrioHistory(r.dataset.bid)));
     // pestañas
     document.querySelectorAll('.color:not([disabled])').forEach((b) => b.addEventListener('click', () => {
-      s.color = b.dataset.c; PM.state.save(); recolorAll(); panelProfile();
+      S().color = b.dataset.c; PM.state.save(); recolorAll(); panelProfile();   // (S(): si la nube guardó con el panel abierto, la partida ya es otro objeto y el cambio se perdía)
     }));
     if ($('#cl-go')) $('#cl-go').addEventListener('click', async () => {
       const pw = $('#cl-pass').value;
@@ -2536,7 +2543,7 @@
     });
     $('#opt-sound') && $('#opt-sound').addEventListener('change', (e) => { PM.sound.enabled = e.target.checked; });
     $('#opt-lang') && $('#opt-lang').addEventListener('change', (e) => PM.i18n.set(e.target.value));
-    $('#opt-dark') && $('#opt-dark').addEventListener('change', (e) => { s.theme = e.target.checked ? 'dark' : 'light'; PM.state.save(); applyTheme(); });
+    $('#opt-dark') && $('#opt-dark').addEventListener('change', (e) => { S().theme = e.target.checked ? 'dark' : 'light'; PM.state.save(); applyTheme(); });
     $('#opt-walks') && $('#opt-walks').addEventListener('click', panelWalks);
     if ($('#bk-exp')) $('#bk-exp').addEventListener('click', exportBackup);
     if ($('#bk-imp')) $('#bk-imp').addEventListener('click', importBackup);
@@ -2680,7 +2687,7 @@
     const s = S(), lp = G.levelProgress(), st = s.stats || {};
     const nB = Object.keys(s.conqueredB || {}).length, nL = Object.keys(s.landmarks || {}).length;
     const today = PM.today(), streak = st.streak || 0;
-    const yest = (() => { const d = new Date(Date.now() - 86400000); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); })();
+    const yest = PM.ayer();
     const msg = st.lastDay === today ? '✅ Hoy ya has salido. ¡Bien!' : streak && st.lastDay === yest ? `🔥 Sal hoy para no perder tu racha de ${streak} día${streak > 1 ? 's' : ''}` : 'Cada calle nueva cuenta. ¡A por ellas!';
     el.innerHTML = `<div class="hm-card">
       <div class="hm-me">${FUN ? FUN.avatarHTML('hm-av') : ''}<div class="hm-who"><b>${esc(PM.player.name)}</b><span class="hm-lvl">${lp.tier ? lp.tier.icon + ' ' : '⭐ '}Nivel ${lp.label}</span>
@@ -2726,6 +2733,7 @@
     PM.state.save();
     if (before) console.log(`Paseos antiguos simplificados: ${before} → ${after} puntos`);
   }
+  let begun = false;
   function begin(fromNew) {
     if (fromNew === true) {
       const name = $('#player-name').value.trim();
@@ -2733,6 +2741,8 @@
       if (!PM.player || PM.slug(name) !== PM.player.slug) { PM.setPlayer(name); return; }   // recarga con su partida
     }
     if (!PM.player) { showNewBox(true); return; }
+    if (begun) return;   // (dos entradas a la vez —paseo que sigue y pintor recién elegido— eran dos bucles de dibujo para siempre)
+    begun = true;
     $('#intro').classList.remove('show');
     setTimeout(() => map.resize(), 50);
     // la pantalla de inicio pudo dejar la página desplazada (móviles bajos): el juego siempre pegado arriba
@@ -2740,6 +2750,7 @@
     unscroll(); document.body.addEventListener('scroll', unscroll, { passive: true }); window.addEventListener('scroll', unscroll, { passive: true });
     PM.sound._ctx(); PM.sound._sleepSoon(Date.now());   // (se desbloquea el audio con el toque y se suspende enseguida)
     G.ensureDaily();
+    { const nt = S().notified; if (nt) { const hoy = PM.today(); for (const k of Object.keys(nt)) if (nt[k] !== hoy) delete nt[k]; } }   // (avisos de otros días: ya no sirven y crecían sin parar en la partida)
     if (PM.fillLandmarkCities(S()) + W.fixRecords(S())) PM.state.save();   // lugares conquistados sin ciudad (o con la de la celda vecina): se corrige
     if (!PM.cloud.allowed() && Object.keys(S().pendingGeo || {}).length) { S().pendingGeo = {}; PM.state.save(); }   // sin nube: no hay nada que subir
     recolorAll();
@@ -2754,6 +2765,7 @@
     PM.sync.auto(null, true);   // al abrir: se mira la nube aunque aquí no haya cambios
     PM.update.watch(toast);
     compressOldWalks();
+    setTimeout(() => PM.mapStyle.podar().catch(() => {}), 60000);
     scheduleStreakReminder();
     document.addEventListener('visibilitychange', () => { if (document.hidden) scheduleStreakReminder(); });
     // tramos pintados con versiones anteriores: su geometría (pendiente de subir y la de tu nube) para reconocerlos con la nueva fuente de mapas

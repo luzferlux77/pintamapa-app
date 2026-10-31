@@ -119,7 +119,7 @@ PM.world = (function () {
   function ensureCity(lat, lon) {
     if (demoMode || !PM.state || typeof fetch === 'undefined') return;
     const c = shapeCity([lat, lon]);
-    if (c) { if (!cityInfo[c].must) cityMust(c); return; }
+    if (c) { if (!cityInfo[c].must) cityMust(c); else mustAlDia(c); return; }
     const k = lat.toFixed(3) + ',' + lon.toFixed(3);
     if (cityAsked.has(k)) return;
     cityAsked.add(k);
@@ -141,7 +141,7 @@ PM.world = (function () {
       // (otra ciudad con el mismo nombre —Córdoba, Valencia—: sus imprescindibles no son los de la que ya conocíamos)
       const otra = L.otraCiudad(cityInfo[name], ex.wikidata || null, bb);
       if (otra) mustCache = null;
-      cityInfo[name] = { v: CITY_V, q: ex.wikidata || null, pop: parseInt(String(ex.population || '').replace(/\D/g, ''), 10) || 0, polys, bbox: bb, t: Date.now(), must: otra ? null : (cityInfo[name] || {}).must || null };
+      cityInfo[name] = { v: CITY_V, q: ex.wikidata || null, pop: parseInt(String(ex.population || '').replace(/\D/g, ''), 10) || 0, polys, bbox: bb, t: Date.now(), must: otra ? null : (cityInfo[name] || {}).must || null, mustT: otra ? null : (cityInfo[name] || {}).mustT || null };
       saveCityInfo();
       emit('named', { city: name });
       cityMust(name);
@@ -155,9 +155,9 @@ PM.world = (function () {
     mustBusy.add(name);
     try {
       // gran ciudad con precarga: sus imprescindibles ya vienen elegidos (interés turístico + visitas reales en Wikipedia)
-      const pc = ci.q && (await preIdx()).find((c) => c.q === ci.q), pd = pc && await precarga(pc.q);
+      const pc = ci.q && (await preIdx()).find((c) => c.q === ci.q), pd = pc && await precarga(pc.q, pc.t);
       const pm = pd && (pd.must || []).filter((m) => inCity(m.pos, ci));
-      if (pm && pm.length >= 3) { cityInfo[name].must = pm; mustCache = null; saveCityInfo(); emit('named', { city: name }); return; }
+      if (pm && pm.length >= 3) { cityInfo[name].must = pm; cityInfo[name].mustT = pc.t; mustCache = null; saveCityInfo(); emit('named', { city: name }); return; }
       const [s0, w0, n0, e0] = ci.bbox;
       const big = ci.pop ? ci.pop >= 400000 : (n0 - s0) * (e0 - w0) > 0.02;   // ciudad grande: solo lo bastante conocido (la consulta es más ligera)
       const ctl = new AbortController(), to = setTimeout(() => ctl.abort(), 60000);
@@ -173,6 +173,18 @@ PM.world = (function () {
       emit('named', { city: name });
     } catch (e) { console.warn('Imprescindibles de', name, 'pendientes', e); }
     // (si falló, no se reintenta en esta sesión: nada de pedírselo a Wikidata en bucle)
+  }
+  // La lista fija cambia solo cuando se renueva la precarga (cada ciudad lleva su versión en el índice): si no, se quedaba la
+  // que el móvil guardó la primera vez, para siempre. Se mira una vez por sesión y ciudad; sin datos nuevos, sigue la que había.
+  const mustRevisada = new Set();
+  async function mustAlDia(name) {
+    const ci = cityInfo[name];
+    if (!ci || !ci.q || mustRevisada.has(name)) return;
+    mustRevisada.add(name);
+    const pc = (await preIdx()).find((c) => c.q === ci.q);
+    if (!pc || pc.t === ci.mustT) return;
+    const pd = await precarga(pc.q, pc.t), pm = pd && (pd.must || []).filter((m) => inCity(m.pos, ci));
+    if (pm && pm.length >= 3) { ci.must = pm; ci.mustT = pc.t; mustCache = null; saveCityInfo(); emit('named', { city: name }); }
   }
   const matchMust = L.matchMust;
 
@@ -202,8 +214,8 @@ PM.world = (function () {
   // Antes se quedaba la primera que llegaba: según el orden de carga caía en una zona u otra y cambiaba la selección.
   // Y si son el mismo sitio con datos de días distintos (la precarga y la consulta por zona), gana el que tiene más
   // artículos (y luego más protección): tampoco depende de cuál llegue antes.
-  // (la copia de la precarga va por delante: solo ella sabe lo que recomiendan las guías y qué objetos del mapa es)
-  const extra = (x) => (x.guia ? 2 : 0) + (x.osm ? 1 : 0);
+  // (la copia de la precarga va por delante: solo ella sabe lo que recomiendan las guías, qué objetos del mapa es y cuánto se lee)
+  const extra = (x) => (x.guia ? 2 : 0) + (x.osm ? 1 : 0) + (x.pv ? 1 : 0);
   const before = (a, b) => extra(a) !== extra(b) ? extra(a) > extra(b) : a.pos[0] < b.pos[0] || (a.pos[0] === b.pos[0] && (a.pos[1] < b.pos[1]
     || (a.pos[1] === b.pos[1] && ((a.wp || 0) > (b.wp || 0) || ((a.wp || 0) === (b.wp || 0) && (a.her || 0) > (b.her || 0))))));
   function commitLandmarks(list) {
@@ -251,7 +263,10 @@ PM.world = (function () {
       let best = null, bs = Infinity;
       for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) {
         for (const lm of grid.get((i + a) + '_' + (j + b)) || []) {
-          if (s.landmarks[lm.id] || !L.mismoSitio(r, lm)) continue;
+          if (s.landmarks[lm.id] || !L.mismaCarta(r, lm)) continue;
+          // (que estén cerca y sean del mismo tipo no basta si su zona aún no ha cargado: su lugar puede estar por llegar, y
+          // la carta se iría a la casa de al lado)
+          if (!L.sameName(r.name, lm.name) && !(r.wd && r.wd === lm.wd) && !zonaCompleta(r.pos, id)) continue;
           const sc = PM.geo.dist(r.pos, lm.pos) - (L.sameName(r.name, lm.name) ? 1000 : 0);
           if (sc < bs) { bs = sc; best = lm; }
         }
@@ -333,6 +348,7 @@ PM.world = (function () {
   // el tramo pasa a tener la geometría completa (lo pintado de ese tramo se ve entero sin volver a andarlo)
   function ampliar(p, pts, len, mid) {
     if (!p.trail && tiles[p.tile]) tiles[p.tile].total += len - p.len;
+    (p.alt = p.alt || []).push(p.pts);   // (su geometría de antes sigue en la red: al descargar la zona hay que quitarla también)
     p.pts = pts; p.len = len; p.mid = mid;
     const cells = new Set(pts.map((q) => cellKey(q[0], q[1])));
     cells.add(cellKey(mid[0], mid[1]));
@@ -537,9 +553,9 @@ PM.world = (function () {
   }
 
   // ---------------- Caché local de barrios (IndexedDB) ----------------
-  // Cada barrio se descarga una vez y se guarda 30 días: menos datos móviles, menos batería y arranque instantáneo.
+  // Cada barrio se descarga una vez y se guarda 90 días: menos datos móviles, menos batería y arranque instantáneo.
   const CACHE_DAYS = 90;
-  const CACHE_V = 20;   // 20: clases corregidas, calles famosas, protección nacional de todo el mundo y nombres en mayúscula; 19: año también de la inauguración (P1619: estaciones antiguas como la de Cornellà); 18: clases por orden fijo (lo que el edificio ES), catedrales católicas/anglicanas/ortodoxas, sin conjuntos ni esculturas de museo; 17: visitantes al año y atracción turística (puntuación de guía); 16: uso de cada edificio (hotel, escuela…) para la puntuación; 15: templos budistas y sintoístas, rascacielos, sin barrios ni cuadros de museo; 14: nivel de patrimonio, zoos, acuarios, puertas de muralla (puntuación igual para todos); 13: estaciones de tren históricas de Wikidata (antes se perdían); 12: lugares solo de mapas vectoriales + Wikidata   // súbelo si cambia lo que se descarga (p. ej. nuevos tipos de puntos): fuerza a renovar la caché
+  const CACHE_V = 21;   // 21: guías, enlaces, tamaño de los sitios grandes y clases nuevas (y las zonas preparadas); 20: clases corregidas, calles famosas, protección nacional de todo el mundo y nombres en mayúscula; 19: año también de la inauguración (P1619: estaciones antiguas como la de Cornellà); 18: clases por orden fijo (lo que el edificio ES), catedrales católicas/anglicanas/ortodoxas, sin conjuntos ni esculturas de museo; 17: visitantes al año y atracción turística (puntuación de guía); 16: uso de cada edificio (hotel, escuela…) para la puntuación; 15: templos budistas y sintoístas, rascacielos, sin barrios ni cuadros de museo; 14: nivel de patrimonio, zoos, acuarios, puertas de muralla (puntuación igual para todos); 13: estaciones de tren históricas de Wikidata (antes se perdían); 12: lugares solo de mapas vectoriales + Wikidata   // súbelo si cambia lo que se descarga (p. ej. nuevos tipos de puntos): fuerza a renovar la caché
   const cache = (function () {
     let dbp = null;
     function db() {
@@ -924,10 +940,8 @@ PM.world = (function () {
   async function cachedTile(k) {
     if (demoMode) return null;
     const c = await cache.get(k);
-    if (!(c && c.v >= 4 && Date.now() - c.t < CACHE_DAYS * 86400000)) return null;
-    if (c.v < 20) return null;   // guardado antes (librerías como bibliotecas, sin estudios de TV…): se vuelve a pedir igual en todos los móviles
-    if (c.v < 10) { c.extrasMiss = true; c.wdMiss = true; }   // tipos nuevos (estudios de TV…): se completan los extras y Wikidata
-    if (c.v < 6) c.wdMiss = true;   // guardado antes de Wikidata: se completa en segundo plano
+    // (guardado con otra versión de los datos: se vuelve a pedir, igual en todos los móviles)
+    if (!(c && c.v === CACHE_V && Date.now() - c.t < CACHE_DAYS * 86400000)) return null;
     if (c.wdMiss || c.extrasMiss || (!c.src && !c.vtPois)) setTimeout(() => completeTile(k, c), 3000);
     return c.els;
   }
@@ -960,7 +974,7 @@ PM.world = (function () {
           } catch (err) { vtFailT = Date.now(); }
         }
         if (wdMiss) {
-          const got = await wikidataBox(bb);
+          const got = (await zonaPreparada(k)) || await wikidataBox(bb);
           if (got !== null) { add = add.concat(got.filter((el) => tilesOf(el).has(k))); wdMiss = false; }
         }
         const cur = (await cache.get(k)) || c;
@@ -971,10 +985,36 @@ PM.world = (function () {
         const pending = (x) => x.wdMiss || (!x.src && !x.vtPois);   // (lo mismo si faltan los lugares del mapa vectorial)
         if (pending({ wdMiss, src: cur.src, vtPois }) && (wdRetries[k] = (wdRetries[k] || 0) + 1) <= 5) setTimeout(async () => { const c2 = await cache.get(k); if (c2 && pending(c2)) completeTile(k, c2); }, 120000);
         if (add.length && tiles[k] && (tiles[k].loaded || tiles[k].partial)) { ingest(add, new Set([k])); emit('loaded', { tiles: [k] }); }
+      } catch (err) { console.warn('Zona sin completar', k, err);   // (sin esto, un solo error paraba la cola: ninguna zona más se completaba en toda la sesión)
       } finally { completing.delete(k); }
     });
   }
 
+  // Zonas ya preparadas (scripts/pois/zonas.mjs → GitHub Pages): en las ciudades precargadas, lo mismo que daría la consulta
+  // por zona a Wikidata, sin depender de que responda. Si no hay, o no se puede bajar, se le pregunta a Wikidata como siempre.
+  const ZONAS_CDN = 'https://luzferlux77.github.io/pintamapa-app/zonas/';
+  let zonasIdx = null;
+  const zonasData = new Map();   // (las últimas, ya leídas: un paseo pide muchas celdas de la misma)
+  function zonasIndice() {
+    if (!zonasIdx) zonasIdx = (typeof fetch === 'undefined' ? Promise.resolve(null) : fetch('data/zonas.json').then((r) => (r.ok ? r.json() : null)).catch(() => null))
+      .then((j) => (j && j.k ? { t: j.t, k: new Set(j.k) } : { k: new Set() }));
+    return zonasIdx;
+  }
+  async function zonaPreparada(k) {
+    if (demoMode) return null;
+    const idx = await zonasIndice(), c = PM.precargaFormato && PM.precargaFormato.celda(k);
+    if (!c || !idx.k.has(c)) return null;
+    if (!zonasData.has(c)) {
+      let d = await cache.get('zona:' + c);
+      if (!d || d.t !== idx.t) {
+        try { const r = await fetch(ZONAS_CDN + c + '.json'); if (r.ok) { const j = await r.json(); d = { t: idx.t, d: j }; cache.put('zona:' + c, d); } } catch (e) { /* sin conexión: lo guardado, si había */ }
+      }
+      if (!d) return null;
+      if (zonasData.size >= 4) zonasData.delete(zonasData.keys().next().value);
+      zonasData.set(c, PM.precargaFormato.decode(d.d).els);
+    }
+    return zonasData.get(c);
+  }
   // Lugares emblemáticos de Wikidata (palacios, torres, patrimonio…). Si falla, se sigue solo con OpenStreetMap.
   async function wikidataBox(bb) {
     if (!PM.wikidata) return [];
@@ -1273,7 +1313,8 @@ PM.world = (function () {
     if (!t || t.name || !t.pieces.length) return;
     let saved = PM.state && PM.state.data.tileNames[key];
     if (saved && saved.city === 'Ciudad desconocida') saved = null;   // guardado sin conexión en versiones antiguas: se vuelve a preguntar
-    if (saved) { t.name = saved.name; t.city = saved.city; emit('named', { key }); const [[s, w], [n, e]] = tileBounds(key); ensureCity((s + n) / 2, (w + e) / 2); return; }
+    // (también aquí se mide la ciudad: si la primera vez falló, en las zonas ya conocidas nadie volvía a intentarlo y su porcentaje no llegaba nunca)
+    if (saved) { t.name = saved.name; t.city = saved.city; emit('named', { key }); const [[s, w], [n, e]] = tileBounds(key); ensureCityStats(t.city, (s + n) / 2, (w + e) / 2); ensureCity((s + n) / 2, (w + e) / 2); return; }
     if (t.demo) { t.name = 'Sector ' + key.replace('_', '·'); t.city = 'Ciudad Demo'; emit('named', { key }); return; }
     nameQueue.push(key);
     if (!naming) drainNames();
@@ -1315,7 +1356,7 @@ PM.world = (function () {
   // Longitud total REAL de calles del municipio (para el objetivo del 80 %)
   const cityPending = new Set(), cityRetried = new Set();
   async function ensureCityStats(city, lat, lon) {
-    if (!city || !PM.state) return;
+    if (!city || !PM.state || /^(Zona sin nombre|Ciudad desconocida)$/.test(city)) return;   // (no son un municipio: no hay nada que medir)
     const cs = PM.state.data.cities;
     let shared = {};
     try { shared = JSON.parse(localStorage.getItem('pintamapa_cities') || '{}'); } catch (e) {}
@@ -1336,17 +1377,20 @@ PM.world = (function () {
       const st = data.elements.find((e) => e.type === 'stat');
       const len = st ? parseFloat(st.tags.len) : 0;
       if (len > 0) {
-        cs[city] = Object.assign(cs[city] || {}, { total: len }); delete cs[city].src;
+        // (la partida pudo cambiar de objeto mientras se medía: una copia en la nube la sustituye al terminar)
+        const c2 = PM.state.data.cities;
+        c2[city] = Object.assign(c2[city] || {}, { total: len }); delete c2[city].src;
         try { shared[city] = len; localStorage.setItem('pintamapa_cities', JSON.stringify(shared)); } catch (e) {}
         PM.state.save();
         emit('city', { city });
       }
     } catch (e) { console.warn('No se pudo medir la ciudad', city, e); }
     // plan B (Overpass caído, cosa frecuente): se mide con los mapas vectoriales dentro del contorno del municipio
-    if (!(cs[city] && cs[city].total)) {
+    if (!(PM.state.data.cities[city] && PM.state.data.cities[city].total)) {
       const len = Math.round(await measureCityVT(city) * 1.09);   // (los mapas vectoriales se dejan túneles y algunas vías: ~9 % menos)
       if (len > 0) {
-        cs[city] = Object.assign(cs[city] || {}, { total: len, src: 'vt' });
+        const c2 = PM.state.data.cities;
+        c2[city] = Object.assign(c2[city] || {}, { total: len, src: 'vt' });
         try { shared[city] = len; localStorage.setItem('pintamapa_cities', JSON.stringify(shared)); } catch (e) {}
         PM.state.save();
         emit('city', { city });
@@ -1455,7 +1499,7 @@ PM.world = (function () {
         if (!A) continue;
         for (let j = i + 1; j < ids.length; j++) {
           const B = s.landmarks[ids[j]];
-          if (!B || !L.mismoSitio(A, B)) continue;
+          if (!B || !L.mismaCarta(A, B)) continue;
           // (se queda el identificador que esté en el mapa ahora; si ninguno, el de la más antigua)
           const keep = landmarks[ids[j]] && !landmarks[ids[i]] ? ids[j] : ids[i], drop = keep === ids[i] ? ids[j] : ids[i];
           const K = s.landmarks[keep], D = s.landmarks[drop];
@@ -1475,7 +1519,8 @@ PM.world = (function () {
         // (cartas de antes de corregir la tabla de tipos: el nombre con su mayúscula y los puentes que salían como monumento)
         const vivo = landmarks[id];
         if (vivo && r.name !== vivo.name && r.name && r.name.toLowerCase() === vivo.name.toLowerCase()) { r.name = vivo.name; n++; }
-        if (vivo && r.kind === 'Monumento' && vivo.kind === 'Puente') { r.kind = vivo.kind; r.emoji = vivo.emoji; n++; }
+        // (y el tipo: la carta del Partenón ganada cuando salía como «Patrimonio» pasa a «Ruinas»; los puntos no se tocan)
+        if (vivo && r.kind && r.kind.replace(' principal', '') !== vivo.kind.replace(' principal', '')) { r.kind = vivo.kind; r.emoji = vivo.emoji; n++; }
         if (!r.pos) continue;
         const c = shapeCity(r.pos);
         if (c && r.city !== c) { r.city = c; n++; }
@@ -1501,7 +1546,7 @@ PM.world = (function () {
       for (let i = i0; i <= i1; i++) for (let j = j0; j <= j1; j++) if (!ensureTile(i + '_' + j).loaded) need.push(i + '_' + j);
       if (need.length && need.length <= 12) loadTiles(need).catch(() => {});
     },
-    _graph: () => gnodes, _pool: () => pool, _classify: classify, _usoNoTuristico: L.usoNoTuristico, _revisar: (r) => { const f = L.revisarRegistro(r); if (f) Object.assign(r, f); return f; }, _conf: L.CONF, porque, _why: () => lastWhy, precargaCerca, _precarga: () => preData, _reselect: () => selectLandmarks(), _ingest: (els, keys) => { keys.forEach((k) => ensureTile(k)); ingest(els, new Set(keys)); }, _measureCity: (c) => measureCityVT(c),   // (pruebas)
+    _graph: () => gnodes, _pool: () => pool, _classify: classify, _usoNoTuristico: L.usoNoTuristico, _revisar: (r) => { const f = L.revisarRegistro(r); if (f) Object.assign(r, f); return f; }, _conf: L.CONF, porque, _why: () => lastWhy, precargaCerca, _precarga: () => preData, _zonaPreparada: zonaPreparada, _reselect: () => selectLandmarks(), _ingest: (els, keys) => { keys.forEach((k) => ensureTile(k)); ingest(els, new Set(keys)); }, _measureCity: (c) => measureCityVT(c),   // (pruebas)
     isDemo: () => demoMode,
     setDemo: (v) => { demoMode = v; },
   };

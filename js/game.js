@@ -127,7 +127,6 @@ PM.state = (function () {
   const flush = () => (wiping ? true : write());
   window.addEventListener('beforeunload', flush);
   window.addEventListener('pagehide', flush);
-  document.addEventListener('visibilitychange', () => { if (document.hidden && dirty) flush(); });
   document.addEventListener('visibilitychange', () => { if (document.hidden) flush(); }); // Android puede matar la app oculta
 
   function reset() { wiping = true; localStorage.removeItem(KEY); location.reload(); }
@@ -429,9 +428,7 @@ PM.game = (function () {
   function markActiveDay() {
     const s = S(), today = PM.today();
     if (s.stats.lastDay === today) return;
-    const yest = new Date(Date.now() - 86400000);
-    const yKey = yest.getFullYear() + '-' + String(yest.getMonth() + 1).padStart(2, '0') + '-' + String(yest.getDate()).padStart(2, '0');
-    s.stats.streak = s.stats.lastDay === yKey ? s.stats.streak + 1 : 1;
+    s.stats.streak = s.stats.lastDay === PM.ayer() ? s.stats.streak + 1 : 1;
     s.stats.lastDay = today;
     s.stats.days++;
     if (s.stats.streak >= 3) unlock('racha3');

@@ -60,7 +60,26 @@
     Q13218676: { historic: 'monument' }, Q184949: { historic: 'ruins' }, Q93429857: { historic: 'ruins' }, Q14752696: { historic: 'ruins' },   // acueducto romano, hipódromo antiguo, cisterna romana, construcción romana
     Q2651004: { building: 'palace' }, Q15848826: { building: 'palace' }, Q3469910: { amenity: 'theatre' },   // palazzo, palacio urbano, centro de artes escénicas (Lincoln Center, Ópera de El Cairo)
     Q1049757: { leisure: 'stadium' }, Q682943: { leisure: 'stadium' }, Q291177: { leisure: 'garden' }, Q22806: { amenity: 'library' }, Q261335: { amenity: 'cafe' },   // estadio polideportivo, de críquet, rosaleda, biblioteca nacional, café vienés
+    Q667018: { tourism: 'museum' }, Q842478: { tourism: 'museum' }, Q3867745: { tourism: 'museum' }, Q26945165: { tourism: 'museum' }, Q2650083: { tourism: 'museum' },   // de cera, infantil, de empresa, de arquitectura, granja museo
+    Q14276458: { man_made: 'bridge' }, Q56242063: { amenity: 'place_of_worship', religion: 'christian' }, Q2972684: { historic: 'monument' }, Q2026833: { leisure: 'garden' }, Q1967454: { historic: 'monument' },   // puente de arco, iglesia protestante, cementerio de París, plaza ajardinada, memorial nacional de EE. UU.
     Q97662266: { tourism: 'museum' }, Q17000324: { tourism: 'museum' }, Q18704634: { tourism: 'museum' }, Q614316: { tourism: 'museum' }, Q575727: { tourism: 'museum' },   // arte moderno, deporte, ferroviario, privado, barco museo
+    // lo que salía como «Patrimonio» sin más (el Partenón, la Torre de Pisa, Wat Arun…): clases comprobadas contra Wikidata con los lugares reales de la precarga
+    Q1863818: { tourism: 'museum' }, Q12104174: { tourism: 'museum' }, Q2516357: { tourism: 'museum' }, Q92755865: { tourism: 'museum' }, Q17455058: { tourism: 'museum' }, Q1662089: { tourism: 'museum' },   // marítimo, etnográfico, de transporte, religioso, de música, industrial
+    Q108860927: { tourism: 'museum' }, Q2327632: { tourism: 'museum' }, Q1865249: { tourism: 'museum' }, Q1415133: { tourism: 'museum' }, Q11341528: { tourism: 'museum' }, Q787934: { tourism: 'museum' },   // arte contemporáneo, de la ciudad, literatura, cine, historietas, automóvil
+    Q26959059: { tourism: 'museum' }, Q26944969: { tourism: 'museum' }, Q1307560: { tourism: 'museum' }, Q3868199: { tourism: 'museum' }, Q5436782: { tourism: 'museum' }, Q25183395: { tourism: 'museum' },   // zoológico, fotografía, judaísmo, arte sacro, moda, textil
+    Q2310465: { tourism: 'museum' }, Q1747681: { tourism: 'museum' }, Q10500763: { tourism: 'museum' }, Q130326199: { tourism: 'museum' },   // juguetes, de artista, de la prisión, barco conservado (la fragata Constitution)
+    Q317557: { amenity: 'place_of_worship', religion: 'christian' }, Q55876909: { amenity: 'place_of_worship', religion: 'christian' }, Q1370598: { amenity: 'place_of_worship', religion: 'other' },   // iglesia parroquial, parroquia católica, lugar de culto
+    Q427287: { amenity: 'place_of_worship', religion: 'buddhist' }, Q180987: { amenity: 'place_of_worship', religion: 'buddhist' },   // wat, estupa
+    Q2750108: { amenity: 'place_of_worship', religion: 'christian', building: 'monastery' }, Q20672229: { amenity: 'place_of_worship', religion: 'christian', building: 'monastery' },   // priorato, convento de frailes
+    Q267596: { historic: 'ruins' }, Q93342462: { historic: 'ruins' }, Q96352513: { historic: 'ruins' }, Q1701174: { historic: 'ruins' }, Q19757: { historic: 'ruins' }, Q7362268: { historic: 'ruins' }, Q194029: { historic: 'ruins' }, Q200141: { historic: 'ruins' },   // templo griego, sitio griego, ruinas religiosas, monasterio en ruinas, teatro y anfiteatro romanos, calzada romana, necrópolis
+    Q92026: { historic: 'castle' }, Q88291: { historic: 'fort' }, Q11659483: { building: 'palace' }, Q53541099: { building: 'palace' },   // castillo japonés, ciudadela, palacio de recreo, villa real
+    Q797765: { man_made: 'tower' }, Q72926449: { man_made: 'tower' }, Q48356: { man_made: 'tower' }, Q18142: { building: 'skyscraper' },   // torre inclinada, torre de iglesia, alminar, edificio en altura
+    Q381885: { historic: 'monument' }, Q575759: { historic: 'monument' }, Q3476533: { historic: 'monument' }, Q57346: { historic: 'monument' }, Q9306132: { historic: 'monument' },   // tumba, monumento de guerra, escultura monumental, murallas
+    Q510177: { amenity: 'marketplace' }, Q3257518: { amenity: 'marketplace' }, Q216107: { shop: 'yes' }, Q212198: { amenity: 'bar' },   // zoco, lonja, grandes almacenes, pub
+    Q8719053: { amenity: 'theatre' }, Q230752: { amenity: 'theatre' }, Q1698619: { amenity: 'theatre' }, Q856584: { amenity: 'library' }, Q11834910: { amenity: 'library' }, Q856234: { amenity: 'library' }, Q12317349: { amenity: 'library' }, Q2326815: { amenity: 'library' }, Q1438040: { amenity: 'library' },   // sala de conciertos, auditorio, teatro; bibliotecas (edificio, estatal, universitaria, central, municipal, de investigación)
+    Q22808404: { railway: 'station', _tren: 1 }, Q110977521: { railway: 'station', _tren: 1 },   // estación en superficie, de cercanías de Berlín
+    Q589481: { leisure: 'stadium' }, Q27951514: { leisure: 'stadium' }, Q131668: { historic: 'ruins' }, Q133444874: { historic: 'ruins' }, Q91717: { historic: 'fort' },   // estadio olímpico (Lluís Companys), cubierto, acrópolis, ruinas romanas, alcazaba
+    Q138313683: { amenity: 'place_of_worship', religion: 'christian', building: 'monastery' },   // abadía real
     // edificios: solo entran si además son patrimonio protegido
     Q41176: { building: 'yes' }, Q3947: { building: 'yes' }, Q585956: { building: 'yes' }, Q3950: { building: 'yes' }, Q83405: { building: 'yes' }, Q1662011: { building: 'yes' }, Q627236: { building: 'yes' }, Q132834: { building: 'yes' }, Q28077: { building: 'yes' },   // (madrasa, hammam)
   };
@@ -68,7 +87,9 @@
   // metro, tranvía y estaciones subterráneas: nunca (no son lugares que visitar)
   // y barrios (Gion, el Born…) y obras de arte guardadas en un museo (cuadros, retratos, biombos): no son lugares que visitar
   // y conjuntos y cascos antiguos (la ficha UNESCO «Catedral, Alcázar y Archivo de Indias», «Centro histórico de…»)
-  const NO_CLS = new Set(['Q928830', 'Q2175765', 'Q22808403', 'Q123705', 'Q1574228', 'Q10564515', 'Q2983893', 'Q188509', 'Q3305213', 'Q134307', 'Q1144689', 'Q676050', 'Q3317612']);
+  // y clubes de fútbol e instituciones religiosas (el Botafogo o la Iglesia ortodoxa de Jerusalén tienen protección, pero no son un sitio)
+  const NO_CLS = new Set(['Q928830', 'Q2175765', 'Q22808403', 'Q123705', 'Q1574228', 'Q10564515', 'Q2983893', 'Q188509', 'Q3305213', 'Q134307', 'Q1144689', 'Q676050', 'Q3317612',
+    'Q15243209', 'Q110977120', 'Q476028', 'Q847017', 'Q44301618']);
   // nivel de protección (P1435): 3 Patrimonio de la Humanidad · 2 nacional (BIC, BCIN, monumento histórico clasificado,
   // Grado I, monumento nacional…) · 1 el resto · 0 catálogos que no protegen (arte público de Barcelona)
   const HER3 = new Set(['Q9259']);
@@ -80,7 +101,7 @@
     'Q15981101', 'Q5958900', 'Q55784185', 'Q1847467', 'Q20747146', 'Q16438244', 'Q64623497']);
   const HER0 = new Set(['Q15945449']);
   // uso que no es para visitar (un hotel, una escuela, un polideportivo…): el motor lo puntúa a la baja y nunca es imprescindible
-  const USO = { Q27686: 'hotel', Q1021645: 'oficinas', Q3914: 'escuela', Q9842: 'escuela', Q1076486: 'deporte', Q11315: 'comercial', Q4287745: 'salud', Q1059324: 'salud', Q16917: 'salud' };
+  const USO = { Q27686: 'hotel', Q455403: 'hotel', Q63099748: 'hotel', Q1021645: 'oficinas', Q3914: 'escuela', Q9842: 'escuela', Q1076486: 'deporte', Q11315: 'comercial', Q4287745: 'salud', Q1059324: 'salud', Q16917: 'salud' };
   // preferencia entre clases (menor = más específica): catedral > basílica > castillo > palacio > ruinas > museo > …
   // (lo que el edificio ES va antes que el museo que tenga dentro: un monasterio, una torre o un jardín botánico)
   const PREF = ['cathedral', 'basilica', 'castle', 'fort', 'palace', 'ruins', 'monastery', 'place_of_worship', 'city_gate', 'tower', 'bridge', 'skyscraper',
@@ -90,7 +111,7 @@
   // estrechos, ríos, lagos, bahías, calles, avenidas, líneas de tren y aeropuertos: no son un sitio que visitar (aunque
   // estén protegidos: el Bósforo, el ferrocarril Transiraní, el aeropuerto de Congonhas). Solo si no tienen además una
   // clase reconocible (el Puente de Carlos también es «calle», y es un puente)
-  const AREA = new Set(['Q37901', 'Q4022', 'Q23397', 'Q39594', 'Q79007', 'Q34442', 'Q7543083', 'Q54114', 'Q728937', 'Q22667', 'Q1311958']);
+  const AREA = new Set(['Q37901', 'Q4022', 'Q23397', 'Q39594', 'Q79007', 'Q34442', 'Q7543083', 'Q54114', 'Q728937', 'Q22667', 'Q1311958', 'Q47521', 'Q39816', 'Q93352']);   // (…y arroyos, valles y costas)
   const CALLE = new Set(['Q79007', 'Q54114', 'Q7543083', 'Q907698', 'Q1251403', 'Q83620', 'Q369730']);   // calle, bulevar, avenida, prospekt, callejón, vía urbana, zona peatonal
   const herLevel = (list) => list.reduce((m, h) => Math.max(m, HER3.has(h) ? 3 : HER2.has(h) ? 2 : HER0.has(h) ? 0 : 1), 0);
   const DULL = /^(habitatges?|edificis?|edifici d'habitatges|casa al |cases al |casa a la |conjunt|carrer|farmàcia|porteria|masoveria|viviendas?|edificio de viviendas|bloque)/i;
@@ -123,6 +144,14 @@
 } GROUP BY ?item ?itemLabel ?coord ?sl`;
   }
 
+  // Patrimonio de una zona grande, por conocido que sea: toda la UNESCO y lo nacional con algo de fama (sin los datos: van con idsQuery)
+  function patrimonioQuery(s, w, n, e, minSl) {
+    return `SELECT DISTINCT ?item WHERE {
+ SERVICE wikibase:box { ?item wdt:P625 ?coord. bd:serviceParam wikibase:cornerSouthWest "Point(${w} ${s})"^^geo:wktLiteral. bd:serviceParam wikibase:cornerNorthEast "Point(${e} ${n})"^^geo:wktLiteral. }
+ ?item wdt:P1435 ?h; wikibase:sitelinks ?sl. FILTER(?h = wd:Q9259 || (?sl >= ${minSl} && ?h IN (${[...HER2].map((q) => 'wd:' + q).join(', ')})))
+}`;
+  }
+
   // Unos lugares concretos (los que recomiendan las guías y la consulta por fama no ha traído), con los mismos datos
   function idsQuery(ids) {
     return `SELECT ?item ?itemLabel ?coord (?sl AS ?wp) (GROUP_CONCAT(DISTINCT STRAFTER(STR(?h), "entity/"); separator=",") AS ?her) (MIN(YEAR(?inc)) AS ?y) (SAMPLE(?col) AS ?coll) (MAX(?vis) AS ?visit) (SAMPLE(?arq) AS ?arqs) (GROUP_CONCAT(DISTINCT STRAFTER(STR(?c), "entity/"); separator=",") AS ?cls) WHERE {
@@ -153,12 +182,15 @@
       // (y una estación subterránea que también es de ferrocarril —Sants— la deciden las reglas de estación; el metro, nunca)
       const tren = cls.some((c) => TREN.has(c));
       if (cls.some((c) => NO_CLS.has(c) && !(c === 'Q123705' && (cls.includes('Q174782') || cls.includes('Q181368'))) && !(c === 'Q22808403' && tren))) continue;
+      if (/^((obras|obres|works|œuvres) (de|of|d['’])|zonas? hist[oó]ricas?)/i.test(name)) continue;   // (fichas UNESCO: «Obras de Antoni Gaudí», «Zonas históricas de Estambul»: cada lugar sale por su cuenta)
       if (cls.includes('Q1497375') && /,| y | e | and | et | i /.test(name)) continue;   // conjunto de varios monumentos (cada uno sale por su cuenta)
       // varias clases: gana la más específica por un orden FIJO (antes, la primera que llegara: Wikidata no garantiza
       // el orden y el Foro Romano salía como «iglesia»; y dos móviles podían clasificar distinto el mismo sitio)
       let tags = null, best = 1e9;
       for (const c of cls) { const tg = CLS[c]; if (!tg) continue; const r = rango(tg); if (r < best || (r === best && tags && c < tags.__c)) { best = r; tags = Object.assign({ __c: c }, tg); } }
       if (tags) delete tags.__c;
+      // un museo en un palacio que se llama museo o galería es un museo (la Galería Uffizi; el Palacio Pitti sigue siendo un palacio)
+      if (tags && tags.building === 'palace' && /^(galer[ií]a|galerie|gallery|museo|museu|museum|mus[eé]e|pinacoteca)\b/i.test(name) && cls.some((c) => CLS[c] && CLS[c].tourism === 'museum')) tags = { tourism: 'museum' };
       // estaciones de tren: las protegidas, las antiguas y conocidas (Atocha, 1851), las monumentales de autor
       // (Liège-Guillemins, de Calatrava) y las principales de cada gran ciudad; no los apeaderos ni las de barrio
       const anio = b.y && +b.y.value, arq = !!(b.arqs && b.arqs.value);
@@ -203,7 +235,7 @@
     return parse(await r.json()).sort((a, b) => b.tags._wp - a.tags._wp);   // de más a menos conocido
   }
 
-  const api = { fetchBox, fetchTop, parse, query, topQuery, idsQuery, CLS };
+  const api = { fetchBox, fetchTop, parse, query, topQuery, idsQuery, patrimonioQuery, CLS };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else { root.PM = root.PM || {}; root.PM.wikidata = api; }
 })(typeof window !== 'undefined' ? window : globalThis);

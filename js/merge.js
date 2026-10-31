@@ -46,11 +46,13 @@
     out.xp = Math.max(a.xp || 0, b.xp || 0);
     out.stats = Object.assign({}, a.stats);
     for (const [k, v] of Object.entries(b.stats || {})) out.stats[k] = typeof v === 'number' ? Math.max(out.stats[k] || 0, v) : v;
+    // (el último día jugado es el más reciente de los dos, no el de la segunda partida: si no, ese día contaba dos veces)
+    if (a.stats && b.stats && a.stats.lastDay && (!b.stats.lastDay || a.stats.lastDay > b.stats.lastDay)) out.stats.lastDay = a.stats.lastDay;
     const walks = {};
     // el mismo paseo en dos versiones: la más completa (más tiempo; a igualdad, la más reciente)
     [...(a.walks || []), ...(b.walks || [])].forEach((w) => { const o = walks[w.id]; if (!o || (w.elapsed || 0) >= (o.elapsed || 0)) walks[w.id] = w; });
     out.walks = Object.values(walks).filter((w) => (w.elapsed || 0) >= 120000).sort((x, y) => x.start - y.start);   // < 2 min: no cuentan
-    if (a.daily && b.daily && a.daily.date > b.daily.date) out.daily = a.daily;
+    if (a.daily && (!b.daily || a.daily.date > b.daily.date)) out.daily = a.daily;   // (una partida sin misiones aún no borra las de la otra: se cobrarían dos veces)
     else if (a.daily && b.daily && a.daily.date === b.daily.date) {
       // el mismo día (las misiones del día son las mismas en todos los dispositivos): misión a misión, el mayor
       // progreso y hecha si lo está en cualquiera; el cofre, abierto si se abrió en alguno (sin premios dobles)

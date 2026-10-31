@@ -4,7 +4,7 @@
 //   lugar: [id, lat, lon, nombre, { clave abreviada: valor }]   imprescindible: [q, nombre, lat, lon, tipo, emoji, sl, interés, visitas]
 (function (root) {
   const K = { historic: 'hi', amenity: 'am', tourism: 'to', building: 'bu', leisure: 'le', man_made: 'mm', railway: 'ra', place: 'pl', religion: 're', shop: 'sh',
-    station: 'st', _wp: 'w', heritage: 'he', _her: 'h', start_date: 'y', _uso: 'u', _vis: 'v', _atr: 'a', _arq: 'q', _calle: 'c', _guia: 'g', _osm: 'o' };
+    station: 'st', _wp: 'w', heritage: 'he', _her: 'h', start_date: 'y', _uso: 'u', _vis: 'v', _atr: 'a', _arq: 'q', _calle: 'c', _guia: 'g', _osm: 'o', _pv: 'p', _lado: 'l' };
   const R = Object.fromEntries(Object.entries(K).map(([a, b]) => [b, a]));
   const r6 = (x) => Math.round(x * 1e6) / 1e6;
   function encode(o) {
@@ -28,7 +28,9 @@
       }),
     });
   }
-  const api = { encode, decode };
+  // celda de ~10 km que contiene una zona de ~1 km² («4138_218» → «413_21»), la unidad de las zonas preparadas
+  const celda = (k) => k.split('_').map((n) => Math.floor(+n / 10)).join('_');
+  const api = { encode, decode, celda };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else { root.PM = root.PM || {}; root.PM.precargaFormato = api; }
 })(typeof window !== 'undefined' ? window : globalThis);

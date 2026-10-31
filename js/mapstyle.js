@@ -110,11 +110,22 @@ PM.mapStyle = (function () {
     await Promise.all(Array.from({ length: 6 }, worker));
     return urls.size;
   }
+  // El mapa guardado no puede crecer sin fin: OpenFreeMap cambia la ruta de sus teselas cada semana y las de antes se quedaban
+  // ahí, ocupando el móvil para siempre. Una vez por semana se quitan las más antiguas.
+  async function podar(max = 6000) {
+    if (!window.caches) return 0;
+    let last = 0; try { last = +localStorage.getItem('pintamapa_poda') || 0; } catch (e) {}
+    if (Date.now() - last < 7 * 86400000) return 0;
+    try { localStorage.setItem('pintamapa_poda', String(Date.now())); } catch (e) {}
+    const c = await caches.open(CACHE), keys = await c.keys(), sobran = keys.slice(0, Math.max(0, keys.length - max));
+    for (const k of sobran) await c.delete(k);
+    return sobran.length;
+  }
   async function cacheInfo() {
     if (!window.caches) return { n: 0, mb: 0 };
     const c = await caches.open(CACHE), keys = await c.keys();
     let est = null; try { est = navigator.storage && navigator.storage.estimate ? await navigator.storage.estimate() : null; } catch (e) {}
     return { n: keys.length, mb: est && est.usage ? est.usage / 1048576 : null };
   }
-  return { URL, enhance, styleURL, enableOffline, prefetch, cacheInfo };
+  return { URL, enhance, styleURL, enableOffline, prefetch, cacheInfo, podar };
 })();
