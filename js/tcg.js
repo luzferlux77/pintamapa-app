@@ -495,14 +495,15 @@ PM.tcg = (function () {
     background: linear-gradient(115deg, transparent 44%, rgba(255,255,255,.7) 50%, transparent 56%); background-size: 260% 260%; background-position: var(--mx) var(--my); }
   .tcg.flat .tcg-foil { opacity: .12; }
   /* carta BRILLANTE: marco dorado, lámina dorada visible siempre y destellos que recorren la carta */
-  .tcg.shiny { box-shadow: 0 0 0 .18em #f5c542, 0 0 1.4em rgba(250,204,21,.65); }
+  .tcg.shiny .tcg-rot, .tcg.must .tcg-rot { border-radius: 4.5% / 3.3%; }   /* (el halo va en lo que gira: si no, era un rectángulo quieto detrás de la carta) */
+  .tcg.shiny .tcg-rot { box-shadow: 0 0 0 .18em #f5c542, 0 0 1.4em rgba(250,204,21,.65); }
   .tcg.shiny .tcg-foil { opacity: calc(.32 + var(--hyp) * .5); mix-blend-mode: color-dodge;
     background: linear-gradient(115deg, rgba(255,215,0,0) 20%, rgba(255,223,90,.55) 35%, rgba(255,255,255,.65) 45%, rgba(255,190,60,.55) 55%, rgba(255,215,0,0) 72%); background-size: 260% 260%;
     animation: shinysweep 3.2s linear infinite; }
   @keyframes shinysweep { from { background-position: 120% 0; } to { background-position: -40% 0; } }
   .tcg.shiny .tcg-glitter { opacity: .9 !important; }
   /* IMPRESCINDIBLE: marco rojo y dorado, estrella y cinta (vale el doble) */
-  .tcg.must { box-shadow: 0 0 0 .22em #f59e0b, 0 0 0 .42em #b91c1c, 0 0 1.6em rgba(245,158,11,.55); }
+  .tcg.must .tcg-rot { box-shadow: 0 0 0 .22em #f59e0b, 0 0 0 .42em #b91c1c, 0 0 1.6em rgba(245,158,11,.55); }
   .tcg.must .tcg-front::after { content: '⭐'; position: absolute; z-index: 7; right: .35em; bottom: .3em; font-size: 1.15em; filter: drop-shadow(0 1px 2px rgba(0,0,0,.4)); }
   .tcg-shinytag.musttag { background: linear-gradient(90deg, #991b1b, #f59e0b, #991b1b); color: #fff; text-shadow: 0 1px 1px rgba(0,0,0,.35); }
   .tcg-shinytag { position: absolute; z-index: 6; left: 50%; top: -.55em; transform: translateX(-50%); background: linear-gradient(90deg, #b45309, #facc15, #b45309);
@@ -514,15 +515,20 @@ PM.tcg = (function () {
     background-size: 280% 280%; background-position: var(--mx) var(--my); }
   #tcg-view .tcg { touch-action: none; }   /* (el dedo inclina la carta: no desplaza la pantalla) */
   @media (hover: none) {
-    /* móvil: holograma estable (mezcla "overlay", sin destellos de ruido) */
-    .tcg-glitter { display: none; }
-    .r-legendario .tcg-inner::after { display: none; }
-    .tcg-shine { mix-blend-mode: overlay; opacity: calc(var(--holo) * (.12 + var(--hyp) * .45)); filter: none;
-      background: linear-gradient(115deg, transparent 25%, rgba(255,120,190,.6) 37%, rgba(255,220,120,.55) 44%, rgba(130,255,205,.55) 51%, rgba(120,180,255,.6) 58%, rgba(190,140,255,.55) 65%, transparent 76%);
-      background-size: 320% 320%; background-position: var(--mx) var(--my); }
-    .tcg-shine::after { content: ''; position: absolute; inset: 0; mix-blend-mode: soft-light;
-      background: linear-gradient(115deg, transparent 44%, rgba(255,255,255,.65) 50%, transparent 56%); background-size: 260% 260%; background-position: var(--mx) var(--my); }
-    .tcg-glare { mix-blend-mode: soft-light; }
+    /* móvil: la carta gira en 3D y ahí Android dibuja mal las mezclas de color (franjas cortadas, bordes que bailan, parpadeos):
+       ninguna mezcla; un velo de color ancho y suave que solo aparece al inclinar */
+    .tcg-glitter, .tcg-shine::after, .tcg-foil::after, .r-legendario .tcg-inner::after { display: none; }
+    .tcg-shine { mix-blend-mode: normal; filter: none; opacity: calc(var(--holo) * var(--hyp) * .24);
+      background: linear-gradient(115deg, transparent 10%, rgba(255,150,210,.55) 32%, rgba(255,235,160,.5) 44%, rgba(160,255,225,.5) 56%, rgba(165,205,255,.55) 68%, transparent 90%);
+      background-size: 220% 220%; background-position: var(--mx) var(--my); }
+    .tcg-foil { mix-blend-mode: normal; opacity: calc(var(--holo) * var(--hyp) * .1); }
+    .tcg.shiny .tcg-foil { mix-blend-mode: normal; animation: none; opacity: calc(.1 + var(--hyp) * .18); }
+    .tcg.shiny .tcg-glitter { display: none; }
+    .tcg-glare { mix-blend-mode: normal; opacity: calc(var(--hyp) * .2); background: radial-gradient(circle at var(--mx) var(--my), rgba(255,255,255,.75) 0%, rgba(255,255,255,0) 45%); }
+    .tcg:not(.active) .tcg-glare { opacity: 0; }
+    .bk-holo { mix-blend-mode: normal; opacity: calc(var(--hyp) * .1); }
+    .tcg-back .tcg-glare { opacity: calc(var(--hyp) * .12) !important; }
+    .tcg-art { border-image: none; border-color: #d3d6db; }   /* (el marco degradado de la foto también bailaba al girar) */
   }
   /* --- reverso: sello de conquista --- */
   .tcg-back { transform: rotateY(180deg); padding: 3.2%; background: linear-gradient(135deg, var(--b1), var(--b3) 30%, var(--b4) 50%, var(--b3) 72%, var(--b1)); }
@@ -563,7 +569,7 @@ PM.tcg = (function () {
   .bk-grid small { display: block; font-size: .5em; letter-spacing: .16em; text-transform: uppercase; color: #a08a5c; font-weight: 600; }
   .bk-grid b { display: block; font-size: .78em; font-weight: 600; color: #f2f4f8; margin-top: .15em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .bk-foot { width: 100%; display: flex; justify-content: space-between; margin-top: .7em; font-size: .5em; letter-spacing: .12em; color: #7f8aa0; font-family: ui-monospace, Consolas, monospace; }
-  .tcg-back .tcg-glare { opacity: .1 !important; }
+  @media (hover: hover) { .tcg-back .tcg-glare { opacity: .1 !important; } }
   .tcg.flat .tcg-rot { transform: none; } .tcg.flat .tcg-face { box-shadow: none; }
   /* --- mazos por ciudad --- */
   .cstack { margin: 10px 0; }
