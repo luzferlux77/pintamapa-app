@@ -1,8 +1,8 @@
 {
-  "version": "0.6.88",
-  "notes": "Lugares regenerados en 646 ciudades con las reglas nuevas; preparado el enlace exacto con el mapa y las guías de viaje; la estrella de imprescindible ya no se pierde",
+  "version": "0.6.89",
+  "notes": "Versión previa: marco de cada carta según su rareza, foto del lugar en el reverso, la carta se inclina en el móvil, lugares mejor catalogados y muchos fallos corregidos",
   "native": 6,
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.88/pintamapa-web-0.6.88.zip",
-  "checksum": "eb6de92e03706878b7b9397e096a60eb35953b263f416c6ef1e598ccf1100d30",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.88/PintaMapa-v0.6.88.apk"
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.89/pintamapa-web-0.6.89.zip",
+  "checksum": "85877ab231fb1c85a14f83dfbd00007b1fcd069fef86b1672ad3f8fb0c646f65",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.89/PintaMapa-v0.6.89.apk"
 }
