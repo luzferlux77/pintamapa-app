@@ -1,8 +1,8 @@
 {
-  "version": "0.6.89",
-  "notes": "Versión previa: marco de cada carta según su rareza, foto del lugar en el reverso, la carta se inclina en el móvil, lugares mejor catalogados y muchos fallos corregidos",
+  "version": "0.6.90",
+  "notes": "Cartas sin artefactos al girarlas en el móvil: brillo más suave y halo que gira con la carta",
   "native": 6,
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.89/pintamapa-web-0.6.89.zip",
-  "checksum": "85877ab231fb1c85a14f83dfbd00007b1fcd069fef86b1672ad3f8fb0c646f65",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.89/PintaMapa-v0.6.89.apk"
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.90/pintamapa-web-0.6.90.zip",
+  "checksum": "56bde42bce9fd6024848718c77545c243ffd9782013873d56542370a0597b9eb",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.90/PintaMapa-v0.6.90.apk"
 }
