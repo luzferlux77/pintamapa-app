@@ -96,7 +96,8 @@ PM.cards = (function () {
     } catch (e) { /* sin conexión */ }
     return out;
   }
-  const vieja = (c) => c.v !== 2 && c.credit === 'Foto: Wikimedia Commons' && !c.text;
+  // (lo guardado con reglas antiguas se vuelve a buscar: un hotel enseñaba el texto del museo de al lado y no se corregía nunca)
+  const vieja = (c) => !c.none && (c.v || 0) < 3;
   const otraLengua = (c) => (c.lang || 'es') !== LANG();
   // ¿hay que volver a buscar la información de esta carta?
   const caduca = (c) => !c || vieja(c) || otraLengua(c) || (c.none && Date.now() - c.t > 7 * 86400000);
@@ -129,7 +130,7 @@ PM.cards = (function () {
       if (!info || !info.text) Object.assign(info || (info = { text: '' }), await contexto(lm));
     } catch (e) { if (!info) return cache || null; }   // sin conexión: se reintentará
     const rec = info && (info.img || info.text || info.desc || info.addr || info.ctx)
-      ? { v: 2, lang: L, img: info.img || null, text: info.text || '', desc: info.desc || null, addr: info.addr || null, ctx: info.ctx || null, url: info.url || null, credit: info.credit || (info.url ? 'Texto y foto: Wikipedia (CC BY-SA)' : 'Foto: Wikimedia Commons'), t: Date.now() }
+      ? { v: 3, lang: L, img: info.img || null, text: info.text || '', desc: info.desc || null, addr: info.addr || null, ctx: info.ctx || null, url: info.url || null, credit: info.credit || (info.url ? 'Texto y foto: Wikipedia (CC BY-SA)' : 'Foto: Wikimedia Commons'), t: Date.now() }
       : { none: true, lang: L, t: Date.now() };
     S().cardInfo[id] = rec; PM.state.save();
     return rec;
@@ -286,7 +287,7 @@ PM.cards = (function () {
       PM.tcg.open(d, {
         badge: opts.isNew ? `${recOf(id).shiny ? '✨ ¡CARTA BRILLANTE! ✨' : recOf(id).must ? '⭐ ¡IMPRESCINDIBLE! ⭐' : '¡Nueva carta!'} ${opts.pts ? '+' + opts.pts + ' pts' : ''}` : '',
         actions: [{ label: d.own ? '📸 Cambiar foto' : d.img ? '📸 Tu foto' : '📸 Hazle la foto', primary: !d.img, on: () => editPhoto(id, show) }],
-        onText: (t) => { const ci = S().cardInfo[id] || (S().cardInfo[id] = { t: Date.now(), lang: LANG() }); ci.text = t; delete ci.none; PM.state.save(); },
+        onText: (t) => { const ci = S().cardInfo[id] || (S().cardInfo[id] = { v: 3, t: Date.now(), lang: LANG() }); ci.text = t; delete ci.none; PM.state.save(); },
       });
     };
     await show();
@@ -428,7 +429,7 @@ PM.cards = (function () {
     };
     draw();
     // completar info de los cromos que aún no la tienen (poco a poco)
-    (async () => { for (const id of ids) if (!s.cardInfo[id]) { const r = S().landmarks[id]; if (r) await fetchInfo(id, PM.world.landmarks[id] || Object.assign({ id, pos: r.pos }, r)); } if (tab === 'cromos') draw(); })();
+    (async () => { for (const id of ids) if (caduca(S().cardInfo[id])) { const r = S().landmarks[id]; if (r) await fetchInfo(id, PM.world.landmarks[id] || Object.assign({ id, pos: r.pos }, r)); } if (tab === 'cromos') draw(); })();
   }
 
   function barrioCardHTML(b) {

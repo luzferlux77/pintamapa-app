@@ -1472,7 +1472,8 @@ PM.world = (function () {
       return out;
     },
     // tus lugares y cromos de barrio ya conseguidos: ciudad según el contorno real y si son imprescindibles de la lista fija
-    fixRecords(s) {
+    // zonaVista: zona recién revisada a propósito (revisión de cartas de main.js): sus datos ya son todos los que hay
+    fixRecords(s, zonaVista) {
       // (primero se pasan al lugar vigente las que solo han cambiado de identificador: así no se quita ninguna por error)
       let n = migrarConquistas();
       // cartas de lo que el motor ya no pone (universidades, hospitales, bomberos que no son patrimonio, iglesias
@@ -1484,7 +1485,7 @@ PM.world = (function () {
           // si los datos de su zona están completos y ya no aparece, ya no existe; si no, se espera
           const lm = pool[id];
           if (lm) { r.her = lm.her || 0; r.wp = lm.wp || r.wp || 0; r.anio = lm.anio || r.anio || 0; if (r.kind !== lm.kind) { r.kind = lm.kind; r.emoji = lm.emoji; r.rarity = lm.rarity; } n++; v = null; }
-          else v = zonaCompleta(r.pos, id) ? 'quitar' : null;
+          else v = zonaCompleta(r.pos, id) || (zonaVista && r.pos && tileKeyOf(r.pos[0], r.pos[1]) === zonaVista) ? 'quitar' : null;
         }
         if (v === 'quitar') {
           delete s.landmarks[id];
@@ -1517,7 +1518,7 @@ PM.world = (function () {
         const fix = L.revisarRegistro(r);
         if (fix) { Object.assign(r, fix); delete r.porque; n++; }
         // (cartas de antes de corregir la tabla de tipos: el nombre con su mayúscula y los puentes que salían como monumento)
-        const vivo = landmarks[id];
+        const vivo = landmarks[id] || pool[id];   // (también si aún no se ha colocado en el mapa)
         if (vivo && r.name !== vivo.name && r.name && r.name.toLowerCase() === vivo.name.toLowerCase()) { r.name = vivo.name; n++; }
         // (y el tipo: la carta del Partenón ganada cuando salía como «Patrimonio» pasa a «Ruinas»; los puntos no se tocan)
         if (vivo && r.kind && r.kind.replace(' principal', '') !== vivo.kind.replace(' principal', '')) { r.kind = vivo.kind; r.emoji = vivo.emoji; n++; }
@@ -1546,6 +1547,7 @@ PM.world = (function () {
       for (let i = i0; i <= i1; i++) for (let j = j0; j <= j1; j++) if (!ensureTile(i + '_' + j).loaded) need.push(i + '_' + j);
       if (need.length && need.length <= 12) loadTiles(need).catch(() => {});
     },
+    completado: () => completeChain,   // (cuando acabe la cola: Wikidata de las zonas pedidas ya ha llegado)
     _graph: () => gnodes, _pool: () => pool, _classify: classify, _usoNoTuristico: L.usoNoTuristico, _revisar: (r) => { const f = L.revisarRegistro(r); if (f) Object.assign(r, f); return f; }, _conf: L.CONF, porque, _why: () => lastWhy, precargaCerca, _precarga: () => preData, _zonaPreparada: zonaPreparada, _reselect: () => selectLandmarks(), _ingest: (els, keys) => { keys.forEach((k) => ensureTile(k)); ingest(els, new Set(keys)); }, _measureCity: (c) => measureCityVT(c),   // (pruebas)
     isDemo: () => demoMode,
     setDemo: (v) => { demoMode = v; },

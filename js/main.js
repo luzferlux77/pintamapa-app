@@ -803,6 +803,37 @@
     } catch (e) { /* sin conexión: se probará más tarde */ } finally { harvestBusy = false; }
   }
   setInterval(harvestOld, 5000);
+  // Revisión de las cartas: cada carta se pone al día con las reglas de ahora aunque no vuelvas a pasar por su zona. Se carga
+  // en segundo plano la zona de cada carta (sin paseo, con la app a la vista y de una en una), se corrige su tipo y su estrella y
+  // se quita lo que el juego ya no da por bueno (un hotel, un metro…). Sube REV_CARTAS para repasarlas todas otra vez.
+  const REV_CARTAS = 1;
+  let revBusy = false;
+  const revTry = {};
+  async function revisarCartas() {
+    if (!begun || revBusy || !mapReady || document.hidden || (session && !session.paused) || !geoReady) return;
+    const s = S();
+    if (!s.cartasRev || s.cartasRev.v !== REV_CARTAS) s.cartasRev = { v: REV_CARTAS, k: {} };
+    const hechas = s.cartasRev.k;
+    let k = null, r0 = null;
+    for (const r of Object.values(s.landmarks)) {
+      if (!r.pos) continue;
+      const z = W.tileKeyOf(r.pos[0], r.pos[1]);
+      if (!hechas[z] && !(Date.now() - (revTry[z] || 0) < 30 * 60000)) { k = z; r0 = r; break; }
+    }
+    if (!k) return;
+    revBusy = true;
+    try {
+      await W.precargaCerca(r0.pos[0], r0.pos[1]);
+      await W.ensureKeys([k]);
+      if (!(W.tiles[k] && W.tiles[k].loaded)) { revTry[k] = Date.now(); return; }   // (sin conexión: en media hora)
+      await Promise.race([W.completado(), new Promise((ok) => setTimeout(ok, 20000))]);
+      S().cartasRev.k[k] = 1;
+      if (PM.fillLandmarkCities(S()) + W.fixRecords(S(), k)) { lmDirty = true; flushLandmarks(true); }
+      PM.state.save();
+      if (!keepSet().has(k)) W.unloadTiles([k]);
+    } catch (e) { revTry[k] = Date.now(); } finally { revBusy = false; }
+  }
+  setInterval(revisarCartas, 7000);
 
   // Suavizado lateral: la media de las 3 últimas lecturas solo corrige el desvío A LOS LADOS de la marcha (no
   // retrasa el pintado hacia delante). Se reinicia tras un salto o un hueco.
@@ -1256,7 +1287,7 @@
 
   // Gancho de pruebas (consola del navegador): PM.debug.walkTo([lat, lon]), PM.debug.setPace(0..4)
   PM.debug = { map, walkTo(p) { target = p; follow = true; }, setPace(i) { pace = i; turbo = false; }, get pos() { return pos.slice(); },
-    get bearing() { return map.getBearing(); }, get heading() { return heading; }, get gap() { return { lastP, lastT, pending: pendingGaps.length, autoResumed, lastSeen: session && session.lastSeen }; }, trim: () => trimMemory(), backup: () => buildBackup(), importData: (d) => importData(d), fix(lat, lon, t, acc = 5, spd, brg) { const m = mode; mode = 'gps'; try { onFix({ latitude: lat, longitude: lon, accuracy: acc, speed: spd, bearing: brg }, t); } finally { mode = m; } }, newSession() { if (session) endSession(); startSession(); $('#sheet').classList.remove('show'); }, endSession: () => endSession(), get sessionTrack() { return session && session.track; }, harvest: () => harvestOld(), flushGeo: () => geoFlush(), get geo() { return { pgeo: pgeo.size, zonas: pgeoTile.size, barrios: Object.keys(bgeo).length, recogidas: Object.keys(harvested).length, ready: geoReady }; }, get painted() { return paintedF; },
+    get bearing() { return map.getBearing(); }, get heading() { return heading; }, get gap() { return { lastP, lastT, pending: pendingGaps.length, autoResumed, lastSeen: session && session.lastSeen }; }, trim: () => trimMemory(), revisar: () => revisarCartas(), backup: () => buildBackup(), importData: (d) => importData(d), fix(lat, lon, t, acc = 5, spd, brg) { const m = mode; mode = 'gps'; try { onFix({ latitude: lat, longitude: lon, accuracy: acc, speed: spd, bearing: brg }, t); } finally { mode = m; } }, newSession() { if (session) endSession(); startSession(); $('#sheet').classList.remove('show'); }, endSession: () => endSession(), get sessionTrack() { return session && session.track; }, harvest: () => harvestOld(), flushGeo: () => geoFlush(), get geo() { return { pgeo: pgeo.size, zonas: pgeoTile.size, barrios: Object.keys(bgeo).length, recogidas: Object.keys(harvested).length, ready: geoReady }; }, get painted() { return paintedF; },
     // avanza el juego n fotogramas a mano (pruebas con la pestaña oculta, donde el navegador congela la animación)
     frames(n, ms = 50) { let t = lastFrame; for (let i = 0; i < n; i++) { t += ms; loop(t, true); } } };
   PM.debug.fx = (id) => conquestFX(id || curBarrio);   // pruebas: animación de conquista
