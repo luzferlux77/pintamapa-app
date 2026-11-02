@@ -1,8 +1,8 @@
 {
-  "version": "0.6.93",
-  "notes": "Carga de calles mucho más fluida: el mapa ya no se congela al entrar en una zona densa. Corregidos los lugares obligatorios repetidos en el álbum y el álbum incompleto si se abría antes de tiempo. Descargas con tiempo máximo y partida protegida contra el límite de espacio",
+  "version": "0.6.94",
+  "notes": "Mi progreso: nueva pestaña Álbumes, con portadas, distritos, barrios y tus cartas pegadas. La fecha de Actualizado ya es la de la última subida real",
   "native": 6,
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.93/pintamapa-web-0.6.93.zip",
-  "checksum": "d402fe168c903e979dd1e4af52075284ca1a3f40df17564a45c75b9dca17221c",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.93/PintaMapa-v0.6.93.apk"
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.94/pintamapa-web-0.6.94.zip",
+  "checksum": "59b909f04e14ac9beaf0091eae58710157b8b183fc8e4ef19aa71d429e37f8fc",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.94/PintaMapa-v0.6.94.apk"
 }
