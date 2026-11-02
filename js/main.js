@@ -115,6 +115,9 @@
     const dark = S().theme === 'dark';   // claro por defecto
     document.body.classList.toggle('dark', dark);
     document.querySelector('meta[name=theme-color]').setAttribute('content', dark ? '#0d0f17' : '#f4f6fb');
+    // (desde Android 15 la app se dibuja por debajo de las barras del sistema: sus iconos, según el tema de la app y no el del móvil)
+    const barras = isNative && window.Capacitor.Plugins && window.Capacitor.Plugins.SystemBars;
+    if (barras) barras.setStyle({ style: dark ? 'DARK' : 'LIGHT' }).catch(() => {});
     const want = dark ? 'dark' : 'light';
     if (want !== curStyle) { curStyle = want; mapReady = false; map.setStyle(PM.mapStyle.styleURL(want), { diff: false }); }   // carga limpia: así salta 'style.load' y se vuelven a poner las capas
   }
@@ -2060,6 +2063,8 @@
   // Con la app abierta, un aviso en pantalla; con el móvil en el bolsillo, una notificación del sistema.
   const LN = () => (isNative && window.Capacitor.Plugins && window.Capacitor.Plugins.LocalNotifications) || null;
   let lnAsked = false;
+  // (ningún aviso necesita el minuto exacto; si no se dice, Android abre sus ajustes de «Alarmas y recordatorios» en plena partida)
+  const NO_EXACTA = { isExactNotification: false };
   async function askNotifyPermission() {
     const L = LN(); if (!L || lnAsked) return; lnAsked = true;
     try { const p = await L.checkPermissions(); if (p.display !== 'granted') await L.requestPermissions(); } catch (e) {}
@@ -2076,7 +2081,7 @@
     const L = LN();
     if (L && document.hidden) (async () => {
       if (vibrar) await nearChannelReady(L);
-      L.schedule({ notifications: [{ id: Math.floor(Date.now() % 2e9), title, body, ...(vibrar ? { channelId: 'cerca' } : {}), schedule: { at: new Date(Date.now() + 500) } }] }).catch(() => {});
+      L.schedule({ notifications: [{ id: Math.floor(Date.now() % 2e9), title, body, ...NO_EXACTA, ...(vibrar ? { channelId: 'cerca' } : {}), schedule: { at: new Date(Date.now() + 500) } }] }).catch(() => {});
     })();
     else toast(`<b>${title}</b> ${body}`, kind, 5000);
   }
@@ -2089,7 +2094,7 @@
     if (!streak || st.lastDay === PM.today()) return;
     const at = new Date(); at.setHours(20, 30, 0, 0);
     if (at <= new Date()) return;
-    try { await L.schedule({ notifications: [{ id: 7001, title: PM.t(`🔥 Tu racha de ${streak} día${streak > 1 ? 's' : ''} termina hoy`), body: PM.t('Sal a pintar un ratito para no perderla.'), schedule: { at } }] }); } catch (e) {}
+    try { await L.schedule({ notifications: [{ id: 7001, ...NO_EXACTA, title: PM.t(`🔥 Tu racha de ${streak} día${streak > 1 ? 's' : ''} termina hoy`), body: PM.t('Sal a pintar un ratito para no perderla.'), schedule: { at } }] }); } catch (e) {}
   }
   // Carta por conquistar a menos de 100 m con el móvil en el bolsillo (pantalla apagada): vibra y avisa.
   // (navigator.vibrate no funciona con la pantalla apagada: se usa una notificación del sistema con vibración, en su
@@ -2111,7 +2116,7 @@
     if (!L) { PM.vibrate([200, 100, 200]); return; }
     (async () => {
       await nearChannelReady(L);
-      try { await L.schedule({ notifications: [{ id: 7100, channelId: 'cerca', title: PM.t(title), body: PM.t(body), schedule: { at: new Date(Date.now() + 300) } }] }); } catch (e) {}
+      try { await L.schedule({ notifications: [{ id: 7100, channelId: 'cerca', ...NO_EXACTA, title: PM.t(title), body: PM.t(body), schedule: { at: new Date(Date.now() + 300) } }] }); } catch (e) {}
     })();
   }
   // imprescindible cerca (≤ 200 m, una vez al día cada uno)

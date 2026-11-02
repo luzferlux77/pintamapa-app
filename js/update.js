@@ -87,15 +87,14 @@ PM.update = (function () {
       // Antes se intentaba descargar de nuevo, el actualizador decía "esa versión ya existe" y la app se quedaba atascada.
       const list = await U().list().catch(() => ({ bundles: [] }));
       let b = (list.bundles || []).find((x) => x.version === remote.version);
-      if (b && b.status === 'error') {
-        // (una versión que no arranca vuelve atrás sola; si se bajara otra vez en cada apertura, el fallo se repetiría para siempre: dos intentos por versión)
-        if (intentos(remote.version) >= 2) { setStatus(`La ${remote.version} no ha funcionado en este móvil: se espera a la siguiente`); return; }
-        anotarIntento(remote.version);
-        await U().delete({ id: b.id }).catch(() => {}); b = null;
-      }
+      if (b && b.status === 'error') { await U().delete({ id: b.id }).catch(() => {}); b = null; }
       if (!b) {
+        // (una versión que no arranca vuelve atrás sola y desaparece de la lista; si se bajara otra vez en cada apertura, el fallo se
+        // repetiría para siempre: dos intentos por versión. Solo cuentan las descargas buenas: sin cobertura se puede reintentar)
+        if (intentos(remote.version) >= 2) { setStatus(`La ${remote.version} no ha funcionado en este móvil: se espera a la siguiente`); return; }
         setStatus(`Descargando la ${remote.version}…`);
         b = await U().download({ url: remote.bundle, version: remote.version, checksum: remote.checksum });
+        anotarIntento(remote.version);
       }
       // (la descarga tarda: si mientras tanto empezó un paseo, se queda apartada y no se programa hasta terminarlo)
       if (paseando()) { setStatus('Actualización en espera: se buscará al terminar el paseo'); return; }
