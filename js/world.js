@@ -1639,6 +1639,7 @@ PM.world = (function () {
       if (need.length && need.length <= 12) loadTiles(need).catch(() => {});
     },
     albumDe, completado: () => completeChain,   // (cuando acabe la cola: Wikidata de las zonas pedidas ya ha llegado)
+    formaDe: fetchCityShape, conForma: (city) => !!(cityInfo[city] && cityInfo[city].polys),   // («Mi progreso»: el contorno de una ciudad sin pasear por ella)
     _graph: () => gnodes, _pool: () => pool, _classify: classify, _usoNoTuristico: L.usoNoTuristico, _revisar: (r) => { const f = L.revisarRegistro(r); if (f) Object.assign(r, f); return f; }, _conf: L.CONF, porque, _why: () => lastWhy, precargaCerca, _precarga: () => preData, _zonaPreparada: zonaPreparada, _reselect: () => selectLandmarks(), _ingest: (els, keys) => { keys.forEach((k) => ensureTile(k)); ingest(els, new Set(keys)); }, _ingestTurnos: (els, keys) => { keys.forEach((k) => ensureTile(k)); return ingestPorTurnos(els, new Set(keys)); }, _measureCity: (c) => measureCityVT(c),   // (pruebas)
     isDemo: () => demoMode,
     setDemo: (v) => { demoMode = v; },

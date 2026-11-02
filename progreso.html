@@ -118,6 +118,9 @@
     .city-h { margin: 14px 0 8px; font-size: 14px; font-weight: 700; } .city-h span { color: var(--muted, #888); font-weight: 500; margin-left: 4px; }
     .wdet { margin-top: 8px; border: 1px solid rgba(127,127,127,.35); background: transparent; color: inherit; border-radius: 9px; padding: 7px 12px; font: 600 13px system-ui, sans-serif; cursor: pointer; }
     .tcggrid .tcg-cell { --w: 128px; } .tcggrid .tcg.mini { font-size: calc(var(--w) / 26); }
+    #album-box { --panel: var(--card); --accent: var(--paint); }
+    #album-box .cromos { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+    #album-box .cromos .tcg-cell { --w: 128px; } #album-box .cromos .tcg.mini { font-size: calc(var(--w) / 26); }
     .lmlist { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 10px; }
     .lmc { border-radius: 12px; overflow: hidden; background: #f3f4f7; cursor: pointer; border: 2px solid var(--c, #e5e7eb); }
     .lmc .ph { height: 80px; background: #e9ebf0 center / cover; display: grid; place-items: center; font-size: 30px; }
@@ -213,6 +216,7 @@
         <button data-t="act">Actividad</button>
         <button data-t="pas">Paseos</button>
         <button data-t="con">Conquistas</button>
+        <button data-t="alb">Álbumes</button>
       </div>
       <div id="panel" style="display:flex;flex-direction:column;gap:14px"></div>
     </aside>
@@ -234,6 +238,7 @@
   <script src="js/sync.js"></script>
   <script src="lib/html-to-image.js"></script>
   <script src="js/tcg.js"></script>
+  <script src="js/album.js"></script>
   <script src="lib/mp4-muxer.js"></script>
   <script src="js/replay.js"></script>
   <script>
@@ -426,6 +431,26 @@
       const d = cardData(id);
       if ((A.s.cardPhotos || {})[id]) { const img = await ownPhoto(id); if (img) { d.img = img; d.own = true; d.credit = 'Foto: ' + (A.s.player || creds.user); } }
       PM.tcg.open(d, { actions: [{ label: '📍 Ver en el mapa', on: () => { PM.tcg.close(); if (v.pos) map.flyTo({ center: ll(v.pos), zoom: 18 }); } }] });
+    }
+
+    // ---------------- álbumes ----------------
+    // El álbum se recorta con el contorno de la ciudad, y aquí no se ha paseado por ella: se pide una vez por ciudad y se
+    // guarda. De una en una y con pausa: el servicio de OpenStreetMap solo admite una consulta por segundo
+    let colaForma = Promise.resolve();
+    function posDe(city) {
+      const r = Object.values(A.s.landmarks || {}).find((x) => x.city === city && x.pos);
+      if (r) return r.pos;
+      const k = Object.keys(A.s.tileNames || {}).find((x) => A.s.tileNames[x].city === city);
+      return k ? PM.world.tileBounds(k)[0] : null;
+    }
+    function albumWeb(city) {
+      colaForma = colaForma.then(async () => {
+        const p = posDe(city);
+        if (PM.world.conForma(city) || !p) return;
+        await PM.world.formaDe(p[0], p[1]);
+        await new Promise((r) => setTimeout(r, 1100));
+      });
+      return colaForma.then(() => PM.world.albumDe(city));
     }
 
     function fit() { if (fitBounds) map.fitBounds(fitBounds, { padding: 60, maxZoom: 17, duration: 0 }); else map.jumpTo({ center: [2.07386, 41.35763], zoom: 15 }); }
@@ -811,7 +836,17 @@
         const bc = Object.entries(s.barrioCards || {}).map(([id, v]) => Object.assign({ id }, v));
         h += `<div class="card"><h3>Barrios conquistados <span>${bc.length}</span></h3>${bc.length ? bc.map((b) => { const rk = (s.barrioRank || {})[b.id] != null ? s.barrioRank[b.id] : ((s.perfectB || {})[b.id] ? 2 : 0); return `<div class="row"><span>${PM.RANKS[rk].ic} ${esc(b.name)} <small class="muted">· ${PM.RANKS[rk].name}</small></span><b>${new Date(b.t).toLocaleDateString(PM.LOCALE)}</b></div>`; }).join('') : '<div class="empty">Pinta el 60 % de un barrio para conquistarlo (80 % plata, 90 % oro).</div>'}</div>`;
       }
+      if (tab === 'alb') h += '<div class="card"><div id="album-box"></div></div>';
       P.innerHTML = h;
+      if (tab === 'alb') {
+        PM.fillLandmarkCities(A.s);
+        PM.album.usar({ save: () => A.s, albumDe: albumWeb });
+        PM.album.montar($('#album-box'), { datos: cardData, abrir: openCard, irA: (e) => map.flyTo({ center: ll(e.pos), zoom: 17 }), pegada: async (el, id) => {
+          if (!(A.s.cardPhotos || {})[id]) return;
+          const img = await ownPhoto(id), ph = img && el.querySelector('.tcg-photo');
+          if (ph) { ph.style.backgroundImage = `url('${img}')`; ph.innerHTML = ''; }
+        } });
+      }
       if (tab === 'con' && P.querySelector('#city-stacks') && !A.countriesAsked) {   // países que falten: se averiguan y se redibuja
         A.countriesAsked = true;
         const cp = {}; stackGroups.forEach((g) => (cp[g.city] = g.pos));

@@ -2,7 +2,10 @@
 // su sitio y un hueco con el nombre de lo que falta. El álbum aparece la primera vez que pisas la ciudad.
 // La lista fija sale de scripts/pois/albumes.mjs; world.js (albumDe) la recorta con el contorno real del municipio.
 PM.album = (function () {
-  const S = () => PM.state.data, esc = PM.esc, W = () => PM.world;
+  // (en «Mi progreso» la partida es la de la nube, y el contorno de cada ciudad se pide allí: usar({ save, albumDe }))
+  let fuente = null;
+  const usar = (f) => { fuente = f; };
+  const S = () => (fuente ? fuente.save() : PM.state.data), esc = PM.esc, W = () => fuente || PM.world;
   const NO_ES_CIUDAD = /^(Zona sin nombre|Ciudad desconocida|Ciudad Demo|Otras|Otros lugares|Sector )/;
   // (la URL va dentro de url('…'): un apóstrofo del nombre del archivo la rompería)
   const fondo = (u) => (u ? `background-image:url('${esc(String(u).replace(/'/g, '%27'))}')` : '');
@@ -103,7 +106,7 @@ PM.album = (function () {
         const id = el.dataset.lm;
         el.addEventListener('click', () => opts.abrir(id));
         const d = await opts.datos(id);
-        if (el.isConnected) el.innerHTML = PM.tcg.html(d, { mini: true });
+        if (el.isConnected) { el.innerHTML = PM.tcg.html(d, { mini: true }); if (opts.pegada) opts.pegada(el, id); }
       });
       box.querySelectorAll('.ab-slot.vacio').forEach((b) => b.addEventListener('click', () => { const e = L[+b.dataset.i]; opts.irA({ pos: e.pos, name: e.name }); }));
       box.parentElement && box.parentElement.scrollTo && box.parentElement.scrollTo(0, 0);
@@ -173,5 +176,5 @@ PM.album = (function () {
     @keyframes abfade { from { opacity: 0; } } @keyframes abpop { from { transform: scale(.7) rotate(-4deg); opacity: 0; } }`;
     document.head.appendChild(st);
   }
-  return { montar, nuevo, enlazar, ciudades, NO_ES_CIUDAD };
+  return { montar, nuevo, enlazar, ciudades, usar, NO_ES_CIUDAD };
 })();

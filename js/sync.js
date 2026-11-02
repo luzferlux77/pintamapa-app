@@ -143,6 +143,7 @@ PM.cloud = (function () {
         let remoteSave = null;
         if (remote) { try { remoteSave = PM.limpiarPartida(await decrypt(key, remote.data)); } catch (e) { throw new Error('No se pudo descifrar la partida de la nube'); } }
         const merged = PM.merge(remoteSave, mine);
+        merged.syncedAt = Date.now();   // (la hora de esta subida: sin ella, «Mi progreso» enseñaba la de hace semanas)
         try { await write(base + 'partida.json', await encrypt(key, merged), remote && remote.sha, 'progreso', token); }
         catch (e) { if (e.status === 409 || e.status === 422) continue; throw e; }   // otro móvil escribió a la vez
         subida = true;
