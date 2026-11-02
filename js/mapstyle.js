@@ -49,15 +49,26 @@ PM.mapStyle = (function () {
   const CACHE = 'pm-mapa-v1';
   const P = 'pmc://';
   const isTile = (u) => /\.(pbf|mvt|png|webp|jpg)(\?|$)/.test(u) || /\/\d+\/\d+\/\d+/.test(u);
+  // La ruta de las teselas lleva la fecha de la versión del mapa (…/planet/20261025_080012_pt/14/…) y OpenFreeMap la cambia cada
+  // semana. Se guardan sin esa fecha: si no, la zona descargada dejaba de verse en cuanto cambiaba la ruta, y se volvía a bajar todo.
+  const clave = (u) => u.replace(/\/planet\/\d{8}_\d+_[a-z]+\//, '/planet/');
+  const VIGENCIA = 60 * 86400000;   // una tesela guardada se renueva a los 60 días (si hay cobertura; sin ella, sirve la que haya)
+  const plazo = (ms) => (window.AbortSignal && AbortSignal.timeout ? { signal: AbortSignal.timeout(ms) } : {});
   async function cachedFetch(url, tileFirst) {
-    const c = window.caches ? await caches.open(CACHE) : null;
-    if (c && tileFirst) { const m = await c.match(url); if (m) return m.arrayBuffer(); }
+    const c = window.caches ? await caches.open(CACHE) : null, key = clave(url);
+    const copia = c ? (await c.match(key)) || (key !== url ? await c.match(url) : null) : null;
+    if (copia && tileFirst && Date.now() - (+copia.headers.get('x-pm-t') || 0) < VIGENCIA) return copia.arrayBuffer();
     try {
-      const r = await fetch(url);
-      if (r.ok) { if (c) c.put(url, r.clone()).catch(() => {}); return r.arrayBuffer(); }
-      if (r.status === 404 || r.status === 204) return new ArrayBuffer(0);
+      // (con una copia a mano no se espera a una red floja: arrancar con poca cobertura era quedarse minutos sin mapa)
+      const r = await fetch(url, plazo(copia ? 6000 : 20000));
+      if (r.ok) {
+        const buf = await r.arrayBuffer();
+        if (c) c.put(key, new Response(buf.slice(0), { headers: { 'Content-Type': r.headers.get('content-type') || 'application/octet-stream', 'x-pm-t': String(Date.now()) } })).catch(() => {});
+        return buf;
+      }
+      if (!copia && (r.status === 404 || r.status === 204)) return new ArrayBuffer(0);
     } catch (e) {}
-    if (c) { const m = await c.match(url); if (m) return m.arrayBuffer(); }
+    if (copia) return copia.arrayBuffer();
     throw new Error('Sin conexión y sin copia de ' + url);
   }
   const pre = (u) => (typeof u === 'string' && /^https?:/.test(u) ? P + u : u);
@@ -127,5 +138,5 @@ PM.mapStyle = (function () {
     let est = null; try { est = navigator.storage && navigator.storage.estimate ? await navigator.storage.estimate() : null; } catch (e) {}
     return { n: keys.length, mb: est && est.usage ? est.usage / 1048576 : null };
   }
-  return { URL, enhance, styleURL, enableOffline, prefetch, cacheInfo, podar };
+  return { URL, enhance, styleURL, enableOffline, prefetch, cacheInfo, podar, _clave: clave, _cachedFetch: cachedFetch };
 })();

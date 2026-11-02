@@ -43,7 +43,7 @@ PM.wrapped = (function () {
     c.fillStyle = opts.c || '#fff'; c.textAlign = opts.a || 'center'; c.textBaseline = 'middle';
     c.globalAlpha = opts.o == null ? 1 : opts.o; c.fillText(s, x, y); c.globalAlpha = 1;
   }
-  const km = (m) => (m / 1000).toFixed(m >= 10000 ? 1 : 2).replace('.', ',') + ' km';
+  const km = (m) => PM.dec(m / 1000, m >= 10000 ? 1 : 2) + ' km';
   const dmy = (t) => new Date(t).toLocaleDateString(PM.LOCALE, { day: 'numeric', month: 'short' });
   function confettiBits(c, t, D, n = 40) {
     for (let i = 0; i < n; i++) {

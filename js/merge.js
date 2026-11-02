@@ -48,6 +48,8 @@
     for (const [k, v] of Object.entries(b.stats || {})) out.stats[k] = typeof v === 'number' ? Math.max(out.stats[k] || 0, v) : v;
     // (el último día jugado es el más reciente de los dos, no el de la segunda partida: si no, ese día contaba dos veces)
     if (a.stats && b.stats && a.stats.lastDay && (!b.stats.lastDay || a.stats.lastDay > b.stats.lastDay)) out.stats.lastDay = a.stats.lastDay;
+    // (la racha es la del último día jugado, no la mayor: con el máximo, una racha rota volvía sola al fusionar con la nube y ya nunca se perdía)
+    if (a.stats && b.stats && (a.stats.lastDay || '') !== (b.stats.lastDay || '')) out.stats.streak = ((a.stats.lastDay || '') > (b.stats.lastDay || '') ? a : b).stats.streak || 0;
     const walks = {};
     // el mismo paseo en dos versiones: la más completa (más tiempo; a igualdad, la más reciente)
     [...(a.walks || []), ...(b.walks || [])].forEach((w) => { const o = walks[w.id]; if (!o || (w.elapsed || 0) >= (o.elapsed || 0)) walks[w.id] = w; });

@@ -1353,6 +1353,8 @@
     if (acc > 35) {   // con mucho error podríamos pintar la calle de al lado: no pinta, pero sirve de guía para rellenar el hueco
       if (acc <= 120 && session && !session.paused) softFixes.push({ p: [c.latitude, c.longitude], t: t || c.time || Date.now() });
       if (softFixes.length > 60) softFixes.shift();
+      // (tampoco pinta, pero dice que te mueves: 15 min de GPS flojo andando no son un paseo olvidado)
+      if (acc <= 120) stillCheck([c.latitude, c.longitude], 150);
       return;
     }
     pos = [c.latitude, c.longitude];
@@ -1397,9 +1399,10 @@
   // Paseo olvidado: 15 min sin salir de un círculo de 50 m → se pausa solo y se apaga el GPS (si no, el GPS seguía
   // a tope toda la tarde en casa). Se reanuda con ▶ cuando vuelvas a salir.
   let stillAnchor = null;
-  function stillCheck(p) { if (!stillAnchor || PM.geo.dist(stillAnchor.p, p) > 50) stillAnchor = { p: p.slice(), t: Date.now() }; }
+  function stillCheck(p, r = 50) { if (!stillAnchor || PM.geo.dist(stillAnchor.p, p) > r) stillAnchor = { p: p.slice(), t: Date.now() }; }
   setInterval(() => {
-    if (!session || session.paused || mode !== 'gps' || !stillAnchor) return;
+    if (!session || session.paused || mode !== 'gps') return;
+    if (!stillAnchor) stillAnchor = { p: pos.slice(), t: Date.now() };   // (sin ninguna lectura, p. ej. en casa: el GPS tampoco se queda encendido toda la tarde)
     if (Date.now() - Math.max(stillAnchor.t, session.resumedAt || 0) < 15 * 60000) return;
     pauseSession();
     notify('⏸ Paseo en pausa', 'Llevas 15 minutos sin moverte: he pausado el paseo y apagado el GPS para ahorrar batería. Pulsa ▶ para seguir.', 'info');
@@ -1598,8 +1601,8 @@
     st.textContent = `🚶 ${PM.fmtDist(session.st.walked)} · 🖌️ ${PM.fmtDist(session.st.painted)} · +${PM.fmtNum(session.st.pts)}`;
   }
   setInterval(updateSessionInfo, 1000);
-  // copia en la nube cada 10 min mientras paseas (si Android cierra la app, no se pierde lo pintado)
-  setInterval(() => { if (session && !session.paused) PM.sync.auto(); }, 30 * 60000);   // (cada 30 min en un paseo; al terminar, siempre)
+  // copia en la nube cada 30 min mientras paseas (si Android cierra la app, no se pierde lo pintado); al terminar, siempre
+  setInterval(() => { if (session && !session.paused) PM.sync.auto(); }, 30 * 60000);
 
   function showSummary(s) {
     const st = s.st, movMs = PM.movingMs(s), min = movMs / 60000;   // velocidad con el tiempo en movimiento (como Strava)
@@ -1614,7 +1617,7 @@
         <div><b>${PM.fmtDist(st.repassed || 0)}</b><small>repasados 🔥</small></div>
         <div><b>x${st.bestCombo}</b><small>mejor combo</small></div>
       </div>
-      <p>${st.conquests ? `🚩 ¡Conquistaste ${st.conquests} barrio(s)! ` : ''}Velocidad media ${kmh.toFixed(1)} km/h.</p>
+      <p>${st.conquests ? `🚩 ¡Conquistaste ${st.conquests} barrio(s)! ` : ''}Velocidad media ${PM.dec(kmh, 1)} km/h.</p>
       <p class="muted">${st.painted > 0 ? '¡Buen paseo! Mañana tendrás misiones nuevas.' : 'Hoy no pintaste calles nuevas: prueba por calles que aún estén grises.'}</p>
       ${s.elapsed >= 120000 ? '<button class="btn on" id="sum-detail">📊 Estadísticas, vídeo y exportar</button>' : ''}`);
     if ($('#sum-detail')) $('#sum-detail').addEventListener('click', () => openWalk(S().walks.find((w) => w.id === String(s.start))));
@@ -1715,7 +1718,7 @@
     const el = $('#speed');
     const pc = paceOf(kmh);
     el.textContent = tooFast ? `🚗 ${kmh.toFixed(0)} km/h ¡muy rápido!`
-      : (turbo && mode === 'sim' ? `🚀 ${kmh.toFixed(0)} km/h` : `${pc.icon} ${kmh.toFixed(1)} km/h`);
+      : (turbo && mode === 'sim' ? `🚀 ${kmh.toFixed(0)} km/h` : `${pc.icon} ${PM.dec(kmh, 1)} km/h`);
     el.title = tooFast ? 'Demasiado rápido: la pintura no se pega' : pc.name;
     el.classList.toggle('bad', tooFast);
   }
@@ -1753,11 +1756,11 @@
       if (bq && B && S().conqueredB[bq.id]) checkRank(bq.id, pr, B);
       if (bq && B && done) checkBarrioNear(bq.id, pr, B);
       setT('#barrio-name', (bq && S().conqueredB[bq.id] ? RANKS[rankOf(bq.id)].ic + ' ' : '') + ((B && B.name) || (bq && bq.name) || t.name || 'Barrio sin explorar'));
-      setT('#barrio-pct', !B ? '' : !done ? 'calculando…' : B.total ? (pr * 100).toFixed(1) + ' %' : 'sin calles');
+      setT('#barrio-pct', !B ? '' : !done ? 'calculando…' : B.total ? PM.dec(pr * 100, 1) + ' %' : 'sin calles');
       setW('#barrio-bar i', (pr * 100).toFixed(1) + '%');
       if (t.city) {
         if (begun) albumPisado(t);
-        setT('#city', `${S().citiesWon[t.city] ? '👑 ' : '🏙️ '}${t.city} · ${(cp.pct * 100).toFixed(cp.pct < 0.01 ? 2 : 1)} %` +
+        setT('#city', `${S().citiesWon[t.city] ? '👑 ' : '🏙️ '}${t.city} · ${PM.dec(cp.pct * 100, cp.pct < 0.01 ? 2 : 1)} %` +
           (cp.real ? ` de ${PM.fmtDist(cp.total)} de calles` : ' (midiendo ciudad…)'));
       } else setT('#city', '🏙️ Localizando ciudad…');
     } else {
@@ -1950,6 +1953,7 @@
     }
   });
 
+  let fixT = null;
   W.onChange((ev, d) => {
     if (ev === 'barrios') { hudB.dirty = true; renderBarrios(); return; }
     if (ev === 'migrated') { paintedDirty = true; return; }
@@ -1960,7 +1964,8 @@
     }
     if (ev === 'named') {
       if (W.updateMustSee()) { lmDirty = true; flushLandmarks(); }
-      if (PM.fillLandmarkCities(S()) + W.fixRecords(S())) PM.state.save();
+      // (los nombres llegan de uno en uno, cada segundo, y repasar todas tus cartas por cada nombre pesa: una vez, al llegar el último)
+      clearTimeout(fixT); fixT = setTimeout(() => { if (PM.fillLandmarkCities(S()) + W.fixRecords(S())) PM.state.save(); }, 1500);
       return;
     }
     if (ev === 'lmMigrated') { lmDirty = true; flushLandmarks(true); return; }   // (cartas pasadas al lugar vigente: se redibujan)
@@ -2002,7 +2007,7 @@
       <p><span class="pill" style="background:${r.color}">${r.label}</span> ${PM.esc(lm.kind)} · ${lm.points * (lm.must ? 2 : 1)} pts</p>
       <p>${got ? `Capturado el ${new Date(got.t).toLocaleDateString(PM.LOCALE)} · ${got.visits} visita(s)` :
         `Está a <b>${PM.fmtDist(d)}</b>. Acércate a menos de ${lm.capR || CAPTURE_RADIUS} m y quédate ${CAPTURE_SECONDS} s para capturarlo.`}</p>
-      ${!got ? '<p class="muted">Pista: ' + PM.esc(lm.name).replace(/[^\s]/g, (ch, i) => (i % 3 === 0 ? ch : '•')) + '</p>' : ''}`);
+      ${!got ? '<p class="muted">Pista: ' + PM.esc(lm.name.replace(/[^\s]/g, (ch, i) => (i % 3 === 0 ? ch : '•'))) + '</p>' : ''}`);
   }
 
   function panelAlbum(ciudad) {
@@ -2176,7 +2181,7 @@
     [[1, '🥈', 'Rango Plata', '80 % de sus calles'], [2, '🥇', 'Rango Oro', '90 % de sus calles'], [3, '🏆', 'Rango Leyenda', '100 % y todos sus lugares']].forEach(([r, ic, t, d]) => { if (I.rt[r]) ev.push([I.rt[r], ic, t, d]); else if (I.rk >= r && r < 3 && !I.rt[r]) ev.push([null, ic, t, d + ' (antes de guardar fechas)']); });
     if (I.perfect) ev.push([I.perfect, '💯', 'Pintado al 100 %', 'Todas sus calles']);
     ev.sort((a, b) => (a[0] || 9e15) - (b[0] || 9e15));
-    const pctTxt = I.pr != null ? (I.pr * 100).toFixed(1) + ' %' : '—';
+    const pctTxt = I.pr != null ? PM.dec(I.pr * 100, 1) + ' %' : '—';
     const next = I.pr == null ? null : I.conq ? PM.RANK_MIN.barrio[I.rk + 1] : PM.CONQ.barrio;
     const R = I.rk >= 0 ? PM.RANKS[I.rk] : null;
     let html = `<div class="bh-head" style="--rk:${R ? R.color : 'var(--accent)'}">
@@ -2342,7 +2347,7 @@
     const fmt = (m, v) => (m.type === 'paint' || m.type === 'walk' ? PM.fmtDist(v) : Math.round(v));
     let html = `<p class="muted">Se renuevan cada día a medianoche. Racha actual: <b>🔥 ${S().stats.streak} día(s)</b></p>`;
     html += d.missions.map((m) => `<div class="mission ${m.done ? 'done' : ''}">
-        <div class="mt">${m.done ? '✅' : '🎯'} ${m.text}<span>+${m.reward}</span></div>
+        <div class="mt">${m.done ? '✅' : '🎯'} ${esc(m.text)}<span>+${m.reward}</span></div>
         <div class="bar"><i style="width:${(m.progress / m.goal * 100).toFixed(0)}%"></i></div>
         <small>${fmt(m, m.progress)} / ${fmt(m, m.goal)}</small></div>`).join('');
     html += `<div class="mission chest ${d.chest ? 'done' : ''}"><div class="mt">🎁 Cofre diario: completa las 3<span>+1000</span></div></div>`;
@@ -2370,7 +2375,7 @@
       <h4>¿Por qué este nivel?</h4>
       <p class="muted">Tu nivel depende solo de tus <b>puntos totales</b>. El nivel ${lp.label} empieza en ${nf(from)} puntos${lp.max ? '' : ` y el ${lp.nextLabel} en ${nf(to)}`}. Cada nivel pide algo más que el anterior.</p>
       <h4>De dónde vienen tus puntos</h4>
-      ${rows.map(([k, v]) => `<div class="xprow"><span>${LBL[k] || k}</span><b>${nf(v)}</b><div class="bar"><i style="width:${(v / Math.max(1, s.xp) * 100).toFixed(1)}%"></i></div></div>`).join('') || '<p class="muted">Aún no tienes puntos: ¡sal a pintar!</p>'}
+      ${rows.map(([k, v]) => `<div class="xprow"><span>${LBL[k] || esc(k)}</span><b>${nf(v)}</b><div class="bar"><i style="width:${(v / Math.max(1, s.xp) * 100).toFixed(1)}%"></i></div></div>`).join('') || '<p class="muted">Aún no tienes puntos: ¡sal a pintar!</p>'}
       <h4>Cómo ganar más puntos</h4>
       <ul class="xphow">
         <li>🖌️ <b>Pintar calle nueva</b>: 10 pts cada 12 m · el combo multiplica hasta ×3 · junto a un lugar ×2</li>
@@ -2502,7 +2507,7 @@
       const cities = {};
       for (const k in s.tileNames) { const c = s.tileNames[k].city; if (c) cities[c] = true; }
       const cl = Object.keys(cities).map((c) => [c, G.cityProgress(c)]).sort((x, y) => y[1].painted - x[1].painted);
-      html += card('🏙️ Tus ciudades', cl.length ? cl.map(([c, cp]) => `<div class="mission"><div class="mt">${s.citiesWon[c] ? PM.RANKS[(s.cityRank || {})[c] || 0].ic : '🏙️'} ${esc(c)}<span>${(cp.pct * 100).toFixed(2)} %</span></div>
+      html += card('🏙️ Tus ciudades', cl.length ? cl.map(([c, cp]) => `<div class="mission"><div class="mt">${s.citiesWon[c] ? PM.RANKS[(s.cityRank || {})[c] || 0].ic : '🏙️'} ${esc(c)}<span>${PM.dec(cp.pct * 100, 2)} %</span></div>
           <div class="bar"><i style="width:${Math.min(100, cp.pct / PM.CONQ.city * 100)}%"></i></div>
           <small>${PM.fmtDist(cp.painted)} de ${cp.total ? PM.fmtDist(cp.total) : '?'} · ${(() => { const rk = PM.rankFor('city', cp.pct), nx = PM.RANK_MIN.city[rk + 1]; return (rk >= 0 ? `${PM.RANKS[rk].ic} ${PM.RANKS[rk].name} · ` : '') + (nx ? 'faltan ' + (cp.total ? PM.fmtDist(Math.max(0, cp.total * nx - cp.painted)) : '?') + ` para ${Math.round(nx * 100)} %` : '¡oro conseguido!'); })()}</small></div>`).join('') : '<p class="muted">Sal a pintar y aquí verás tus ciudades.</p>', 'conquista 70 % · plata 80 · oro 90');
       const bc = Object.entries(s.barrioCards || {}).map(([id, v]) => Object.assign({ id }, v)).sort((x, y) => y.t - x.t);
@@ -2534,7 +2539,16 @@
         <button class="btn" id="opt-walks">🥾 Ver mis paseos (${D.walks.length})</button>`);
       html += card('🔄 Versión', `<p class="muted">PintaMapa <b>v${PM.VERSION.app}</b> · ${(PM.update.status() || {}).msg || 'Se busca actualización al abrir la app.'}</p>
         ${PM.isNative ? '<button class="btn" id="opt-upd">🔄 Buscar actualización ahora</button>' : ''}
-        <p class="muted">Perfil: <b>${PM.profile === 'real' ? '📡 Real' : '🕹️ Prueba'}</b> · Mapas y calles © OpenStreetMap</p>`);
+        <p class="muted">Perfil: <b>${PM.profile === 'real' ? '📡 Real' : '🕹️ Prueba'}</b></p>`);
+      // de dónde sale lo que ves (las licencias lo piden: siempre a mano, con su enlace)
+      const lic = (t, url, l) => `<li>${t}: <a href="${url}" target="_blank" rel="noopener">${l}</a></li>`;
+      html += card('📜 Créditos y licencias', `<ul class="creditos" translate="no">
+        ${lic(PM.t('Mapas y calles'), 'https://www.openstreetmap.org/copyright', '© OpenStreetMap (ODbL)')}
+        ${lic(PM.t('Mapa base'), 'https://openfreemap.org', 'OpenFreeMap © OpenMapTiles')}
+        ${lic(PM.t('Lugares'), 'https://www.wikidata.org/wiki/Wikidata:Licensing', 'Wikidata (CC0)')}
+        ${lic(PM.t('Textos y fotos de las cartas'), 'https://creativecommons.org/licenses/by-sa/4.0/deed.es', 'Wikipedia · Wikimedia Commons (CC BY-SA)')}
+        ${lic(PM.t('Iconos'), 'https://creativecommons.org/licenses/by/4.0/deed.es', 'Twemoji (CC BY 4.0)')}
+        ${lic(PM.t('Motor del mapa'), 'https://maplibre.org', 'MapLibre GL JS (BSD)')}</ul>`);
       html += `<div class="pf-danger"><button class="btn danger" id="opt-reset">🗑️ Borrar partida de este móvil</button></div>`;
     }
     openSheet('👤 Perfil', html);
@@ -2574,7 +2588,7 @@
       await PM.update.check(true);
       panelProfile();
     });
-    $('#opt-sound') && $('#opt-sound').addEventListener('change', (e) => { PM.sound.enabled = e.target.checked; });
+    $('#opt-sound') && $('#opt-sound').addEventListener('change', (e) => PM.sound.poner(e.target.checked));
     $('#opt-lang') && $('#opt-lang').addEventListener('change', (e) => PM.i18n.set(e.target.value));
     $('#opt-dark') && $('#opt-dark').addEventListener('change', (e) => { S().theme = e.target.checked ? 'dark' : 'light'; PM.state.save(); applyTheme(); });
     $('#opt-walks') && $('#opt-walks').addEventListener('click', panelWalks);
@@ -2783,6 +2797,8 @@
     PM.update.watch(toast);
     compressOldWalks();
     setTimeout(() => PM.mapStyle.podar().catch(() => {}), 60000);
+    setTimeout(() => W.purgarCache().catch(() => {}), 90000);
+    if (PM.state.rota) setTimeout(() => toast('⚠️ ' + PM.t('Tu partida guardada no se podía leer: se ha apartado y empiezas de cero. Si tienes una copia de seguridad, impórtala en Perfil → Ajustes.'), 'warn', 10000), 1500);
     scheduleStreakReminder();
     document.addEventListener('visibilitychange', () => { if (document.hidden) scheduleStreakReminder(); });
     // tramos pintados con versiones anteriores: su geometría (pendiente de subir y la de tu nube) para reconocerlos con la nueva fuente de mapas
@@ -2822,7 +2838,7 @@
     el.addEventListener('click', (e) => { const b = e.target.closest('[data-l]'); if (!b) return; PM.i18n.set(b.dataset.l); el.remove(); });
     document.body.appendChild(el);
   }
-  $('#intro-ver').textContent = `v${PM.VERSION.app} · datos © OpenStreetMap · mapa OpenFreeMap`;
+  $('#intro-ver').textContent = `v${PM.VERSION.app} · datos © OpenStreetMap · mapa OpenFreeMap © OpenMapTiles`;
   // versión bien visible (inicio y esquina del juego) para saber qué versión tienes instalada
   $('#intro-badge').innerHTML = `Versión <b>${PM.VERSION.app}</b> · ${new Date(PM.VERSION.date).toLocaleDateString(PM.LOCALE, { day: 'numeric', month: 'short', year: 'numeric' })}` +
     (PM.isNative ? '' : ' · <i>web</i>');

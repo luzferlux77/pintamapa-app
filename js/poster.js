@@ -97,7 +97,7 @@ PM.poster = (function () {
     drawSpaced(PM.t('PINTADO POR {a} · DESDE {b}', { a: D.player.toUpperCase(), b: new Date(D.first).toLocaleDateString(PM.LOCALE, { month: 'long', year: 'numeric' }).toUpperCase() }), 7, y);
     // cifras
     y += 170;
-    const stats = [[(D.paintedM / 1000).toFixed(D.paintedM >= 100000 ? 0 : 1).replace('.', ','), 'KM PINTADOS'], [PM.fmtNum ? PM.fmtNum(D.nPieces) : D.nPieces, 'TRAMOS'], [D.nB, 'BARRIOS'], [D.nL, 'LUGARES']];
+    const stats = [[PM.dec(D.paintedM / 1000, D.paintedM >= 100000 ? 0 : 1), 'KM PINTADOS'], [PM.fmtNum ? PM.fmtNum(D.nPieces) : D.nPieces, 'TRAMOS'], [D.nB, 'BARRIOS'], [D.nL, 'LUGARES']];
     const colW = MAP.w / stats.length;
     stats.forEach(([v, l], i) => {
       const x = MAP.x + colW * i + colW / 2;
@@ -123,7 +123,7 @@ PM.poster = (function () {
     ov.innerHTML = `<div class="po-box"><div class="po-head"><b>🖼️ Póster de tu mapa</b><button class="po-x">✕</button></div>
       <div class="po-prev"><canvas></canvas><div class="po-load">Preparando tus calles…</div></div>
       <div class="po-opts"><div class="po-row">${Object.entries(THEMES).map(([k, t]) => `<button class="po-th ${k === theme ? 'on' : ''}" data-th="${k}"><i style="background:${t.bg};border-color:${t.street}"></i>${t.name}</button>`).join('')}</div>
-      <select class="po-area">${cityList.map((c) => `<option value="${c.replace(/"/g, '&quot;')}">${c}</option>`).join('')}<option value="all">Todo lo que has pintado</option></select>
+      <select class="po-area">${cityList.map((c) => `<option value="${PM.esc(c)}">${PM.esc(c)}</option>`).join('')}<option value="all">Todo lo que has pintado</option></select>
       <button class="po-dl">⬇️ Guardar póster (A4, 300 ppp)</button><small class="po-msg">Para imprimir en A4 o enmarcar. También queda genial en el móvil.</small></div></div>`;
     document.body.appendChild(ov);
     const cv = ov.querySelector('canvas'), msg = ov.querySelector('.po-msg'), load = ov.querySelector('.po-load');

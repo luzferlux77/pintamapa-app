@@ -10,7 +10,7 @@
   <style>
     :root {
       --bg: #f5f6fa; --card: #ffffff; --line: #eceef3; --text: #111827; --muted: #6b7280; --soft: #9ca3af;
-      --paint: #ff2e88; --cyan: #06b6d4; --violet: #8b5cf6; --amber: #f59e0b; --green: #10b981;
+      --paint: #2563eb; --cyan: #06b6d4; --violet: #8b5cf6; --amber: #f59e0b; --green: #10b981;
       --r: 16px; --shadow: 0 1px 2px rgba(16,24,40,.04), 0 1px 3px rgba(16,24,40,.06);
     }
     * { box-sizing: border-box; }
@@ -20,8 +20,8 @@
     /* ----- login ----- */
     #login { min-height: 100%; display: grid; place-items: center; padding: 24px; }
     .login-card { width: min(400px, 100%); background: var(--card); border-radius: 22px; padding: 32px 28px; box-shadow: 0 10px 40px rgba(16,24,40,.08); text-align: center; }
-    .logo { font-weight: 900; font-style: italic; letter-spacing: -1px; font-size: 30px; }
-    .logo .p { color: var(--paint); } .logo .m { color: var(--cyan); }
+    .logo { font-weight: 800; letter-spacing: -1px; font-size: 30px; }
+    .logo .p { color: var(--text); } .logo .m { color: #2563eb; }   /* (la misma marca que en la app) */
     .login-card h1 { font-size: 20px; margin: 18px 0 6px; } .login-card p { font-size: 14px; line-height: 1.5; margin: 0 0 18px; }
     .login-card input { width: 100%; padding: 13px 14px; border-radius: 12px; border: 1px solid var(--line); background: #fafbfc; font: inherit; margin-bottom: 10px; outline: none; }
     .login-card input:focus { border-color: var(--paint); background: #fff; }
@@ -210,7 +210,7 @@
     <div class="login-card">
       <div class="logo" translate="no"><span class="p">Pinta</span><span class="m">Mapa</span></div>
       <h1>Mi progreso</h1>
-      <p class="muted">Todo lo que pintas por la calle, cifrado en la nube. Entra con tu <b>nombre de pintor</b> y la <b>contraseña</b> de la app (Perfil → Mi cuenta en la nube).</p>
+      <p class="muted">Todo lo que pintas por la calle, cifrado en la nube. Entra con tu nombre de pintor y la contraseña de la app (Perfil → Mi cuenta en la nube).</p>
       <input id="user" placeholder="Nombre de pintor" autocomplete="username">
       <input id="pass" type="password" placeholder="Contraseña" autocomplete="current-password">
       <button class="btn-main" id="go">Ver mi progreso</button>
@@ -276,7 +276,7 @@
     let creds = {}; try { creds = JSON.parse(localStorage.getItem(KEY) || '{}'); } catch (e) {}
     let data, map, layers = {}, selLayer = null, tab = 'res', fitBounds = null, stackGroups = [], calMonth = null, calDay = null, actPeriod = 'd30';
     const esc = (t) => String(t == null ? '' : t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-    const km = (m) => (m / 1000).toFixed(m >= 10000 ? 1 : 2);
+    const km = (m) => PM.dec(m / 1000, m >= 10000 ? 1 : 2);
     const dist = (m) => PM.fmtDist(m || 0);
     const dur = (ms) => { const m = Math.round(ms / 60000); return m >= 60 ? Math.floor(m / 60) + ' h ' + (m % 60) + ' min' : m + ' min'; };
     const pace = (ms, m) => { if (!m || m < 50) return '—'; const s = ms / 1000 / (m / 1000); return Math.floor(s / 60) + ':' + String(Math.round(s % 60)).padStart(2, '0') + ' /km'; };
@@ -368,7 +368,7 @@
       const V = PM.VERSION, ult = Math.max(s.syncedAt || 0, ...(s.walks || []).map((w) => (w.start || 0) + (w.elapsed || 0)));
       $('#appver').textContent = `PintaMapa v${V.app} · ${new Date(V.date + 'T12:00').toLocaleDateString(PM.LOCALE, { day: 'numeric', month: 'short', year: 'numeric' })}`;
       $('#synced').textContent = ult ? 'Actualizado ' + new Date(ult).toLocaleString(PM.LOCALE, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
-      document.documentElement.style.setProperty('--paint', s.color || '#ff2e88');
+      document.documentElement.style.setProperty('--paint', s.color || '#2563eb');
     }
 
     // ---------------- mapa (MapLibre: mapa vectorial de OpenFreeMap, como en la app) ----------------
@@ -572,8 +572,7 @@
       let html = '<div class="cal">';
       for (let t = start.getTime(); t <= end.getTime(); t += 86400000) {
         const d = days[dayKey(t)], v = d ? d.painted / max : 0;
-        const bg = d ? `rgba(255,46,136,${(0.25 + v * 0.75).toFixed(2)})` : '';
-        html += `<i title="${new Date(t).toLocaleDateString(PM.LOCALE)}${d ? ': ' + dist(d.painted) + ' pintados' : ''}" ${bg ? `style="background:${bg}"` : ''}></i>`;
+        html += `<i title="${new Date(t).toLocaleDateString(PM.LOCALE)}${d ? ': ' + dist(d.painted) + ' pintados' : ''}" ${d ? `style="background:var(--paint);opacity:${(0.25 + v * 0.75).toFixed(2)}"` : ''}></i>`;   // (tu color, no uno fijo)
       }
       return html + '</div>';
     }

@@ -73,9 +73,25 @@ PM.state = (function () {
     session: null,
   });
 
-  let data;
-  try { data = Object.assign(fresh(), JSON.parse(localStorage.getItem(KEY) || '{}')); }
-  catch (e) { data = fresh(); }
+  // un apartado que no sea lo que debe (null, un número…, de una copia dañada) rompería el juego al primer paso: vuelve a estar vacío
+  function sana(d) {
+    const f = fresh();
+    for (const k of Object.keys(f)) {
+      const v = f[k];
+      if (!v || typeof v !== 'object') continue;
+      const ok = Array.isArray(v) ? Array.isArray(d[k]) : d[k] && typeof d[k] === 'object' && !Array.isArray(d[k]);
+      if (!ok) d[k] = v;
+    }
+    if (!(typeof d.xp === 'number' && isFinite(d.xp))) d.xp = 0;
+    return d;
+  }
+  let data, rota = false;
+  try { data = sana(Object.assign(fresh(), JSON.parse(localStorage.getItem(KEY) || '{}'))); }
+  catch (e) {
+    // partida ilegible: se aparta ANTES de que el guardado automático la pise con una vacía (y se avisa al entrar)
+    data = fresh(); rota = true;
+    try { if (!localStorage.getItem(KEY + '_rota')) localStorage.setItem(KEY + '_rota', localStorage.getItem(KEY)); } catch (e2) {}
+  }
   data.stats = Object.assign(fresh().stats, data.stats);
   delete data.cansTaken; delete data.stats.cans;   // (los botes de pintura ya no existen; los puntos que dieron se quedan)
   data.walks = (data.walks || []).filter((w) => (w.elapsed || 0) >= 120000);   // paseos de < 2 min: fuera del historial
@@ -84,7 +100,7 @@ PM.state = (function () {
   // Guardado: convertir la partida entera a texto y escribirla en disco cuesta (con muchas calles y paseos, varios MB).
   // Con la pantalla encendida se guarda a los 2 s (o a los 8 s si la partida es grande y tarda); con la pantalla apagada,
   // cada 20 s. Al apagar la pantalla o cerrar la app se guarda en el acto: no se pierde nada.
-  let dirty = false, lastSave = 0, saveCost = 0, failing = false, failT = 0;
+  let dirty = false, lastSave = 0, saveCost = 0, failing = false, failT = 0, sitioHecho = false;
   function save() { dirty = true; }
   // Red de seguridad: la partida cabe en unos 5 MB y, aunque los paseos de más de un mes ya se simplifican (compressOldWalks),
   // tras años de paseos no se podría guardar NADA. Al acercarse al límite, los más antiguos se simplifican más (a 8 m). Los 20 últimos no
@@ -108,6 +124,8 @@ PM.state = (function () {
       return true;
     } catch (e) {
       console.warn('No se pudo guardar', e);
+      // sin sitio: tu partida va antes que lo que se puede volver a pedir (contornos de ciudades) y que el detalle de paseos antiguos
+      if (!sitioHecho) { sitioHecho = true; try { localStorage.removeItem('pintamapa_cityinfo'); } catch (e2) {} aligerar(); return write(); }
       dirty = true;
       if (!failing || Date.now() - failT > 60000) { failT = Date.now(); aviso('pm-save-error', String(e && e.name || e)); }
       failing = true;
@@ -132,9 +150,9 @@ PM.state = (function () {
 
   function reset() { wiping = true; localStorage.removeItem(KEY); location.reload(); }
 
-  function replace(d) { data = Object.assign(fresh(), d); data.stats = Object.assign(fresh().stats, data.stats); PM.limpiarPartida(data); save(); }
+  function replace(d) { data = sana(Object.assign(fresh(), d)); data.stats = Object.assign(fresh().stats, data.stats); PM.limpiarPartida(data); save(); }
 
-  return { get data() { return data; }, save, reset, replace, flush, _aligerar: aligerar };
+  return { get data() { return data; }, rota, save, reset, replace, flush, _aligerar: aligerar };
 })();
 
 PM.game = (function () {

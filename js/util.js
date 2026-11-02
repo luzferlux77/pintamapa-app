@@ -64,8 +64,11 @@ PM.ayer = function () {
   return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
 };
 
+// número con decimales a la manera de cada idioma (1,10 en castellano; 1.10 en inglés)
+PM._decF = {};
+PM.dec = (n, d = 1) => (PM._decF[d] || (PM._decF[d] = new Intl.NumberFormat(PM.LOCALE || 'es-ES', { minimumFractionDigits: d, maximumFractionDigits: d }))).format(n);
 PM.fmtDist = function (m) {
-  return m >= 1000 ? (m / 1000).toFixed(m >= 10000 ? 1 : 2) + ' km' : Math.round(m) + ' m';
+  return m >= 1000 ? PM.dec(m / 1000, m >= 10000 ? 1 : 2) + ' km' : Math.round(m) + ' m';
 };
 
 // Textos que vienen de fuera (nombres de lugares, barrios, ciudades, pintores, copias importadas, la nube): nunca pueden
@@ -94,6 +97,17 @@ PM.limpiarPartida = function (d) {
   }
   if (Array.isArray(d.avoid)) d.avoid = d.avoid.filter((a) => a && typeof a === 'object').map((a) => Object.assign(a, { name: L(a.name) }));
   if (d.walks && !Array.isArray(d.walks)) d.walks = [];
+  // (lo que no es un nombre también llega a la pantalla: misiones, desglose de puntos y cifras de cada paseo. Una copia manipulada no puede colar nada)
+  if (d.daily != null) {
+    if (typeof d.daily !== 'object' || !Array.isArray(d.daily.missions)) d.daily = null;
+    else d.daily.missions = d.daily.missions.filter((m) => m && typeof m === 'object').map((m) => Object.assign(m, { text: L(m.text), goal: +m.goal || 1, progress: +m.progress || 0, reward: +m.reward || 0 }));
+  }
+  { const o = obj(d.xpBy); if (o) for (const id of Object.keys(o)) if (!/^[a-z_]{1,24}$/.test(id) || typeof o[id] !== 'number') delete o[id]; }
+  { const o = obj(d.stats); if (o) { for (const k of Object.keys(o)) if (k !== 'lastDay' && typeof o[k] !== 'number') o[k] = +o[k] || 0; if (o.lastDay != null && !/^\d{4}-\d{2}-\d{2}$/.test(String(o.lastDay))) o.lastDay = null; } }
+  if (Array.isArray(d.walks)) {
+    d.walks = d.walks.filter((w) => w && typeof w === 'object');
+    for (const w of d.walks) { const st = obj(w.st) || (w.st = {}); for (const k of Object.keys(st)) if (typeof st[k] !== 'number') st[k] = +st[k] || 0; }
+  }
   // (el color y la foto de perfil van dentro de un style="…": solo un color y una imagen de verdad)
   if (d.color != null && !/^#[0-9a-f]{3,8}$/i.test(String(d.color))) d.color = '#2563eb';
   if (d.avatar != null && !/^data:image\/[a-z+]+;base64,[A-Za-z0-9+/=]+$/.test(String(d.avatar))) delete d.avatar;
@@ -104,7 +118,8 @@ PM.fmtNum = function (n) { return Math.round(n).toLocaleString(PM.LOCALE || 'es-
 // ---------- Sonido (sintetizado, sin ficheros) ----------
 PM.sound = {
   ctx: null,
-  enabled: true,
+  enabled: (() => { try { return localStorage.getItem('pintamapa_sonido') !== '0'; } catch (e) { return true; } })(),   // (se recuerda: antes volvía a sonar al abrir la app)
+  poner(on) { this.enabled = !!on; try { localStorage.setItem('pintamapa_sonido', on ? '1' : '0'); } catch (e) {} },
   _ctx() {
     if (!this.ctx) {
       try { this.ctx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { this.enabled = false; }

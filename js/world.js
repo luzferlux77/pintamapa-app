@@ -97,7 +97,18 @@ PM.world = (function () {
   let cityInfo = {};
   try { cityInfo = JSON.parse(localStorage.getItem('pintamapa_cityinfo') || '{}'); } catch (e) {}
   for (const k in cityInfo) if (!cityInfo[k] || cityInfo[k].v !== CITY_V) delete cityInfo[k];
-  const saveCityInfo = () => { try { localStorage.setItem('pintamapa_cityinfo', JSON.stringify(cityInfo)); } catch (e) {} };
+  // (comparte espacio con tu partida en el almacén del móvil: las ciudades más antiguas no se guardan si ocupan demasiado; se pueden volver a pedir)
+  const CITY_MAX = 1000000;
+  const saveCityInfo = () => {
+    try {
+      let txt = JSON.stringify(cityInfo);
+      if (txt.length > CITY_MAX) {
+        const copia = Object.assign({}, cityInfo), viejas = Object.keys(copia).sort((a, b) => (copia[a].t || 0) - (copia[b].t || 0));
+        while (txt.length > CITY_MAX && viejas.length > 1) { delete copia[viejas.shift()]; txt = JSON.stringify(copia); }
+      }
+      localStorage.setItem('pintamapa_cityinfo', txt);
+    } catch (e) {}
+  };
   function inRing(p, ring) {   // ring: [[lon, lat], …]
     let inside = false; const x = p[1], y = p[0];
     for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
@@ -574,8 +585,38 @@ PM.world = (function () {
       async put(k, v) {
         try { const d = await db(); d.transaction('tiles', 'readwrite').objectStore('tiles').put(v, k); } catch (e) { /* sin caché */ }
       },
+      // quita las zonas que ya no se van a usar (caducadas o de otra versión): sin esto se quedaban para siempre en el móvil.
+      // Va por tandas pequeñas, con pausas, para no parar el mapa
+      async purgar() {
+        const d = await db();
+        let ultima = null, quitadas = 0;
+        for (;;) {
+          const sigue = await new Promise((res) => {
+            const st = d.transaction('tiles', 'readwrite').objectStore('tiles'), q = st.openCursor(ultima == null ? null : IDBKeyRange.lowerBound(ultima, true));
+            let n = 0;
+            q.onerror = () => res(false);
+            q.onsuccess = () => {
+              const c = q.result;
+              if (!c) { res(false); return; }
+              ultima = c.key;
+              const v = c.value;
+              if (/^-?\d+_-?\d+$/.test(c.key) && (!v || v.v !== CACHE_V || Date.now() - v.t > CACHE_DAYS * 86400000)) { c.delete(); quitadas++; }
+              if (++n < 20) c.continue(); else res(true);
+            };
+          });
+          if (!sigue) return quitadas;
+          await new Promise((res) => setTimeout(res, 150));
+        }
+      },
     };
   })();
+  // una vez por semana
+  async function purgarCache() {
+    let last = 0; try { last = +localStorage.getItem('pintamapa_poda_zonas') || 0; } catch (e) {}
+    if (Date.now() - last < 7 * 86400000) return 0;
+    try { localStorage.setItem('pintamapa_poda_zonas', String(Date.now())); } catch (e) {}
+    return cache.purgar();
+  }
 
   // Solo guardamos lo que el juego usa de cada elemento (ocupa mucho menos)
   const KEEP_TAGS = ['highway', 'oneway', 'lanes', 'width', 'dual_carriageway', 'name', 'amenity', 'historic', 'tourism', 'building', 'memorial',
@@ -1591,15 +1632,21 @@ PM.world = (function () {
         } else if (v) { Object.assign(r, v); delete r.porque; n++; }
       }
       // la misma carta dos veces (conquistada con dos identificadores): se juntan en la más antigua
+      // (solo se comparan cartas vecinas: mismoSitio no pasa de 250 m. Antes, todas con todas, y con mil cartas eran medio millón de comparaciones cada vez)
       const ids = Object.keys(s.landmarks || {}).sort((a, b) => (s.landmarks[a].t || 0) - (s.landmarks[b].t || 0));
+      const orden = new Map(ids.map((id, i) => [id, i])), cel = (p) => [Math.floor(p[0] / 0.005), Math.floor(p[1] / 0.01)], rejilla = new Map();
+      for (const id of ids) { const p = s.landmarks[id].pos; if (!p) continue; const [a, b] = cel(p), k = a + '_' + b; (rejilla.get(k) || rejilla.set(k, []).get(k)).push(id); }
       for (let i = 0; i < ids.length; i++) {
         const A = s.landmarks[ids[i]];
-        if (!A) continue;
-        for (let j = i + 1; j < ids.length; j++) {
-          const B = s.landmarks[ids[j]];
+        if (!A || !A.pos) continue;
+        const [ca, cb] = cel(A.pos), vecinas = [];
+        for (let x = -1; x <= 1; x++) for (let y = -1; y <= 1; y++) for (const id of rejilla.get((ca + x) + '_' + (cb + y)) || []) if (orden.get(id) > i) vecinas.push(id);
+        vecinas.sort((x, y) => orden.get(x) - orden.get(y));
+        for (const idB of vecinas) {
+          const B = s.landmarks[idB];
           if (!B || !L.mismaCarta(A, B)) continue;
           // (se queda el identificador que esté en el mapa ahora; si ninguno, el de la más antigua)
-          const keep = landmarks[ids[j]] && !landmarks[ids[i]] ? ids[j] : ids[i], drop = keep === ids[i] ? ids[j] : ids[i];
+          const keep = landmarks[idB] && !landmarks[ids[i]] ? idB : ids[i], drop = keep === ids[i] ? idB : ids[i];
           const K = s.landmarks[keep], D = s.landmarks[drop];
           K.t = Math.min(K.t || Infinity, D.t || Infinity); K.visits = Math.max(K.visits || 1, D.visits || 1); K.last = Math.max(K.last || 0, D.last || 0);
           if (D.shiny) K.shiny = 1;
@@ -1644,7 +1691,7 @@ PM.world = (function () {
       for (let i = i0; i <= i1; i++) for (let j = j0; j <= j1; j++) if (!ensureTile(i + '_' + j).loaded) need.push(i + '_' + j);
       if (need.length && need.length <= 12) loadTiles(need).catch(() => {});
     },
-    albumDe, completado: () => completeChain,   // (cuando acabe la cola: Wikidata de las zonas pedidas ya ha llegado)
+    albumDe, purgarCache, completado: () => completeChain,   // (cuando acabe la cola: Wikidata de las zonas pedidas ya ha llegado)
     formaDe: fetchCityShape, conForma: (city) => !!(cityInfo[city] && cityInfo[city].polys),   // («Mi progreso»: el contorno de una ciudad sin pasear por ella)
     _graph: () => gnodes, _pool: () => pool, _classify: classify, _usoNoTuristico: L.usoNoTuristico, _revisar: (r) => { const f = L.revisarRegistro(r); if (f) Object.assign(r, f); return f; }, _conf: L.CONF, porque, _why: () => lastWhy, precargaCerca, _precarga: () => preData, _zonaPreparada: zonaPreparada, _reselect: () => selectLandmarks(), _ingest: (els, keys) => { keys.forEach((k) => ensureTile(k)); ingest(els, new Set(keys)); }, _ingestTurnos: (els, keys) => { keys.forEach((k) => ensureTile(k)); return ingestPorTurnos(els, new Set(keys)); }, _measureCity: (c) => measureCityVT(c),   // (pruebas)
     isDemo: () => demoMode,

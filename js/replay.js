@@ -9,7 +9,7 @@
 PM.replay = (function () {
   const W = 720, H = 1280, FPS = 30, DRAW_S = 12, HOLD_S = 2.5;
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-  const fmtKm = (m) => (m >= 1000 ? (m / 1000).toFixed(2).replace('.', ',') + ' km' : Math.round(m) + ' m');
+  const fmtKm = (m) => (m >= 1000 ? PM.dec(m / 1000, 2) + ' km' : Math.round(m) + ' m');
   const fmtT = (s) => { s = Math.round(s); const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), x = s % 60; return h ? `${h} h ${String(m).padStart(2, '0')} min` : `${m}:${String(x).padStart(2, '0')}`; };
   const fmtPace = (secPerKm) => !isFinite(secPerKm) || secPerKm <= 0 ? '—' : `${Math.floor(secPerKm / 60)}:${String(Math.round(secPerKm % 60)).padStart(2, '0')} /km`;
   const dist = (a, b) => { const dy = (b[0] - a[0]) * 110540, dx = (b[1] - a[1]) * 111320 * Math.cos(a[0] * Math.PI / 180); return Math.hypot(dx, dy); };
@@ -190,7 +190,7 @@ PM.replay = (function () {
     const line = data.map((x, i) => (i ? 'L' : 'M') + X(x[0]).toFixed(1) + ',' + Y(x[1]).toFixed(1)).join('');
     const area = line + `L${X(data[data.length - 1][0]).toFixed(1)},${h - 20}L${X(data[0][0]).toFixed(1)},${h - 20}Z`;
     const ticks = []; const stepKm = x1 > 8000 ? 2000 : x1 > 3000 ? 1000 : 500;
-    for (let d = stepKm; d < x1; d += stepKm) ticks.push(`<text x="${X(d)}" y="${h - 5}" text-anchor="middle">${(d / 1000).toString().replace('.', ',')} km</text><line x1="${X(d)}" x2="${X(d)}" y1="10" y2="${h - 20}"/>`);
+    for (let d = stepKm; d < x1; d += stepKm) ticks.push(`<text x="${X(d)}" y="${h - 5}" text-anchor="middle">${PM.dec(d / 1000, d % 1000 ? 1 : 0)} km</text><line x1="${X(d)}" x2="${X(d)}" y1="10" y2="${h - 20}"/>`);
     return `<svg viewBox="0 0 ${w} ${h}" class="rp-chart"><g class="ax">${ticks.join('')}</g>
       <path d="${area}" fill="${color}" fill-opacity=".18"/><path d="${line}" fill="none" stroke="${color}" stroke-width="2.2"/>
       <text x="${pad}" y="14" class="lab">${fmt(invert ? y0 : y1)} ${unit}</text><text x="${pad}" y="${h - 24}" class="lab">${fmt(invert ? y1 : y0)} ${unit}</text></svg>`;
@@ -450,7 +450,7 @@ ${segs.map((s) => `<LineString><tessellate>1</tessellate><altitudeMode>clampToGr
         ${tile('Distancia', fmtKm(A.dTot))}
         ${tile('Tiempo en movimiento', fmtT(A.moving), 'total ' + fmtT(A.elapsed))}
         ${tile('Ritmo medio', fmtPace(A.avgPace))}
-        ${tile('Velocidad media', (A.avgV * 3.6).toFixed(1).replace('.', ',') + ' km/h', A.maxV > 0 ? 'máx. ' + (A.maxV * 3.6).toFixed(1).replace('.', ',') + ' km/h' : '')}
+        ${tile('Velocidad media', PM.dec(A.avgV * 3.6, 1) + ' km/h', A.maxV > 0 ? 'máx. ' + PM.dec(A.maxV * 3.6, 1) + ' km/h' : '')}
         ${tile('Desnivel positivo', A.hasEle ? '+' + Math.round(A.up) + ' m' : '—', A.hasEle ? '−' + Math.round(A.down) + ' m negativo' : '')}
         ${tile('Altitud', A.hasEle ? Math.round(A.minE) + '–' + Math.round(A.maxE) + ' m' : '—', A.hasEle ? 'mín. – máx.' : '')}
         ${tile('Pasos', '≈ ' + A.steps.toLocaleString(PM.LOCALE), 'estimados')}
@@ -461,7 +461,7 @@ ${segs.map((s) => `<LineString><tessellate>1</tessellate><altitudeMode>clampToGr
         ${tile('Mejor combo', 'x' + (st.bestCombo || 0), st.conquests ? st.conquests + ' barrio(s) conquistado(s)' : '')}
       </div>
       <h3>Perfil de altitud</h3>${A.hasEle ? chart(P.pts, (q) => q.e, { color: '#16a34a', unit: 'm', fmt: (v) => Math.round(v) }) : '<div class="rp-empty">Sin datos de altitud (sin conexión)</div>'}
-      <h3>Ritmo</h3>${P.timed ? chart(P.pts, ((s) => (q) => s[P.pts.indexOf(q)])(paceSeries(P.pts)), { color: '#2563eb', unit: 'min/km', fmt: (v) => v.toFixed(1).replace('.', ','), invert: true })
+      <h3>Ritmo</h3>${P.timed ? chart(P.pts, ((s) => (q) => s[P.pts.indexOf(q)])(paceSeries(P.pts)), { color: '#2563eb', unit: 'min/km', fmt: (v) => PM.dec(v, 1), invert: true })
         : '<div class="rp-empty">Este paseo es anterior a la versión que guarda la hora de cada punto: aquí verás el ritmo de tus próximos paseos.</div>'}
       <h3>Parciales por kilómetro</h3>
       ${A.splits.length ? (P.timed ? '' : '<p class="rp-note">Este paseo no guardaba la hora de cada punto: el ritmo de cada kilómetro no se puede saber (solo la media). El desnivel sí es real.</p>') +
@@ -469,7 +469,7 @@ ${segs.map((s) => `<LineString><tessellate>1</tessellate><altitudeMode>clampToGr
         const pace = x.sec / (x.partial ? (x.km % 1 || 1) : 1);
         const w = best ? Math.max(8, Math.min(100, best.sec / pace * 100)) : 50;
         const isBest = P.timed && best && x === best;
-        return `<tr class="${isBest ? 'best' : ''}"><td>${x.partial ? x.km.toFixed(2).replace('.', ',') : x.km}</td><td>${P.timed ? fmtPace(pace) : '—'}</td><td>${x.de != null ? (x.de >= 0 ? '+' : '') + Math.round(x.de) + ' m' : '—'}</td><td>${P.timed ? `<i style="width:${w}%"></i>` : ''}</td></tr>`;
+        return `<tr class="${isBest ? 'best' : ''}"><td>${x.partial ? PM.dec(x.km, 2) : x.km}</td><td>${P.timed ? fmtPace(pace) : '—'}</td><td>${x.de != null ? (x.de >= 0 ? '+' : '') + Math.round(x.de) + ' m' : '—'}</td><td>${P.timed ? `<i style="width:${w}%"></i>` : ''}</td></tr>`;
       }).join('')}</table>` : '<div class="rp-empty">Menos de 1 km.</div>'}
       <h3>Vídeo del recorrido</h3>
       <div class="rp-video"><canvas width="${W}" height="${H}"></canvas>

@@ -23,11 +23,15 @@ PM.update = (function () {
     for (let i = 0; i < 3; i++) { if ((pa[i] || 0) !== (pb[i] || 0)) return (pa[i] || 0) > (pb[i] || 0); }
     return false;
   }
+  const INT_KEY = 'pintamapa_upd_fallos';
+  const fallos = () => { try { return JSON.parse(localStorage.getItem(INT_KEY) || '{}') || {}; } catch (e) { return {}; } };
+  const intentos = (v) => fallos()[v] || 0;
+  function anotarIntento(v) { try { localStorage.setItem(INT_KEY, JSON.stringify({ [v]: intentos(v) + 1 })); } catch (e) {} }
   function setStatus(msg) { try { localStorage.setItem(ST_KEY, JSON.stringify({ at: Date.now(), msg })); } catch (e) {} }
   function status() { try { return JSON.parse(localStorage.getItem(ST_KEY) || 'null'); } catch (e) { return null; } }
 
   async function fetchRemote() {
-    const r = await fetch(APP_JSON + '?t=' + Date.now(), { cache: 'no-store' });
+    const r = await fetch(APP_JSON + '?t=' + Date.now(), Object.assign({ cache: 'no-store' }, window.AbortSignal && AbortSignal.timeout ? { signal: AbortSignal.timeout(15000) } : {}));
     if (!r.ok) throw new Error('HTTP ' + r.status);
     return r.json();
   }
@@ -83,7 +87,12 @@ PM.update = (function () {
       // Antes se intentaba descargar de nuevo, el actualizador decía "esa versión ya existe" y la app se quedaba atascada.
       const list = await U().list().catch(() => ({ bundles: [] }));
       let b = (list.bundles || []).find((x) => x.version === remote.version);
-      if (b && b.status === 'error') { await U().delete({ id: b.id }).catch(() => {}); b = null; }
+      if (b && b.status === 'error') {
+        // (una versión que no arranca vuelve atrás sola; si se bajara otra vez en cada apertura, el fallo se repetiría para siempre: dos intentos por versión)
+        if (intentos(remote.version) >= 2) { setStatus(`La ${remote.version} no ha funcionado en este móvil: se espera a la siguiente`); return; }
+        anotarIntento(remote.version);
+        await U().delete({ id: b.id }).catch(() => {}); b = null;
+      }
       if (!b) {
         setStatus(`Descargando la ${remote.version}…`);
         b = await U().download({ url: remote.bundle, version: remote.version, checksum: remote.checksum });

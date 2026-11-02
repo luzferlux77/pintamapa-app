@@ -13,7 +13,7 @@ PM.i18n = (function () {
   // en castellano). Al acabar uno, se añade aquí.
   const LISTOS = ['es', 'ca', 'en', 'fr'];
   const ELEGIBLES = Object.fromEntries(Object.entries(LANGS).filter(([k]) => LISTOS.includes(k)));
-  const detect = () => { const n = String((navigator.languages && navigator.languages[0]) || navigator.language || 'es').slice(0, 2).toLowerCase(); return ELEGIBLES[n] ? n : 'es'; };
+  const detect = () => { const n = String((navigator.languages && navigator.languages[0]) || navigator.language || 'es').slice(0, 2).toLowerCase(); return ELEGIBLES[n] ? n : /^(gl|eu|ast|an)$/.test(n) ? 'es' : 'en'; };   // (móvil en otro idioma: el inglés se entiende mejor)
   let stored = null;
   try { stored = localStorage.getItem(KEY); } catch (e) { /* sin almacenamiento */ }
   const lang = ELEGIBLES[stored] ? stored : detect();
@@ -115,7 +115,7 @@ PM.i18n = (function () {
 })();
 PM.t = PM.i18n.t;
 // fechas y números a la manera de cada idioma
-PM.LOCALE = { es: PM.LOCALE, ca: 'ca-ES', en: 'en-GB', fr: 'fr-FR' }[PM.i18n.lang];
+PM.LOCALE = { es: 'es-ES', ca: 'ca-ES', en: 'en-GB', fr: 'fr-FR' }[PM.i18n.lang];
 if (typeof document !== 'undefined') {
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => PM.i18n.watch());
   else PM.i18n.watch();
