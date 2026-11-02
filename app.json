@@ -1,8 +1,8 @@
 {
-  "version": "0.7.0",
-  "notes": "Android 16: la app se actualiza a la versión actual de Android y sigue pintando al pulsar atrás en un paseo. Hay que instalar esta APK una vez",
+  "version": "0.7.1",
+  "notes": "Botones del mapa rediseñados: tres iguales con iconos de línea, brújula que señala el norte real y estado del GPS real",
   "native": 7,
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.7.0/pintamapa-web-0.7.0.zip",
-  "checksum": "771ac6c3b073b1528b1a1726ef8012b8a11bd821ac8cb29189fd1af7c2fbbe3c",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.7.0/PintaMapa-v0.7.0.apk"
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.7.1/pintamapa-web-0.7.1.zip",
+  "checksum": "14a0442d1427b1e62c5d29821347cb927759a06d8f6dc6b9d6277f126258dbe6",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.7.1/PintaMapa-v0.7.1.apk"
 }
