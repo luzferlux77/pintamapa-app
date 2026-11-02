@@ -224,7 +224,6 @@ PM.tcg = (function () {
     const R = RAR[d.rarity] || RAR.comun;
     const w = WEAK[hash(d.id) % WEAK.length], r = RES[hash(d.id + 'r') % RES.length];
     const pts = d.points || 100, revisit = Math.round(pts * 0.2);
-    const energy = (n) => `<span class="tcg-en">${('<i style="background:' + T.orb + '"></i>').repeat(n)}</span>`;
     return `<div class="tcg r-${d.rarity || 'comun'} t-${tk} ${opts.mini ? 'mini' : ''} ${d.shiny ? 'shiny' : ''} ${d.must ? 'must' : ''}" style="--orb:${T.orb};--c1:${T.c1};--c2:${T.c2};--holo:${R.holo}" data-id="${esc(d.id)}">
       <div class="tcg-rot">
         <div class="tcg-face tcg-front">

@@ -1,9 +1,8 @@
-// PintaMapa — el mundo: barrios (celdas), calles troceadas en tramos, monumentos, botes de pintura
+// PintaMapa — el mundo: barrios (celdas), calles troceadas en tramos, monumentos
 // (qué es cada sitio, cuánto vale y cuáles salen: el motor de lugares, www/js/lugares.js)
 
 PM.world = (function () {
   const TILE = 0.01;          // tamaño de barrio en grados (~1.1 km x 0.8 km en España)
-  const PIECE_LEN = 12;       // cada calle se trocea en tramos de ~12 m pintables (fiel al trazado)
   const CELL = 0.0005;        // celda del índice espacial (~50 m)
 
   // calles "de verdad": se excluyen autopistas, aceras sueltas, caminos de servicio, etc.
@@ -44,8 +43,7 @@ PM.world = (function () {
   function emit(ev, data) { listeners.forEach((fn) => fn(ev, data)); }
 
   // ---------------- Lugares: el motor (www/js/lugares.js) decide qué es cada sitio, cuánto vale y cuáles salen ----------------
-  const L = PM.lugares, RARITY = L.RARITY, RANK = L.RANK, classify = L.clasificar, GRID = L.CONF.GRID;
-  const lmGrid = {};                   // celda -> [landmarks aceptados]
+  const L = PM.lugares, RARITY = L.RARITY, classify = L.clasificar;
   let lmBatch = null;                  // candidatos de la carga actual
 
   function addLandmark(el) {
@@ -68,27 +66,16 @@ PM.world = (function () {
     const lm = landmarks[id];
     if (!lm || (PM.state && PM.state.data.landmarks[id])) return;   // lo ya conquistado se respeta
     delete landmarks[id];
-    const cell = Math.floor(lm.pos[0] / GRID) + ':' + Math.floor(lm.pos[1] / GRID);
-    if (lmGrid[cell]) lmGrid[cell] = lmGrid[cell].filter((x) => x !== lm);
     emit('lmRemoved', { id });
   }
-  function nearbyAccepted(pos, r = 1) {
-    const ci = Math.floor(pos[0] / GRID), cj = Math.floor(pos[1] / GRID), out = [];
-    for (let di = -r; di <= r; di++) for (let dj = -r; dj <= r; dj++) out.push(...(lmGrid[(ci + di) + ':' + (cj + dj)] || []));
-    return out;
-  }
-  function accept(lm) {
-    landmarks[lm.id] = lm;
-    const cell = Math.floor(lm.pos[0] / GRID) + ':' + Math.floor(lm.pos[1] / GRID);
-    (lmGrid[cell] = lmGrid[cell] || []).push(lm);
-  }
+  function accept(lm) { landmarks[lm.id] = lm; }
   // ---------- Ciudades: su contorno oficial y sus imprescindibles FIJOS ----------
   // La ciudad de un lugar sale de su contorno real (antes, del centro de su celda de ~1 km: en los límites
   // una iglesia de Barcelona podía salir «Sant Boi»). Y cada ciudad tiene sus imprescindibles fijos (las cartas doradas):
   // los lugares más conocidos de TODO el municipio según Wikidata (en cuántas wikis salen), no los que
   // haya cargados a tu alrededor (por eso antes iban cambiando). Se piden una vez y se guardan.
   // Cuántos, según su tamaño: un pueblo, unos pocos; una gran ciudad, muchos más.
-  const CITY_V = 9;   // 9: con las calles famosas, las clases nuevas y más niveles de protección; 8: imprescindibles de guía (sin universidades ni estadios corrientes, con topes por tipo); 7: con las clases nuevas; 6: sin falsos «usos no turísticos» (Liceu, Hôtel de Ville…) y lugares contiguos (Batlló y Amatller); 5: con visitantes y sin trampas para turistas; 4:   // 4: imprescindibles por interés turístico (no solo por fama: hoteles y residencias salían en L'Hospitalet o Sant Joan Despí); 3: «ciudad grande» por población
+  const CITY_V = 9;   // sube cuando cambia lo que se guarda de cada ciudad: lo guardado de otra versión se vuelve a pedir
   let mustCache = null;   // imprescindibles con su lugar del mapa (mustLists)
   function mustCount(ci, els) {
     const pop = ci.pop || 0;
@@ -208,7 +195,6 @@ PM.world = (function () {
   // Así el resultado depende solo de los datos y no del orden en que llegan (antes, en un móvil llegaba antes lo de
   // OpenStreetMap y en otro lo de Wikidata, y a cada uno le salían lugares distintos: la Font dels Nens de la Ciutadella).
   const pool = {};   // id -> candidato
-  const _pool = () => pool;
   // Un edificio grande sale en varias teselas del mapa con posiciones distintas (cada una mide su trozo): de todas las
   // copias con el mismo id se queda SIEMPRE la misma (la más al sur y al oeste), lleguen en el orden que lleguen.
   // Antes se quedaba la primera que llegaba: según el orden de carga caía en una zona u otra y cambiaba la selección.
@@ -555,7 +541,7 @@ PM.world = (function () {
   // ---------------- Caché local de barrios (IndexedDB) ----------------
   // Cada barrio se descarga una vez y se guarda 90 días: menos datos móviles, menos batería y arranque instantáneo.
   const CACHE_DAYS = 90;
-  const CACHE_V = 21;   // 21: guías, enlaces, tamaño de los sitios grandes y clases nuevas (y las zonas preparadas); 20: clases corregidas, calles famosas, protección nacional de todo el mundo y nombres en mayúscula; 19: año también de la inauguración (P1619: estaciones antiguas como la de Cornellà); 18: clases por orden fijo (lo que el edificio ES), catedrales católicas/anglicanas/ortodoxas, sin conjuntos ni esculturas de museo; 17: visitantes al año y atracción turística (puntuación de guía); 16: uso de cada edificio (hotel, escuela…) para la puntuación; 15: templos budistas y sintoístas, rascacielos, sin barrios ni cuadros de museo; 14: nivel de patrimonio, zoos, acuarios, puertas de muralla (puntuación igual para todos); 13: estaciones de tren históricas de Wikidata (antes se perdían); 12: lugares solo de mapas vectoriales + Wikidata   // súbelo si cambia lo que se descarga (p. ej. nuevos tipos de puntos): fuerza a renovar la caché
+  const CACHE_V = 22;   // 22: las zonas guardadas por la versión previa, sin las preparadas; 21: guías, enlaces, tamaño de los sitios grandes y clases nuevas (y las zonas preparadas); 20: clases corregidas, calles famosas, protección nacional de todo el mundo y nombres en mayúscula; 19: año también de la inauguración (P1619: estaciones antiguas como la de Cornellà); 18: clases por orden fijo (lo que el edificio ES), catedrales católicas/anglicanas/ortodoxas, sin conjuntos ni esculturas de museo; 17: visitantes al año y atracción turística (puntuación de guía); 16: uso de cada edificio (hotel, escuela…) para la puntuación; 15: templos budistas y sintoístas, rascacielos, sin barrios ni cuadros de museo; 14: nivel de patrimonio, zoos, acuarios, puertas de muralla (puntuación igual para todos); 13: estaciones de tren históricas de Wikidata (antes se perdían); 12: lugares solo de mapas vectoriales + Wikidata   // súbelo si cambia lo que se descarga (p. ej. nuevos tipos de puntos): fuerza a renovar la caché
   const cache = (function () {
     let dbp = null;
     function db() {
@@ -1144,7 +1130,6 @@ PM.world = (function () {
         keys.forEach((k) => { tiles[k].loaded = true; tiles[k].partial = false; });
       }
     } finally { keys.forEach((k) => loading.delete(k)); }
-    keys.forEach((k) => spawnCans(k));
     emit('loaded', { tiles: keys });
     keys.forEach((k) => nameTile(k));
   }
@@ -1235,6 +1220,62 @@ PM.world = (function () {
       emit('loaded', { tiles: [] });
     }
   }
+  // ---------- Álbum de cada ciudad (scripts/pois/albumes.mjs → GitHub Pages) ----------
+  // La lista fija de sus lugares por barrios, recortada con su contorno real. Sin archivo propio, una ciudad pequeña sale del de
+  // la grande que la rodea; sin ninguno: sus imprescindibles y lo que hayas descubierto (y crece al explorar).
+  const ALB_CDN = 'https://luzferlux77.github.io/pintamapa-app/albumes/', albMem = new Map();
+  async function albumArchivo(q, t) {
+    let d = await cache.get('alb:' + q);
+    if (!d || d.t !== t) {
+      try { const r = await fetch(ALB_CDN + q + '.json', { signal: AbortSignal.timeout(15000) }); if (r.ok) { d = await r.json(); cache.put('alb:' + q, d); } } catch (e) { /* sin conexión: lo guardado, si había */ }
+    }
+    return d || null;
+  }
+  async function fotoCiudad(ci) {
+    if (ci.foto !== undefined || !ci.q) return ci.foto || null;
+    try {
+      const j = await (await fetch(`https://www.wikidata.org/wiki/Special:EntityData/${ci.q}.json`, { signal: AbortSignal.timeout(15000) })).json();
+      const c = ((j.entities[ci.q] || {}).claims || {}).P18, f = c && c[0].mainsnak.datavalue && c[0].mainsnak.datavalue.value;
+      ci.foto = f ? `https://commons.wikimedia.org/wiki/Special:FilePath/${encodeURIComponent(f)}?width=900` : null;
+      saveCityInfo();
+      return ci.foto;
+    } catch (e) { return null; }
+  }
+  async function albumDe(city) {
+    const ci = cityInfo[city], forma = !!(ci && ci.polys), memo = albMem.get(city), nL = Object.keys(landmarks).length;
+    if (memo && (!memo.parcial || (memo.nL === nL && memo.forma === forma))) return memo;   // (si el contorno llega después, se rehace)
+    const out = { portada: null, b: [], d: [], l: [], parcial: true, nL, forma }, vistos = new Set(), nb = new Map();
+    const barrio = (n, dist) => { const k = (dist || '') + '|' + n; if (!nb.has(k)) { nb.set(k, out.b.length); out.b.push(n); out.d.push(dist || ''); } return nb.get(k); };
+    const poner = (e) => { if (!vistos.has(e.q)) { vistos.add(e.q); out.l.push(e); } };
+    if (ci && ci.polys) {
+      const [s, w, n, e] = ci.bbox;
+      // con archivo propio, solo ese: tiene todos sus lugares y sus barrios oficiales, y un lugar que saliera del archivo de la
+      // vecina se iría a un distrito de la vecina. Sin él, lo de las ciudades que la alcanzan
+      const idx = await preIdx(), propia = idx.find((c) => c.q === ci.q);
+      for (const c of propia ? [propia] : idx) {
+        const dLat = c.r / 110.54, dLon = c.r / (111.32 * Math.cos(c.c[0] * Math.PI / 180));
+        if (c.c[0] + dLat < s || c.c[0] - dLat > n || c.c[1] + dLon < w || c.c[1] - dLon > e) continue;
+        const d = await albumArchivo(c.q, c.t);
+        if (!d) continue;
+        if (c.q === ci.q) out.portada = d.portada;
+        out.parcial = false; if (d.oficial) out.oficial = true;
+        for (const x of d.l) if (inCity([x[4], x[5]], ci)) poner({ q: x[0], name: x[1], emoji: x[2], kind: x[3], pos: [x[4], x[5]], bi: barrio(d.b[x[6]], (d.d || [])[x[6]]), rarity: x[7], must: !!x[8] });
+      }
+      const fijos = new Set((ci.must || []).map((m) => m.q));
+      for (const e2 of out.l) e2.must = fijos.size ? fijos.has(e2.q) : e2.must;
+      for (const m of ci.must || []) poner({ q: m.q, name: m.name, emoji: m.emoji, kind: m.kind, pos: m.pos, bi: barrio(''), must: true });
+    }
+    // sin archivo, o con uno que casi no trae nada (un pueblo con un solo lugar con artículo: Pozuelo de Calatrava): también lo que
+    // ya se conoce de la ciudad, por los nombres de barrio del mapa
+    if (out.l.length < 12) out.parcial = true;
+    if (out.parcial) for (const lm of Object.values(landmarks)) if (api.cityAt(lm.pos) === city) poner({ q: lm.wd || lm.id.replace(/^n(?=M\d)/, ''), name: lm.name, emoji: lm.emoji, kind: lm.kind, pos: lm.pos, bi: barrio((barrioOf(lm.pos) || {}).name || ''), must: !!lm.must });
+    // cuadernos de 1 o 2 lugares que el recorte ha dejado sueltos: juntos
+    const cuenta = {}; out.l.forEach((e2) => (cuenta[e2.bi] = (cuenta[e2.bi] || 0) + 1));
+    if (!out.oficial) for (const e2 of out.l) if (cuenta[e2.bi] < 3) { const dist = out.d[e2.bi]; e2.bi = barrio(dist, dist); }   // (un barrio oficial nunca se junta con otro)
+    if (!out.portada && ci) out.portada = await fotoCiudad(ci);
+    albMem.set(city, out);
+    return out;
+  }
   async function ensureAround(lat, lon) {
     precargaCerca(lat, lon);
     if (around) { pending = [lat, lon]; return around; }
@@ -1300,10 +1341,6 @@ PM.world = (function () {
     }
     t.loaded = true; t.demo = true;
   }
-
-  // ---------------- Botes de pintura del día (como "pokéballs" en el suelo) ----------------
-  const cans = {}; // id -> {id, pos, tile, kind}
-  function spawnCans() {}   // los botes de pintura ya no salen en el mapa
 
   // ---------------- Nombres de barrio y ciudad (Nominatim) ----------------
   const nameQueue = [];
@@ -1453,7 +1490,7 @@ PM.world = (function () {
   }
 
   const api = {
-    TILE, RARITY, tiles, pieces, landmarks, cans, updateMustSee,
+    TILE, RARITY, tiles, pieces, landmarks, updateMustSee,
     tileKeyOf, tileBounds, ensureAround, piecesNear, onChange,
     barrios, barrioAt: barrioOf, barrioComplete, route, joinsOf, setAvoid, isAvoided, addLegacyGeo, ensureKeys, unloadTiles,
     cityAt(p) { const c = shapeCity(p); if (c) return c; const t = tiles[tileKeyOf(p[0], p[1])]; return (t && t.city) || (PM.state && (PM.state.data.tileNames[tileKeyOf(p[0], p[1])] || {}).city) || null; },
@@ -1547,7 +1584,7 @@ PM.world = (function () {
       for (let i = i0; i <= i1; i++) for (let j = j0; j <= j1; j++) if (!ensureTile(i + '_' + j).loaded) need.push(i + '_' + j);
       if (need.length && need.length <= 12) loadTiles(need).catch(() => {});
     },
-    completado: () => completeChain,   // (cuando acabe la cola: Wikidata de las zonas pedidas ya ha llegado)
+    albumDe, completado: () => completeChain,   // (cuando acabe la cola: Wikidata de las zonas pedidas ya ha llegado)
     _graph: () => gnodes, _pool: () => pool, _classify: classify, _usoNoTuristico: L.usoNoTuristico, _revisar: (r) => { const f = L.revisarRegistro(r); if (f) Object.assign(r, f); return f; }, _conf: L.CONF, porque, _why: () => lastWhy, precargaCerca, _precarga: () => preData, _zonaPreparada: zonaPreparada, _reselect: () => selectLandmarks(), _ingest: (els, keys) => { keys.forEach((k) => ensureTile(k)); ingest(els, new Set(keys)); }, _measureCity: (c) => measureCityVT(c),   // (pruebas)
     isDemo: () => demoMode,
     setDemo: (v) => { demoMode = v; },

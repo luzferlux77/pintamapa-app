@@ -106,7 +106,8 @@ PM.cards = (function () {
     // (las fotos de los alrededores elegidas con la regla antigua —cualquier foto a menos de 60 m— se revisan; y al
     // cambiar de idioma, el texto se vuelve a buscar en el nuevo)
     if (cache && !caduca(cache)) return cache;
-    let info = null, foto = null;
+    // (un lugar añadido a mano no tiene artículo: su texto viene con él)
+    let info = lm.texto ? { text: lm.texto, credit: lm.fuente } : null, foto = null;
     try {
       // su artículo de Wikipedia EN EL IDIOMA ELEGIDO (de un artículo en otro idioma solo se aprovecha la foto)
       if (lm.wiki && /^[a-z]{2,3}:/.test(lm.wiki)) {
@@ -361,12 +362,11 @@ PM.cards = (function () {
     const ids = Object.keys(s.landmarks).sort((a, b) => s.landmarks[b].t - s.landmarks[a].t);
     let tab = 'cromos';
     const draw = async () => {
-      let html = `<div class="seg tabs"><button class="btn ${tab === 'cromos' ? 'on' : ''}" data-t="cromos">🃏 Cromos (${ids.length})</button>
+      let html = `<div class="seg tabs"><button class="btn ${tab === 'cromos' ? 'on' : ''}" data-t="cromos">📖 Álbumes (${PM.album.ciudades().length})</button>
         <button class="btn ${tab === 'col' ? 'on' : ''}" data-t="col">📚 Colecciones</button>
         <button class="btn ${tab === 'bar' ? 'on' : ''}" data-t="bar">🏘️ Barrios (${Object.keys(s.barrioCards || {}).length})</button>
         <button class="btn ${tab === 'must' ? 'on' : ''}" data-t="must">⭐ Imprescindibles</button></div>`;
       if (tab === 'cromos') {
-        if (!ids.length) html += '<p class="muted">Aún no tienes cromos. Quédate 10 s junto a un monumento, iglesia, plaza… para conquistarlo.</p>';
         html += '<div id="city-stacks"></div>';
       } else if (tab === 'col') {
         // por ciudad: conquistados / descubiertos
@@ -404,7 +404,7 @@ PM.cards = (function () {
           : '<p class="muted">Aún no hay imprescindibles. Abre el mapa de una ciudad y aparecerán aquí los lugares que no te puedes perder (siempre los mismos; más cuanto más grande es la ciudad).</p>';
       } else {
         const bc = Object.entries(s.barrioCards || {}).sort((a, b) => b[1].t - a[1].t);
-        html += bc.length ? '<div class="cromos">' + bc.map(([id, b]) => barrioCardHTML(b)).join('') + '</div>'
+        html += bc.length ? '<div class="cromos">' + bc.map(([, b]) => barrioCardHTML(b)).join('') + '</div>'
           : '<p class="muted">Conquista un barrio (pinta el 60 % de sus calles) y aquí aparecerá su cromo con la silueta pintada de tu color.</p>';
         const cities = Object.entries(s.cityCards || {});
         if (cities.length) html += '<h4>👑 Ciudades</h4><div class="cromos">' + cities.map(([c, v]) => `<div class="cromo r-legendario city"><div class="cromo-in"><div class="cara front">
@@ -412,16 +412,13 @@ PM.cards = (function () {
           <div class="pie"><b>${esc(c)}</b><small>Conquistada el ${new Date(v.t).toLocaleDateString(PM.LOCALE)}</small></div></div></div></div>`).join('') + '</div>';
       }
       container.innerHTML = html;
-      if (tab === 'cromos' && ids.length) {
+      if (tab === 'cromos') {
         // mazos por ciudad (la que más cartas tiene, primero): se despliegan al tocar
-        const byCity = {};
-        for (const id of ids) { const c = s.landmarks[id].city || 'Otros lugares'; (byCity[c] = byCity[c] || []).push(id); }
-        const draw2 = () => PM.tcg.stacks(container.querySelector('#city-stacks'),
-          PM.tcg.byCountry(Object.entries(byCity).map(([city, list]) => ({ city, ids: list })), s.countries), dataFor, (el, id) => el.addEventListener('click', () => open(id)), 'cromos');
-        draw2();
-        // ciudades sin país aún: se averigua (una vez) y se recoloca
-        const cityPos = {}; for (const [c, list] of Object.entries(byCity)) cityPos[c] = s.landmarks[list[0]].pos;
-        PM.ensureCountries(s, cityPos).then((ch) => { if (ch) { PM.state.save(); if (container.querySelector('#city-stacks')) draw2(); } });
+        // (las cartas sin ciudad conocida van en su mazo, como antes)
+        const sueltas = ids.filter((id) => !s.landmarks[id].city || PM.album.NO_ES_CIUDAD.test(s.landmarks[id].city));
+        const vista = PM.album.montar(container.querySelector('#city-stacks'), { datos: dataFor, abrir: open, irA: opts.goTo });
+        if (opts.ciudad) vista.ciudad(opts.ciudad);
+        if (sueltas.length) { const box = document.createElement('div'); container.appendChild(box); PM.tcg.stacks(box, [{ city: 'Otros lugares', ids: sueltas }], dataFor, (el, id) => el.addEventListener('click', () => open(id)), 'cromos'); }
       }
       container.querySelectorAll('[data-t]').forEach((b) => b.addEventListener('click', () => { tab = b.dataset.t; draw(); }));
       container.querySelectorAll('[data-go]').forEach((b) => b.addEventListener('click', () => { const id = b.dataset.go; if (s.landmarks[id]) open(id); else if (opts.goTo) opts.goTo(id); }));

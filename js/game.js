@@ -2,16 +2,7 @@
 // Dos perfiles separados: 'real' (GPS del móvil, tu cuenta, se sincroniza con el PC)
 // y 'prueba' (simulación con teclado/joystick, nunca se mezcla con el real).
 PM.isNative = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
-PM.profile = (function () {
-  let p = null;
-  try { p = localStorage.getItem('pintamapa_profile'); } catch (e) {}
-  if (!PM.isNative) return 'prueba';          // en el PC se juega siempre en prueba
-  return 'real';                               // en el móvil solo existe la partida real (sin modo prueba)
-})();
-PM.switchProfile = function (p) {
-  try { localStorage.setItem('pintamapa_profile', p); } catch (e) {}
-  location.reload();
-};
+PM.profile = PM.isNative ? 'real' : 'prueba';   // en el móvil solo existe la partida real; en el PC se juega siempre en prueba
 
 // Pintor (jugador) de este dispositivo: se pide el nombre al empezar. Cada nombre tiene su propia partida,
 // así queda preparada la separación de perfiles (varias personas en el mismo móvil o PC).
@@ -65,7 +56,6 @@ PM.state = (function () {
     citiesWon: {},      // ciudad -> fecha
     cities: {},         // ciudad -> {total}
     tileNames: {},
-    cansTaken: {},      // id -> 1 (ids incluyen la fecha)
     achievements: {},
     cardInfo: {},       // cromos: foto/texto de Wikipedia por monumento
     cardPhotos: {},     // cromos con foto propia (la imagen está en el móvil)
@@ -74,7 +64,7 @@ PM.state = (function () {
     setsDone: {},       // colecciones temáticas: nivel conseguido (1 bronce, 2 plata, 3 oro)
     avoid: [],          // zonas a evitar: { id, type:'barrio', name } | { id, type:'circle', c:[lat,lon], r }
     avoidRemoved: {},   // zonas quitadas (para que la nube no las devuelva)
-    stats: { paintedM: 0, walkedM: 0, bestCombo: 0, captures: 0, cans: 0, days: 0, streak: 0, lastDay: null, churches: 0 },
+    stats: { paintedM: 0, walkedM: 0, bestCombo: 0, captures: 0, days: 0, streak: 0, lastDay: null, churches: 0 },
     daily: null,
     lastPos: null,
     walks: [],          // historial de paseos: {id, start, elapsed, st, track:[[lat,lon],...]}
@@ -87,6 +77,7 @@ PM.state = (function () {
   try { data = Object.assign(fresh(), JSON.parse(localStorage.getItem(KEY) || '{}')); }
   catch (e) { data = fresh(); }
   data.stats = Object.assign(fresh().stats, data.stats);
+  delete data.cansTaken; delete data.stats.cans;   // (los botes de pintura ya no existen; los puntos que dieron se quedan)
   data.walks = (data.walks || []).filter((w) => (w.elapsed || 0) >= 120000);   // paseos de < 2 min: fuera del historial
   PM.limpiarPartida(data);
 
@@ -176,7 +167,6 @@ PM.game = (function () {
 
   // ---------------- Combo y potenciadores ----------------
   let combo = 0, lastPaintT = 0;
-  let goldenUntil = 0;
   function comboMult() { return Math.min(3, 1 + Math.floor(combo / 10) * 0.25); }
   function tickCombo(now) {
     if (combo && now - lastPaintT > 12000) { combo = 0; emit('combo', { combo }); }
@@ -198,14 +188,13 @@ PM.game = (function () {
     if (combo > s.stats.bestCombo) s.stats.bestCombo = combo;
     let pts = 10 * comboMult();
     if (nearLandmark) pts *= 2;           // aura de monumento
-    if (now < goldenUntil) pts *= 3;      // pintura dorada
     addXP(pts, 'paint');
     progressMission('paint', piece.len);
     progressMission('combo', combo, true);
     const hour = new Date().getHours();
     if (hour < 8) unlock('madrugador');
     if (hour >= 22) unlock('noctambulo');
-    emit('painted', { piece, pts, combo, mult: comboMult(), aura: !!nearLandmark, golden: now < goldenUntil });
+    emit('painted', { piece, pts, combo, mult: comboMult(), aura: !!nearLandmark });
     checkTile(piece.tile);
     if (piece.barrio) checkBarrio(piece.barrio);
     checkPaintAchievements();
@@ -328,6 +317,7 @@ PM.game = (function () {
       s.landmarks[lm.id] = { t: now, last: now, visits: 1, name: lm.name, kind: lm.kind, emoji: lm.emoji, rarity: lm.rarity,
         pos: [+lm.pos[0].toFixed(6), +lm.pos[1].toFixed(6)], wiki: lm.wiki || null, wd: lm.wd || null,
         porque: (PM.lugares && PM.lugares.porQue(lm)) || null,   // por qué merece la pena (UNESCO, visitas, siglo…)
+        ...(lm.texto ? { texto: lm.texto, fuente: lm.fuente } : {}),   // (lugar añadido a mano: su texto va con la carta, sin artículo donde buscarlo)
         her: lm.her || 0, anio: lm.anio || 0, vis: lm.vis || 0, wp: lm.wp || 0,      // (para la descripción de la carta)
         city: PM.world.cityAt(lm.pos), barrio: (PM.world.barrioAt(lm.pos) || {}).name || null };
       if (lm.must) s.landmarks[lm.id].must = 1;   // imprescindible de su ciudad: vale el doble
@@ -384,20 +374,6 @@ PM.game = (function () {
     if (n >= 10) unlock('reportero');
     emit('photo', { id, bonus });
     checkSets();
-  }
-
-  // ---------------- Botes de pintura ----------------
-  function takeCan(can) {
-    const s = S();
-    if (s.cansTaken[can.id]) return;
-    s.cansTaken[can.id] = 1;
-    s.stats.cans++;
-    if (can.kind === 'gold') {
-      goldenUntil = Math.max(Date.now(), goldenUntil) + 60000;
-      addXP(100, 'can');
-    } else addXP(50, 'can');
-    progressMission('cans', 1);
-    emit('can', { can });
   }
 
   // ---------------- Misiones diarias ----------------
@@ -548,7 +524,6 @@ PM.game = (function () {
   serie('sendero', '🌲', [1, 5, 10, 25], 'Senderista', (t) => `Pinta ${t} km de senderos y caminos`, (s) => km(s.stats.trailM || 0));
   serie('puntos', '🏆', [10000, 50000, 100000, 250000, 500000, 1000000, 2000000, 5000000], 'Puntos', (t) => `Consigue ${PM.fmtNum ? PM.fmtNum(t) : t} puntos`, (s) => s.xp || 0);
 
-  let achReady = false;
   let achT = 0;
   function checkAll() {
     if (!document.getElementById('hud') || !PM.state) return;   // solo en el juego (no en la web de progreso)
@@ -562,7 +537,6 @@ PM.game = (function () {
       try { if (a.check(s)) unlock(id, first); } catch (e) { /* dato que aún no existe */ }
     }
     if (first) { s.achInit = Date.now(); PM.state.save(); }
-    achReady = true;
   }
   setInterval(checkAll, 8000);
   setTimeout(checkAll, 1500);
@@ -587,9 +561,8 @@ PM.game = (function () {
   return {
     on: (fn) => listeners.push(fn),
     level, levelProgress, COLORS, ACHIEVEMENTS, checkAchievements: checkAll, REVISIT_MS, addXP,
-    paintPiece, repass, tileProgress, cityProgress, barrioProgress, checkBarrio, checkSets, photoTaken, visitLandmark, takeCan, ensureDaily, addWalk, tickCombo,
+    paintPiece, repass, tileProgress, cityProgress, barrioProgress, checkBarrio, checkSets, photoTaken, visitLandmark, ensureDaily, addWalk, tickCombo,
     get combo() { return combo; },
     comboMult,
-    goldenLeft: () => Math.max(0, goldenUntil - Date.now()),
   };
 })();

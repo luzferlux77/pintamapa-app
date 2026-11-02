@@ -171,7 +171,7 @@ PM.vtiles = (function () {
     });
     // nombres de barrio (puntos)
     const PL = layers[schema === 'omt' ? 'place' : 'place_labels'];
-    if (PL) PL.feats.forEach((F, i) => {
+    if (PL) PL.feats.forEach((F) => {
       const p = props(PL, F), kind = p.class || p.kind;
       if (!p.name || !/^(suburb|quarter|neighbourhood)$/.test(kind)) return;
       const g = lines(F)[0];

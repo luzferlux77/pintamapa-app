@@ -53,7 +53,7 @@ PM.update = (function () {
     } catch (e) {}
   }
 
-  async function check(manual, toast) {
+  async function check(manual) {
     lastCheck = Date.now();
     if (PM.walking && PM.walking()) { setStatus('Actualización en espera: se buscará al terminar el paseo'); return; }
     let remote;
@@ -136,8 +136,8 @@ PM.update = (function () {
   function watch(toast) {
     if (watching) return;
     watching = true;
-    setTimeout(() => check(false, toast), 1500);
-    const maybe = () => { if (!document.hidden && Date.now() - lastCheck > 30 * 60000) check(false, toast); };
+    setTimeout(() => check(false), 1500);
+    const maybe = () => { if (!document.hidden && Date.now() - lastCheck > 30 * 60000) check(false); };
     document.addEventListener('visibilitychange', maybe);
     setInterval(maybe, 15 * 60000);
   }

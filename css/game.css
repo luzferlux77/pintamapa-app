@@ -24,12 +24,9 @@ body.dark {
   --introbg: radial-gradient(circle at 50% 30%, #2a1030, var(--bg) 70%); --cardbg: linear-gradient(160deg, #23283a, #12141d);
   --shadow: none;
 }
-body.dark .dark-tiles { filter: invert(1) hue-rotate(180deg) brightness(.75) contrast(1.1) saturate(.35); }
 html, body { margin: 0; height: 100%; overflow: hidden; position: fixed; inset: 0; background: var(--bg); color: var(--text);
   font-family: "Segoe UI", system-ui, -apple-system, Roboto, sans-serif; user-select: none; }
 #map { position: absolute; inset: 0; background: var(--mapbg); }
-.leaflet-control-attribution { background: rgba(0,0,0,.5) !important; color: #888 !important; font-size: 10px; margin-bottom: calc(130px + var(--safe-bottom)) !important; }
-.leaflet-control-attribution a { color: #aaa !important; }
 button { font: inherit; color: inherit; cursor: pointer; }
 
 .bar { height: 8px; background: var(--track); border-radius: 99px; overflow: hidden; position: relative; }
@@ -55,8 +52,8 @@ button { font: inherit; color: inherit; cursor: pointer; }
 #badges { position: absolute; z-index: 500; left: 12px; top: calc(160px + var(--safe-top)); display: flex; flex-direction: column; gap: 6px; align-items: flex-start; pointer-events: none; }
 .badge { box-shadow: var(--shadow); background: var(--panel); border: 1px solid var(--line); padding: 5px 10px; border-radius: 99px; font-size: 12px; }
 .badge.bad { border-color: #ef4444; color: #dc2626; }
-#gps, #aura, #golden, #loading { display: none; }
-#gps.show, #aura.show, #golden.show, #loading.show { display: block; }
+#gps, #aura, #loading { display: none; }
+#gps.show, #aura.show, #loading.show { display: block; }
 .badge.aura { border-color: var(--gold); color: var(--gold); animation: glow 1.2s 6 alternate; }
 .badge.gold { background: linear-gradient(90deg, #8a6100, #ffc531); color: #1a1200; font-weight: 700; }
 @keyframes glow { to { box-shadow: 0 0 14px var(--gold); } }
@@ -86,11 +83,8 @@ button { font: inherit; color: inherit; cursor: pointer; }
 /* Monumento conquistado: con tu color y bandera, para siempre */
 .lm.conq { animation: none; background: var(--paint); border-color: #fff; box-shadow: 0 0 0 3px var(--paint), 0 0 18px var(--paint); position: relative; }
 .lm.conq span { filter: drop-shadow(0 1px 1px rgba(0,0,0,.4)); }
-.lmflag { position: absolute; right: -10px; top: -14px; font-size: 16px; font-style: normal; filter: drop-shadow(0 1px 2px rgba(0,0,0,.5)); }
 /*sin uso*/.lm.got::after { content: '✓'; position: absolute; margin: 24px 0 0 26px; background: #22c55e; color: #fff; font-size: 11px; width: 16px; height: 16px; border-radius: 50%; display: grid; place-items: center; font-weight: 900; }
 @keyframes bob { 50% { transform: translateY(-4px); } }
-.can { font-size: 22px; animation: bob 1.4s ease-in-out infinite; filter: drop-shadow(0 0 6px #22d3ee); }
-.can.gold { filter: drop-shadow(0 0 10px #ffc531) sepia(1) saturate(4) hue-rotate(5deg); }
 .flag { font-size: 26px; filter: drop-shadow(0 2px 4px #000); }
 
 /* FX */
@@ -143,7 +137,7 @@ body.sim #joy { display: block; }
 .stamp b { display: block; font-size: 11.5px; margin-top: 4px; line-height: 1.2; }
 .stamp small { color: var(--muted); font-size: 10px; }
 .stamp.r-raro { border-color: #3fa9ff; } .stamp.r-epico { border-color: #b65cff; } .stamp.r-legendario { border-color: #ffb700; }
-.stamp.unknown div, .stamp.locked div { filter: grayscale(1) brightness(.4); }
+.stamp.locked div { filter: grayscale(1) brightness(.4); }
 .stamp.locked { opacity: .55; }
 .mission { background: var(--card); border-radius: 12px; padding: 10px 12px; margin-bottom: 8px; }
 .mission .mt { display: flex; justify-content: space-between; gap: 8px; font-size: 14px; margin-bottom: 7px; }
@@ -176,16 +170,6 @@ kbd { background: var(--btn); border-radius: 5px; padding: 1px 6px; color: var(-
 /* Carta de monumento capturado */
 #card { position: absolute; inset: 0; z-index: 850; display: none; place-items: center; background: rgba(0,0,0,.55); }
 #card.show { display: grid; }
-.cardin { width: min(80vw, 300px); background: var(--cardbg); border-radius: 22px; padding: 22px 18px; text-align: center; border: 3px solid #9aa4b2; animation: pop .45s cubic-bezier(.2,1.6,.4,1); position: relative; }
-.cardin.r-raro { border-color: #3fa9ff; box-shadow: 0 0 40px #3fa9ff; }
-.cardin.r-epico { border-color: #b65cff; box-shadow: 0 0 40px #b65cff; }
-.cardin.r-legendario { border-color: #ffb700; box-shadow: 0 0 60px #ffb700; }
-.cardin .rar { position: absolute; top: -13px; left: 50%; transform: translateX(-50%); padding: 3px 14px; border-radius: 99px; font-weight: 900; font-size: 12px; color: #111; text-transform: uppercase; letter-spacing: 1px; }
-.cardin .big { font-size: 64px; margin: 6px 0; }
-.cardin h2 { margin: 4px 0; font-size: 19px; }
-.cardin p { margin: 0; color: var(--muted); }
-.cardin .pts { font-size: 26px; font-weight: 900; color: var(--gold); margin: 10px 0 6px; }
-.cardin small { color: var(--muted); font-size: 11px; }
 @keyframes pop { from { transform: scale(.3) rotate(-8deg); opacity: 0; } }
 
 #celebrate { position: absolute; inset: 0; z-index: 880; display: none; place-items: center; background: radial-gradient(circle, rgba(0,0,0,.4), rgba(0,0,0,.85)); color: #fff; }
@@ -219,7 +203,6 @@ kbd { background: var(--btn); border-radius: 5px; padding: 1px 6px; color: var(-
 .sinfo b { display: flex; align-items: center; gap: 7px; font-size: 18px; font-variant-numeric: tabular-nums; }
 .sinfo small { display: block; color: var(--muted); font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .rec { width: 10px; height: 10px; border-radius: 50%; background: #ef4444; display: inline-block; box-shadow: 0 0 0 3px rgba(239,68,68,.25); }   /* fijo (parpadear sin fin gastaba batería) */
-@keyframes blink { 50% { opacity: .2; } }
 .sbtn { width: 48px; height: 48px; padding: 0; font-size: 20px; border-radius: 14px; flex: none; }
 .sbtn.go { background: #16a34a; border-color: #16a34a; }
 .sbtn.stop { background: #ef4444; border-color: #ef4444; color: #fff; }
@@ -304,8 +287,6 @@ details.howto ol { padding-left: 18px; line-height: 1.6; }
 #cloud-banner span { flex: 1; } #cloud-banner .x { background: none; border: none; font-size: 16px; }
 #bk-banner { position: fixed; top: auto; bottom: calc(150px + var(--safe-bottom)); left: 10px; right: 10px; z-index: 900; display: flex; gap: 8px; align-items: center; background: var(--panel); border: 2px solid var(--paint); border-radius: 14px; padding: 10px 12px; box-shadow: var(--shadow); font-size: 13.5px; }
 #bk-banner span { flex: 1; } #bk-banner .x { background: none; border: none; font-size: 16px; }
-.howto-card { text-align: left; background: var(--card); border-radius: 12px; padding: 12px 14px; font-size: 13.5px; line-height: 1.5; }
-.howto-card ol { padding-left: 18px; margin: 8px 0; }
 
 /* ================= Cromos ================= */
 .tabs { margin-bottom: 12px; flex-wrap: wrap; } .tabs .btn { font-size: 13px; padding: 8px 10px; }
@@ -333,24 +314,13 @@ details.howto ol { padding-left: 18px; line-height: 1.6; }
   animation: holo 5s ease-in-out infinite; }
 .r-epico .holo { opacity: .6; }
 @keyframes holo { 0%, 100% { background-position: 0% 0%; } 50% { background-position: 100% 100%; } }
-.back { transform: rotateY(180deg); padding: 14px 12px; display: flex; flex-direction: column; background: linear-gradient(160deg, #fff, #eef1f7); }
-.back h3 { margin: 0 0 6px; font-size: 16px; color: #1a1d29; }
-.back p { font-size: 12.5px; line-height: 1.45; color: #2b3040; margin: 0 0 8px; overflow: auto; flex: 1; }
-.back ul { list-style: none; padding: 0; margin: 0 0 6px; font-size: 12px; color: #2b3040; line-height: 1.6; }
-.back small { font-size: 10px; color: #7a8399; } .back small a { color: var(--paint); }
 .cromo.barrio .foto.sil { background: #141722; }
 .cromo.barrio svg { width: 100%; height: 100%; } .cromo.barrio polyline { fill: none; stroke: var(--paint); stroke-width: 1.4; stroke-linecap: round; filter: drop-shadow(0 0 1px var(--paint)); }
 .cromo.city .foto.vacia { background: radial-gradient(circle, #fff3c4, #ffb700); }
-/* Vista grande */
-#cromo-view { position: fixed; inset: 0; z-index: 1150; display: none; place-items: center; background: rgba(10,10,25,.72); backdrop-filter: blur(4px); }
-#cromo-view.show { display: grid; }
-.cv-in { display: flex; flex-direction: column; align-items: center; gap: 14px; padding: 16px; animation: pop .5s cubic-bezier(.2,1.6,.4,1); }
 .cromo.big { width: min(78vw, 340px); }
 .cromo.big .pie b { font-size: 18px; } .cromo.big .pie small { font-size: 12.5px; } .cromo.big .cinta { font-size: 12px; }
-.cv-new { background: var(--gold); color: #1a1200; font-weight: 900; padding: 6px 16px; border-radius: 99px; box-shadow: 0 0 24px var(--gold); font-size: 15px; }
 .cv-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
 .cv-actions .btn { background: #fff; color: #1a1d29; } .cv-actions .btn.on { background: var(--paint); color: #fff; }
-.cv-hint { color: #fff; font-size: 13px; max-width: 320px; text-align: center; margin: 0; opacity: .9; }
 /* Editor de foto */
 #foto-editor { position: fixed; inset: 0; z-index: 3200; display: grid; place-items: center; background: rgba(10,10,25,.85); }
 .fe-in { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 16px; color: #fff; }
@@ -402,7 +372,6 @@ html, body { font-size: 15.5px; font-family: system-ui, -apple-system, "Segoe UI
 .badge.aura { animation: none; }
 .lm.conq { box-shadow: 0 0 0 3px var(--paint); }
 #nav button { font-size: 12.5px; color: var(--muted); }
-.cardin { animation: none; }
 .lvl { border-color: var(--accent); box-shadow: none; font-size: 17px; }
 #nav button span svg { display: block; width: 24px; height: 24px; color: var(--muted); }
 #hud .lvl, #hud .xp { cursor: pointer; }
@@ -429,7 +398,7 @@ body.dark .maplibregl-ctrl-attrib { background: rgba(0,0,0,.5) !important; color
 /* --- fluidez al mover el mapa en el móvil: marcadores sin animaciones ni sombras difuminadas --- */
 .lm, .lm.r-raro, .lm.r-epico, .lm.r-legendario { animation: none !important; box-shadow: 0 1px 3px rgba(0,0,0,.25) !important; }
 .lm.conq { box-shadow: 0 0 0 3px var(--paint) !important; }
-.lm.conq span, .lmflag, .flag { filter: none !important; text-shadow: 0 1px 2px rgba(0,0,0,.35); }
+.lm.conq span, .flag { filter: none !important; text-shadow: 0 1px 2px rgba(0,0,0,.35); }
 .maplibregl-marker { contain: layout style; }
 
 /* Igual en cualquier móvil: el tamaño de letra del sistema no descuadra la app; textos largos del marcador en una línea */
@@ -536,7 +505,6 @@ input.sw:checked { background: var(--accent, #2563eb); } input.sw:checked::after
 /* medallas de rango sobre los barrios */
 .flag.rk1, .flag.rk2, .flag.rk3 { font-size: 22px; filter: drop-shadow(0 1px 2px rgba(0,0,0,.35)); }
 .flag.rk3 { filter: drop-shadow(0 0 5px #facc15); }   /* brillo fijo: animar una sombra obligaba a repintar sin parar (batería) */
-@keyframes rkglow { to { filter: drop-shadow(0 0 6px #facc15); } }
 .pf-week { display: flex; align-items: center; gap: 12px; width: 100%; margin-bottom: 12px; padding: 12px 14px; border: 0; border-radius: 16px; cursor: pointer; text-align: left; color: #fff; font: inherit;
   background: linear-gradient(120deg, var(--paint, #2563eb), #7c3aed); box-shadow: var(--shadow); }
 .pf-week span { font-size: 28px; } .pf-week div { flex: 1; } .pf-week b { display: block; font-size: 15px; } .pf-week small { font-size: 12px; opacity: .9; } .pf-week em { font-style: normal; font-size: 18px; }

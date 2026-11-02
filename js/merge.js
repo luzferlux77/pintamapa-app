@@ -10,7 +10,7 @@
       out[k] = Object.assign({}, a[k] || {});
       for (const [id, v] of Object.entries(b[k] || {})) out[k][id] = out[k][id] ? Math.min(out[k][id], v) : v;
     };
-    ['painted', 'cansTaken', 'tileNames', 'barrioNames', 'cardInfo', 'barrioCards', 'cityCards'].forEach(union);
+    ['painted', 'tileNames', 'barrioNames', 'cardInfo', 'barrioCards', 'cityCards'].forEach(union);
     // fotos propias: por cada carta gana la foto MÁS RECIENTE (antes, siempre la del segundo: una copia vieja tapaba una nueva)
     out.cardPhotos = Object.assign({}, a.cardPhotos || {});
     for (const [id, v] of Object.entries(b.cardPhotos || {})) { const o = out.cardPhotos[id]; if (!o || !v || (v.t || 0) >= (o.t || 0)) out.cardPhotos[id] = v; }
@@ -22,7 +22,7 @@
     for (const [k, v] of Object.entries(b.cities || {})) { const o = out.cities[k]; out.cities[k] = o && o.total && !o.src && v && v.src ? o : v; }
     out.setsDone = Object.assign({}, a.setsDone);
     for (const [k, v] of Object.entries(b.setsDone || {})) out.setsDone[k] = Math.max(out.setsDone[k] || 0, v);
-    ['conquered', 'perfect', 'conqueredB', 'perfectB', 'citiesWon', 'achievements'].forEach(unionMin);
+    ['conquered', 'perfect', 'conqueredB', 'perfectB', 'citiesWon', 'achievements', 'albumes'].forEach(unionMin);
     out.xpBy = Object.assign({}, a.xpBy);
     for (const [k, v] of Object.entries(b.xpBy || {})) out.xpBy[k] = Math.max(out.xpBy[k] || 0, v);
     out.heat = Object.assign({}, a.heat);

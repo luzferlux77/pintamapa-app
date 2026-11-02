@@ -12,7 +12,6 @@
   const CAPTURE_SECONDS = 10;   // …durante este tiempo para capturarlo (no vale pasar de largo)
   const CAPTURE_EXIT = 40;      // m: margen para que un salto del GPS no cancele la captura
   const AURA_RADIUS = 80;       // m de "aura" de monumento (puntos x2)
-  const CAN_RADIUS = 25;        // m para recoger un bote
   const MAX_SPEED = 7;          // m/s (~25 km/h): más rápido no pinta (anti-coche) en modo GPS
 
   // Punto de inicio de la simulación (sin GPS): Carrer de Bellaterra, Cornellà de Llobregat
@@ -34,7 +33,6 @@
   // Mapa base de OpenFreeMap (datos de OpenStreetMap, gratis y sin clave). Encima, capas propias: calles jugables,
   // lo pintado (con intensidad por pasadas), contornos de barrio, zonas evitadas y halos de conquista.
   const start = S().lastPos || HOME;
-  const STYLE = PM.mapStyle.URL;
   const ll = (p) => [p[1], p[0]];   // el juego usa [lat, lon]; MapLibre, [lon, lat]
   let curStyle = S().theme === 'dark' ? 'dark' : 'light';
   const map = new maplibregl.Map({ container: 'map', style: PM.mapStyle.styleURL(curStyle), center: ll(start), zoom: 17, attributionControl: false,
@@ -43,7 +41,7 @@
   // ¿el dedo está moviendo el mapa? (mientras, ni la brújula ni la cámara lo mueven: si no, se pelean y va a tirones)
   let userGesture = false, gestureEnd = 0;
   map.on('movestart', (e) => { if (e.originalEvent) userGesture = true; });
-  map.on('moveend', (e) => { if (userGesture) { userGesture = false; gestureEnd = performance.now(); } });
+  map.on('moveend', () => { if (userGesture) { userGesture = false; gestureEnd = performance.now(); } });
   // dedos sobre el mapa: mientras haya alguno (sobre todo al hacer pinza) la cámara que te sigue NO toca el mapa;
   // si lo hiciera cortaría el gesto a medias y el zoom costaría mucho
   let touching = 0;
@@ -247,7 +245,7 @@
     setSrc('pm-streets', FC(f));
   }
   function rebuildPainted() {
-    const f = [], painted = S().painted, cos = [];
+    const f = [], painted = S().painted;
     for (const k of viewTiles()) {   // por zona, una figura por intensidad (0-3) en vez de una por tramo
       const by = [[], [], [], []], t = W.tiles[k], seen = new Set();
       const isP = (id) => !!painted[id];
@@ -445,7 +443,7 @@
       lmHalos[lm.id] = { type: 'Feature', properties: {}, geometry: { type: 'Point', coordinates: ll(lm.pos) } };
       setSrc('pm-halos', FC(Object.values(lmHalos)));
     }
-    const h = lmHalos[lm.id], m = !!(lm.must || (S().landmarks[lm.id] || {}).must) ? 1 : 0;
+    const h = lmHalos[lm.id], m = lm.must || (S().landmarks[lm.id] || {}).must ? 1 : 0;
     if (h && h.properties.m !== m) { h.properties.m = m; setSrc('pm-halos', FC(Object.values(lmHalos))); }
   }
   // Halo simbólico de los conquistados: un círculo de tu color y ondas que salen de él, en bucle, SOLO mientras pintas.
@@ -524,10 +522,6 @@
   }
   // tocar un lugar del mapa
   map.on('click', 'pm-lms', (e) => { const it = e.features && lmIndex[e.features[0].properties.id]; if (it) showLandmarkInfo(it.lm); });
-
-  // Botes de pintura (ya no salen; se deja el hueco por compatibilidad)
-  const canMarkers = {};
-  function renderCans() {}
 
   // Jugador: punto con tu color, flecha de rumbo, anillo de pintura (alcance del pincel) y anillo dorado de captura
   let pos = start.slice();
@@ -690,7 +684,7 @@
     if (painting && !isTeleport) { session.lastSeen = Date.now(); session.gaps = pendingGaps; }   // si Android cierra la app, se sabe desde cuándo falta el recorrido
     PM.state.save();
 
-    if (painting) { checkLandmarksAndCans(p, visible, now); if (!visible) checkNearCard(p); }
+    if (painting) { checkLandmarks(p, visible, now); if (!visible) checkNearCard(p); }
     const tk = W.tileKeyOf(p[0], p[1]);
     if (tk !== curTile) { curTile = tk; W.ensureAround(p[0], p[1]); }
     if (visible) updateSpeedBadge();
@@ -950,24 +944,18 @@
     for (const q of pcs) { if (S().painted[q.id]) G.repass(q); else G.paintPiece(q, aura); }
   }
 
-  // Radar: el monumento sin capturar y el bote más cercanos, con distancia y flecha (anima a desviarse un poco)
+  // Radar: el monumento sin capturar más cercano, con distancia y flecha (anima a desviarse un poco)
   function bearingTo(a, b) {
     const dx = (b[1] - a[1]) * PM.geo.mPerDegLon(a[0]), dy = (b[0] - a[0]) * PM.geo.mPerDegLat;
     return (Math.atan2(dx, dy) * 180 / Math.PI + 360) % 360;
   }
   function updateRadar() {
     if (document.hidden || !session) { $('#radar').classList.remove('show'); return; }
-    let lm = null, lmD = Infinity, can = null, canD = Infinity;
+    let lm = null, lmD = Infinity;
     for (const id in W.landmarks) {
       if (S().landmarks[id]) continue;
       const d = PM.geo.dist(pos, W.landmarks[id].pos);
       if (d < lmD) { lmD = d; lm = W.landmarks[id]; }
-    }
-    for (const id in canMarkers) {
-      const c = W.cans[id];
-      if (!c || S().cansTaken[id]) continue;
-      const d = PM.geo.dist(pos, c.pos);
-      if (d < canD) { canD = d; can = c; }
     }
     const arrow = (t) => `<i class="rarrow" style="transform:rotate(${bearingTo(pos, t) - map.getBearing()}deg)">➤</i>`;
     const parts = [];
@@ -1024,17 +1012,13 @@
   // quieto junto al monumento no llegan lecturas nuevas del GPS: se comprueba cada segundo con la última posición
   setInterval(() => { if (session && !session.paused) checkDwell(pos, Date.now(), !document.hidden); }, 1000);   // también en el bolsillo: quieto junto a un lugar, el GPS no manda nada nuevo
 
-  function checkLandmarksAndCans(p, visible = true, t = Date.now()) {
+  function checkLandmarks(p, visible = true, t = Date.now()) {
     const n = nearestLandmark(p);
     nearCache = { t: performance.now(), v: n };
     auraEl.classList.toggle('on', n.d <= AURA_RADIUS);
     $('#aura').classList.toggle('show', n.d <= AURA_RADIUS);
     if (n.lm && n.d <= AURA_RADIUS) $('#aura').textContent = `✨ Aura de ${PM.t(n.lm.kind).toLowerCase()} · pintura x2`;
     checkDwell(p, t, visible);
-    for (const id in canMarkers) {
-      const c = W.cans[id];
-      if (c && !S().cansTaken[id] && PM.geo.dist(p, c.pos) <= CAN_RADIUS) G.takeCan(c);
-    }
   }
 
   // Ritmos: todos pintan igual (de paseo lento a correr rápido). Solo por encima de MAX_SPEED (vehículo) no se pinta.
@@ -1289,11 +1273,11 @@
   PM.debug = { map, walkTo(p) { target = p; follow = true; }, setPace(i) { pace = i; turbo = false; }, get pos() { return pos.slice(); },
     get bearing() { return map.getBearing(); }, get heading() { return heading; }, get gap() { return { lastP, lastT, pending: pendingGaps.length, autoResumed, lastSeen: session && session.lastSeen }; }, trim: () => trimMemory(), revisar: () => revisarCartas(), backup: () => buildBackup(), importData: (d) => importData(d), fix(lat, lon, t, acc = 5, spd, brg) { const m = mode; mode = 'gps'; try { onFix({ latitude: lat, longitude: lon, accuracy: acc, speed: spd, bearing: brg }, t); } finally { mode = m; } }, newSession() { if (session) endSession(); startSession(); $('#sheet').classList.remove('show'); }, endSession: () => endSession(), get sessionTrack() { return session && session.track; }, harvest: () => harvestOld(), flushGeo: () => geoFlush(), get geo() { return { pgeo: pgeo.size, zonas: pgeoTile.size, barrios: Object.keys(bgeo).length, recogidas: Object.keys(harvested).length, ready: geoReady }; }, get painted() { return paintedF; },
     // avanza el juego n fotogramas a mano (pruebas con la pestaña oculta, donde el navegador congela la animación)
-    frames(n, ms = 50) { let t = lastFrame; for (let i = 0; i < n; i++) { t += ms; loop(t, true); } } };
+ };
   PM.debug.fx = (id) => conquestFX(id || curBarrio);   // pruebas: animación de conquista
 
   let lastFrame = performance.now();
-  function loop(now, manual) {
+  function loop(now) {
     const dt = Math.min(0.1, (now - lastFrame) / 1000);
     lastFrame = now;
     if (mode === 'sim') {
@@ -1334,7 +1318,6 @@
     stepHalos();
     G.tickCombo(Date.now());
     flushPaint();
-    if (manual) return;
     // sin nada que mover (quieto, sin girar, sin pintar pendiente): el bucle descansa 1/4 s en vez de ir a 60 por
     // segundo. Cualquier novedad (GPS, giro, simulador) lo despierta al momento con wakeLoop().
     const busy = mode === 'sim' || anim || Math.abs(angDiff(heading, headingTarget)) >= 0.3 || Math.abs(map.getPitch() - pitchTarget) > 0.3
@@ -1511,7 +1494,7 @@
       session.paused = true;
     }
   }
-  const newSessionStats = () => ({ walked: 0, painted: 0, pts: 0, pieces: 0, captures: 0, cans: 0, bestCombo: 0, conquests: 0 });
+  const newSessionStats = () => ({ walked: 0, painted: 0, pts: 0, pieces: 0, captures: 0, bestCombo: 0, conquests: 0 });
 
   function sessionElapsed() {
     if (!session) return 0;
@@ -1581,7 +1564,7 @@
     showSummary(s);
     PM.sync.auto(toast);
     setTimeout(backupReminder, 8000);
-    setTimeout(() => PM.update.check(false, toast), 5000);
+    setTimeout(() => PM.update.check(false), 5000);
   }
 
   function fmtTime(ms) {
@@ -1766,6 +1749,7 @@
       setT('#barrio-pct', !B ? '' : !done ? 'calculando…' : B.total ? (pr * 100).toFixed(1) + ' %' : 'sin calles');
       setW('#barrio-bar i', (pr * 100).toFixed(1) + '%');
       if (t.city) {
+        if (begun) albumPisado(t);
         const cp = G.cityProgress(t.city);
         setT('#city', `${S().citiesWon[t.city] ? '👑 ' : '🏙️ '}${t.city} · ${(cp.pct * 100).toFixed(cp.pct < 0.01 ? 2 : 1)} %` +
           (cp.real ? ` de ${PM.fmtDist(cp.total)} de calles` : ' (midiendo ciudad…)'));
@@ -1779,9 +1763,6 @@
     const cb = $('#combo');
     cb.classList.toggle('show', c >= 3);
     setH(cb, `<b>x${G.comboMult().toFixed(2).replace(/\.?0+$/, '')}</b><span>COMBO ${c}</span>`);
-    const gl = G.goldenLeft();
-    $('#golden').classList.toggle('show', gl > 0);
-    setT('#golden', `✨ Pintura dorada x3 · ${Math.ceil(gl / 1000)} s`);
   }
   setInterval(updateHUD, 250);
 
@@ -1892,7 +1873,7 @@
         const now = performance.now();
         if (!document.hidden && now - splatThrottle > 120) {
           splatThrottle = now;
-          floatText('+' + Math.round(d.pts), d.golden ? 'gold' : d.aura ? 'aura' : '');
+          floatText('+' + Math.round(d.pts), d.aura ? 'aura' : '');
           splat();
           PM.sound.splat(d.combo);
         }
@@ -1914,13 +1895,6 @@
           PM.sound.capture(); PM.vibrate([60, 40, 120]);
           if (d.shiny) { setTimeout(() => { confetti(); PM.sound.fanfare(); PM.vibrate([100, 60, 100, 60, 300]); }, 400); }
         } else toast(`${lm.emoji} Has vuelto a <b>${PM.esc(lm.name)}</b> · +${d.pts}`, 'ok');
-        break;
-      }
-      case 'can': {
-        if (session) session.st.cans++;
-        if (canMarkers[d.can.id]) { canMarkers[d.can.id].remove(); delete canMarkers[d.can.id]; }
-        PM.sound.pickup(); PM.vibrate(50);
-        toast(d.can.kind === 'gold' ? '✨ ¡Bote DORADO! Pintura x3 durante 60 s' : '🪣 ¡Bote de pintura! +50', d.can.kind === 'gold' ? 'gold' : 'ok');
         break;
       }
       case 'conquered':
@@ -1989,7 +1963,7 @@
     if (ev === 'loaded' || ev === 'partial') {
       if (ev === 'loaded') { retryGaps(); geoHarvest(d.tiles); }
       d.tiles.forEach((k) => renderTile(k, true));
-      renderLandmarks(); renderCans();
+      renderLandmarks();
       if (ev === 'loaded') $('#loading').classList.remove('show');
       else $('#loading').textContent = '🗺️ Ya puedes pintar · completando el barrio…';
       if (lastP && session && !session.paused) paintAround(lastP);
@@ -2025,12 +1999,34 @@
       ${!got ? '<p class="muted">Pista: ' + PM.esc(lm.name).replace(/[^\s]/g, (ch, i) => (i % 3 === 0 ? ch : '•')) + '</p>' : ''}`);
   }
 
-  function panelAlbum() {
-    openSheet('🃏 Álbum de cromos', '<div id="album-box"></div>');
-    PM.cards.album($('#album-box'), { goTo: goToPlace });
+  function panelAlbum(ciudad) {
+    openSheet('📖 Mis álbumes', '<div id="album-box"></div>');
+    PM.cards.album($('#album-box'), { goTo: goToPlace, ciudad: typeof ciudad === 'string' ? ciudad : null });
+  }
+  // El álbum de una ciudad aparece la primera vez que la pisas. Las ciudades donde ya habías estado lo tienen desde el principio, sin aviso.
+  function albumPisado(t) {
+    const s = S();
+    if (!s.albumes) {
+      s.albumes = {};
+      for (const r of Object.values(s.landmarks)) if (r.city && !PM.album.NO_ES_CIUDAD.test(r.city)) s.albumes[r.city] = r.t || Date.now();
+      for (const [k, n] of Object.entries(s.tileNames || {})) if (n.city && (s.paintedByTile || {})[k] > 0 && !PM.album.NO_ES_CIUDAD.test(n.city) && !s.albumes[n.city]) s.albumes[n.city] = Date.now();
+      PM.state.save();
+    }
+    const city = W.cityAt(pos) || t.city;
+    if (!city || PM.album.NO_ES_CIUDAD.test(city) || s.albumes[city] || !t.loaded) return;
+    s.albumes[city] = Date.now(); PM.state.save();
+    PM.album.nuevo(city, (c) => panelAlbum(c)).catch(() => {});
   }
   // centra el mapa en un lugar y abre su carta (o su ficha si aún no es tuyo)
   function goToPlace(id) {
+    if (id && id.pos) {   // hueco del álbum: se va allí, aunque ese lugar aún no esté cargado
+      $('#sheet').classList.remove('show');
+      follow = false; zoomAround(); $('#btn-center').classList.add('show'); clearTimeout(recenterTimer); recenterTimer = setTimeout(recenter, 25000);
+      map.easeTo({ center: ll(id.pos), zoom: Math.max(16.2, map.getZoom()), duration: 900 });
+      W.ensureAround(id.pos[0], id.pos[1]);
+      toast(`📍 ${esc(id.name)}: te falta en el álbum`, 'info');
+      return;
+    }
     let lm = W.landmarks[id] || (S().landmarks[id] && Object.assign({ id }, S().landmarks[id]));
     if (!lm && /^q:/.test(id)) {   // imprescindible de la lista de su ciudad que aún no se ha cargado: se va allí y aparece al cargar
       const e = [].concat(...Object.values(W.mustLists())).find((x) => x.q === id.slice(2));
@@ -2163,7 +2159,7 @@
   }
   function showBarrioHistory(id) {
     if (!id) return;
-    const I = barrioInfo(id), s = S();
+    const I = barrioInfo(id);
     const fmtD = (t) => new Date(t).toLocaleDateString(PM.LOCALE, { day: 'numeric', month: 'short', year: 'numeric' });
     const span = (a, b) => { const d = Math.max(0, Math.round((b - a) / 86400000)); return d === 0 ? 'el mismo día' : d === 1 ? 'en 1 día' : `en ${d} días`; };
     // línea de tiempo
@@ -2569,7 +2565,7 @@
     });
     if ($('#opt-upd')) $('#opt-upd').addEventListener('click', async () => {
       $('#opt-upd').textContent = '⏳ Buscando…';
-      await PM.update.check(true, toast);
+      await PM.update.check(true);
       panelProfile();
     });
     $('#opt-sound') && $('#opt-sound').addEventListener('change', (e) => { PM.sound.enabled = e.target.checked; });
@@ -2606,24 +2602,14 @@
 
   function renderSimPanel() {
     if (PM.isNative) { $('#modebtn').style.display = 'none'; return; }   // móvil: solo real, sin selector de modo
-    $('#modebtn').textContent = PM.isNative ? (PM.profile === 'real' ? '📡 Real' : '🕹️ Prueba')
-      : (mode === 'sim' ? '🕹️ Prueba' : '📡 GPS (prueba)');
-    $('#modebtn').classList.toggle('test', PM.profile === 'prueba');
-  }
-  function switchTo(p) {
-    if (session && !confirm('Tienes un paseo en marcha en este perfil. Quedará en pausa. ¿Cambiar?')) return;
-    if (session && !session.paused) pauseSession();
-    stopGPS();
-    PM.state.flush();
-    PM.switchProfile(p);
+    $('#modebtn').textContent = mode === 'sim' ? '🕹️ Prueba' : '📡 GPS (prueba)';
+    $('#modebtn').classList.add('test');
   }
   function panelSim() {
     const html = `
-      <div class="seg"><button class="btn ${mode === 'gps' ? 'on' : ''}" id="m-gps">📡 ${PM.isNative ? 'Real (GPS)' : 'GPS del PC'}</button>
+      <div class="seg"><button class="btn ${mode === 'gps' ? 'on' : ''}" id="m-gps">📡 GPS del PC</button>
       <button class="btn ${mode === 'sim' ? 'on' : ''}" id="m-sim">🕹️ Prueba</button></div>
-      <p class="muted">${PM.isNative
-        ? 'Son dos partidas separadas: <b>Real</b> es lo que pintas andando por la calle (se guarda en tu cuenta y se ve en tu PC). <b>Prueba</b> es para simular con el joystick sin tocar tu progreso real.'
-        : 'En el PC siempre juegas en el perfil de <b>prueba</b>. Tu progreso real (el del móvil) lo ves en <a href="progreso.html" target="_blank">📊 Mi progreso</a>.'}</p>
+      <p class="muted">En el PC siempre juegas en el perfil de <b>prueba</b>. Tu progreso real (el del móvil) lo ves en <a href="progreso.html" target="_blank">📊 Mi progreso</a>.</p>
       <h4>Teletransporte</h4>
       <select id="preset"><option value="">Elige una ciudad…</option>${PRESETS.map((p, i) => `<option value="${i}">${p.name}</option>`).join('')}</select>
       <div class="row"><input id="coords" placeholder="lat, lon (ej. 40.4168, -3.7038)"><button class="btn" id="go">Ir</button></div>
@@ -2641,16 +2627,11 @@
       </ul>
       <p class="muted">En modo GPS, si vas a más de 25 km/h la pintura no se pega: ¡hay que ir andando o corriendo!</p>`;
     openSheet('🕹️ Modo de juego', html);
-    $('#m-gps').addEventListener('click', () => {
-      if (PM.isNative) { if (PM.profile !== 'real') switchTo('real'); } else { setMode('gps'); panelSim(); }
-    });
-    $('#m-sim').addEventListener('click', () => {
-      if (PM.isNative) { if (PM.profile !== 'prueba') switchTo('prueba'); } else { setMode('sim'); panelSim(); }
-    });
+    $('#m-gps').addEventListener('click', () => { setMode('gps'); panelSim(); });
+    $('#m-sim').addEventListener('click', () => { setMode('sim'); panelSim(); });
     $('#preset').addEventListener('change', (e) => {
       const p = PRESETS[+e.target.value]; if (!p) return;
       W.setDemo(!!p.demo);
-      if (PM.isNative && PM.profile === 'real') { toast('El teletransporte solo está en el perfil de Prueba 😉', 'warn'); return; }
       if (mode !== 'sim') setMode('sim');
       teleport(p.p); $('#sheet').classList.remove('show');
     });
@@ -2658,7 +2639,6 @@
       const m = $('#coords').value.split(',').map((x) => parseFloat(x));
       if (m.length === 2 && m.every(isFinite)) {
         W.setDemo(false);
-        if (PM.isNative && PM.profile === 'real') { toast('El teletransporte solo está en el perfil de Prueba 😉', 'warn'); return; }
         if (mode !== 'sim') setMode('sim');
         teleport(m); $('#sheet').classList.remove('show');
       } else toast('Formato: lat, lon', 'warn');

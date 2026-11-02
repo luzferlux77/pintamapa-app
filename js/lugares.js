@@ -177,8 +177,8 @@
 
   // ---------------- Valor de guía de cada tipo de lugar ----------------
   // Lo que recomiendan las guías, arriba (monumentos, miradores, ruinas, museos, mercados históricos); los servicios
-  // (hospitales, bomberos, bibliotecas, campos de fútbol, facultades…) siguen siendo cartas, pero solo rellenan las
-  // zonas que no tienen nada mejor.
+  // (bibliotecas, campos de fútbol…) siguen siendo cartas, pero solo rellenan las zonas que no tienen nada mejor.
+  // (Hospital y Bomberos ya no salen en el mapa: siguen aquí por las cartas antiguas, hasta que las revise revisarRegistro)
   const TIPO_GUIA = { Ayuntamiento: 100, Catedral: 95, Castillo: 90, Basílica: 85, Palacio: 84, Museo: 78, Monumento: 75, 'Ermita / Monasterio': 74,
     Ruinas: 72, 'Torre / Puerta': 70, Estadio: 70, Iglesia: 66, Templo: 66, Estación: 66, 'Zoo / Acuario': 64, Mirador: 62, 'Iglesia principal': 75,
     Faro: 60, Rascacielos: 60, Plaza: 60, Puente: 64, Aeropuerto: 60, 'Calle emblemática': 62, Patrimonio: 58, Teatro: 58, 'Parque temático': 58, Parque: 55, Mercado: 55, Molino: 55,
@@ -249,7 +249,7 @@
   // («Conjunto arqueológico de Tarraco» y su anfiteatro, «Centre històric d'Split i Palau de Dioclecià» y el palacio)
   const CONJUNTO = /^(conjunto|conjunt|ensemble|complejo|centre hist[oò]ric|centro hist[oó]rico|casco (antiguo|hist[oó]rico)|historic cent(er|re))\b/i;
   function repetidoMust(list, pos, nm) {
-    return list.some((x) => { const d = geo().dist(x.pos, pos); return d < 40 || (sameName(x.name, nm) && d < 400) || (d < 150 && (CONJUNTO.test(x.name) || CONJUNTO.test(nm))); });
+    return list.some((x) => { const d = geo().dist(x.pos, pos); return d < 40 || (sameName(x.name, nm) && d < 400) || (norm(x.name) === norm(nm) && d < 1000) || (d < 150 && (CONJUNTO.test(x.name) || CONJUNTO.test(nm))); });
   }
   // Los imprescindibles de una ciudad: los N lugares de más interés dentro de su término (sin repetir el mismo sitio)
   function elegirImprescindibles(els, N) {
@@ -269,9 +269,13 @@
 
   // ---------------- Candidato: un elemento del mapa o de Wikidata → lugar con su puntuación (o por qué no) ----------------
   const NO_EVANG_DEN = /evangel|pentecost|baptist|adventist|jehovah|protestant|neo/i;
-  const NO_EVANG_NAME = /evang[eè]li|pentecost|bautista|baptist|adventista|filad[eè]lfia|sal[oó]n del reino|kingdom hall|testigos de jehov|centro cristiano|comunidad cristiana|ministerio|iglesia de dios|asamblea de dios|cuerpo de cristo|betel|el shaddai|nueva vida|manantial de vida|fuente de vida|casa de oraci[oó]n|tabern[aá]culo|\belim\b/i;   // (con \b: si no, la mezquita de Yavuz Selim salía como evangélica)
+  const NO_EVANG_NAME = /[eé]vang[eèé]li|pentecost|bautista|baptist(?!er|[eè]re)|adventista|filad[eè]lfia|sal[oó]n del reino|kingdom hall|testigos de jehov|centro cristiano|comunidad cristiana|ministerio|iglesia de dios|asamblea de dios|cuerpo de cristo|betel|el shaddai|nueva vida|manantial de vida|fuente de vida|casa de oraci[oó]n|tabern[aá]culo|\belim\b/i;   // (con \b: si no, la mezquita de Yavuz Selim salía como evangélica)
+  // (San Juan Bautista y los cuatro evangelistas son santos, no una confesión: se quitaban iglesias católicas de todo el mundo, como
+  // la de San Juan Bautista de Pozuelo de Calatrava, Bien de Interés Cultural, o la románica de San Juan Evangelista de Arroyo)
+  const SANTO_EVANG = /\b(juan|joan|john|johann(es)?|jean|giovanni|jan|jo[aã]o|ioan|mateo|matteo|matthew|matth[aä]us|marcos|marco|mark|markus|lucas|luca|luke|lukas)\b[\s-]+((el|the|il|o|de)[\s-]+)?(bautista|baptist[ae]?|battista|evangelist[ae]?)/gi;
+  const nombreEvangelico = (n) => NO_EVANG_NAME.test(String(n || '').replace(SANTO_EVANG, ' '));
   function evangelica(tags) {
-    return tags.amenity === 'place_of_worship' && (NO_EVANG_DEN.test(tags.denomination || '') || NO_EVANG_NAME.test(tags.name || ''));
+    return tags.amenity === 'place_of_worship' && (NO_EVANG_DEN.test(tags.denomination || '') || nombreEvangelico(tags.name));
   }
   const geo = () => PM.geo;
   function candidato(el) {
@@ -328,14 +332,14 @@
     const tipo = bibHist ? TIPO_GUIA.Patrimonio : TIPO_GUIA[c.kind] != null ? TIPO_GUIA[c.kind] : c.prio, trampa = TRAMPA.test(tags.name) ? -30 : 0;
     const guia = serv ? 0 : guiaPuntos(tags), lect = serv ? 0 : lecturasPuntos(tags), prot = [0, 4, 12, 30][her], prio = tipo + fame + prot + ajuste + uso + edad + vis + atr + trampa + guia + lect;
     const lm = { id: el.type[0] + el.id, name: tags.name, kind: c.kind, emoji: c.emoji, rarity, pos, prio, fromWd: !!tags._wp, wp, her, wiki: tags.wikipedia, wd: tags.wikidata,
-      vis: +tags._vis || 0, anio: +tags.start_date || 0, guia: guiaN(tags), pv: +tags._pv || 0, osm: tags._osm ? String(tags._osm).split(',') : null,
+      texto: tags._txt || null, fuente: tags._fte || null, vis: +tags._vis || 0, anio: +tags.start_date || 0, guia: guiaN(tags), pv: +tags._pv || 0, osm: tags._osm ? String(tags._osm).split(',') : null,
       desglose: { tipo, fama: fame, proteccion: prot, ajuste, uso, antiguedad: edad, visitantes: vis, atraccion: atr, trampa, guia, lecturas: lect },
       townhall: c.kind === 'Ayuntamiento', church: /^(Iglesia|Basílica|Catedral)$/.test(c.kind), points: 100 * RARITY[rarity].mult,
       // icónicos: SIEMPRE visibles, sin separación mínima ni cupo de zona: ayuntamiento, catedral, basílica, castillo,
       // estación histórica, Patrimonio de la Humanidad o nacional, lo famoso de verdad (12+ idiomas) y los palacios,
       // museos, estadios, zoos, parques temáticos y monasterios con artículo en 5+ idiomas. El resto compite por su
       // sitio con cupo por zona y por tipo (seleccionar).
-      principal: c.kind !== 'Comercio emblemático' && !trampa && (/^(Ayuntamiento|Catedral|Basílica|Castillo)$/.test(c.kind) || (c.kind === 'Estación' && (her >= 2 || wp >= 5))
+      principal: !!tags._oblig || c.kind !== 'Comercio emblemático' && !trampa && (/^(Ayuntamiento|Catedral|Basílica|Castillo)$/.test(c.kind) || (c.kind === 'Estación' && (her >= 2 || wp >= 5))
         || her === 3 || (her === 2 && wp >= 4) || (wp >= 12 && (c.kind !== 'Rascacielos' || wp >= 25))   // (rascacielos: solo los famosos en todo el mundo)
         || (/^(Palacio|Museo|Estadio|Zoo \/ Acuario|Parque temático|Ermita \/ Monasterio)$/.test(c.kind) && wp >= 5)),
       capR: Math.max(capRadius(c.kind, c.kind === 'Aeropuerto' ? (wp >= 30 ? 'grande' : '') : wiki || wp >= 2), capDeLado(tags._lado)) };
@@ -526,7 +530,7 @@
     if (!r || !r.name) return null;
     const n = r.name;
     // (lo que no depende de si es patrimonio: siempre)
-    if (/^(Iglesia|Iglesia principal|Templo)$/.test(r.kind || '') && NO_EVANG_NAME.test(n)) return 'quitar';
+    if (/^(Iglesia|Iglesia principal|Templo)$/.test(r.kind || '') && nombreEvangelico(n)) return 'quitar';
     if (r.kind === 'Estación' && /(^|[^a-zà-ÿ])metro([^a-zà-ÿ]|$)/i.test(n)) return 'quitar';
     if (TRAMPA.test(n)) return 'quitar';
     const dudoso = r.kind === 'Universidad' || r.kind === 'Hospital' || r.kind === 'Bomberos' || r.kind === 'Estación' || USO_RE.test(n) || (UNI_NAME.test(n) && !UNI_OTRO.test(n));

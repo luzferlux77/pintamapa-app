@@ -24,7 +24,7 @@
         const tags = {};
         for (const [k, v] of Object.entries(t)) { const kk = R[k] || k; tags[kk] = kk === 'heritage' && v === 1 ? 'yes' : v; }
         // mismo orden de claves que la consulta por zona (por si algo dependiera del orden)
-        return { type: 'node', id, lat, lon, tags: Object.assign({ historic: tags.historic }, tags, { name, wikidata: id }) };
+        return { type: 'node', id, lat, lon, tags: Object.assign({ historic: tags.historic }, tags, { name, wikidata: /^Q\d/.test(id) ? id : undefined }) };   // (un lugar añadido a mano no tiene ficha en Wikidata)
       }),
     });
   }

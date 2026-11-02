@@ -38,7 +38,7 @@ PM.geo = {
   lerp(a, b, t) { return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t]; },
 };
 
-// Generador pseudoaleatorio reproducible (misiones del día, botes de pintura...)
+// Generador pseudoaleatorio reproducible (misiones del día...)
 PM.rng = function (seedStr) {
   let h = 1779033703 ^ seedStr.length;
   for (let i = 0; i < seedStr.length; i++) {
@@ -82,13 +82,13 @@ PM.limpiarPartida = function (d) {
     for (const id of Object.keys(o)) {
       const r = o[id];
       if (!r || typeof r !== 'object') { delete o[id]; continue; }   // registro roto (null, número…): fuera
-      for (const f of ['name', 'city', 'barrio', 'kind', 'addr', 'ctx', 'desc', 'credit', 'porque', 'emoji', 'rarity', 'color']) if (typeof r[f] === 'string') r[f] = L(r[f]);
+      for (const f of ['name', 'city', 'barrio', 'kind', 'addr', 'ctx', 'desc', 'credit', 'porque', 'texto', 'fuente', 'emoji', 'rarity', 'color']) if (typeof r[f] === 'string') r[f] = L(r[f]);
     }
   }
   for (const k of ['barrioNames']) { const o = obj(d[k]); if (o) for (const id of Object.keys(o)) o[id] = typeof o[id] === 'string' ? L(o[id]) : ''; }
   { const o = obj(d.tileNames); if (o) for (const id of Object.keys(o)) { const v = o[id]; if (!v || typeof v !== 'object') delete o[id]; else { v.name = L(v.name); v.city = L(v.city); } } }
   { const o = obj(d.countries); if (o) for (const id of Object.keys(o)) { const v = o[id]; if (!v || typeof v !== 'object') delete o[id]; else v.name = L(v.name); } }
-  for (const k of ['citiesWon', 'cities', 'cityRank']) {   // (ciudades como clave: una clave con < > se renombra)
+  for (const k of ['citiesWon', 'cities', 'cityRank', 'albumes']) {   // (ciudades como clave: una clave con < > se renombra)
     const o = obj(d[k]); if (!o) continue;
     for (const id of Object.keys(o)) if (/[<>"]/.test(id)) { const v = o[id]; delete o[id]; o[L(id)] = v; }
   }
