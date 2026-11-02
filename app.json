@@ -1,8 +1,8 @@
 {
-  "version": "0.6.95",
-  "notes": "Rareza nueva: legendario vuelve a ser especial y las cartas se ponen al día solas. Las ciudades enormes se completan con 500 lugares y el resto son Extras. Álbumes más exactos en la frontera de cada municipio. En Mi progreso: álbumes a pantalla completa, y la versión y la fecha en la barra superior",
+  "version": "0.6.96",
+  "notes": "Álbumes rediseñados como un archivador: carpetas de colores con pestañas para cada distrito, barrios como separadores y todo en una sola pantalla. En el móvil, Mi progreso abre el álbum a pantalla completa",
   "native": 6,
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.95/pintamapa-web-0.6.95.zip",
-  "checksum": "bce74efd0bb50917ffe7dcc156cda3070030d0c44faa2c0dfc16e525d1ee92b6",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.95/PintaMapa-v0.6.95.apk"
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.96/pintamapa-web-0.6.96.zip",
+  "checksum": "2d505f83575d09f8828e8e39d0a6c98605d05b17ff52d55a3f17406bc98a1bb2",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.96/PintaMapa-v0.6.96.apk"
 }
