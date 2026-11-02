@@ -1278,10 +1278,15 @@ PM.world = (function () {
   // La lista fija de sus lugares por barrios, recortada con su contorno real. Sin archivo propio, una ciudad pequeña sale del de
   // la grande que la rodea; sin ninguno: sus imprescindibles y lo que hayas descubierto (y crece al explorar).
   const ALB_CDN = 'https://luzferlux77.github.io/pintamapa-app/albumes/', albMem = new Map();
+  // Cada vez que se regeneran los álbumes cambia su tanda (data/albumes.json, lo escribe albumes.mjs): sin eso, un móvil o un
+  // navegador que ya tuviera el álbum se quedaba con su copia vieja aunque hubiera otra publicada
+  let albTanda = null;
+  const tandaAlbumes = () => (albTanda = albTanda || fetch('data/albumes.json', plazo(8000)).then((r) => (r.ok ? r.json() : {})).then((j) => j.t || 0).catch(() => 0));
   async function albumArchivo(q, t) {
+    const tanda = await tandaAlbumes();
     let d = await cache.get('alb:' + q);
-    if (!d || d.t !== t) {
-      try { const r = await fetch(ALB_CDN + q + '.json', { signal: AbortSignal.timeout(15000) }); if (r.ok) { d = await r.json(); cache.put('alb:' + q, d); } } catch (e) { /* sin conexión: lo guardado, si había */ }
+    if (!d || d.t !== t || d.tanda !== tanda) {
+      try { const r = await fetch(ALB_CDN + q + '.json?v=' + tanda, plazo(15000)); if (r.ok) { d = await r.json(); d.tanda = tanda; cache.put('alb:' + q, d); } } catch (e) { /* sin conexión: lo guardado, si había */ }
     }
     return d || null;
   }
