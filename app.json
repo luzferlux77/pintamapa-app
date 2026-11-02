@@ -1,8 +1,8 @@
 {
-  "version": "0.6.99",
-  "notes": "Bienvenida para quien empieza: cuatro pantallas con el aviso de la ubicación antes del permiso y una guía del primer paseo con un primer objetivo cercano",
-  "native": 6,
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.99/pintamapa-web-0.6.99.zip",
-  "checksum": "ec3aa8f8661d6bece96e243b1af5d5b7d8d160299da44a8184835ca102098729",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.99/PintaMapa-v0.6.99.apk"
+  "version": "0.7.0",
+  "notes": "Android 16: la app se actualiza a la versión actual de Android y sigue pintando al pulsar atrás en un paseo. Hay que instalar esta APK una vez",
+  "native": 7,
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.7.0/pintamapa-web-0.7.0.zip",
+  "checksum": "771ac6c3b073b1528b1a1726ef8012b8a11bd821ac8cb29189fd1af7c2fbbe3c",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.7.0/PintaMapa-v0.7.0.apk"
 }
