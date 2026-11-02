@@ -1208,7 +1208,9 @@
     if (force || (diff > 0.4 && now - lastBearingT > 33 && !gestureBusy())) { map.setBearing(want); lastBearingT = now; }
     const el = playerEl.querySelector('.arrow');
     if (el) el.style.transform = `rotate(${heading - map.getBearing()}deg)`;
+    if (aguja) aguja.style.transform = `rotate(${-map.getBearing()}deg)`;   // (la aguja del botón señala siempre el norte de verdad)
   }
+  const aguja = document.querySelector('#btn-orient .aguja');
 
   function setOrient(o) {
     orient = o;
@@ -1220,9 +1222,10 @@
     pitchTarget = 0;   // siempre en 2D desde arriba (más claro y más fluido)
     set3D(false);
     camera();
-    $('#btn-orient').innerHTML = o === 'heading' ? '<span>➤</span><small>rumbo</small>' : '<span>N</span><small>norte</small>';
-    $('#btn-orient').classList.toggle('on', o === 'heading');
+    botonEstado('#btn-orient', 'on', o === 'heading', o === 'heading' ? '🧭 El mapa gira hacia donde andas' : '🧭 Norte arriba (mapa fijo)');
   }
+  // estado de un botón del mapa: su color y lo que dice quien lo lee en voz alta
+  function botonEstado(sel, cls, on, txt) { const b = $(sel), t = PM.t(txt).replace(/^[^\p{L}]+/u, ''); b.classList.toggle(cls, on); b.title = t; b.setAttribute('aria-label', t); }
   // Ver solo tus calles pintadas: oculta los lugares para conquistar (al empezar a pintar vuelven a salir)
   let placesOff = false;
   try { placesOff = localStorage.getItem('pintamapa_places_off') === '1'; } catch (e) {}
@@ -1231,11 +1234,13 @@
     try { localStorage.setItem('pintamapa_places_off', off ? '1' : '0'); } catch (e) {}
     if (map.getLayer('pm-lms')) map.setLayoutProperty('pm-lms', 'visibility', off ? 'none' : 'visible');   // los halos los decide stepHalos
     fxSync();
-    $('#btn-places').classList.toggle('off', off);
-    $('#btn-places').innerHTML = off ? '<span>🖌️</span><small>calles</small>' : '<span>📍</span><small>lugares</small>';
+    lugaresEstado();
     if (!quiet) toast(off ? '🖌️ Solo tus calles pintadas (los lugares, ocultos)' : '📍 Lugares para conquistar visibles', 'info');
   }
+  function lugaresEstado() { botonEstado('#btn-places', 'off', placesOff, placesOff ? '🖌️ Solo tus calles pintadas (los lugares, ocultos)' : '📍 Lugares para conquistar visibles'); }
+  lugaresEstado();
   $('#btn-places').addEventListener('click', () => setPlaces(!placesOff));
+  $('#gps').addEventListener('click', () => toast('📡 ' + PM.esc($('#gps').title), 'info'));
   $('#btn-orient').addEventListener('click', () => {
     setOrient(orient === 'heading' ? 'north' : 'heading');
     toast(orient === 'heading' ? '🧭 El mapa gira hacia donde andas' + (mode === 'sim' ? ' (A/D giran, W/S avanzan)' : '') : '🧭 Norte arriba (mapa fijo)', 'info');
@@ -1336,8 +1341,9 @@
     const el = $('#gps'), key = st + (st === 'weak' ? Math.round(acc / 10) : '');
     if (el.dataset.k === key) return;
     el.dataset.k = key;
-    el.className = 'badge gpsi gps-' + st + (el.classList.contains('show') ? ' show' : '');
-    el.title = { search: 'Buscando GPS…', ok: `GPS con señal (±${Math.round(acc || 0)} m)`, weak: `GPS impreciso (±${Math.round(acc || 0)} m)`, off: 'GPS apagado (ahorrando batería)' }[st];
+    el.className = 'fab mapa gps-' + st + (el.classList.contains('show') ? ' show' : '');
+    el.title = PM.t({ search: 'Buscando GPS…', ok: `GPS con señal (±${Math.round(acc || 0)} m)`, weak: `GPS impreciso (±${Math.round(acc || 0)} m)`, off: 'GPS apagado (ahorrando batería)' }[st]);
+    el.setAttribute('aria-label', el.title);
     el.innerHTML = `<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><circle class="g-dot" cx="12" cy="12" r="3.2"/><circle class="g-r1" cx="12" cy="12" r="6.5"/><circle class="g-r2" cx="12" cy="12" r="10"/></svg>${st === 'weak' ? `<small>±${Math.round(acc)}</small>` : ''}`;
   }
   // --- GPS real (con servicio en segundo plano en Android) ---
@@ -1457,11 +1463,11 @@
   function stopGPS() {
     gpsGen++;   // (un alta a medio hacer ya no vale)
     gpsPending = false;
+    gpsIcon('off');   // (también si no estaba en marcha: sin paseo el botón decía «Buscando GPS…»)
     if (!gpsWatch) return;
     if (gpsWatch.bg) Promise.resolve(BG.removeWatcher({ id: gpsWatch.bg })).catch(() => {});
     if (gpsWatch.web != null) navigator.geolocation.clearWatch(gpsWatch.web);
     gpsWatch = null;
-    gpsIcon('off');
   }
   // Una sola lectura para situarte en el mapa sin dejar el GPS encendido
   function locateOnce() {

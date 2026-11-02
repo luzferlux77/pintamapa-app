@@ -214,10 +214,6 @@ kbd { background: var(--btn); border-radius: 5px; padding: 1px 6px; color: var(-
 #sheet .body a.btn { color: #fff; }
 
 /* Orientación del mapa */
-.fab.orient { display: flex; flex-direction: column; align-items: center; justify-content: center; bottom: auto; top: calc(210px + var(--safe-top)); line-height: 1; box-shadow: var(--shadow); }
-.fab.orient span { font-size: 20px; font-weight: 900; color: #ef4444; }
-.fab.orient small { font-size: 9px; color: var(--muted); margin-top: 1px; }
-.fab.orient.on span { color: var(--paint); }
 /* latido de los imprescindibles y ondas de los conquistados: animación CSS (la mueve la tarjeta gráfica, el mapa no se redibuja) */
 .fxm { width: calc(var(--fxs, 1) * 92px); height: calc(var(--fxs, 1) * 92px); pointer-events: none; }
 .fxm i { position: absolute; inset: 0; border-radius: 50%; will-change: transform, opacity; }
@@ -230,10 +226,6 @@ kbd { background: var(--btn); border-radius: 5px; padding: 1px 6px; color: var(-
 @keyframes fxWave { 0% { transform: scale(.42); opacity: .85; } 100% { transform: scale(1.25); opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .fxm i { animation-duration: 6s; } }
 /* botón «lugares»: debajo del de orientación; apagado = solo tus calles pintadas */
-.fab.orient.places { top: calc(266px + var(--safe-top)); }
-.fab.orient.places span { font-size: 18px; color: inherit; }
-.fab.orient.places.off { background: var(--accent); border-color: var(--accent); }
-.fab.orient.places.off small { color: #fff; }
 #combo { top: calc(270px + var(--safe-top)); }
 .player .arrow { position: absolute; inset: -10px; pointer-events: none; transition: transform .2s; }
 .player .arrow::before { content: ''; position: absolute; left: 50%; top: 0; transform: translateX(-50%);
@@ -339,11 +331,6 @@ details.howto ol { padding-left: 18px; line-height: 1.6; }
 #badges { flex-direction: row; flex-wrap: wrap; align-items: center; right: 166px; gap: 5px; }
 #badges .badge { padding: 4px 9px; font-size: 11.5px; white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
 #badges #capture { white-space: normal; flex-basis: 100%; }
-.fab.orient { width: 44px; height: 44px; top: calc(156px + var(--safe-top)); }
-.fab.orient { right: 64px; }
-.fab.orient.places { right: 14px; top: calc(156px + var(--safe-top)); }
-.fab.orient.places span { font-size: 15px; }
-.fab.orient span { font-size: 17px; }
 .city-h { margin: 16px 0 8px; font-size: 15px; } .city-h span { color: var(--muted); font-weight: 500; margin-left: 4px; }
 
 /* ===== Aspecto sobrio y legible (para cualquier edad): sin neones ni brillos, letra más grande, color de interfaz neutro.
@@ -420,10 +407,6 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 #nav-profile.has-avatar span svg { display: none; }
 #nav-profile.has-avatar span { display: block; width: 26px; height: 26px; margin: 0 auto; border-radius: 50%; background: var(--avatar) center / cover; box-shadow: 0 0 0 2px var(--panel), 0 0 0 3px var(--line); }
 
-/* icono del GPS junto a «parado / en movimiento» */
-#badges #gps.gpsi { padding: 4px 7px; display: none; align-items: center; gap: 3px; line-height: 0; }
-#badges #gps.gpsi.show { display: inline-flex; }
-#gps.gpsi small { font-size: 10.5px; line-height: 1; font-weight: 700; }
 #gps svg circle { fill: none; stroke: currentColor; stroke-width: 1.8; } #gps svg .g-dot { fill: currentColor; stroke: none; }
 #gps.gps-search { color: #6b7280; } #gps.gps-search .g-r1, #gps.gps-search .g-r2 { transform-origin: 12px 12px; animation: gpsping 1.4s ease-out 5; }   /* unas ondas y quieto */
 #gps.gps-search .g-r2 { animation-delay: .5s; }
@@ -432,13 +415,6 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 #gps.gps-weak { color: #d97706; border-color: #fcd34d; } #gps.gps-weak .g-r2 { opacity: .25; }
 #gps.gps-off { color: #9ca3af; } #gps.gps-off .g-r1, #gps.gps-off .g-r2 { opacity: .3; }
 
-/* GPS en la fila de arriba a la derecha (junto a rumbo y evitar) */
-#gps.gpsi { position: absolute; z-index: 500; right: 166px; top: calc(160px + var(--safe-top)); width: 36px; height: 36px; padding: 0; border-radius: 50%;
-  display: none; align-items: center; justify-content: center; flex-direction: column; gap: 0; line-height: 1; background: var(--panel); }
-#gps.gpsi.show { display: flex; }
-#gps.gpsi svg { width: 20px; height: 20px; }
-#gps.gpsi small { font-size: 8.5px; margin-top: -1px; }
-#gps.gpsi.gps-weak svg { width: 15px; height: 15px; }
 #badges { right: 210px; }
 
 /* Cabecera en UNA fila: nivel + barrio (la barra de puntos se ve tocando el nivel). Todo lo de debajo sube. */
@@ -448,22 +424,11 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 #hud .top .lvl { flex: none; }
 #hud .top #modebtn { flex: none; align-self: flex-start; }
 #badges { top: calc(106px + var(--safe-top)); }
-.fab.orient { top: calc(102px + var(--safe-top)); }
-#gps.gpsi { top: calc(106px + var(--safe-top)); }
 #combo { top: calc(212px + var(--safe-top)); }
 
 /* TODO en una fila: etiquetas (velocidad, radar…) a la izquierda; GPS y rumbo a la derecha */
 #badges { top: calc(104px + var(--safe-top)); right: 98px; min-height: 40px; flex-wrap: wrap; align-content: center; }
 #badges .badge { font-size: 11.5px; padding: 4px 8px; }
-.fab.orient { width: 40px; height: 40px; top: calc(104px + var(--safe-top)); }
-.fab.orient { right: 14px; }
-.fab.orient small { font-size: 8.5px; }
-.fab.orient span { font-size: 15px; }
-#gps.gpsi { right: 58px; top: calc(107px + var(--safe-top)); width: 34px; height: 34px; }
-/* botón «lugares» en la misma fila, a la izquierda del rumbo (el GPS y las etiquetas se apartan) */
-.fab.orient.places { top: calc(104px + var(--safe-top)); right: 60px; }
-.fab.orient.places span { font-size: 14px; }
-#gps.gpsi { right: 106px; }
 #badges { right: 146px; }
 
 /* fila única: velocidad y radar sin saltar de línea (solo la captura en curso baja a una segunda línea) */
@@ -671,3 +636,22 @@ input.sw:checked { background: var(--accent, #2563eb); } input.sw:checked::after
 #lang-first h2 { font-size: 15px; font-weight: 600; color: var(--muted); margin: 18px 0 0; }
 #lang-first .logo { font-size: 44px; }
 #opt-lang { font: inherit; padding: 4px 8px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); color: inherit; }
+
+/* ===== Botones del mapa: todos iguales (mismo tamaño, mismo marco, iconos de línea como la barra de abajo) ===== */
+.fab.mapa { display: none; top: calc(102px + var(--safe-top)); bottom: auto; width: 44px; height: 44px; padding: 0; align-items: center; justify-content: center; color: var(--text); background: var(--sheet);
+  border: 1px solid var(--line); box-shadow: 0 2px 8px rgba(15, 23, 42, .16); cursor: pointer; -webkit-tap-highlight-color: transparent; transition: background .15s, color .15s, transform .1s; }
+.fab.mapa:active { transform: scale(.93); }
+.fab.mapa svg { width: 23px; height: 23px; display: block; flex: none; }
+#btn-orient { display: flex; right: 12px; }
+#btn-places { display: flex; right: 64px; }
+#gps.show { display: flex; flex-direction: column; gap: 0; right: 116px; }
+#gps small { font-size: 9.5px; line-height: 1; font-weight: 700; margin-top: -1px; }
+#gps.gps-weak svg { width: 17px; height: 17px; }
+#btn-center { top: auto; bottom: calc(146px + var(--safe-bottom)); right: 12px; }
+#btn-center.show { display: flex; }
+/* activado (el mapa gira, o solo tus calles): relleno de color */
+#btn-orient.on, #btn-places.off { background: var(--accent); border-color: var(--accent); color: #fff; }
+.aguja { transform-box: view-box; transform-origin: 12px 12px; } .aguja .n { fill: #ef4444; } .aguja .s { fill: currentColor; opacity: .45; }
+#btn-orient.on .aguja .n { fill: #fff; }
+#btn-places .tacha { display: none; } #btn-places.off .tacha { display: block; }
+#badges { top: calc(102px + var(--safe-top)); right: 168px; min-height: 44px; }
