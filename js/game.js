@@ -86,13 +86,23 @@ PM.state = (function () {
   // cada 20 s. Al apagar la pantalla o cerrar la app se guarda en el acto: no se pierde nada.
   let dirty = false, lastSave = 0, saveCost = 0, failing = false, failT = 0;
   function save() { dirty = true; }
+  // Red de seguridad: la partida cabe en unos 5 MB y, aunque los paseos de más de un mes ya se simplifican (compressOldWalks),
+  // tras años de paseos no se podría guardar NADA. Al acercarse al límite, los más antiguos se simplifican más (a 8 m). Los 20 últimos no
+  const CASI_LLENO = 4000000;
+  function aligerar() {
+    const viejos = (data.walks || []).slice(0, -20).filter((w) => !w.fino && w.track && w.track.length > 40).slice(0, 20);
+    for (const w of viejos) { w.mov = PM.movingMs(w); w.dist = w.dist || (w.st && w.st.walked) || 0; w.track = PM.simplifyTrack(w.track, 8); w.slim = w.fino = 1; }
+    return viejos.length > 0;
+  }
   const aviso = (n, d) => { try { window.dispatchEvent(new CustomEvent(n, { detail: d })); } catch (e) { /* sin pantalla */ } };
   // Escribe la partida. Solo se da por guardada si la escritura sale bien: si falla (móvil sin espacio…), sigue
   // pendiente, se reintenta y se avisa en pantalla (evento 'pm-save-error', como mucho una vez por minuto).
   function write() {
     lastSave = Date.now();
     try {
-      localStorage.setItem(KEY, JSON.stringify(data));
+      let txt = JSON.stringify(data);
+      if (txt.length > CASI_LLENO && aligerar()) txt = JSON.stringify(data);
+      localStorage.setItem(KEY, txt);
       dirty = false;
       if (failing) { failing = false; aviso('pm-save-ok'); }
       return true;
@@ -124,7 +134,7 @@ PM.state = (function () {
 
   function replace(d) { data = Object.assign(fresh(), d); data.stats = Object.assign(fresh().stats, data.stats); PM.limpiarPartida(data); save(); }
 
-  return { get data() { return data; }, save, reset, replace, flush };
+  return { get data() { return data; }, save, reset, replace, flush, _aligerar: aligerar };
 })();
 
 PM.game = (function () {

@@ -1729,6 +1729,13 @@
   const setT = (sel, v) => hudSet('t' + sel, sel, (e, x) => { e.textContent = x; }, String(v));
   const setW = (sel, v) => hudSet('w' + sel, sel, (e, x) => { e.style.width = x; }, String(v));
   const setH = (el, v) => hudSet('h' + el.id, el, (e, x) => { e.innerHTML = x; }, String(v));
+  // los porcentajes recorren todos los tramos del barrio y todas las zonas: solo si has pintado algo, cambias de sitio o pasa 1 s
+  let hudV = null;
+  function hudPct(id, B, city) {
+    const m = S().stats.paintedM, now = Date.now();
+    if (!hudV || hudV.id !== id || hudV.city !== city || hudV.m !== m || now - hudV.t > 1000) hudV = { id, city, m, t: now, pr: B ? G.barrioProgress(id) : 0, cp: city ? G.cityProgress(city) : null };
+    return hudV;
+  }
   function updateHUD() {
     if (document.hidden) return;   // pantalla apagada: nada que pintar (antes, 4 veces por segundo en el bolsillo)
     const lp = G.levelProgress();
@@ -1742,7 +1749,7 @@
     if (t && (t.loaded || t.partial)) {
       if (bq && bq.id !== curBarrio) { curBarrio = bq.id; W.ensureBarrio(bq.id); renderBarrios(); }
       const done = B && W.barrioComplete(bq.id);
-      const pr = B ? G.barrioProgress(bq.id) : 0;
+      const { pr, cp } = hudPct(bq && bq.id, B, t.city);
       if (bq && B && S().conqueredB[bq.id]) checkRank(bq.id, pr, B);
       if (bq && B && done) checkBarrioNear(bq.id, pr, B);
       setT('#barrio-name', (bq && S().conqueredB[bq.id] ? RANKS[rankOf(bq.id)].ic + ' ' : '') + ((B && B.name) || (bq && bq.name) || t.name || 'Barrio sin explorar'));
@@ -1750,7 +1757,6 @@
       setW('#barrio-bar i', (pr * 100).toFixed(1) + '%');
       if (t.city) {
         if (begun) albumPisado(t);
-        const cp = G.cityProgress(t.city);
         setT('#city', `${S().citiesWon[t.city] ? '👑 ' : '🏙️ '}${t.city} · ${(cp.pct * 100).toFixed(cp.pct < 0.01 ? 2 : 1)} %` +
           (cp.real ? ` de ${PM.fmtDist(cp.total)} de calles` : ' (midiendo ciudad…)'));
       } else setT('#city', '🏙️ Localizando ciudad…');

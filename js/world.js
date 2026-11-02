@@ -38,6 +38,7 @@ PM.world = (function () {
     return [[i * TILE, j * TILE], [(i + 1) * TILE, (j + 1) * TILE]];
   };
   const cellKey = (lat, lon) => Math.floor(lat / CELL) + ':' + Math.floor(lon / CELL);
+  const plazo = (ms) => (AbortSignal.timeout ? { signal: AbortSignal.timeout(ms) } : {});   // (sin él, una descarga colgada con poca cobertura para su cola)
 
   function onChange(fn) { listeners.push(fn); }
   function emit(ev, data) { listeners.forEach((fn) => fn(ev, data)); }
@@ -57,9 +58,19 @@ PM.world = (function () {
     if (!lm) return;
     // ya conquistado con otro id (llegó de otra fuente de datos): se usa el de tu conquista
     if (PM.state && !PM.state.data.landmarks[lm.id]) {
-      for (const [cid, r] of Object.entries(PM.state.data.landmarks)) if (r.name === lm.name && r.pos && PM.geo.dist(r.pos, lm.pos) < 60) { lm.id = cid; break; }
+      if (!lmBatch) cartasPorNombre = null;
+      for (const cid of cartasDe(lm.name)) if (PM.geo.dist(PM.state.data.landmarks[cid].pos, lm.pos) < 60) { lm.id = cid; break; }
     }
     if (lmBatch) lmBatch.push(lm); else commitLandmarks([lm]);
+  }
+  // tus cartas por nombre, hecho una vez por carga: con cientos de cartas, recorrerlas por cada candidato era lo que más pesaba
+  let cartasPorNombre = null;
+  function cartasDe(name) {
+    if (!cartasPorNombre) {
+      cartasPorNombre = new Map();
+      for (const [cid, r] of Object.entries(PM.state.data.landmarks)) if (r.pos) { if (!cartasPorNombre.has(r.name)) cartasPorNombre.set(r.name, []); cartasPorNombre.get(r.name).push(cid); }
+    }
+    return cartasPorNombre.get(name) || [];
   }
 
   function removeLandmark(id) {
@@ -116,7 +127,7 @@ PM.world = (function () {
   async function fetchCityShape(lat, lon) {
     if (shapeCity([lat, lon])) return;
     try {
-      const r = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=10&accept-language=es&extratags=1&polygon_geojson=1&polygon_threshold=0.0003&lat=${lat}&lon=${lon}`);
+      const r = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=10&accept-language=es&extratags=1&polygon_geojson=1&polygon_threshold=0.0003&lat=${lat}&lon=${lon}`, plazo(20000));
       const j = await r.json(), a = j.address || {}, g = j.geojson;
       const name = PM.limpio(a.city || a.town || a.village || a.municipality);
       if (!name || !g || !/Polygon$/.test(g.type) || (j.name && j.name !== name)) return;   // sin contorno de municipio: se sigue por celdas
@@ -607,14 +618,14 @@ PM.world = (function () {
   // Con la pantalla apagada (móvil en el bolsillo) el GPS a veces se salta lecturas. Entre dos lecturas
   // separadas se busca el camino más corto POR LAS CALLES y se pinta ese recorrido (no una línea recta).
   const gnodes = new Map();   // "lat,lon" -> { p:[lat,lon], e:[{ to, len, piece }] }
-  const gkey = (q) => q[0].toFixed(5) + ',' + q[1].toFixed(5);
+  const gkey = (q) => Math.round(q[0] * 1e5) + ',' + Math.round(q[1] * 1e5);
   function gnode(q) {
     const k = gkey(q);
     let n = gnodes.get(k);
     if (!n) {   // ¿hay un vértice a menos de 1 m en una casilla vecina? (la misma esquina llegada de dos teselas)
       const la = Math.round(q[0] * 1e5), lo = Math.round(q[1] * 1e5);
       for (let i = -1; i <= 1 && !n; i++) for (let j = -1; j <= 1 && !n; j++) {
-        const o = gnodes.get(((la + i) / 1e5).toFixed(5) + ',' + ((lo + j) / 1e5).toFixed(5));
+        const o = gnodes.get((la + i) + ',' + (lo + j));
         if (o && PM.geo.dist(o.p, q) < 1) n = o;
       }
     }
@@ -749,7 +760,7 @@ PM.world = (function () {
       if (c && c.segs) segs = c.segs;
       if (!segs) {
         try {
-          const res = await fetch(REL_CDN + 'r' + r.id + '.json');
+          const res = await fetch(REL_CDN + 'r' + r.id + '.json', plazo(15000));
           if (res.ok) segs = (await res.json()).segs;
         } catch (e) { /* sin GitHub: se pide a OpenStreetMap */ }
       }
@@ -970,6 +981,7 @@ PM.world = (function () {
         // Si no, ese móvil se quedaba sin los lugares de Wikidata de la zona hasta volver a abrir la app.
         const pending = (x) => x.wdMiss || (!x.src && !x.vtPois);   // (lo mismo si faltan los lugares del mapa vectorial)
         if (pending({ wdMiss, src: cur.src, vtPois }) && (wdRetries[k] = (wdRetries[k] || 0) + 1) <= 5) setTimeout(async () => { const c2 = await cache.get(k); if (c2 && pending(c2)) completeTile(k, c2); }, 120000);
+        while (loading.has(k)) await new Promise((res) => setTimeout(res, 200));   // (sus calles aún están entrando: lo de aquí, al acabar)
         if (add.length && tiles[k] && (tiles[k].loaded || tiles[k].partial)) { ingest(add, new Set([k])); emit('loaded', { tiles: [k] }); }
       } catch (err) { console.warn('Zona sin completar', k, err);   // (sin esto, un solo error paraba la cola: ninguna zona más se completaba en toda la sesión)
       } finally { completing.delete(k); }
@@ -993,7 +1005,7 @@ PM.world = (function () {
     if (!zonasData.has(c)) {
       let d = await cache.get('zona:' + c);
       if (!d || d.t !== idx.t) {
-        try { const r = await fetch(ZONAS_CDN + c + '.json'); if (r.ok) { const j = await r.json(); d = { t: idx.t, d: j }; cache.put('zona:' + c, d); } } catch (e) { /* sin conexión: lo guardado, si había */ }
+        try { const r = await fetch(ZONAS_CDN + c + '.json', plazo(20000)); if (r.ok) { const j = await r.json(); d = { t: idx.t, d: j }; cache.put('zona:' + c, d); } } catch (e) { /* sin conexión: lo guardado, si había */ }
       }
       if (!d) return null;
       if (zonasData.size >= 4) zonasData.delete(zonasData.keys().next().value);
@@ -1064,19 +1076,37 @@ PM.world = (function () {
       cur = [];
     };
     for (const q of dense) {
-      const nearStreet = piecesNear(q, 20).some((pc) => !pc.trail && (pc.wide || PM.geo.distToPolyline(q, pc.pts) <= 11));   // avenidas: aceras más lejos
-      if (nearStreet) { if (cur.length) close(); } else cur.push(q);
+      if (cercaDeCalle(q)) { if (cur.length) close(); } else cur.push(q);
     }
     if (cur.length) close();
     return runs;
   }
+  // ¿hay una calle a menos de 11 m, o una avenida a menos de 20 (sus aceras van más lejos)? Mira primero su casilla y para en
+  // la primera: es la pregunta que más se repite al cargar una zona (cada 5 m de cada camino peatonal)
+  const VECINAS = [[0, 0], [0, 1], [0, -1], [1, 0], [-1, 0], [1, 1], [1, -1], [-1, 1], [-1, -1]];
+  function cercaDeCalle(q) {
+    const ci = Math.floor(q[0] / CELL), cj = Math.floor(q[1] / CELL);
+    for (const [di, dj] of VECINAS) {
+      const ids = index[(ci + di) + ':' + (cj + dj)];
+      if (!ids) continue;
+      for (const id of ids) {
+        const pc = pieces[id];
+        if (pc.trail) continue;
+        const d = PM.geo.distToPolyline(q, pc.pts);
+        if (d <= 11 || (pc.wide && d <= 20)) return true;
+      }
+    }
+    return false;
+  }
 
-  // Mete elementos en el mundo (calles troceadas en los barrios aceptados + monumentos)
-  function ingest(elements, accept) {
-    lmBatch = [];
+  // Mete elementos en el mundo (calles troceadas en los barrios aceptados + monumentos). Va por pasos, uno por elemento, para
+  // poder repartirlo en turnos (ingestPorTurnos); lote: los candidatos de esta carga
+  function* ingestPasos(elements, accept, lote) {
+    cartasPorNombre = null;
     const newPieces = [], footways = [];
     const seen = new Set();
     for (const el of elements) {
+      yield;
       // (las copias repetidas de una calle sobran; las de un lugar no: puede traer otra posición, y entre todas decide
       // commitLandmarks con una regla fija, no «la primera que llega»)
       if (seen.has(el.type + el.id) && el.tags && el.tags.highway) continue;
@@ -1092,12 +1122,36 @@ PM.world = (function () {
       } else if (el.tags && !noteBarrio(el)) addLandmark(el);
     }
     for (const el of footways) {
+      yield;
       const geom = el.geometry.map((g) => [g.lat, g.lon]);
       offStreetRuns(geom).forEach((run, n) => newPieces.push(...addWay('w' + el.id + 'f' + n, run, accept, false, true)));
     }
-    commitLandmarks(lmBatch); lmBatch = null;
+    yield;
+    commitLandmarks(lote);
     migrate(newPieces);
     scheduleReassign();
+  }
+  function ingest(elements, accept) {
+    const lote = [];
+    lmBatch = lote;
+    try { for (const paso of ingestPasos(elements, accept, lote)) void paso; } finally { lmBatch = null; }
+  }
+  // Una zona densa son miles de elementos: de una vez, el mapa se quedaba congelado casi un segundo en el PC y varios en el
+  // móvil. Por turnos cortos sigue moviéndose. Con la pantalla apagada no se reparte: el móvil frena los temporizadores y
+  // las calles tardarían minutos en llegar, y el paseo en el bolsillo las necesita ya.
+  const TURNO_MS = 24;
+  async function ingestPorTurnos(elements, accept) {
+    if (elements.length < 300) { ingest(elements, accept); return; }
+    const lote = [], pasos = ingestPasos(elements, accept, lote);
+    const oculta = () => typeof document === 'undefined' || document.hidden;
+    for (;;) {
+      const fin = Date.now() + TURNO_MS;
+      let r;
+      lmBatch = lote;
+      try { do r = pasos.next(); while (!r.done && (Date.now() < fin || oculta())); } finally { lmBatch = null; }
+      if (r.done) return;
+      await new Promise((res) => setTimeout(res));
+    }
   }
 
   // Carga completa de unos barrios (caché o red). Lanza error si no hay red.
@@ -1126,7 +1180,7 @@ PM.world = (function () {
           const per = await fetchTiles(fetchKeys);
           for (const k of fetchKeys) els.push(...per[k]);
         }
-        ingest(els, new Set(keys));
+        await ingestPorTurnos(els, new Set(keys));
         keys.forEach((k) => { tiles[k].loaded = true; tiles[k].partial = false; });
       }
     } finally { keys.forEach((k) => loading.delete(k)); }
@@ -1202,7 +1256,7 @@ PM.world = (function () {
     if (preData[q]) return preData[q];
     let d = await cache.get('pre:' + q);
     if (!d || Date.now() - (d.tt || 0) > PRE_DIAS * 86400000 || (ver && d.t !== ver)) {
-      try { const r = await fetch(PRE_CDN + q + '.json'); if (r.ok) { d = await r.json(); d.tt = Date.now(); cache.put('pre:' + q, d); } } catch (e) { /* sin conexión: lo de la caché, si había */ }
+      try { const r = await fetch(PRE_CDN + q + '.json', plazo(20000)); if (r.ok) { d = await r.json(); d.tt = Date.now(); cache.put('pre:' + q, d); } } catch (e) { /* sin conexión: lo de la caché, si había */ }
     }
     if (d && PM.precargaFormato) d = PM.precargaFormato.decode(d);   // (formato compacto v2 → elementos como la consulta por zona)
     if (d && Array.isArray(d.els)) preData[q] = d;
@@ -1365,7 +1419,7 @@ PM.world = (function () {
       const t = tiles[key];
       try {
         const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=14&accept-language=es&lat=${(s + n) / 2}&lon=${(w + e) / 2}`;
-        const r = await fetch(url);
+        const r = await fetch(url, plazo(15000));
         const j = await r.json();
         const a = j.address || {};
         for (const k of Object.keys(a)) a[k] = PM.limpio(a[k]);
@@ -1585,7 +1639,7 @@ PM.world = (function () {
       if (need.length && need.length <= 12) loadTiles(need).catch(() => {});
     },
     albumDe, completado: () => completeChain,   // (cuando acabe la cola: Wikidata de las zonas pedidas ya ha llegado)
-    _graph: () => gnodes, _pool: () => pool, _classify: classify, _usoNoTuristico: L.usoNoTuristico, _revisar: (r) => { const f = L.revisarRegistro(r); if (f) Object.assign(r, f); return f; }, _conf: L.CONF, porque, _why: () => lastWhy, precargaCerca, _precarga: () => preData, _zonaPreparada: zonaPreparada, _reselect: () => selectLandmarks(), _ingest: (els, keys) => { keys.forEach((k) => ensureTile(k)); ingest(els, new Set(keys)); }, _measureCity: (c) => measureCityVT(c),   // (pruebas)
+    _graph: () => gnodes, _pool: () => pool, _classify: classify, _usoNoTuristico: L.usoNoTuristico, _revisar: (r) => { const f = L.revisarRegistro(r); if (f) Object.assign(r, f); return f; }, _conf: L.CONF, porque, _why: () => lastWhy, precargaCerca, _precarga: () => preData, _zonaPreparada: zonaPreparada, _reselect: () => selectLandmarks(), _ingest: (els, keys) => { keys.forEach((k) => ensureTile(k)); ingest(els, new Set(keys)); }, _ingestTurnos: (els, keys) => { keys.forEach((k) => ensureTile(k)); return ingestPorTurnos(els, new Set(keys)); }, _measureCity: (c) => measureCityVT(c),   // (pruebas)
     isDemo: () => demoMode,
     setDemo: (v) => { demoMode = v; },
   };
