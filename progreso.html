@@ -121,10 +121,10 @@
     .verbar { text-align: right; font-size: 12px; line-height: 1.35; color: var(--muted); white-space: nowrap; }
     .verbar b { display: block; font-weight: 700; color: var(--text); } .verbar small { font-size: inherit; }
     #album-box { --panel: var(--card); --accent: var(--paint); }
-    #album-box .cromos { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
-    #album-box .cromos .tcg-cell { --w: 128px; } #album-box .cromos .tcg.mini { font-size: calc(var(--w) / 26); }
+    #album-box .cromos { display: grid; grid-template-columns: repeat(auto-fill, minmax(146px, 1fr)); gap: 10px; }
+    #album-box .cromos .tcg-cell { --w: 146px; } #album-box .cromos .tcg.mini { font-size: calc(var(--w) / 26); }
     /* álbumes a pantalla completa: portadas en rejilla, la ciudad a dos columnas y las cartas más grandes */
-    #alb-full { position: fixed; inset: 0; z-index: 2500; display: none; flex-direction: column; background: var(--bg); }
+    #alb-full { position: fixed; inset: 0; z-index: 2500; display: none; flex-direction: column; background: var(--bg); --ab-fondo: var(--bg); }
     #alb-full.show { display: flex; }
     .af-top { display: flex; align-items: center; gap: 14px; padding: 10px 24px; background: var(--card); border-bottom: 1px solid var(--line); }
     .af-top b { flex: 1; font-size: 18px; }
@@ -133,15 +133,16 @@
     #alb-full [data-vista="inicio"] { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 360px), 1fr)); gap: 18px; align-items: start; }
     #alb-full [data-vista="inicio"] h4 { grid-column: 1 / -1; margin: 0; }
     #alb-full [data-vista="inicio"] .ab-cover { margin: 0; }
-    #alb-full .ab-lista { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); gap: 10px; align-content: start; }
-    #alb-full .ab-nota { grid-column: 1 / -1; }
-    #alb-full #album-box .cromos { grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 16px; }
-    #alb-full #album-box .cromos .tcg-cell { --w: 190px; }
+    @media (max-width: 899px) { #af-body { padding: 12px; } .af-top { padding: 8px 12px; } }
     @media (min-width: 900px) {
+      #alb-full #album-box .cromos { grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 16px; }
+      #alb-full #album-box .cromos .tcg-cell { --w: 190px; }
+      #alb-full .ab-carpetas { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 290px), 1fr)); gap: 14px; align-content: start; }
+      #alb-full .ab-fold { height: 80px; margin: 0; } #alb-full .ab-fold .ab-lomo { border-radius: var(--r) 12px 12px 12px; }
       #alb-full [data-vista="ciudad"] { display: grid; grid-template-columns: minmax(320px, 420px) minmax(0, 1fr); column-gap: 28px; align-items: start; }
       #alb-full [data-vista="ciudad"] > .ab-back { grid-column: 1 / -1; justify-self: start; }
-      #alb-full [data-vista="ciudad"] > .ab-cover { grid-column: 1; grid-row: 2 / span 3; position: sticky; top: 0; margin: 0; }
-      #alb-full [data-vista="ciudad"] > .muted, #alb-full [data-vista="ciudad"] > .ab-lista { grid-column: 2; }
+      #alb-full [data-vista="ciudad"] > .ab-cover { grid-column: 1; grid-row: 2 / span 3; position: sticky; top: 0; margin: 0; aspect-ratio: 4 / 5; }
+      #alb-full [data-vista="ciudad"] > .muted, #alb-full [data-vista="ciudad"] > .ab-carpetas { grid-column: 2; }
     }
     .lmlist { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 10px; }
     .lmc { border-radius: 12px; overflow: hidden; background: #f3f4f7; cursor: pointer; border: 2px solid var(--c, #e5e7eb); }
@@ -485,12 +486,12 @@
 
     // Pantalla completa: el mismo álbum, en el sitio donde estabas, se pasa a una capa que ocupa toda la ventana (y, si el
     // navegador lo deja, toda la pantalla). Esc o ✕ lo devuelven
-    function pantallaAlbum(on) {
+    function pantallaAlbum(on, soloCapa) {
       const ov = $('#alb-full'), box = $('#album-box');
       if (!box || on === ov.classList.contains('show')) return;
       ov.classList.toggle('show', on);
       ($(on ? '#af-body' : '#alb-home') || ov).appendChild(box);
-      if (on) { const f = document.documentElement.requestFullscreen; if (f) f.call(document.documentElement).catch(() => {}); }
+      if (on && !soloCapa) { const f = document.documentElement.requestFullscreen; if (f) f.call(document.documentElement).catch(() => {}); }
       else if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
     }
     $('#af-x').addEventListener('click', () => pantallaAlbum(false));
@@ -892,6 +893,7 @@
           const img = await ownPhoto(id), ph = img && el.querySelector('.tcg-photo');
           if (ph) { ph.style.backgroundImage = `url('${img}')`; ph.innerHTML = ''; }
         } });
+        if (window.innerWidth <= 980) pantallaAlbum(true, true);   // (en el móvil el mapa ocupa media pantalla: el álbum se abre directamente entero)
       }
       if (tab === 'con' && P.querySelector('#city-stacks') && !A.countriesAsked) {   // países que falten: se averiguan y se redibuja
         A.countriesAsked = true;

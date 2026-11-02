@@ -1,5 +1,6 @@
-// PintaMapa — álbumes de ciudad: cada ciudad es un álbum con portada; dentro, un cuaderno por barrio, con cada cromo pegado en
-// su sitio y un hueco con el nombre de lo que falta. El álbum aparece la primera vez que pisas la ciudad.
+// PintaMapa — álbumes de ciudad: cada ciudad es un archivador con portada; dentro, una carpeta de color por distrito, con sus
+// barrios como separadores, cada cromo pegado en su sitio y un hueco con el nombre de lo que falta. El álbum aparece la
+// primera vez que pisas la ciudad.
 // La lista fija sale de scripts/pois/albumes.mjs; world.js (albumDe) la recorta con el contorno real del municipio.
 PM.album = (function () {
   // (en «Mi progreso» la partida es la de la nube, y el contorno de cada ciudad se pide allí: usar({ save, albumDe }))
@@ -30,6 +31,13 @@ PM.album = (function () {
     return [...set];
   }
 
+  // Colores de las carpetas: de papelería, oscuros para que el texto blanco se lea (contraste de 4,5 o más) y ordenados para que
+  // dos carpetas seguidas nunca se parezcan
+  const TINTAS = ['#b91c1c', '#1d4ed8', '#a16207', '#0f766e', '#be185d', '#15803d', '#6d28d9', '#c2410c', '#0e7490', '#a21caf', '#4d7c0f', '#4338ca'];
+  const ORO = { c: '#f5b301', on: '#3b2a00', tx: '#7a5600' }, PIZARRA = { c: '#475569', on: '#fff' };
+  const claro = (hex, k) => '#' + [1, 3, 5].map((i) => { const v = parseInt(hex.slice(i, i + 2), 16); return Math.round(255 - (255 - v) * k).toString(16).padStart(2, '0'); }).join('');
+  const tinta = (k) => { const { c, on, tx } = k.tinta; return `--c:${c};--on:${on};--tx:${tx || c};--t:${claro(c, 0.1)};--b:${claro(c, 0.38)}`; };
+
   // ---------------- Portada ----------------
   function portada(city, A, E, grande) {
     const total = A ? E.total : 0, pct = total ? Math.min(100, Math.round(E.got / total * 100)) : 0, ex = A ? E.extras : [];
@@ -39,7 +47,7 @@ PM.album = (function () {
       ${A ? `<div class="ab-pie"><span class="ab-n">${total && pct >= 100 ? '🏅 ' : ''}${E.got}<small> / ${total}</small></span><i class="ab-bar"><em style="width:${pct}%"></em></i>${ex.length ? `<span class="ab-ex">✨ ${ex.filter((e) => e.id).length}/${ex.length}</span>` : ''}</div>` : ''}${grande ? '' : '<span class="ab-go">›</span>'}`;
   }
 
-  // ---------------- Vistas: álbumes → cuadernos de una ciudad → páginas de un cuaderno ----------------
+  // ---------------- Vistas: álbumes → archivador de una ciudad → carpeta abierta ----------------
   function montar(box, opts) {
     estilos();
     const volver = (txt, fn) => { const b = document.createElement('button'); b.className = 'ab-back'; b.textContent = '‹ ' + txt; b.addEventListener('click', fn); return b; };
@@ -62,67 +70,83 @@ PM.album = (function () {
       PM.ensureCountries(s, pos).then((ch) => { if (ch) { PM.state.save(); if (box.isConnected && box.querySelector('.ab-cover')) inicio(); } });
     }
 
+    // El álbum es un archivador: cada distrito es una carpeta de su color, con su pestaña. El orden y el color son fijos (por
+    // tamaño, nunca por progreso): como en una carpeta de verdad, se recuerda dónde está cada cosa y qué color tiene
+    function carpetasDe(city, A, E) {
+      const cuenta = (x, y) => y.L.length - x.L.length || (x.nombre < y.nombre ? -1 : 1), C = [];
+      const cuadernos = A.b.map((n, i) => ({ nombre: n, d: (A.d || [])[i] || '', L: E.principal.filter((e) => e.bi === i) })).filter((x) => x.L.length);
+      const sinNombre = cuadernos.length === 1 ? city : PM.t('Otros rincones'), porD = new Map();
+      for (const x of cuadernos) { if (!porD.has(x.d)) porD.set(x.d, []); porD.get(x.d).push(x); }
+      // (sin distritos, los barrios son las carpetas; un distrito de un solo barrio no necesita separadores)
+      const carpetas = porD.size > 1
+        ? [...porD].map(([d, l]) => ({ nombre: d || PM.t('Otros rincones'), L: [].concat(...l.map((x) => x.L)), subs: l.length > 1 ? l.map((x) => ({ nombre: x.nombre || d, L: x.L })).sort(cuenta) : [] }))
+        : cuadernos.map((x) => ({ nombre: x.nombre || sinNombre, L: x.L, subs: [] }));
+      const must = E.principal.filter((e) => e.must);
+      if (must.length) C.push({ nombre: PM.t('Imprescindibles'), ic: '⭐', L: must, subs: [], tinta: ORO });
+      carpetas.sort(cuenta).forEach((k, i) => { k.tinta = { c: TINTAS[i % TINTAS.length], on: '#fff' }; C.push(k); });
+      if (E.otras.length) C.push({ nombre: PM.t('Otros lugares'), ic: '📍', L: E.otras.map((id) => ({ id })), subs: [], tinta: PIZARRA });
+      if (E.extras.length) {
+        const por = new Map();
+        for (const e of E.extras) { const n = (A.d || [])[e.bi] || A.b[e.bi] || PM.t('Otros rincones'); if (!por.has(n)) por.set(n, []); por.get(n).push(e); }
+        C.push({ nombre: PM.t('Extras'), ic: '✨', L: E.extras, subs: por.size > 1 ? [...por].map(([nombre, L]) => ({ nombre, L })).sort(cuenta) : [], tinta: PIZARRA });
+      }
+      return C;
+    }
+    const cuantos = (L) => [L.filter((e) => e.id).length, L.length];
+
     async function ciudad(city) {
       box.dataset.vista = 'ciudad';
       box.innerHTML = '<p class="muted">Abriendo el álbum…</p>';
-      const A = await W().albumDe(city), E = enlazar(A, S().landmarks, city);
-      const fila = (id, ic, nombre, L, extra) => { const g = L.filter((e) => e.id).length + (extra || 0), n = L.length + (extra || 0); return `<button class="ab-cuad ${g && g >= n ? 'hecho' : ''}" data-i="${id}">
-        <span class="ab-ic">${g && g >= n ? '🏅' : ic}</span><span class="ab-nom"><b translate="no">${esc(nombre)}</b><i class="ab-bar"><em style="width:${n ? Math.round(g / n * 100) : 0}%"></em></i></span><span class="ab-cnt">${g}/${n}</span></button>`; };
-      const orden = (x, y) => (y[2].filter((e) => e.id).length - x[2].filter((e) => e.id).length) || y[2].length - x[2].length;
-      const barrios = A.b.map((n, i) => [i, n, E.principal.filter((e) => e.bi === i), (A.d || [])[i] || '']).filter((x) => x[2].length).sort(orden);
-      // distritos con sus barrios dentro (con un solo distrito, los barrios directamente)
-      const distritos = new Map(); for (const x of barrios) { if (!distritos.has(x[3])) distritos.set(x[3], []); distritos.get(x[3]).push(x); }
-      const filas = [...distritos].map(([d, l], i) => [i, d, [].concat(...l.map((x) => x[2])), l]).sort(orden);
-      const conDistritos = distritos.size > 1, sinNombre = barrios.length === 1 ? city : PM.t('Otros rincones');   // (un solo cuaderno es la ciudad entera)
-      const must = E.principal.filter((e) => e.must);
-      box.innerHTML = `<div class="ab-cover grande">${portada(city, A, E, true)}</div>
+      const A = await W().albumDe(city), E = enlazar(A, S().landmarks, city), C = carpetasDe(city, A, E);
+      box.innerHTML = `<div class="ab-cover ab-hero">${portada(city, A, E, true)}</div>
         ${A.parcial ? '<p class="muted">Este álbum crece al explorar: aparecen más lugares según recorres la ciudad.</p>' : ''}
-        <div class="ab-lista">${must.length ? fila('m', '⭐', PM.t('Imprescindibles'), must) : ''}
-        ${conDistritos ? filas.map(([i, d, L]) => fila('d' + i, '🗺️', d || PM.t('Otros rincones'), L)).join('') : barrios.map(([i, n, L]) => fila(i, '🏘️', n || sinNombre, L)).join('')}
-        ${E.otras.length ? fila('o', '📍', PM.t('Otros lugares'), [], E.otras.length) : ''}
-        ${E.extras.length ? `${fila('x', '✨', PM.t('Extras'), E.extras)}<p class="muted ab-nota">${PM.t('{n} lugares más para completistas: no cuentan para completar el álbum.', { n: PM.fmtNum(E.extras.length) })}</p>` : ''}</div>`;
+        <div class="ab-carpetas">${C.map((k, i) => {
+    const [g, n] = cuantos(k.L), hecho = g && g >= n;
+    return `<button class="ab-fold" data-i="${i}" style="${tinta(k)};--x:${[0, 19, 38][i % 3]}%;--r:${i % 3 ? 12 : 0}px;z-index:${i + 1}"><span class="ab-tab" translate="no">${k.ic ? k.ic + ' ' : ''}${esc(k.nombre)}</span>
+          <span class="ab-lomo"><i class="ab-bar"><em style="width:${n ? Math.round(g / n * 100) : 0}%"></em></i><b>${hecho ? '🏅 ' : ''}${g}/${n}</b></span></button>`;
+  }).join('')}</div>
+        ${E.extras.length ? `<p class="muted ab-nota">${PM.t('{n} lugares más para completistas: no cuentan para completar el álbum.', { n: PM.fmtNum(E.extras.length) })}</p>` : ''}`;
       box.prepend(volver(PM.t('Álbumes'), inicio));
-      box.querySelectorAll('.ab-cuad').forEach((b) => b.addEventListener('click', () => {
-        const k = b.dataset.i;
-        if (k === 'o') paginas(city, PM.t('Otros lugares'), E.otras.map((id) => ({ id })));
-        else if (k === 'x') extras(city, A, E.extras, fila);
-        else if (k === 'm') paginas(city, PM.t('Imprescindibles'), must);
-        else if (k[0] === 'd') distrito(city, filas.find((y) => 'd' + y[0] === k), fila);
-        else { const x = barrios.find((y) => String(y[0]) === k); paginas(city, x[1] || sinNombre, x[2]); }
-      }));
-      box.parentElement && box.parentElement.scrollTo && box.parentElement.scrollTo(0, 0);
+      box.querySelectorAll('.ab-fold').forEach((b) => b.addEventListener('click', () => carpeta(city, C, +b.dataset.i, 0)));
+      arriba();
     }
 
-    // los extras de una ciudad enorme son cientos: por distritos, como el álbum
-    function extras(city, A, L, fila) {
-      const titulo = PM.t('Extras'), por = new Map();
-      for (const e of L) { const n = (A.d || [])[e.bi] || A.b[e.bi] || PM.t('Otros rincones'); if (!por.has(n)) por.set(n, []); por.get(n).push(e); }
-      const lista = [...por].sort((x, y) => (y[1].filter((e) => e.id).length - x[1].filter((e) => e.id).length) || y[1].length - x[1].length);
-      if (lista.length === 1) { paginas(city, titulo, L); return; }
-      box.dataset.vista = 'distrito';
-      box.innerHTML = `<div class="ab-pag"><b translate="no">${esc(titulo)}</b><span>${L.filter((e) => e.id).length}/${L.length}</span></div><div class="ab-lista">${lista.map(([n, l], i) => fila(i, '✨', n, l)).join('')}</div>`;
+    // Una carpeta abierta: las demás siguen arriba como pestañas (se cambia de distrito sin volver atrás) y sus barrios son
+    // los separadores de dentro. s: 0, todo; n, el separador n
+    function carpeta(city, C, i, s) {
+      const k = C[i], L = s ? k.subs[s - 1].L : k.L, [g, n] = cuantos(L);
+      box.dataset.vista = 'carpeta';
+      box.innerHTML = `<div class="ab-tiras">${C.map((c, j) => `<button class="ab-t ${j === i ? 'on' : ''}" data-i="${j}" style="${tinta(c)}" translate="no">${c.ic ? c.ic + ' ' : ''}${esc(c.nombre)}</button>`).join('')}</div>
+        <div class="ab-hoja" style="${tinta(k)}">
+          <div class="ab-pag"><b translate="no">${esc(s ? k.subs[s - 1].nombre : k.nombre)}</b><span>${g}/${n}</span></div>
+          <i class="ab-bar"><em style="width:${n ? Math.round(g / n * 100) : 0}%"></em></i>
+          ${k.subs.length ? `<div class="ab-subs"><button class="ab-s ${s ? '' : 'on'}" data-s="0">${PM.t('Todo')} <small>${k.L.length}</small></button>${k.subs.map((b, j) => `<button class="ab-s ${s === j + 1 ? 'on' : ''}" data-s="${j + 1}" translate="no">${esc(b.nombre)} <small>${b.L.length}</small></button>`).join('')}</div>` : ''}
+          ${rejilla(L)}
+        </div>`;
       box.prepend(volver(city, () => ciudad(city)));
-      box.querySelectorAll('.ab-cuad').forEach((b) => b.addEventListener('click', () => { const [n, l] = lista[+b.dataset.i]; paginas(city, n, l, () => extras(city, A, L, fila), titulo); }));
-      box.parentElement && box.parentElement.scrollTo && box.parentElement.scrollTo(0, 0);
+      const tiras = box.querySelector('.ab-tiras'), activa = tiras.querySelector('.on');
+      if (activa) tiras.scrollLeft = activa.offsetLeft - (tiras.clientWidth - activa.offsetWidth) / 2;
+      const sep = box.querySelector('.ab-s.on');
+      if (sep) sep.parentElement.scrollLeft = sep.offsetLeft - 40;
+      tiras.querySelectorAll('.ab-t').forEach((b) => b.addEventListener('click', () => carpeta(city, C, +b.dataset.i, 0)));
+      box.querySelectorAll('.ab-s').forEach((b) => b.addEventListener('click', () => carpeta(city, C, i, +b.dataset.s)));
+      pegar(L);
+      // deslizar la hoja a un lado pasa a la carpeta de al lado, como pasar separadores con el dedo
+      const hoja = box.querySelector('.ab-hoja'); let x0 = null, y0 = 0;
+      hoja.addEventListener('touchstart', (e) => { const t = e.touches[0]; x0 = e.target.closest('.ab-subs') ? null : t.clientX; y0 = t.clientY; }, { passive: true });
+      hoja.addEventListener('touchend', (e) => {
+        if (x0 == null) return;
+        const t = e.changedTouches[0], dx = t.clientX - x0, j = i + (dx < 0 ? 1 : -1);
+        if (Math.abs(dx) > 70 && Math.abs(t.clientY - y0) < 45 && C[j]) carpeta(city, C, j, 0);
+      }, { passive: true });
+      arriba();
     }
 
-    function distrito(city, D, fila) {
-      const [, nombre, , lista] = D, titulo = nombre || PM.t('Otros rincones');
-      if (lista.length === 1) { paginas(city, titulo, lista[0][2]); return; }
-      box.dataset.vista = 'distrito';
-      box.innerHTML = `<div class="ab-pag"><b translate="no">${esc(titulo)}</b><span>${lista.length} ${PM.t('barrios')}</span></div><div class="ab-lista">${lista.map(([i, n, L]) => fila(i, '🏘️', n || titulo, L)).join('')}</div>`;
-      box.prepend(volver(city, () => ciudad(city)));
-      box.querySelectorAll('.ab-cuad').forEach((b) => b.addEventListener('click', () => { const x = lista.find((y) => String(y[0]) === b.dataset.i); paginas(city, x[1] || titulo, x[2], () => distrito(city, D, fila), titulo); }));
-      box.parentElement && box.parentElement.scrollTo && box.parentElement.scrollTo(0, 0);
+    function rejilla(L) {
+      return `<div class="cromos ab-grid">${L.map((e, i) => (e.id ? `<div class="tcg-cell ab-pegado" data-i="${i}" data-lm="${esc(e.id)}"><div class="ab-slot"></div></div>`
+        : `<button class="ab-slot vacio ${e.must ? 'must' : ''}" data-i="${i}"><i class="ab-r" style="background:${(PM.lugares.RARITY[e.rarity] || {}).color || '#9aa4b2'}"></i><span class="ab-em">${esc(e.emoji || '📍')}</span><b translate="no">${esc(e.name)}</b><small>${esc(PM.t(e.kind || ''))}</small></button>`)).join('')}</div>`;
     }
-
-    function paginas(city, nombre, L, atras, atrasTxt) {
-      const g = L.filter((e) => e.id).length;
-      box.dataset.vista = 'paginas';
-      box.innerHTML = `<div class="ab-pag"><b translate="no">${esc(nombre)}</b><span>${g}/${L.length}</span></div>
-        <div class="cromos ab-grid">${L.map((e, i) => (e.id ? `<div class="tcg-cell ab-pegado" data-i="${i}" data-lm="${esc(e.id)}"><div class="ab-slot"></div></div>`
-          : `<button class="ab-slot vacio ${e.must ? 'must' : ''}" data-i="${i}"><span class="ab-em">${esc(e.emoji || '📍')}</span><b translate="no">${esc(e.name)}</b><small>${esc(PM.t(e.kind || ''))}</small></button>`)).join('')}</div>`;
-      box.prepend(volver(atrasTxt || city, atras || (() => ciudad(city))));
+    function pegar(L) {
       box.querySelectorAll('.ab-pegado').forEach(async (el) => {
         const id = el.dataset.lm;
         el.addEventListener('click', () => opts.abrir(id));
@@ -130,8 +154,8 @@ PM.album = (function () {
         if (el.isConnected) { el.innerHTML = PM.tcg.html(d, { mini: true }); if (opts.pegada) opts.pegada(el, id); }
       });
       box.querySelectorAll('.ab-slot.vacio').forEach((b) => b.addEventListener('click', () => { const e = L[+b.dataset.i]; opts.irA({ pos: e.pos, name: e.name }); }));
-      box.parentElement && box.parentElement.scrollTo && box.parentElement.scrollTo(0, 0);
     }
+    const arriba = () => { if (box.parentElement && box.parentElement.scrollTo) box.parentElement.scrollTo(0, 0); };
     inicio();
     return { ciudad };
   }
@@ -178,17 +202,37 @@ PM.album = (function () {
     .ab-bar em { display: block; height: 100%; border-radius: 9px; background: var(--paint, #2563eb); }
     .ab-pie .ab-bar { background: rgba(255,255,255,.3); }
     .ab-ex { font-size: 12px; font-weight: 800; white-space: nowrap; opacity: .9; }
-    .ab-nota { margin: 2px 4px 0; font-size: 12.5px; }
     .ab-go { position: absolute; right: 12px; top: 6px; font-size: 26px; font-weight: 700; text-shadow: 0 1px 4px rgba(0,0,0,.6); }
     .ab-back { border: 0; background: none; color: var(--accent); font: inherit; font-weight: 700; padding: 4px 0 10px; cursor: pointer; }
-    .ab-lista { display: flex; flex-direction: column; gap: 8px; }
-    .ab-cuad { display: flex; align-items: center; gap: 10px; width: 100%; padding: 10px 12px; border: 1px solid var(--line); border-radius: 14px; background: var(--panel); color: inherit; font: inherit; text-align: left; cursor: pointer; }
-    .ab-cuad.hecho { border-color: #f59e0b; }
-    .ab-ic { font-size: 22px; } .ab-nom { flex: 1; min-width: 0; } .ab-nom b { display: block; margin-bottom: 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .ab-cnt { font-size: 13px; font-weight: 800; color: var(--muted); white-space: nowrap; }
+    .ab-cover.ab-hero { aspect-ratio: 16 / 8.5; margin-bottom: 14px; cursor: default; }
+    .ab-hero .ab-tit { bottom: 38px; } .ab-hero .ab-tit small { font-size: 12px; } .ab-hero .ab-tit b { font-size: 32px; padding: 4px 22px 5px 14px; } .ab-hero .ab-tit b.largo { font-size: 24px; }
+    /* carpetas: se solapan como en un archivador, con la pestaña a un tercio (izquierda, centro, derecha). El color fuerte, solo en
+       la pestaña: es lo que se busca con la vista; el cuerpo en tono papel, para que doce carpetas juntas no cansen */
+    .ab-carpetas { padding: 2px 0 8px; }
+    .ab-fold { position: relative; display: block; box-sizing: border-box; width: 100%; height: 92px; margin: -32px 0 0; padding: 0; border: 0; background: none; color: #1f2937; font: inherit; text-align: left; cursor: pointer; transition: transform .16s; filter: drop-shadow(0 -1px 1.5px rgba(15,23,42,.28)); -webkit-tap-highlight-color: transparent; }
+    .ab-fold:first-child { margin-top: 0; } .ab-fold:active { transform: translateY(-6px); } .ab-fold:focus-visible { outline: 2px solid var(--tx); outline-offset: 2px; }
+    .ab-tab { position: absolute; top: 0; left: var(--x); box-sizing: border-box; max-width: 62%; height: 30px; padding: 7px 14px 0; border-radius: 11px 11px 0 0; background: var(--c); color: var(--on); font-size: 13px; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .ab-lomo { position: absolute; top: 28px; left: 0; right: 0; bottom: 0; display: flex; align-items: flex-start; gap: 10px; padding: 11px 14px; border-radius: var(--r) 12px 0 0; background: var(--b); box-shadow: inset 0 1px 0 rgba(255,255,255,.4); }
+    .ab-fold:last-child .ab-lomo { border-radius: var(--r) 12px 12px 12px; }
+    .ab-lomo .ab-bar { margin-top: 6px; background: rgba(255,255,255,.65); } .ab-lomo .ab-bar em { background: var(--c); }
+    .ab-lomo b { font-size: 13px; font-weight: 800; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .ab-nota { margin: 4px 4px 0; font-size: 12.5px; }
+    /* carpeta abierta: las pestañas de todas arriba, y la activa se une a su hoja */
+    .ab-tiras { position: sticky; top: 0; z-index: 3; display: flex; align-items: flex-end; gap: 3px; overflow-x: auto; padding-top: 6px; background: var(--ab-fondo, var(--panel, #fff)); scrollbar-width: none; }
+    .ab-tiras::-webkit-scrollbar, .ab-subs::-webkit-scrollbar { display: none; }
+    .ab-t { flex: none; max-width: 68%; padding: 8px 12px 7px; border: 0; border-radius: 10px 10px 0 0; background: var(--b); color: var(--tx); font: inherit; font-size: 13px; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
+    .ab-t.on { padding-top: 11px; background: var(--c); color: var(--on); }
+    .ab-hoja { padding: 12px 10px 16px; border-top: 4px solid var(--c); border-radius: 0 0 14px 14px; background: var(--t); }
+    .ab-hoja .ab-pag { margin-bottom: 6px; } .ab-hoja .ab-pag b { color: var(--tx); } .ab-hoja > .ab-bar { background: var(--b); margin-bottom: 12px; } .ab-hoja > .ab-bar em { background: var(--c); }
+    .ab-subs { display: flex; gap: 6px; overflow-x: auto; margin: 0 -10px 12px; padding: 0 10px 2px; scrollbar-width: none; }
+    .ab-s { flex: none; padding: 6px 11px; border: 1.5px solid var(--tx); border-radius: 99px; background: rgba(255,255,255,.7); color: var(--tx); font: inherit; font-size: 12.5px; font-weight: 700; white-space: nowrap; cursor: pointer; }
+    .ab-s.on { border-color: var(--c); background: var(--c); color: var(--on); } .ab-s small { font-size: 11px; opacity: .75; }
+    .ab-hoja .ab-slot.vacio { border-color: var(--b); background: rgba(255,255,255,.75); }
+    .ab-hoja .ab-slot.vacio.must { border-color: #f59e0b; }
+    .ab-r { position: absolute; top: 8px; right: 8px; width: 9px; height: 9px; border-radius: 50%; }
     .ab-pag { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; margin-bottom: 10px; } .ab-pag b { font-size: 19px; } .ab-pag span { font-weight: 800; color: var(--muted); }
     .ab-slot { width: 100%; aspect-ratio: 63 / 88; box-sizing: border-box; border-radius: 10px; }
-    .ab-slot.vacio { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; padding: 8px; border: 2px dashed var(--line); background: rgba(127,127,127,.07); color: inherit; font: inherit; cursor: pointer; }
+    .ab-slot.vacio { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; padding: 8px; border: 2px dashed var(--line); background: rgba(127,127,127,.07); color: inherit; font: inherit; cursor: pointer; }
     .ab-slot.vacio.must { border-color: #f59e0b; }
     .ab-em { font-size: 30px; filter: grayscale(1); opacity: .5; }
     .ab-slot.vacio b { font-size: 12.5px; line-height: 1.2; text-align: center; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; }
