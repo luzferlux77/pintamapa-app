@@ -800,7 +800,7 @@
   // Revisión de las cartas: cada carta se pone al día con las reglas de ahora aunque no vuelvas a pasar por su zona. Se carga
   // en segundo plano la zona de cada carta (sin paseo, con la app a la vista y de una en una), se corrige su tipo y su estrella y
   // se quita lo que el juego ya no da por bueno (un hotel, un metro…). Sube REV_CARTAS para repasarlas todas otra vez.
-  const REV_CARTAS = 1;
+  const REV_CARTAS = 2;
   let revBusy = false;
   const revTry = {};
   async function revisarCartas() {

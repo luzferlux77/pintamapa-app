@@ -20,7 +20,9 @@ PM.album = (function () {
       if (e.id) continue;
       for (const [id, r] of libres) if (PM.lugares.esMust(e, id, r)) { e.id = id; libres.delete(id); break; }
     }
-    return { huecos, otras: [...libres.keys()], got: huecos.filter((e) => e.id).length + libres.size };
+    // (los extras de las ciudades enormes no cuentan para completar el álbum; lo tuyo fuera de la lista, sí)
+    const principal = huecos.filter((e) => !e.extra), extras = huecos.filter((e) => e.extra);
+    return { huecos, principal, extras, otras: [...libres.keys()], got: principal.filter((e) => e.id).length + libres.size, total: principal.length + libres.size };
   }
   function ciudades() {
     const s = S(), set = new Set(Object.keys(s.albumes || {}));
@@ -30,11 +32,11 @@ PM.album = (function () {
 
   // ---------------- Portada ----------------
   function portada(city, A, E, grande) {
-    const total = A ? A.l.length + E.otras.length : 0, pct = total ? Math.round(E.got / total * 100) : 0;
+    const total = A ? E.total : 0, pct = total ? Math.min(100, Math.round(E.got / total * 100)) : 0, ex = A ? E.extras : [];
     return `<div class="ab-foto" style="${fondo(A && A.portada)}"></div><div class="ab-velo"></div>
       <div class="ab-marca" translate="no"><span>Pinta</span><span>Mapa</span></div>
       <div class="ab-tit"><small>${PM.t('Álbum de')}</small><b translate="no" class="${city.length > 14 ? 'largo' : ''}">${esc(city)}</b></div>
-      ${A ? `<div class="ab-pie"><span class="ab-n">${E.got}<small> / ${total}</small></span><i class="ab-bar"><em style="width:${pct}%"></em></i></div>` : ''}${grande ? '' : '<span class="ab-go">›</span>'}`;
+      ${A ? `<div class="ab-pie"><span class="ab-n">${total && pct >= 100 ? '🏅 ' : ''}${E.got}<small> / ${total}</small></span><i class="ab-bar"><em style="width:${pct}%"></em></i>${ex.length ? `<span class="ab-ex">✨ ${ex.filter((e) => e.id).length}/${ex.length}</span>` : ''}</div>` : ''}${grande ? '' : '<span class="ab-go">›</span>'}`;
   }
 
   // ---------------- Vistas: álbumes → cuadernos de una ciudad → páginas de un cuaderno ----------------
@@ -44,6 +46,7 @@ PM.album = (function () {
 
     async function inicio() {
       const lista = ciudades(), s = S();
+      box.dataset.vista = 'inicio';
       if (!lista.length) { box.innerHTML = '<p class="muted">Aún no tienes álbumes. Pisa una ciudad y aparecerá aquí.</p>'; return; }
       lista.sort((a, b) => (Object.values(s.landmarks).filter((r) => r.city === b).length - Object.values(s.landmarks).filter((r) => r.city === a).length) || a.localeCompare(b));
       const gr = PM.tcg.byCountry(lista.map((city) => ({ city, ids: [] })), s.countries);
@@ -60,26 +63,29 @@ PM.album = (function () {
     }
 
     async function ciudad(city) {
+      box.dataset.vista = 'ciudad';
       box.innerHTML = '<p class="muted">Abriendo el álbum…</p>';
       const A = await W().albumDe(city), E = enlazar(A, S().landmarks, city);
       const fila = (id, ic, nombre, L, extra) => { const g = L.filter((e) => e.id).length + (extra || 0), n = L.length + (extra || 0); return `<button class="ab-cuad ${g && g >= n ? 'hecho' : ''}" data-i="${id}">
         <span class="ab-ic">${g && g >= n ? '🏅' : ic}</span><span class="ab-nom"><b translate="no">${esc(nombre)}</b><i class="ab-bar"><em style="width:${n ? Math.round(g / n * 100) : 0}%"></em></i></span><span class="ab-cnt">${g}/${n}</span></button>`; };
       const orden = (x, y) => (y[2].filter((e) => e.id).length - x[2].filter((e) => e.id).length) || y[2].length - x[2].length;
-      const barrios = A.b.map((n, i) => [i, n, E.huecos.filter((e) => e.bi === i), (A.d || [])[i] || '']).filter((x) => x[2].length).sort(orden);
+      const barrios = A.b.map((n, i) => [i, n, E.principal.filter((e) => e.bi === i), (A.d || [])[i] || '']).filter((x) => x[2].length).sort(orden);
       // distritos con sus barrios dentro (con un solo distrito, los barrios directamente)
       const distritos = new Map(); for (const x of barrios) { if (!distritos.has(x[3])) distritos.set(x[3], []); distritos.get(x[3]).push(x); }
       const filas = [...distritos].map(([d, l], i) => [i, d, [].concat(...l.map((x) => x[2])), l]).sort(orden);
       const conDistritos = distritos.size > 1, sinNombre = barrios.length === 1 ? city : PM.t('Otros rincones');   // (un solo cuaderno es la ciudad entera)
-      const must = E.huecos.filter((e) => e.must);
+      const must = E.principal.filter((e) => e.must);
       box.innerHTML = `<div class="ab-cover grande">${portada(city, A, E, true)}</div>
         ${A.parcial ? '<p class="muted">Este álbum crece al explorar: aparecen más lugares según recorres la ciudad.</p>' : ''}
         <div class="ab-lista">${must.length ? fila('m', '⭐', PM.t('Imprescindibles'), must) : ''}
         ${conDistritos ? filas.map(([i, d, L]) => fila('d' + i, '🗺️', d || PM.t('Otros rincones'), L)).join('') : barrios.map(([i, n, L]) => fila(i, '🏘️', n || sinNombre, L)).join('')}
-        ${E.otras.length ? fila('o', '📍', PM.t('Otros lugares'), [], E.otras.length) : ''}</div>`;
+        ${E.otras.length ? fila('o', '📍', PM.t('Otros lugares'), [], E.otras.length) : ''}
+        ${E.extras.length ? `${fila('x', '✨', PM.t('Extras'), E.extras)}<p class="muted ab-nota">${PM.t('{n} lugares más para completistas: no cuentan para completar el álbum.', { n: PM.fmtNum(E.extras.length) })}</p>` : ''}</div>`;
       box.prepend(volver(PM.t('Álbumes'), inicio));
       box.querySelectorAll('.ab-cuad').forEach((b) => b.addEventListener('click', () => {
         const k = b.dataset.i;
         if (k === 'o') paginas(city, PM.t('Otros lugares'), E.otras.map((id) => ({ id })));
+        else if (k === 'x') extras(city, A, E.extras, fila);
         else if (k === 'm') paginas(city, PM.t('Imprescindibles'), must);
         else if (k[0] === 'd') distrito(city, filas.find((y) => 'd' + y[0] === k), fila);
         else { const x = barrios.find((y) => String(y[0]) === k); paginas(city, x[1] || sinNombre, x[2]); }
@@ -87,9 +93,23 @@ PM.album = (function () {
       box.parentElement && box.parentElement.scrollTo && box.parentElement.scrollTo(0, 0);
     }
 
+    // los extras de una ciudad enorme son cientos: por distritos, como el álbum
+    function extras(city, A, L, fila) {
+      const titulo = PM.t('Extras'), por = new Map();
+      for (const e of L) { const n = (A.d || [])[e.bi] || A.b[e.bi] || PM.t('Otros rincones'); if (!por.has(n)) por.set(n, []); por.get(n).push(e); }
+      const lista = [...por].sort((x, y) => (y[1].filter((e) => e.id).length - x[1].filter((e) => e.id).length) || y[1].length - x[1].length);
+      if (lista.length === 1) { paginas(city, titulo, L); return; }
+      box.dataset.vista = 'distrito';
+      box.innerHTML = `<div class="ab-pag"><b translate="no">${esc(titulo)}</b><span>${L.filter((e) => e.id).length}/${L.length}</span></div><div class="ab-lista">${lista.map(([n, l], i) => fila(i, '✨', n, l)).join('')}</div>`;
+      box.prepend(volver(city, () => ciudad(city)));
+      box.querySelectorAll('.ab-cuad').forEach((b) => b.addEventListener('click', () => { const [n, l] = lista[+b.dataset.i]; paginas(city, n, l, () => extras(city, A, L, fila), titulo); }));
+      box.parentElement && box.parentElement.scrollTo && box.parentElement.scrollTo(0, 0);
+    }
+
     function distrito(city, D, fila) {
       const [, nombre, , lista] = D, titulo = nombre || PM.t('Otros rincones');
       if (lista.length === 1) { paginas(city, titulo, lista[0][2]); return; }
+      box.dataset.vista = 'distrito';
       box.innerHTML = `<div class="ab-pag"><b translate="no">${esc(titulo)}</b><span>${lista.length} ${PM.t('barrios')}</span></div><div class="ab-lista">${lista.map(([i, n, L]) => fila(i, '🏘️', n || titulo, L)).join('')}</div>`;
       box.prepend(volver(city, () => ciudad(city)));
       box.querySelectorAll('.ab-cuad').forEach((b) => b.addEventListener('click', () => { const x = lista.find((y) => String(y[0]) === b.dataset.i); paginas(city, x[1] || titulo, x[2], () => distrito(city, D, fila), titulo); }));
@@ -98,6 +118,7 @@ PM.album = (function () {
 
     function paginas(city, nombre, L, atras, atrasTxt) {
       const g = L.filter((e) => e.id).length;
+      box.dataset.vista = 'paginas';
       box.innerHTML = `<div class="ab-pag"><b translate="no">${esc(nombre)}</b><span>${g}/${L.length}</span></div>
         <div class="cromos ab-grid">${L.map((e, i) => (e.id ? `<div class="tcg-cell ab-pegado" data-i="${i}" data-lm="${esc(e.id)}"><div class="ab-slot"></div></div>`
           : `<button class="ab-slot vacio ${e.must ? 'must' : ''}" data-i="${i}"><span class="ab-em">${esc(e.emoji || '📍')}</span><b translate="no">${esc(e.name)}</b><small>${esc(PM.t(e.kind || ''))}</small></button>`)).join('')}</div>`;
@@ -156,6 +177,8 @@ PM.album = (function () {
     .ab-bar { display: block; flex: 1; height: 7px; border-radius: 9px; background: rgba(127,127,127,.35); overflow: hidden; }
     .ab-bar em { display: block; height: 100%; border-radius: 9px; background: var(--paint, #2563eb); }
     .ab-pie .ab-bar { background: rgba(255,255,255,.3); }
+    .ab-ex { font-size: 12px; font-weight: 800; white-space: nowrap; opacity: .9; }
+    .ab-nota { margin: 2px 4px 0; font-size: 12.5px; }
     .ab-go { position: absolute; right: 12px; top: 6px; font-size: 26px; font-weight: 700; text-shadow: 0 1px 4px rgba(0,0,0,.6); }
     .ab-back { border: 0; background: none; color: var(--accent); font: inherit; font-weight: 700; padding: 4px 0 10px; cursor: pointer; }
     .ab-lista { display: flex; flex-direction: column; gap: 8px; }

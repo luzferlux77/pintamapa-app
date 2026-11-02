@@ -118,9 +118,31 @@
     .city-h { margin: 14px 0 8px; font-size: 14px; font-weight: 700; } .city-h span { color: var(--muted, #888); font-weight: 500; margin-left: 4px; }
     .wdet { margin-top: 8px; border: 1px solid rgba(127,127,127,.35); background: transparent; color: inherit; border-radius: 9px; padding: 7px 12px; font: 600 13px system-ui, sans-serif; cursor: pointer; }
     .tcggrid .tcg-cell { --w: 128px; } .tcggrid .tcg.mini { font-size: calc(var(--w) / 26); }
+    .verbar { text-align: right; font-size: 12px; line-height: 1.35; color: var(--muted); white-space: nowrap; }
+    .verbar b { display: block; font-weight: 700; color: var(--text); } .verbar small { font-size: inherit; }
     #album-box { --panel: var(--card); --accent: var(--paint); }
     #album-box .cromos { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
     #album-box .cromos .tcg-cell { --w: 128px; } #album-box .cromos .tcg.mini { font-size: calc(var(--w) / 26); }
+    /* álbumes a pantalla completa: portadas en rejilla, la ciudad a dos columnas y las cartas más grandes */
+    #alb-full { position: fixed; inset: 0; z-index: 2500; display: none; flex-direction: column; background: var(--bg); }
+    #alb-full.show { display: flex; }
+    .af-top { display: flex; align-items: center; gap: 14px; padding: 10px 24px; background: var(--card); border-bottom: 1px solid var(--line); }
+    .af-top b { flex: 1; font-size: 18px; }
+    #af-body { flex: 1; min-height: 0; overflow: auto; padding: 24px; }
+    #alb-full #album-box { max-width: 1500px; margin: 0 auto; }
+    #alb-full [data-vista="inicio"] { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 360px), 1fr)); gap: 18px; align-items: start; }
+    #alb-full [data-vista="inicio"] h4 { grid-column: 1 / -1; margin: 0; }
+    #alb-full [data-vista="inicio"] .ab-cover { margin: 0; }
+    #alb-full .ab-lista { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); gap: 10px; align-content: start; }
+    #alb-full .ab-nota { grid-column: 1 / -1; }
+    #alb-full #album-box .cromos { grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 16px; }
+    #alb-full #album-box .cromos .tcg-cell { --w: 190px; }
+    @media (min-width: 900px) {
+      #alb-full [data-vista="ciudad"] { display: grid; grid-template-columns: minmax(320px, 420px) minmax(0, 1fr); column-gap: 28px; align-items: start; }
+      #alb-full [data-vista="ciudad"] > .ab-back { grid-column: 1 / -1; justify-self: start; }
+      #alb-full [data-vista="ciudad"] > .ab-cover { grid-column: 1; grid-row: 2 / span 3; position: sticky; top: 0; margin: 0; }
+      #alb-full [data-vista="ciudad"] > .muted, #alb-full [data-vista="ciudad"] > .ab-lista { grid-column: 2; }
+    }
     .lmlist { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 10px; }
     .lmc { border-radius: 12px; overflow: hidden; background: #f3f4f7; cursor: pointer; border: 2px solid var(--c, #e5e7eb); }
     .lmc .ph { height: 80px; background: #e9ebf0 center / cover; display: grid; place-items: center; font-size: 30px; }
@@ -162,15 +184,18 @@
     .eq span { font-size: 20px; } .eq b { display: block; font-size: 18px; font-weight: 800; } .eq small { color: var(--muted); font-size: 11.5px; }
     .empty { color: var(--muted); font-size: 13.5px; text-align: center; padding: 18px 8px; }
     @media (max-width: 980px) {
-      #app { grid-template-columns: minmax(0, 1fr); grid-template-rows: 64px 55vh auto; height: auto; }
+      #app { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto 55vh auto; height: auto; }
+      header { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto auto; row-gap: 4px; padding-top: 8px !important; padding-bottom: 6px !important; }
+      header .grow { display: none; } .who { min-width: 0; margin-left: 0; }
+      .tabs button { flex: 1 1 auto; padding: 8px 2px; font-size: 11.5px; min-width: 0; }
+      .verbar { grid-row: 2; grid-column: 1 / -1; display: flex; justify-content: space-between; gap: 10px; text-align: left; font-size: 11px; }
       aside { border-left: 0; overflow: visible; min-width: 0; padding: 12px; }
       aside > *, .card { min-width: 0; max-width: 100%; }
       html, body { overflow-x: hidden; }
       .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       .hero-nums { grid-template-columns: repeat(2, 1fr); } .wk3 b { font-size: 15px; } .lw-map { width: 104px; height: 80px; }
       .grid2, .recs { grid-template-columns: minmax(0, 1fr) !important; }
-      #synced { display: none; }
-      header { gap: 8px; padding: 0 10px; } header .logo { font-size: 19px !important; } .who-txt small { display: none; }
+      header { gap: 8px; padding-left: 10px; padding-right: 10px; } header .logo { font-size: 19px !important; } .who-txt small { display: none; }
       .hbtn { padding: 6px 9px !important; font-size: 12.5px !important; white-space: nowrap; }
       header .ring { width: 38px !important; height: 38px !important; }
       #reload, header a.hbtn { font-size: 0 !important; } #reload::before { content: '↻'; font-size: 17px; } header a.hbtn::before { content: '🕹️'; font-size: 16px; }
@@ -199,7 +224,7 @@
       <div class="logo" translate="no" style="font-size:24px"><span class="p">Pinta</span><span class="m">Mapa</span></div>
       <div class="who"><div class="ring" id="ring"><b id="lvl">1</b></div><div class="who-txt"><b id="name"></b><small id="lvltext"></small></div></div>
       <div class="grow"></div>
-      <small class="muted" id="synced" style="font-size:12px"></small>
+      <div class="verbar"><b id="appver" translate="no"></b><small id="synced"></small></div>
       <button class="hbtn" id="reload">↻ Actualizar</button>
       <a class="hbtn" href="index.html">🕹️ Jugar</a>
       <button class="hbtn" id="logout">Salir</button>
@@ -221,6 +246,8 @@
       <div id="panel" style="display:flex;flex-direction:column;gap:14px"></div>
     </aside>
   </div>
+
+  <div id="alb-full"><div class="af-top"><b>📖 <span>Mis álbumes</span></b><button class="hbtn" id="af-x">✕ Salir</button></div><div id="af-body"></div></div>
 
   <script src="lib/maplibre/maplibre-gl.js"></script>
   <script src="js/version.js"></script>
@@ -337,7 +364,10 @@
       if (s.avatar) { if (!av) { av = document.createElement('div'); av.id = 'avatar'; $('.who').insertBefore(av, $('.who-txt')); } av.style.backgroundImage = `url('${s.avatar}')`; }
       else if (av) av.remove();
       $('#lvltext').textContent = `Nivel ${LI.label}${LI.tier ? ' ' + LI.tier.icon : ''} · ${PM.fmtNum(s.xp || 0)} pts · ` + (LI.max ? '¡nivel máximo!' : `faltan ${PM.fmtNum(LI.need - LI.cur)} para el ${LI.nextLabel}`);
-      $('#synced').textContent = s.syncedAt ? 'Actualizado ' + new Date(s.syncedAt).toLocaleString(PM.LOCALE, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
+      // arriba, la versión de la app y la última vez que llegaron datos (la subida o, si el móvil aún no la anota, el último paseo)
+      const V = PM.VERSION, ult = Math.max(s.syncedAt || 0, ...(s.walks || []).map((w) => (w.start || 0) + (w.elapsed || 0)));
+      $('#appver').textContent = `PintaMapa v${V.app} · ${new Date(V.date + 'T12:00').toLocaleDateString(PM.LOCALE, { day: 'numeric', month: 'short', year: 'numeric' })}`;
+      $('#synced').textContent = ult ? 'Actualizado ' + new Date(ult).toLocaleString(PM.LOCALE, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
       document.documentElement.style.setProperty('--paint', s.color || '#ff2e88');
     }
 
@@ -452,6 +482,20 @@
       });
       return colaForma.then(() => PM.world.albumDe(city));
     }
+
+    // Pantalla completa: el mismo álbum, en el sitio donde estabas, se pasa a una capa que ocupa toda la ventana (y, si el
+    // navegador lo deja, toda la pantalla). Esc o ✕ lo devuelven
+    function pantallaAlbum(on) {
+      const ov = $('#alb-full'), box = $('#album-box');
+      if (!box || on === ov.classList.contains('show')) return;
+      ov.classList.toggle('show', on);
+      ($(on ? '#af-body' : '#alb-home') || ov).appendChild(box);
+      if (on) { const f = document.documentElement.requestFullscreen; if (f) f.call(document.documentElement).catch(() => {}); }
+      else if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+    }
+    $('#af-x').addEventListener('click', () => pantallaAlbum(false));
+    document.addEventListener('fullscreenchange', () => { if (!document.fullscreenElement) pantallaAlbum(false); });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !document.querySelector('#tcg-view.show')) pantallaAlbum(false); });
 
     function fit() { if (fitBounds) map.fitBounds(fitBounds, { padding: 60, maxZoom: 17, duration: 0 }); else map.jumpTo({ center: [2.07386, 41.35763], zoom: 15 }); }
     $('#fit').addEventListener('click', () => { if (map.getSource('pv-sel')) map.getSource('pv-sel').setData(FC([])); document.querySelectorAll('.walk').forEach((x) => x.classList.remove('sel')); fit(); });
@@ -836,12 +880,14 @@
         const bc = Object.entries(s.barrioCards || {}).map(([id, v]) => Object.assign({ id }, v));
         h += `<div class="card"><h3>Barrios conquistados <span>${bc.length}</span></h3>${bc.length ? bc.map((b) => { const rk = (s.barrioRank || {})[b.id] != null ? s.barrioRank[b.id] : ((s.perfectB || {})[b.id] ? 2 : 0); return `<div class="row"><span>${PM.RANKS[rk].ic} ${esc(b.name)} <small class="muted">· ${PM.RANKS[rk].name}</small></span><b>${new Date(b.t).toLocaleDateString(PM.LOCALE)}</b></div>`; }).join('') : '<div class="empty">Pinta el 60 % de un barrio para conquistarlo (80 % plata, 90 % oro).</div>'}</div>`;
       }
-      if (tab === 'alb') h += '<div class="card"><div id="album-box"></div></div>';
+      if (tab === 'alb') h += '<div class="card"><h3>Mis álbumes <button class="hbtn" id="alb-fs">⛶ Pantalla completa</button></h3><div id="alb-home"><div id="album-box"></div></div></div>';
       P.innerHTML = h;
       if (tab === 'alb') {
         PM.fillLandmarkCities(A.s);
         PM.album.usar({ save: () => A.s, albumDe: albumWeb });
-        PM.album.montar($('#album-box'), { datos: cardData, abrir: openCard, irA: (e) => map.flyTo({ center: ll(e.pos), zoom: 17 }), pegada: async (el, id) => {
+        $('#alb-fs').addEventListener('click', () => pantallaAlbum(true));
+        const irA = (e) => { pantallaAlbum(false); $('#bigmap').scrollIntoView({ behavior: 'smooth', block: 'nearest' }); map.flyTo({ center: ll(e.pos), zoom: 17 }); };
+        PM.album.montar($('#album-box'), { datos: cardData, abrir: openCard, irA, pegada: async (el, id) => {
           if (!(A.s.cardPhotos || {})[id]) return;
           const img = await ownPhoto(id), ph = img && el.querySelector('.tcg-photo');
           if (ph) { ph.style.backgroundImage = `url('${img}')`; ph.innerHTML = ''; }

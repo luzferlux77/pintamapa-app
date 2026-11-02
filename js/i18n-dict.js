@@ -1116,6 +1116,8 @@
     'Aún no tienes álbumes. Pisa una ciudad y aparecerá aquí.': ['Encara no tens àlbums. Trepitja una ciutat i apareixerà aquí.', 'No albums yet. Step into a city and it will appear here.', 'Pas encore d’albums. Entre dans une ville et il apparaîtra ici.'],
     'Abriendo el álbum…': ['Obrint l’àlbum…', 'Opening the album…', 'Ouverture de l’album…'],
     'Este álbum crece al explorar: aparecen más lugares según recorres la ciudad.': ['Aquest àlbum creix explorant: apareixen més llocs a mesura que recorres la ciutat.', 'This album grows as you explore: more places appear as you walk the city.', 'Cet album grandit quand tu explores : plus de lieux apparaissent au fil de tes pas.'],
+    'Extras': ['Extres', 'Extras', 'Extras'], 'Pantalla completa': ['Pantalla completa', 'Full screen', 'Plein écran'], 'Mis álbumes': ['Els meus àlbums', 'My albums', 'Mes albums'],
+    '{n} lugares más para completistas: no cuentan para completar el álbum.': ['{n} llocs més per a completistes: no compten per completar l\'àlbum.', '{n} more places for completists: they don\'t count towards finishing the album.', '{n} lieux de plus pour les complétistes : ils ne comptent pas pour terminer l\'album.'],
     'Otros rincones': ['Altres racons', 'Other corners', 'Autres coins'], '¡Nuevo álbum!': ['Nou àlbum!', 'New album!', 'Nouvel album !'],
     'Abrir álbum': ['Obrir l’àlbum', 'Open album', 'Ouvrir l’album'], 'Luego': ['Després', 'Later', 'Plus tard'],
     '📍 {n}: te falta en el álbum': ['📍 {n}: et falta a l’àlbum', '📍 {n}: missing from your album', '📍 {n} : il te manque dans l’album'],

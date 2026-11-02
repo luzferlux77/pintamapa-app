@@ -1313,10 +1313,10 @@ PM.world = (function () {
         if (!d) continue;
         if (c.q === ci.q) out.portada = d.portada;
         out.parcial = false; if (d.oficial) out.oficial = true;
-        for (const x of d.l) if (inCity([x[4], x[5]], ci)) poner({ q: x[0], name: x[1], emoji: x[2], kind: x[3], pos: [x[4], x[5]], bi: barrio(d.b[x[6]], (d.d || [])[x[6]]), rarity: x[7], must: !!x[8] });
+        for (const x of d.l) if (c.q === ci.q && d.contorno ? !x[10] : inCity([x[4], x[5]], ci)) poner({ q: x[0], name: x[1], emoji: x[2], kind: x[3], pos: [x[4], x[5]], bi: barrio(d.b[x[6]], (d.d || [])[x[6]]), rarity: x[7], must: !!x[8], extra: !!x[9] });
       }
       const fijos = new Set((ci.must || []).map((m) => m.q));
-      for (const e2 of out.l) e2.must = fijos.size ? fijos.has(e2.q) : e2.must;
+      for (const e2 of out.l) { e2.must = fijos.size ? fijos.has(e2.q) : e2.must; if (e2.must) e2.extra = false; }
       for (const m of ci.must || []) poner({ q: m.q, name: m.name, emoji: m.emoji, kind: m.kind, pos: m.pos, bi: barrio(''), must: true });
     }
     // sin archivo, o con uno que casi no trae nada (un pueblo con un solo lugar con artículo: Pozuelo de Calatrava): también lo que
@@ -1570,6 +1570,7 @@ PM.world = (function () {
       // cartas de lo que el motor ya no pone (universidades, hospitales, bomberos que no son patrimonio, iglesias
       // evangélicas, hoteles, metro…): fuera del álbum (los puntos ganados se quedan)
       for (const [id, r] of Object.entries(s.landmarks || {})) {
+        if (pool[id] && r.rarity !== pool[id].rarity) { r.rarity = pool[id].rarity; n++; }
         let v = L.vigencia(r);
         if (v === 'dudosa') {
           // carta antigua sin el dato de patrimonio: si el lugar sigue en el motor, se toman de ahí su tipo y protección;
