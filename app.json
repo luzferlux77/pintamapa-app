@@ -1,8 +1,8 @@
 {
-  "version": "0.6.98",
-  "notes": "Auditoría de preproducción: la racha rota ya no vuelve al sincronizar, el mapa sin conexión sigue valiendo cuando cambia su ruta semanal, el sonido recuerda tu ajuste, un paseo con GPS flojo no se pausa solo, partidas dañadas a salvo, limpieza de datos caducados, repaso de cartas mucho más rápido, decimales e idiomas al día y créditos con sus licencias",
+  "version": "0.6.99",
+  "notes": "Bienvenida para quien empieza: cuatro pantallas con el aviso de la ubicación antes del permiso y una guía del primer paseo con un primer objetivo cercano",
   "native": 6,
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.98/pintamapa-web-0.6.98.zip",
-  "checksum": "d11fad3adfd4bcf8a4cb5f8e8c4971c691e9e925adc8e4cb84245aba8c0f5d36",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.98/PintaMapa-v0.6.98.apk"
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.99/pintamapa-web-0.6.99.zip",
+  "checksum": "ec3aa8f8661d6bece96e243b1af5d5b7d8d160299da44a8184835ca102098729",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.99/PintaMapa-v0.6.99.apk"
 }
