@@ -1,8 +1,8 @@
 {
-  "version": "0.6.91",
-  "notes": "Tus cartas se revisan solas: las que ya no valen desaparecen y las demás se ponen al día, con su texto y su foto correctos",
+  "version": "0.6.92",
+  "notes": "Datos de toda España: zonas preparadas y álbumes de 1049 ciudades con sus distritos y barrios reales. Lugares obligatorios de Pozuelo de Calatrava. Limpieza a fondo del código",
   "native": 6,
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.91/pintamapa-web-0.6.91.zip",
-  "checksum": "72eaeae13ec13f16656d0e62a07ea71545cafae12bb5d80c1445ae01d8ae5a78",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.91/PintaMapa-v0.6.91.apk"
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.92/pintamapa-web-0.6.92.zip",
+  "checksum": "d952266e105790f5161ada0923ff85579172cb4b0b4fca2ab03fea0f7b9fb7fb",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.92/PintaMapa-v0.6.92.apk"
 }
