@@ -1,8 +1,8 @@
 {
-  "version": "0.6.96",
-  "notes": "Álbumes rediseñados como un archivador: carpetas de colores con pestañas para cada distrito, barrios como separadores y todo en una sola pantalla. En el móvil, Mi progreso abre el álbum a pantalla completa",
+  "version": "0.6.97",
+  "notes": "Álbum más limpio: se abre directamente con sus pestañas y una portada nueva con tu progreso. Huecos numerados como los cromos, con su rareza. Los álbumes se renuevan solos al publicar datos nuevos",
   "native": 6,
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.96/pintamapa-web-0.6.96.zip",
-  "checksum": "2d505f83575d09f8828e8e39d0a6c98605d05b17ff52d55a3f17406bc98a1bb2",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.96/PintaMapa-v0.6.96.apk"
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.97/pintamapa-web-0.6.97.zip",
+  "checksum": "b70b374199dfcd64a1e633e09f0ad8fa3b45b1911c631210be6bec429d03b717",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.6.97/PintaMapa-v0.6.97.apk"
 }
