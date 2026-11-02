@@ -462,7 +462,7 @@
   // animación CSS. Los anima la tarjeta gráfica sin tocar el mapa (antes, cambiar la capa 25 veces por segundo
   // obligaba a redibujarlo entero sin parar: más de la mitad del procesador y mucha batería).
   const fxMarks = new Map();
-  let fxT = 0;
+  let fxT = 0, guiaObj = null;
   function fxScale() {   // mismo tamaño que los iconos según el zoom
     const z = map.getZoom(), s = z <= 12 ? 0.55 : z <= 15 ? 0.55 + (z - 12) * 0.1 : z <= 17 ? 0.85 + (z - 15) * 0.075 : 1;
     map.getContainer().style.setProperty('--fxs', s.toFixed(3));
@@ -477,7 +477,7 @@
       const halos = [];
       for (const { lm, got } of Object.values(lmIndex)) {
         const must = !!(lm.must || (S().landmarks[lm.id] || {}).must);
-        if (!got && must && PM.geo.dist(lm.pos, ctr) < 5000) want.set('m' + lm.id, [lm, 'fx-must']);
+        if (!got && (must || lm.id === guiaObj) && PM.geo.dist(lm.pos, ctr) < 5000) want.set('m' + lm.id, [lm, 'fx-must']);   // (también late tu primer objetivo)
         else if (got && haloOn) { const d = PM.geo.dist(lm.pos, pos); if (d < 800) halos.push([d, lm, must]); }
       }
       // ondas solo en los 6 conquistados más cercanos (antes, en todos a menos de 1,5 km: decenas de animaciones sin fin)
@@ -2026,6 +2026,7 @@
     const city = W.cityAt(pos) || t.city;
     if (!city || PM.album.NO_ES_CIUDAD.test(city) || s.albumes[city] || !t.loaded) return;
     s.albumes[city] = Date.now(); PM.state.save();
+    if (s.guia) return;   // (en el primer paseo no se interrumpe: la bienvenida ya ha hablado del álbum)
     PM.album.nuevo(city, (c) => panelAlbum(c)).catch(() => {});
   }
   // centra el mapa en un lugar y abre su carta (o su ficha si aún no es tuyo)
@@ -2530,7 +2531,8 @@
       html += card('⚙️ Preferencias', `
         <label class="row"><span>🔊 Sonido</span><input type="checkbox" class="sw" id="opt-sound" ${PM.sound.enabled ? 'checked' : ''}></label>
         <label class="row"><span>🌙 Tema oscuro</span><input type="checkbox" class="sw" id="opt-dark" ${s.theme === 'dark' ? 'checked' : ''}></label>
-        ${Object.keys(PM.i18n.LANGS).length > 1 ? `<label class="row"><span>🌐 Idioma</span><select id="opt-lang" translate="no">${Object.entries(PM.i18n.LANGS).map(([k, v]) => `<option value="${k}" ${k === PM.i18n.lang ? 'selected' : ''}>${v}</option>`).join('')}</select></label>` : ''}`);
+        ${Object.keys(PM.i18n.LANGS).length > 1 ? `<label class="row"><span>🌐 Idioma</span><select id="opt-lang" translate="no">${Object.entries(PM.i18n.LANGS).map(([k, v]) => `<option value="${k}" ${k === PM.i18n.lang ? 'selected' : ''}>${v}</option>`).join('')}</select></label>` : ''}
+        <button class="btn" id="opt-bv" style="width:100%;margin-top:6px">👋 Ver la bienvenida</button>`);
       html += card('💾 Copia de seguridad', `<p class="muted">Guarda TODA tu partida (fotos de cromos, lo pintado y tus barrios incluidos) en un archivo en tu móvil (<b>Documentos/PintaMapa</b>). Si cambias de móvil, pásalo al nuevo e impórtalo: se <b>suma</b> a lo que tengas, no se pierde nada.</p>
         <div class="seg"><button class="btn on" id="bk-exp">💾 Exportar copia</button><button class="btn" id="bk-imp">📂 Importar copia</button></div><p class="muted" id="bk-msg">${s.backupT ? 'Última copia: ' + new Date(s.backupT).toLocaleString(PM.LOCALE) : 'Aún no has hecho ninguna copia.'}</p>`);
       html += card('📴 Mapa sin conexión', `<p class="muted">Descarga tu zona para ver el mapa y pintar sin cobertura (metro, montaña, viajes). Lo que ya has visto también se guarda solo.</p>
@@ -2592,6 +2594,7 @@
     $('#opt-lang') && $('#opt-lang').addEventListener('change', (e) => PM.i18n.set(e.target.value));
     $('#opt-dark') && $('#opt-dark').addEventListener('change', (e) => { S().theme = e.target.checked ? 'dark' : 'light'; PM.state.save(); applyTheme(); });
     $('#opt-walks') && $('#opt-walks').addEventListener('click', panelWalks);
+    $('#opt-bv') && $('#opt-bv').addEventListener('click', () => PM.need('js/bienvenida.js').then(() => PM.bienvenida.abrir(() => {})));
     if ($('#bk-exp')) $('#bk-exp').addEventListener('click', exportBackup);
     if ($('#bk-imp')) $('#bk-imp').addEventListener('click', importBackup);
     if ($('#off-msg')) {
@@ -2773,6 +2776,12 @@
     }
     if (!PM.player) { showNewBox(true); return; }
     if (begun) return;   // (dos entradas a la vez —paseo que sigue y pintor recién elegido— eran dos bucles de dibujo para siempre)
+    // pintor nuevo: primero la bienvenida (y en el móvil, el aviso de la ubicación ANTES de que Android pida el permiso, que se pide más abajo)
+    if (!S().bienvenida && !S().xp && !(S().walks || []).length && !session) {
+      const sigue = (guiar) => { S().bienvenida = Date.now(); if (guiar) S().guia = 1; PM.state.save(); begin(); };
+      PM.need('js/bienvenida.js').then(() => PM.bienvenida.abrir(() => sigue(true))).catch(() => sigue(false));
+      return;
+    }
     begun = true;
     $('#intro').classList.remove('show');
     setTimeout(() => map.resize(), 50);
@@ -2820,7 +2829,9 @@
       }, 2500);
     }
     if (autoResumed && session && !session.paused) PM.update.hold();
-    setTimeout(() => toast(autoResumed && session && !session.paused ? '▶ Tu paseo sigue: la app se había cerrado, seguimos pintando' : session ? '⏸ Tienes un paseo en pausa: pulsa ▶ para reanudar' :
+    if (S().guia) PM.need('js/bienvenida.js').then(() => PM.bienvenida.guia({ S, G, W, toast, pos: () => pos, enPaseo: () => !!(session && !session.paused),
+      marcar: (id) => { guiaObj = id; fxSync(); }, irA: goToPlace })).catch(() => {});
+    else setTimeout(() => toast(autoResumed && session && !session.paused ? '▶ Tu paseo sigue: la app se había cerrado, seguimos pintando' : session ? '⏸ Tienes un paseo en pausa: pulsa ▶ para reanudar' :
       isNative ? '📡 Pulsa «Empezar a pintar» y sal a la calle' : '🕹️ Pulsa «Empezar a pintar» y muévete con WASD o clic', 'info', 4500), 600);
   }
   $('#start').addEventListener('click', () => begin(true));

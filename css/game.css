@@ -603,6 +603,70 @@ input.sw:checked { background: var(--accent, #2563eb); } input.sw:checked::after
 .langs.big { flex-direction: column; gap: 10px; margin: 18px auto 0; max-width: 280px; }
 .langs.big button { font-size: 18px; padding: 14px 18px; border-radius: 14px; color: var(--text); }
 .langs.big button.on { color: #fff; }
+
+/* ===== Bienvenida: pantallas de la primera vez y guía del primer paseo ===== */
+#bv { position: fixed; inset: 0; z-index: 2000; display: flex; flex-direction: column; background: var(--introbg); color: var(--text); padding: var(--safe-top) 0 var(--safe-bottom); }
+.bv-salta { align-self: flex-end; background: none; border: none; color: var(--muted); font: inherit; font-size: 15px; font-weight: 600; padding: 14px 18px; cursor: pointer; }
+.bv-pista { flex: 1; min-height: 0; display: flex; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; }
+.bv-pista::-webkit-scrollbar { display: none; }
+.bv-pag { flex: 0 0 100%; scroll-snap-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 0 28px; text-align: center; overflow-y: auto; }
+.bv-pag h2 { font-size: 25px; line-height: 1.2; font-weight: 800; margin: 26px 0 10px; max-width: 340px; letter-spacing: -.3px; }
+.bv-pag p { font-size: 16.5px; line-height: 1.5; color: var(--muted); margin: 0; max-width: 340px; }
+.bv-pag small { display: block; font-size: 13.5px; line-height: 1.45; color: var(--muted); margin-top: 12px; max-width: 340px; }
+.bv-pie { display: flex; flex-direction: column; align-items: center; gap: 16px; padding: 14px 28px 24px; }
+.bv-pie .btn.primary { width: min(100%, 340px); padding: 15px 20px; font-size: 17px; }
+.bv-puntos { display: flex; gap: 8px; } .bv-puntos i { width: 8px; height: 8px; border-radius: 50%; background: var(--line); transition: background .25s, transform .25s; } .bv-puntos i.on { background: var(--accent); transform: scale(1.3); }
+.bv-arte { position: relative; width: min(100%, 300px, 42vh); aspect-ratio: 30 / 22; flex: none; }
+.bv-arte img { display: block; }
+/* 1. pintar: un paseo que se pinta por las calles */
+.bv-pinta { border-radius: 22px; overflow: hidden; box-shadow: 0 10px 30px rgba(15, 23, 42, .12); }
+.bv-pinta svg { display: block; width: 100%; height: 100%; }
+.bv-suelo { fill: #f4f0e8; } .bv-parque { fill: #cfe7bf; }
+.bv-calles { fill: none; stroke: #fff; stroke-width: 11; stroke-linecap: round; }
+.bv-trazo { fill: none; stroke: #2563eb; stroke-width: 11; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 1; stroke-dashoffset: 1; }
+.bv-bola { fill: #fff; stroke: #2563eb; stroke-width: 5; offset-path: path('M30 124L72 120L65 55L155 48L160 112L245 104'); offset-rotate: 0deg; }
+.bv-bandera { position: absolute; left: 81%; top: 28%; width: 13%; opacity: 0; }
+.bv-pag.on .bv-trazo { animation: bv-pinta 2.6s ease-in-out .25s forwards; }
+.bv-pag.on .bv-bola { animation: bv-anda 2.6s ease-in-out .25s forwards; }
+.bv-pag.on .bv-bandera { animation: bv-sale .45s cubic-bezier(.3, 1.6, .5, 1) 2.8s forwards; }
+@keyframes bv-pinta { to { stroke-dashoffset: 0; } }
+@keyframes bv-anda { to { offset-distance: 100%; } }
+@keyframes bv-sale { from { opacity: 0; transform: translateY(10px) scale(.6); } to { opacity: 1; transform: none; } }
+/* 2. capturar: la cuenta de 10 s y la carta */
+.bv-captura { display: flex; align-items: center; justify-content: center; }
+.bv-lugar { position: absolute; left: 50%; top: 50%; width: 46%; aspect-ratio: 1; transform: translate(-50%, -50%); display: grid; place-items: center; }
+.bv-lugar svg { position: absolute; inset: 0; transform: rotate(-90deg); } .bv-lugar > img { position: relative; width: 52%; }
+.bv-lugar circle { fill: none; stroke-width: 9; } .bv-lugar .f { stroke: var(--line); fill: var(--sheet); } .bv-lugar .p { stroke: var(--accent); stroke-linecap: round; stroke-dasharray: 1; stroke-dashoffset: 1; }
+.bv-carta { position: absolute; left: 50%; top: 50%; width: 42%; aspect-ratio: 5 / 7; margin: -29% 0 0 -21%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; border-radius: 12px; background: var(--sheet); border: 3px solid #3fa9ff; box-shadow: 0 12px 28px rgba(15, 23, 42, .22); opacity: 0; }
+.bv-carta span { width: 52%; margin-bottom: 4px; } .bv-carta b { font-size: 13px; } .bv-carta small { margin: 0; font-size: 12px; font-weight: 700; color: var(--accent); }
+.bv-pag.on .bv-lugar .p { animation: bv-pinta 2.2s linear .25s forwards; }
+.bv-pag.on .bv-lugar { animation: bv-va .3s ease-in 2.5s forwards; }
+.bv-pag.on .bv-carta { animation: bv-sale .5s cubic-bezier(.3, 1.5, .5, 1) 2.7s forwards; }
+@keyframes bv-va { to { opacity: 0; transform: translate(-50%, -50%) scale(.7); } }
+/* 3. álbum: separadores de colores y huecos que se llenan */
+.bv-albumes { position: absolute; inset: 0; display: flex; flex-direction: column; }
+.bv-tiras { display: flex; gap: 4px; padding: 0 8px; } .bv-tiras i { flex: 1; height: 22px; border-radius: 9px 9px 0 0; background: var(--c); color: #fff; font-style: normal; font-size: 13px; line-height: 22px; }
+.bv-hoja { flex: 1; display: grid; grid-template-columns: repeat(4, 1fr); gap: 7px; padding: 9px; border-radius: 14px; background: var(--sheet); box-shadow: 0 10px 30px rgba(15, 23, 42, .12); }
+.bv-hoja i { border-radius: 9px; border: 1.5px dashed var(--line); background: var(--bg); display: grid; place-items: center; }
+.bv-hoja i img { width: 58%; opacity: 0; }
+.bv-pag.on .bv-hoja img { animation: bv-sale .4s cubic-bezier(.3, 1.5, .5, 1) calc(.3s + var(--n) * .16s) forwards; }
+/* 4. ubicación */
+.bv-gps { display: grid; place-items: center; }
+.bv-pin { position: relative; width: 44%; aspect-ratio: 1; border-radius: 50%; display: grid; place-items: center; background: var(--sheet); box-shadow: 0 10px 30px rgba(15, 23, 42, .12); }
+.bv-pin img { width: 52%; position: relative; } .bv-pin i { position: absolute; inset: 0; border-radius: 50%; border: 2px solid var(--accent); opacity: 0; }
+.bv-pag.on .bv-pin i { animation: bv-onda 1.8s ease-out 3 both; } .bv-pag.on .bv-pin i:last-of-type { animation-delay: .6s; }
+@keyframes bv-onda { from { transform: scale(1); opacity: .55; } to { transform: scale(1.55); opacity: 0; } }
+@media (max-height: 620px) { .bv-pag h2 { font-size: 21px; margin-top: 14px; } .bv-pag p { font-size: 15px; } .bv-salta { padding: 8px 16px; } .bv-pie { padding-bottom: 14px; gap: 10px; } }
+@media (prefers-reduced-motion: reduce) {
+  .bv-trazo, .bv-lugar .p { stroke-dashoffset: 0; animation: none !important; } .bv-bola { offset-distance: 100%; animation: none !important; }
+  .bv-bandera, .bv-carta, .bv-hoja i img { opacity: 1; animation: none !important; } .bv-lugar { opacity: 0; animation: none !important; } .bv-pin i { animation: none !important; }
+}
+/* guía del primer paseo (deja libre el botón de centrar el mapa) */
+#guia { position: fixed; z-index: 610; left: 12px; right: 76px; bottom: calc(136px + var(--safe-bottom)); max-width: 380px; background: var(--sheet); color: var(--text); border-radius: 14px; padding: 11px 34px 11px 14px; box-shadow: 0 8px 26px rgba(15, 23, 42, .2); font-size: 14.5px; line-height: 1.4; animation: rise .3s ease both; }
+#guia > b { display: block; font-size: 15px; } #guia p { margin: 3px 0 0; color: var(--muted); }
+#guia .x { position: absolute; top: 3px; right: 3px; width: 34px; height: 34px; background: none; border: none; color: var(--muted); font-size: 14px; cursor: pointer; }
+#guia .g-obj { display: flex; align-items: center; gap: 6px; width: 100%; margin: 6px 0 2px; padding: 7px 9px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); color: var(--text); font: inherit; font-weight: 700; text-align: left; cursor: pointer; }
+#guia .g-obj span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } #guia .g-obj small { flex: none; font-weight: 600; color: var(--muted); } #guia .g-obj em { font-style: normal; color: var(--muted); }
 #lang-first { position: fixed; inset: 0; z-index: 9999; background: var(--bg); display: flex; align-items: center; justify-content: center; text-align: center; padding: 24px; }
 #lang-first h2 { font-size: 15px; font-weight: 600; color: var(--muted); margin: 18px 0 0; }
 #lang-first .logo { font-size: 44px; }
