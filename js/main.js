@@ -619,6 +619,9 @@
       const implied = dt > 0.3 ? d / dt : null;
       // Salto del GPS (túnel, edificio, primera lectura mala): imposible a pie → se ignora sin pintar
       const jump = mode === 'gps' && d > 40 && implied != null && implied > MAX_SPEED * 2;
+      // Quieto (en casa, en un bar), el GPS «se pasea» unos metros cada pocos minutos: eso no es andar. Una lectura cercana que
+      // llega a menos de 0,2 m/s no pinta, no suma metros ni entra en el recorrido (un paseo del 3-nov sumó 240 m así, sentado)
+      const deriva = mode === 'gps' && !jump && implied != null && implied < 0.2 && d < 40;
       if (jump) {
         if (visible) toast('📡 Salto del GPS ignorado (no se pinta)', 'warn', 2500);
       } else if (implied != null) speed = speed * 0.6 + implied * 0.4;
@@ -627,7 +630,7 @@
       // Hueco entre lecturas (GPS en el bolsillo): se pinta el camino más corto POR LAS CALLES
       let routed = false;
       const via = softFixes.filter((f) => f.t > lastT && f.t < now).map((f) => f.p); softFixes = [];
-      if (!jump && !tooFast && mode === 'gps' && d > (PM.debug.umbralHueco || 20) && d < 3000) {
+      if (!jump && !deriva && !tooFast && mode === 'gps' && d > (PM.debug.umbralHueco || 20) && d < 3000) {
         const maxLen = Math.max(d * 2, d + 250);
         const r = (via.length && routeVia(lastP, p, via)) || W.route(lastP, p, maxLen);
         if (r && r.len <= Math.max(maxLen, r.via ? r.len : 0) && (dt <= 0 || r.len / dt <= MAX_SPEED * 1.5)) {
@@ -646,7 +649,7 @@
       }
       // Calles de la zona aún sin llegar (zona nueva, caché renovada, red lenta): lo andado no se pierde. Se guarda
       // como un hueco pendiente (con puntos intermedios para seguir tu camino) y se pinta por las calles al llegar.
-      if (!routed && !jump && !tooFast && d > 0.01 && d < 400 && !(streetsReady(p) && streetsReady(lastP))) {
+      if (!routed && !jump && !deriva && !tooFast && d > 0.01 && d < 400 && !(streetsReady(p) && streetsReady(lastP))) {
         const g = pendingGaps[pendingGaps.length - 1];
         if (g && g.noStreets && PM.geo.dist(g.b, lastP) < 1) {
           if (PM.geo.dist(g.via.length ? g.via[g.via.length - 1] : g.a, g.b) > 30) g.via.push(g.b.slice());
@@ -659,7 +662,7 @@
         walkAnchor = p.slice(); paintPrev = null; recentP = [];
         routed = true;
       }
-      if (!routed && !jump && d > 0.01 && d < 400) {
+      if (!routed && !jump && !deriva && d > 0.01 && d < 400) {
         if (!tooFast) {
           const steps = Math.ceil(d / 4);
           const heading = [p[0] - lastP[0], (p[1] - lastP[1]) * Math.cos(p[0] * Math.PI / 180)];
@@ -1363,7 +1366,7 @@
       if (acc <= 120 && session && !session.paused) softFixes.push({ p: [c.latitude, c.longitude], t: t || c.time || Date.now() });
       if (softFixes.length > 60) softFixes.shift();
       // (tampoco pinta, pero dice que te mueves: 15 min de GPS flojo andando no son un paseo olvidado)
-      if (acc <= 120) stillCheck([c.latitude, c.longitude], 150);
+      if (acc <= 120) stillCheck([c.latitude, c.longitude], true);
       return;
     }
     pos = [c.latitude, c.longitude];
@@ -1405,14 +1408,14 @@
   // Al guardar el móvil vuelve la precisión normal: con la pantalla apagada ya no se toca el GPS, y si estaba en ahorro
   // (parado con la app abierta), todo el paseo en el bolsillo iría con lecturas cada 25 m
   document.addEventListener('visibilitychange', () => { if (document.hidden && gpsSaver && gpsWatch && gpsWatch.bg) { gpsSaver = false; gpsSaverT = Date.now(); startGPS(); } });
-  // Paseo olvidado: 15 min sin salir de un círculo de 50 m → se pausa solo y se apaga el GPS (si no, el GPS seguía
-  // a tope toda la tarde en casa). Se reanuda con ▶ cuando vuelvas a salir.
-  let stillAnchor = null;
-  function stillCheck(p, r = 50) { if (!stillAnchor || PM.geo.dist(stillAnchor.p, p) > r) stillAnchor = { p: p.slice(), t: Date.now() }; }
+  // Paseo olvidado: 15 min sin moverte (PM.estaQuieto) → se pausa solo y se apaga el GPS (si no, el GPS seguía a tope
+  // toda la tarde en casa). Se reanuda con ▶ cuando vuelvas a salir.
+  let quietas = [];   // lecturas de los últimos minutos {p, t, blanda}
+  function stillCheck(p, blanda) { const t = Date.now(); quietas.push({ p: p.slice(), t, blanda: !!blanda }); while (quietas.length && t - quietas[0].t > 16 * 60000) quietas.shift(); }
   setInterval(() => {
     if (!session || session.paused || mode !== 'gps') return;
-    if (!stillAnchor) stillAnchor = { p: pos.slice(), t: Date.now() };   // (sin ninguna lectura, p. ej. en casa: el GPS tampoco se queda encendido toda la tarde)
-    if (Date.now() - Math.max(stillAnchor.t, session.resumedAt || 0) < 15 * 60000) return;
+    if (Date.now() - (session.resumedAt || session.start || 0) < 15 * 60000) return;   // (recién empezado o reanudado: aún no)
+    if (!PM.estaQuieto(quietas, Date.now())) return;
     pauseSession();
     notify('⏸ Paseo en pausa', 'Llevas 15 minutos sin moverte: he pausado el paseo y apagado el GPS para ahorrar batería. Pulsa ▶ para seguir.', 'info');
   }, 60000);
@@ -1553,7 +1556,7 @@
   }
   function resumeSession() {
     if (!session || !session.paused) return;
-    stillAnchor = null;
+    quietas = [];
     session.paused = false; session.resumedAt = Date.now();
     if (session.track && session.track.length) session.track.push(null);   // corte del recorrido (pausa)
     lastP = null; walkAnchor = null; paintPrev = null; recentP = [];   // no se pinta el "salto" desde donde pausaste

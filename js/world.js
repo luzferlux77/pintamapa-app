@@ -1341,6 +1341,8 @@ PM.world = (function () {
       return ci.foto;
     } catch (e) { return null; }
   }
+  // el barrio de un lugar para el álbum: solo un barrio de verdad (una celda del mapa sin nombre, «Zona 4138·217», no es una carpeta)
+  const barrioSoloNombre = (p) => { const b = barrioOf(p); return b && (b.kind !== 'tile' || (tiles[b.tile] && tiles[b.tile].name)) ? b.name : ''; };
   async function albumDe(city) {
     const ci = cityInfo[city], forma = !!(ci && ci.polys), memo = albMem.get(city), nL = Object.keys(landmarks).length;
     if (memo && (!memo.parcial || (memo.nL === nL && memo.forma === forma))) return memo;   // (si el contorno llega después, se rehace)
@@ -1364,11 +1366,23 @@ PM.world = (function () {
       const fijos = new Set((ci.must || []).map((m) => m.q));
       for (const e2 of out.l) { e2.must = fijos.size ? fijos.has(e2.q) : e2.must; if (e2.must) e2.extra = false; }
       for (const m of ci.must || []) poner({ q: m.q, name: m.name, emoji: m.emoji, kind: m.kind, pos: m.pos, bi: barrio(''), must: true });
+    } else {
+      // sin el contorno guardado (aún no pedido en este móvil, o se quitó para hacer sitio): el archivo de la ciudad por su nombre,
+      // si alguna carta tuya de esa ciudad cae dentro de su radio (dos ciudades con el mismo nombre no se confunden)
+      const mias = Object.values((PM.state && PM.state.data.landmarks) || {}).filter((r) => r.pos && r.city === city)
+        .concat(Object.values(landmarks).filter((lm) => lm.pos && api.cityAt(lm.pos) === city));
+      const c = (await preIdx()).find((x) => x.name === city && mias.some((lm) => PM.geo.dist(lm.pos, x.c) <= x.r * 1000));
+      const d = c && await albumArchivo(c.q, c.t);
+      if (d) {
+        out.portada = d.portada; out.parcial = false; if (d.oficial) out.oficial = true;
+        for (const x of d.l) if (!d.contorno || !x[10]) poner({ q: x[0], name: x[1], emoji: x[2], kind: x[3], pos: [x[4], x[5]], bi: barrio(d.b[x[6]], (d.d || [])[x[6]]), rarity: x[7], must: !!x[8], extra: !!x[9] });
+      }
+      if (mias.length) ensureCity(mias[0].pos[0], mias[0].pos[1]);   // (y se pide el contorno: el álbum se rehace al llegar)
     }
     // sin archivo, o con uno que casi no trae nada (un pueblo con un solo lugar con artículo: Pozuelo de Calatrava): también lo que
     // ya se conoce de la ciudad, por los nombres de barrio del mapa
     if (out.l.length < 12) out.parcial = true;
-    if (out.parcial) for (const lm of Object.values(landmarks)) if (api.cityAt(lm.pos) === city) poner({ q: lm.wd || lm.id.replace(/^n(?=M\d)/, ''), name: lm.name, emoji: lm.emoji, kind: lm.kind, pos: lm.pos, bi: barrio((barrioOf(lm.pos) || {}).name || ''), must: !!lm.must });
+    if (out.parcial) for (const lm of Object.values(landmarks)) if (api.cityAt(lm.pos) === city) poner({ q: lm.wd || lm.id.replace(/^n(?=M\d)/, ''), name: lm.name, emoji: lm.emoji, kind: lm.kind, pos: lm.pos, bi: barrio(barrioSoloNombre(lm.pos)), must: !!lm.must });
     // cuadernos de 1 o 2 lugares que el recorte ha dejado sueltos: juntos
     const cuenta = {}; out.l.forEach((e2) => (cuenta[e2.bi] = (cuenta[e2.bi] || 0) + 1));
     if (!out.oficial) for (const e2 of out.l) if (cuenta[e2.bi] < 3) { const dist = out.d[e2.bi]; e2.bi = barrio(dist, dist); }   // (un barrio oficial nunca se junta con otro)
