@@ -1,8 +1,8 @@
 {
-  "version": "0.7.2",
-  "notes": "Álbum: sin el contorno de la ciudad guardado ya no salen pestañas «Zona 4138·217», se abre con sus distritos. Paseo parado: pausa automática por lecturas alrededor del sitio y el baile del GPS ya no pinta ni suma metros",
+  "version": "0.7.3",
+  "notes": "Robustez: partida dañada sin bloqueo ni pérdida, copias que no pisan fotos y avisan de lo que falta, fotos de la nube vuelven a un móvil nuevo, GPX con tramos y duración real, mapa sin conexión honesto, GPS sin lecturas tardías",
   "native": 7,
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.7.2/pintamapa-web-0.7.2.zip",
-  "checksum": "b872de86b8a954eb8842d9f3f2548098c8d58939aad6ecb3e31a941cfcceda5c",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.7.2/PintaMapa-v0.7.2.apk"
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.7.3/pintamapa-web-0.7.3.zip",
+  "checksum": "1b055025c5124c7546f1c8a87f030a71085a9630184523eeb68854b83bc53ccd",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.7.3/PintaMapa-v0.7.3.apk"
 }
