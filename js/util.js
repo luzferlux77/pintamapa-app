@@ -77,6 +77,19 @@ PM.fmtDist = function (m) {
 PM.esc = (t) => String(t == null ? '' : t).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 PM.limpio = (t) => (t == null ? t : String(t).replace(/[<>]/g, '').replace(/"/g, '”').replace(/[\u0000-\u001f]/g, ' ').slice(0, 300));
 // ...y lo mismo con todos los nombres que guarda una partida (al cargarla, al importar una copia o al traerla de la nube)
+// una posición de verdad: [lat, lon, …] con cifras finitas y en su rango
+PM.puntoOk = (p) => Array.isArray(p) && p.length >= 2 && typeof p[0] === 'number' && typeof p[1] === 'number' && Math.abs(p[0]) <= 90 && Math.abs(p[1]) <= 180;
+// contornos de barrios conquistados ({ id: { name, segs:[[punto…]…], pos } }): solo los que se pueden dibujar
+PM.bgeoSano = function (o) {
+  const out = {};
+  if (!o || typeof o !== 'object' || Array.isArray(o)) return out;
+  for (const [id, g] of Object.entries(o)) {
+    if (!g || typeof g !== 'object' || !Array.isArray(g.segs)) continue;
+    const segs = g.segs.filter((sg) => Array.isArray(sg)).map((sg) => sg.filter(PM.puntoOk)).filter((sg) => sg.length >= 2);
+    out[id] = { name: typeof g.name === 'string' ? PM.limpio(g.name) : '', segs, pos: PM.puntoOk(g.pos) ? g.pos : null };
+  }
+  return out;
+};
 PM.limpiarPartida = function (d) {
   if (!d || typeof d !== 'object') return d;
   const L = PM.limpio, obj = (o) => (o && typeof o === 'object' && !Array.isArray(o) ? o : null);
@@ -86,6 +99,7 @@ PM.limpiarPartida = function (d) {
       const r = o[id];
       if (!r || typeof r !== 'object') { delete o[id]; continue; }   // registro roto (null, número…): fuera
       for (const f of ['name', 'city', 'barrio', 'kind', 'addr', 'ctx', 'desc', 'credit', 'porque', 'texto', 'fuente', 'emoji', 'rarity', 'color']) if (typeof r[f] === 'string') r[f] = L(r[f]);
+      if (r.pos != null && !PM.puntoOk(r.pos)) delete r.pos;   // (una posición imposible no se lleva al mapa)
     }
   }
   for (const k of ['barrioNames']) { const o = obj(d[k]); if (o) for (const id of Object.keys(o)) o[id] = typeof o[id] === 'string' ? L(o[id]) : ''; }
@@ -105,9 +119,19 @@ PM.limpiarPartida = function (d) {
   { const o = obj(d.xpBy); if (o) for (const id of Object.keys(o)) if (!/^[a-z_]{1,24}$/.test(id) || typeof o[id] !== 'number') delete o[id]; }
   { const o = obj(d.stats); if (o) { for (const k of Object.keys(o)) if (k !== 'lastDay' && typeof o[k] !== 'number') o[k] = +o[k] || 0; if (o.lastDay != null && !/^\d{4}-\d{2}-\d{2}$/.test(String(o.lastDay))) o.lastDay = null; } }
   if (Array.isArray(d.walks)) {
-    d.walks = d.walks.filter((w) => w && typeof w === 'object');
-    for (const w of d.walks) { const st = obj(w.st) || (w.st = {}); for (const k of Object.keys(st)) if (typeof st[k] !== 'number') st[k] = +st[k] || 0; }
+    d.walks = d.walks.filter((w) => w && typeof w === 'object' && !Array.isArray(w));
+    for (const w of d.walks) {
+      const st = obj(w.st) || (w.st = {}); for (const k of Object.keys(st)) if (typeof st[k] !== 'number') st[k] = +st[k] || 0;
+      if (!(isFinite(w.elapsed) && w.elapsed >= 0)) w.elapsed = 0;
+      if (w.start != null && !isFinite(w.start)) w.start = isFinite(+w.id) ? +w.id : 0;
+      // (un punto que no es una posición —{}, [999, 999]— rompía el dibujo y la repetición del paseo; null es un corte: se queda)
+      if (w.track != null) w.track = Array.isArray(w.track) ? w.track.filter((q) => q === null || PM.puntoOk(q)) : [];
+    }
   }
+  if (d.lastPos != null && !PM.puntoOk(d.lastPos)) d.lastPos = null;
+  if (d.session != null && !(obj(d.session) && isFinite(d.session.start) && obj(d.session.st))) d.session = null;
+  if (d.session && Array.isArray(d.session.track)) d.session.track = d.session.track.filter((q) => q === null || PM.puntoOk(q));
+  if (Array.isArray(d.avoid)) d.avoid = d.avoid.filter((a) => a.type !== 'circle' || (PM.puntoOk(a.c) && isFinite(a.r) && a.r > 0));
   // (el color y la foto de perfil van dentro de un style="…": solo un color y una imagen de verdad)
   if (d.color != null && !/^#[0-9a-f]{3,8}$/i.test(String(d.color))) d.color = '#2563eb';
   if (d.avatar != null && !/^data:image\/[a-z+]+;base64,[A-Za-z0-9+/=]+$/.test(String(d.avatar))) delete d.avatar;
@@ -275,6 +299,29 @@ PM.movingMs = function (w) {
 // ¿Quince minutos sin moverte? lecturas {p, t, blanda}: todas las de ese rato cerca de su centro (70 m; 150 m las imprecisas).
 // Sin ninguna lectura en ese rato, también (quieto, el GPS no avisa). Antes era un círculo de 50 m alrededor de la primera
 // lectura: en interior el GPS baila 30-40 m, una sola desviada reiniciaba la cuenta y el paseo seguía encendido una hora y media.
+// Los tramos de un recorrido GPX/TCX: cada <trkseg> (o <Track> de un TCX) por separado, con sus puntos {lat, lon, t, e}.
+// Dos tramos seguidos se juntan si el corte es solo de grabación (≤ 30 s y < 50 m: las vueltas automáticas de un reloj);
+// si no (el GPS se cortó, una pausa larga), quedan separados y entre ellos no se pinta nada
+PM.tramosGPX = function (xml) {
+  const txt = (n, tag) => { const x = n.getElementsByTagName(tag)[0]; return x ? x.textContent : ''; };
+  const gpx = (n) => ({ lat: +n.getAttribute('lat'), lon: +n.getAttribute('lon'), t: Date.parse(txt(n, 'time')), e: parseFloat(txt(n, 'ele')) });
+  const tcx = (n) => ({ lat: +txt(n, 'LatitudeDegrees'), lon: +txt(n, 'LongitudeDegrees'), t: Date.parse(txt(n, 'Time')), e: parseFloat(txt(n, 'AltitudeMeters')) });
+  const todos = (tag, f) => { const p = [...xml.getElementsByTagName(tag)].map(f); return p.length ? [p] : []; };
+  let grupos = [...xml.getElementsByTagName('trkseg')].map((s) => [...s.getElementsByTagName('trkpt')].map(gpx));
+  if (!grupos.length) grupos = todos('trkpt', gpx);
+  if (!grupos.length) grupos = [...xml.getElementsByTagName('Track')].map((s) => [...s.getElementsByTagName('Trackpoint')].map(tcx));
+  if (!grupos.length) grupos = todos('Trackpoint', tcx);
+  const out = [];
+  for (const g of grupos) {
+    const s = g.filter((q) => PM.puntoOk([q.lat, q.lon]) && isFinite(q.lat) && isFinite(q.lon) && (q.lat || q.lon));
+    if (!s.length) continue;
+    for (let i = 1; i < s.length; i++) if (!(s[i].t >= s[i - 1].t) && isFinite(s[i - 1].t)) s[i].t = s[i - 1].t;   // (hora que falta o retrocede: la anterior)
+    const prev = out[out.length - 1], a = prev && prev[prev.length - 1], b = s[0];
+    if (a && b.t - a.t >= 0 && b.t - a.t <= 30000 && PM.geo.dist([a.lat, a.lon], [b.lat, b.lon]) < 50) prev.push(...s);
+    else out.push(s);
+  }
+  return out;
+};
 PM.estaQuieto = function (lecturas, ahora, min = 15) {
   const L = (lecturas || []).filter((q) => ahora - q.t <= min * 60000);
   if (!L.length) return true;

@@ -85,17 +85,29 @@ PM.state = (function () {
     if (!(typeof d.xp === 'number' && isFinite(d.xp))) d.xp = 0;
     return d;
   }
-  let data, rota = false;
-  try { data = sana(Object.assign(fresh(), JSON.parse(localStorage.getItem(KEY) || '{}'))); }
-  catch (e) {
-    // partida ilegible: se aparta ANTES de que el guardado automático la pise con una vacía (y se avisa al entrar)
-    data = fresh(); rota = true;
-    try { if (!localStorage.getItem(KEY + '_rota')) localStorage.setItem(KEY + '_rota', localStorage.getItem(KEY)); } catch (e2) {}
+  let data, rota = false, crudo = null, bloqueada = false;
+  try { crudo = localStorage.getItem(KEY); } catch (e) {}
+  // partida ilegible: se aparta ANTES de que el guardado automático la pise con una vacía (y se avisa al entrar). Con su
+  // propia copia: si ya había otra apartada, no se pisa. Si no cabe, primero se hace sitio con lo que se puede volver a pedir;
+  // y si aun así no se puede apartar, la partida queda bloqueada: no se escribe NADA encima hasta conseguirlo
+  function apartar() {
+    const k = KEY + '_rota', poner = () => { const prev = localStorage.getItem(k); if (prev !== crudo) localStorage.setItem(prev == null ? k : k + '_' + Date.now(), crudo); };
+    try { poner(); return true; } catch (e) {
+      try { localStorage.removeItem('pintamapa_cityinfo'); poner(); return true; } catch (e2) { return false; }
+    }
   }
-  data.stats = Object.assign(fresh().stats, data.stats);
-  delete data.cansTaken; delete data.stats.cans;   // (los botes de pintura ya no existen; los puntos que dieron se quedan)
-  data.walks = (data.walks || []).filter((w) => (w.elapsed || 0) >= 120000);   // paseos de < 2 min: fuera del historial
-  PM.limpiarPartida(data);
+  try {
+    const leido = JSON.parse(crudo || '{}');
+    if (!leido || typeof leido !== 'object' || Array.isArray(leido)) throw new Error('no es una partida');
+    data = sana(Object.assign(fresh(), leido));
+    data.stats = Object.assign(fresh().stats, data.stats);
+    delete data.cansTaken; delete data.stats.cans;   // (los botes de pintura ya no existen; los puntos que dieron se quedan)
+    PM.limpiarPartida(data);   // (antes que nada que mire dentro: un paseo null bloqueaba la app al abrir)
+    data.walks = data.walks.filter((w) => (w.elapsed || 0) >= 120000);   // paseos de < 2 min: fuera del historial
+  } catch (e) {
+    data = fresh(); rota = true;
+    bloqueada = !apartar();
+  }
 
   // Guardado: convertir la partida entera a texto y escribirla en disco cuesta (con muchas calles y paseos, varios MB).
   // Con la pantalla encendida se guarda a los 2 s (o a los 8 s si la partida es grande y tarda); con la pantalla apagada,
@@ -115,6 +127,13 @@ PM.state = (function () {
   // pendiente, se reintenta y se avisa en pantalla (evento 'pm-save-error', como mucho una vez por minuto).
   function write() {
     lastSave = Date.now();
+    if (bloqueada && !(bloqueada = !apartar())) aviso('pm-rota-apartada');
+    if (bloqueada) {   // (la partida ilegible no se ha podido apartar: no se pisa)
+      dirty = true;
+      if (!failing || Date.now() - failT > 60000) { failT = Date.now(); aviso('pm-save-error', 'rota'); }
+      failing = true;
+      return false;
+    }
     try {
       let txt = JSON.stringify(data);
       if (txt.length > CASI_LLENO && aligerar()) txt = JSON.stringify(data);
@@ -152,7 +171,7 @@ PM.state = (function () {
 
   function replace(d) { data = sana(Object.assign(fresh(), d)); data.stats = Object.assign(fresh().stats, data.stats); PM.limpiarPartida(data); save(); }
 
-  return { get data() { return data; }, rota, save, reset, replace, flush, _aligerar: aligerar };
+  return { get data() { return data; }, rota, get bloqueada() { return bloqueada; }, save, reset, replace, flush, _aligerar: aligerar };
 })();
 
 PM.game = (function () {

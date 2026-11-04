@@ -158,7 +158,7 @@
       const [keys, vals] = await Promise.all([idbReq(st.getAllKeys()), idbReq(st.getAll())]);
       // (se mezcla con lo que se haya pintado mientras se leía: nada se pisa)
       keys.forEach((k, i) => { const set = pgeoTile.get(k) || new Set(); for (const [id, pts] of Object.entries(vals[i] || {})) { if (!pgeo.has(id)) pgeo.set(id, { k, p: pts }); set.add(id); } pgeoTile.set(k, set); });
-      bgeo = Object.assign((await idbReq(db.transaction('meta').objectStore('meta').get('barrios'))) || {}, bgeo);
+      bgeo = Object.assign(PM.bgeoSano(await idbReq(db.transaction('meta').objectStore('meta').get('barrios'))), bgeo);
     } catch (e) { /* sin base de datos (navegador privado): se dibuja lo cargado, como antes */ }
     geoReady = true; if (typeof wakeLoop === 'function') wakeLoop();
     if (Object.keys(bgeo).length) geoDb().then((db) => db.transaction('meta', 'readwrite').objectStore('meta').put(bgeo, 'barrios')).catch(() => {});
@@ -1431,11 +1431,16 @@
     gpsPending = true;
     try {
       if (BG) {
+        // (una lectura solo vale de un vigilante en uso: el actual, o el que se está dando de alta y aún se quiere. Las que
+        // llegan tarde de uno ya quitado o sustituido no mueven nada; el viejo sigue valiendo hasta que el nuevo esté listo)
+        let mio = null;
+        const vale = () => (mio != null && gpsWatch && gpsWatch.bg === mio) || (gen === gpsGen && gpsWanted());
         const id = await BG.addWatcher({
           backgroundTitle: PM.t('PintaMapa está pintando tus calles'),
           backgroundMessage: PM.t('Toca para volver al juego. Finaliza el paseo para apagar el GPS.'),
           requestPermissions: true, stale: false, distanceFilter: gpsSaver ? 25 : DISTANCE_FILTER,
         }, (loc, err) => {
+          if (!vale()) return;
           if (err) {
             if (err.code === 'NOT_AUTHORIZED') toast('Necesito permiso de ubicación para pintar 📍', 'warn', 5000);
             return;
@@ -1449,12 +1454,15 @@
           if (gpsWanted() && !gpsWatch && !gpsPending) startGPS();
           return;
         }
+        mio = id;
         gpsWatch = { bg: id };
         if (old) Promise.resolve(BG.removeWatcher({ id: old.bg })).catch(() => {});
       } else if (navigator.geolocation) {
-        gpsWatch = { web: navigator.geolocation.watchPosition((p) => onFix(p.coords, p.timestamp),
-          (e) => { toast('No se pudo obtener el GPS: ' + e.message, 'warn'); },
-          { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 }) };
+        const w = { web: null }, vale = () => gpsWatch === w;
+        w.web = navigator.geolocation.watchPosition((p) => { if (vale()) onFix(p.coords, p.timestamp); },
+          (e) => { if (vale()) toast('No se pudo obtener el GPS: ' + e.message, 'warn'); },
+          { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 });
+        gpsWatch = w;
       } else throw new Error('Este dispositivo no tiene GPS');
       gpsIcon('search');
     } catch (e) {
@@ -1473,8 +1481,11 @@
     gpsWatch = null;
   }
   // Una sola lectura para situarte en el mapa sin dejar el GPS encendido
+  // (la lectura tarda: si mientras tanto empieza un paseo, o se pide otra, o se cambia de modo, ya no vale: no se salta a ella)
+  let locateN = 0;
   function locateOnce() {
-    const ok = (c) => { pos = [c.latitude, c.longitude]; teleport(pos); };
+    const n = ++locateN;
+    const ok = (c) => { if (n !== locateN || session || mode !== 'gps') return; pos = [c.latitude, c.longitude]; teleport(pos); };
     if (isNative && window.Capacitor.Plugins.Geolocation) {
       const Geo = window.Capacitor.Plugins.Geolocation;
       Geo.requestPermissions().then(() => Geo.getCurrentPosition({ enableHighAccuracy: true, timeout: 20000 }))
@@ -1669,13 +1680,14 @@
     const msg = (t) => { const el = $('#imp-msg'); if (el) el.textContent = t; };
     try {
       const xml = new DOMParser().parseFromString(await file.text(), 'application/xml');
-      let pts = [...xml.getElementsByTagName('trkpt')].map((n) => ({ lat: +n.getAttribute('lat'), lon: +n.getAttribute('lon'),
-        t: Date.parse((n.getElementsByTagName('time')[0] || {}).textContent), e: parseFloat((n.getElementsByTagName('ele')[0] || {}).textContent) }));
-      if (!pts.length) pts = [...xml.getElementsByTagName('Trackpoint')].map((n) => ({ lat: +((n.getElementsByTagName('LatitudeDegrees')[0] || {}).textContent), lon: +((n.getElementsByTagName('LongitudeDegrees')[0] || {}).textContent),
-        t: Date.parse((n.getElementsByTagName('Time')[0] || {}).textContent), e: parseFloat((n.getElementsByTagName('AltitudeMeters')[0] || {}).textContent) }));
-      pts = pts.filter((q) => isFinite(q.lat) && isFinite(q.lon) && (q.lat || q.lon));
+      const segs = PM.tramosGPX(xml);
+      const pts = [].concat(...segs);
       if (pts.length < 2) { msg('❌ No encuentro puntos de recorrido en el archivo.'); return; }
-      const t0 = isFinite(pts[0].t) ? pts[0].t : Date.now(), t1 = isFinite(pts[pts.length - 1].t) ? pts[pts.length - 1].t : t0;
+      // la duración es la del archivo (antes, uno corto se guardaba como de 2 min). Sin horas no es un recorrido hecho, es una
+      // ruta planificada: no se pinta. Y de menos de 2 min no se importa, como los paseos cortos
+      const horas = pts.map((q) => q.t).filter(isFinite), t0 = horas[0], t1 = horas[horas.length - 1];
+      if (!isFinite(t0) || !isFinite(t1) || t1 <= t0) { msg('❌ ' + PM.t('El archivo no trae la hora de cada punto: parece una ruta planificada, no un recorrido hecho. No se importa.')); return; }
+      if (t1 - t0 < 120000) { msg('❌ ' + PM.t('El recorrido dura menos de 2 minutos: no se importa (los paseos cortos no se guardan).')); return; }
       if ((S().walks || []).some((w) => w.id === 'gpx' + t0)) { msg('Este recorrido ya estaba importado.'); return; }
       msg('⏳ Cargando las calles del recorrido…');
       const keys = [...new Set(pts.map((q) => W.tileKeyOf(q.lat, q.lon)))];
@@ -1685,21 +1697,26 @@
       const st = { walked: 0, painted: 0, pts: 0, pieces: 0, captures: 0, bestCombo: 0, conquests: 0, repassed: 0 };
       const before = { m: S().stats.paintedM, xp: S().xp };
       const track = [];
-      for (let i = 0; i < pts.length; i++) {
-        const q = [pts[i].lat, pts[i].lon];
-        if (i) {
-          const a = [pts[i - 1].lat, pts[i - 1].lon], d = PM.geo.dist(a, q);
-          if (d < 400) { const n = Math.ceil(d / 4), hd = [q[0] - a[0], (q[1] - a[1]) * Math.cos(q[0] * Math.PI / 180)]; for (let k = 1; k <= n; k++) paintAround(PM.geo.lerp(a, q, k / n), hd); st.walked += d; }
+      // cada tramo del archivo por separado: entre uno y otro no se pinta ni se suma nada, y el recorrido guarda el corte
+      segs.forEach((seg, si) => {
+        if (si && track.length) track.push(null);
+        let last = null;
+        for (let i = 0; i < seg.length; i++) {
+          const q = [seg[i].lat, seg[i].lon];
+          if (i) {
+            const a = [seg[i - 1].lat, seg[i - 1].lon], d = PM.geo.dist(a, q);
+            if (d < 400) { const n = Math.ceil(d / 4), hd = [q[0] - a[0], (q[1] - a[1]) * Math.cos(q[0] * Math.PI / 180)]; for (let k = 1; k <= n; k++) paintAround(PM.geo.lerp(a, q, k / n), hd); st.walked += d; }
+          }
+          if (!last || PM.geo.dist(last, q) >= 8 || i === seg.length - 1) {
+            const p = [+q[0].toFixed(6), +q[1].toFixed(6), Math.round(((isFinite(seg[i].t) ? seg[i].t : t0) - t0) / 1000)];
+            if (isFinite(seg[i].e)) p.push(Math.round(seg[i].e * 10) / 10);
+            track.push(p); last = q;
+          }
         }
-        if (!track.length || PM.geo.dist(track[track.length - 1], q) >= 8) {
-          const p = [+q[0].toFixed(6), +q[1].toFixed(6), Math.round(((isFinite(pts[i].t) ? pts[i].t : t0) - t0) / 1000)];
-          if (isFinite(pts[i].e)) p.push(Math.round(pts[i].e * 10) / 10);
-          track.push(p);
-        }
-      }
+      });
       st.painted = S().stats.paintedM - before.m; st.pts = S().xp - before.xp;
       G.addWalk(st.walked);
-      S().walks.push({ id: 'gpx' + t0, start: t0, elapsed: Math.max(120000, t1 - t0), st, track, imported: true });
+      S().walks.push({ id: 'gpx' + t0, start: t0, elapsed: t1 - t0, st, track, imported: true });
       S().walks.sort((x, y) => x.start - y.start);
       PM.state.save(); flushPaint();
       msg(`✅ Importado: ${PM.fmtDist(st.walked)} recorridos · ${PM.fmtDist(st.painted)} de calles nuevas pintadas.`);
@@ -1826,7 +1843,8 @@
   }
 
   // la partida no se pudo escribir en el móvil (sin espacio…): se avisa (se sigue reintentando sola)
-  window.addEventListener('pm-save-error', () => toast('⚠️ ' + PM.t('No se pudo guardar la partida en el móvil (¿sin espacio?). Libera espacio o haz una copia de seguridad.'), 'warn', 8000));
+  window.addEventListener('pm-save-error', (e) => toast('⚠️ ' + PM.t(e.detail === 'rota' ? 'Tu partida antigua no se podía leer y no hay sitio para apartarla: no se guarda nada encima hasta que liberes espacio en el móvil.' : 'No se pudo guardar la partida en el móvil (¿sin espacio?). Libera espacio o haz una copia de seguridad.'), 'warn', 8000));
+  window.addEventListener('pm-rota-apartada', () => toast('✅ ' + PM.t('Tu partida antigua ya está apartada: se vuelve a guardar con normalidad.'), 'ok'));
   window.addEventListener('pm-save-ok', () => toast('✅ ' + PM.t('Partida guardada de nuevo'), 'ok'));
   function celebrate(title, sub, emoji) {
     const o = $('#celebrate');
@@ -2236,21 +2254,32 @@
   // Lleva TODA la partida, tus fotos de cromos, la forma de lo pintado, los contornos de tus barrios y los
   // imprescindibles de cada ciudad: en el móvil nuevo se ve todo al momento, sin nube.
   async function buildBackup() {
-    const s = S(), photos = {};
-    for (const id of Object.keys(s.cardPhotos || {})) { try { const p = await PM.cards.getPhoto(id); if (p) photos[id] = p; } catch (e) {} }
+    const s = S(), photos = {}, sinFoto = [], fallidas = [];
+    // (una foto que no se puede leer se reintenta; las que faltan se cuentan y se avisa: la copia no se da por completa sin decirlo)
+    for (const id of Object.keys(s.cardPhotos || {})) {
+      let p = null, err = false;
+      for (let i = 0; i < 2 && !p; i++) { try { p = await PM.cards.getPhoto(id, true); err = false; } catch (e) { err = true; } }
+      if (p) photos[id] = p; else (err ? fallidas : sinFoto).push(id);
+    }
     const save = JSON.parse(JSON.stringify(s)); delete save.session; delete save.pendingGeo;
     const geo = {};
     for (const [k, ids] of pgeoTile) { const o = {}; for (const id of ids) if (s.painted[id]) o[id] = pgeo.get(id).p; if (Object.keys(o).length) geo[k] = o; }
     let cityinfo = null; try { cityinfo = JSON.parse(localStorage.getItem('pintamapa_cityinfo') || 'null'); } catch (e) {}
-    return { app: 'PintaMapa', version: PM.VERSION.app, player: PM.player ? PM.player.name : '', t: Date.now(), save, photos, geo, bgeo, cityinfo };
+    // fotosFaltan: apuntadas pero sin la imagen en este móvil (p. ej. llegaron de la nube); fotosFallidas: no se pudieron leer
+    return { app: 'PintaMapa', version: PM.VERSION.app, player: PM.player ? PM.player.name : '', t: Date.now(), save, photos, geo, bgeo, cityinfo, fotosFaltan: sinFoto.length, fotosFallidas: fallidas.length };
   }
+  // lo que le falta a una copia, para decirlo junto a «copia guardada»
+  const copiaIncompleta = (d) => [d.fotosFallidas ? PM.t('{n} foto(s) no se pudieron leer y no van en la copia: vuelve a intentarlo.', { n: d.fotosFallidas }) : '',
+    d.fotosFaltan ? PM.t('{n} foto(s) apuntadas no están en este móvil y no van en la copia.', { n: d.fotosFaltan }) : ''].filter(Boolean).join(' ');
   async function exportBackup() {
     const msg = $('#bk-msg');
     if (msg) msg.textContent = '⏳ Preparando la copia…';
     // (la fecha de «última copia» se apunta solo cuando la copia queda guardada de verdad)
-    const hecha = () => { S().backupT = Date.now(); PM.state.save(); };
+    // (y con fotos que no se pudieron leer no es una copia completa: no se apunta)
+    const hecha = () => { if (!data.fotosFallidas) { S().backupT = Date.now(); PM.state.save(); } };
     let data;
     try { data = await buildBackup(); } catch (e) { if (msg) msg.textContent = '❌ ' + PM.t('No se pudo preparar la copia') + ': ' + ((e && e.message) || e); return; }
+    const falta = copiaIncompleta(data);
     const blob = new Blob([JSON.stringify(data)], { type: 'application/json' });
     const name = `PintaMapa-${(PM.player ? PM.player.slug : 'partida')}-${new Date().toISOString().slice(0, 10)}.json`;
     const mb = (blob.size / 1048576).toFixed(1);
@@ -2260,7 +2289,7 @@
         const b64 = await new Promise((ok, ko) => { const fr = new FileReader(); fr.onload = () => ok(String(fr.result).split(',')[1]); fr.onerror = ko; fr.readAsDataURL(blob); });
         await FS.writeFile({ path: 'PintaMapa/' + name, data: b64, directory: 'DOCUMENTS', recursive: true });
         hecha();
-        if (msg) msg.innerHTML = `✅ Copia guardada en el móvil: <b>Documentos/PintaMapa/${name}</b> (${mb} MB). Si cambias de móvil, pásala al nuevo e impórtala.
+        if (msg) msg.innerHTML = `✅ Copia guardada en el móvil: <b>Documentos/PintaMapa/${name}</b> (${mb} MB). Si cambias de móvil, pásala al nuevo e impórtala.${falta ? '<br>⚠️ ' + PM.esc(falta) : ''}
           <button class="btn" id="bk-share" style="margin-top:6px;width:100%">📤 Guardarla también en otro sitio (Drive, correo…)</button>`;
         const sh = $('#bk-share');
         if (sh) sh.addEventListener('click', async () => { await PM.need('lib/mp4-muxer.js', 'js/replay.js'); await PM.replay.save(blob, name, 'Copia de PintaMapa'); });
@@ -2272,7 +2301,7 @@
       const r = await PM.replay.save(blob, name, 'Copia de PintaMapa');
       if (r === false) { if (msg) msg.textContent = PM.t('Copia cancelada: no se ha guardado.'); return; }
       hecha();
-      if (msg) msg.textContent = `✅ Copia lista (${mb} MB). Guárdala donde quieras: en el móvil nuevo, impórtala.`;
+      if (msg) msg.textContent = `✅ Copia lista (${mb} MB). Guárdala donde quieras: en el móvil nuevo, impórtala.` + (falta ? ' ⚠️ ' + falta : '');
     } catch (e) { if (msg) msg.textContent = '❌ ' + PM.t('No se pudo guardar') + ': ' + ((e && e.message) || e); }
   }
   // ¿es una copia de PintaMapa sana? Se mira TODO antes de tocar la partida (una copia rota o manipulada se
@@ -2301,28 +2330,53 @@
     } catch (e) { return 'La copia no se puede combinar con tu partida (' + ((e && e.message) || e) + ')'; }
     return null;
   }
-  // mete una copia de seguridad en la partida actual (se suma: no se borra nada)
+  // formas de lo pintado de una copia ({ zona: { tramo: [punto…] } }): solo las que se pueden dibujar
+  function geoSano(g) {
+    const out = {};
+    for (const [k, o] of Object.entries(g || {})) {
+      if (!o || typeof o !== 'object' || Array.isArray(o)) continue;
+      const t = {};
+      for (const [id, pts] of Object.entries(o)) if (Array.isArray(pts)) { const q = pts.filter(PM.puntoOk); if (q.length >= 2) t[id] = q; }
+      if (Object.keys(t).length) out[k] = t;
+    }
+    return out;
+  }
+  // mete una copia de seguridad en la partida actual (se suma: no se borra nada). Devuelve lo que no se pudo poner:
+  // { fotos, formas } (si la partida no se puede guardar, error y la partida sigue como estaba)
   async function importData(d) {
     const bad = copiaRota(d);
     if (bad) throw new Error(bad);
-    const cur = S(), merged = PM.merge(PM.limpiarPartida(d.save), cur);
+    const cur = S(), fotosAntes = Object.assign({}, cur.cardPhotos || {}), merged = PM.merge(PM.limpiarPartida(d.save), cur);
     PM.state.replace(Object.assign({}, merged, { session: cur.session, pendingGeo: Object.assign({}, d.save.pendingGeo || {}, cur.pendingGeo || {}) }));
-    if (!PM.state.flush()) throw new Error(PM.t('No se pudo guardar la partida en el móvil (¿sin espacio?)'));
-    let fallos = 0;
-    for (const [id, img] of Object.entries(d.photos || {})) { try { await PM.cards.putPhoto(id, img); } catch (e) { fallos++; } }
+    if (!PM.state.flush()) {
+      // (sin esto, la importación «fallida» se quedaba en la partida abierta y el siguiente guardado la escribía igualmente)
+      PM.state.replace(cur);
+      throw new Error(PM.t('No se pudo guardar la partida en el móvil (¿sin espacio?)'));
+    }
+    const res = { fotos: 0, formas: 0 };
+    // fotos: solo la imagen de la versión que ha ganado (una copia vieja no pisa una foto más reciente de este móvil)
+    const suya = (d.save && d.save.cardPhotos) || {};
+    for (const [id, img] of Object.entries(d.photos || {})) {
+      const mia = fotosAntes[id];
+      if (mia && ((suya[id] && suya[id].t) || 0) < (mia.t || 0)) continue;
+      try { await PM.cards.putPhoto(id, img); } catch (e) { res.fotos++; }
+    }
     // formas de lo pintado y contornos de barrios: lo tuyo se ve al momento, también lo de zonas lejanas
-    try {
-      const db = await geoDb(), tx = db.transaction(['geo', 'meta'], 'readwrite'), st = tx.objectStore('geo');
-      for (const [k, o] of Object.entries(d.geo || {})) {
-        const prev = (await idbReq(st.get(k))) || {};
-        st.put(Object.assign(prev, o), k);
-      }
-      if (d.bgeo) tx.objectStore('meta').put(Object.assign({}, d.bgeo, bgeo), 'barrios');
-      await idbDone(tx);
-    } catch (e) { /* las formas de lo pintado se recogerán solas, zona a zona (la partida ya está importada) */ }
+    const geo = geoSano(d.geo), bg = PM.bgeoSano(d.bgeo);
+    if (Object.keys(geo).length || Object.keys(bg).length) {
+      try {
+        const db = await geoDb(), tx = db.transaction(['geo', 'meta'], 'readwrite'), st = tx.objectStore('geo');
+        for (const [k, o] of Object.entries(geo)) {
+          const prev = (await idbReq(st.get(k))) || {};
+          st.put(Object.assign(prev, o), k);
+        }
+        if (Object.keys(bg).length) tx.objectStore('meta').put(Object.assign({}, bg, bgeo), 'barrios');
+        await idbDone(tx);
+      } catch (e) { res.formas = Object.keys(geo).length + Object.keys(bg).length; }   // (se recogerán solas, zona a zona, al volver a pasar: se avisa)
+    }
     // (esto estaba después del return: los imprescindibles de la copia nunca llegaban al móvil nuevo)
     if (d.cityinfo) { try { const ci = JSON.parse(localStorage.getItem('pintamapa_cityinfo') || '{}'); localStorage.setItem('pintamapa_cityinfo', JSON.stringify(Object.assign({}, d.cityinfo, ci))); } catch (e) {} }
-    return fallos;
+    return res;
   }
   function importBackup() {
     const inp = document.createElement('input'); inp.type = 'file'; inp.accept = '.json,application/json';
@@ -2334,9 +2388,9 @@
         const bad = copiaRota(d);
         if (bad) throw new Error(bad);
         if (!confirm(`¿Importar la copia de «${PM.limpio(String(d.player || '?')).slice(0, 40)}» del ${new Date(+d.t || 0).toLocaleString(PM.LOCALE)}? Se sumará a tu partida actual (no se borra nada).`)) return;
-        const fallos = await importData(d);
-        toast(fallos ? `⚠️ Copia importada, pero ${fallos} foto(s) no se pudieron guardar. Recargando…` : '✅ Copia importada. Recargando…', fallos ? 'warn' : 'ok');
-        setTimeout(() => location.reload(), 1200);
+        const r = await importData(d), parcial = [r.fotos ? PM.t('{n} foto(s) no se pudieron guardar', { n: r.fotos }) : '', r.formas ? PM.t('las formas de {n} zona(s) no se pudieron guardar (se recuperan al volver a pasar)', { n: r.formas }) : ''].filter(Boolean).join('; ');
+        toast(parcial ? '⚠️ ' + PM.t('Copia importada, pero') + ' ' + parcial + '. ' + PM.t('Guarda el archivo para reintentarlo.') + ' ' + PM.t('Recargando…') : '✅ Copia importada. Recargando…', parcial ? 'warn' : 'ok', parcial ? 6000 : 2500);
+        setTimeout(() => location.reload(), parcial ? 6000 : 1200);
       } catch (e) { toast('❌ ' + PM.esc(PM.t(e.message || String(e))), 'warn', 5000); }   // (el mensaje puede citar texto del archivo: nunca como HTML)
     };
     inp.click();
@@ -2621,9 +2675,15 @@
           const keys = []; const ti = Math.floor(pos[0] / W.TILE), tj = Math.floor(pos[1] / W.TILE), n = km <= 3 ? 2 : 3;   // calles del juego: 25 o 49 zonas (más dejaría el móvil sin memoria)
           for (let i = -n; i <= n; i++) for (let j = -n; j <= n; j++) keys.push((ti + i) + '_' + (tj + j));
           await W.ensureKeys(keys).catch(() => {});
-          const tot = await PM.mapStyle.prefetch(pos, km, curStyle, (d, t) => { msg.textContent = `⬇️ Descargando mapa… ${Math.round(d / t * 100)} % (${d}/${t})`; });
-          msg.textContent = `✅ Listo: tu zona (${km} km) está guardada en el móvil (${PM.fmtNum(tot)} piezas). Ya puedes usarla sin cobertura.`;
-          toast('📴 Mapa guardado para usar sin conexión', 'ok');
+          const callesMal = keys.filter((k) => !(W.tiles[k] && W.tiles[k].loaded)).length;
+          const r = await PM.mapStyle.prefetch(pos, km, curStyle, (d, t) => { msg.textContent = `⬇️ Descargando mapa… ${Math.round(d / t * 100)} % (${d}/${t})`; });
+          // (solo se da por lista si TODO ha quedado guardado; si no, se dice qué falta y se puede volver a pulsar: lo guardado no se baja otra vez)
+          if (!r.fallidas && !callesMal) {
+            msg.textContent = `✅ Listo: tu zona (${km} km) está guardada en el móvil (${PM.fmtNum(r.ok)} piezas). Ya puedes usarla sin cobertura.`;
+            toast('📴 Mapa guardado para usar sin conexión', 'ok');
+          } else {
+            msg.textContent = `⚠️ Guardado a medias: ${PM.fmtNum(r.ok)} de ${PM.fmtNum(r.total)} piezas de mapa` + (callesMal ? ` y faltan las calles del juego de ${callesMal} de ${keys.length} zonas` : '') + '. Vuelve a pulsar con cobertura para completar lo que falta.';
+          }
         } catch (er) { msg.textContent = '❌ No se pudo descargar: ' + (er.message || er); }
         finally { document.querySelectorAll('#off-dl, #off-dl2').forEach((b) => { b.disabled = false; }); }
       }));
@@ -2821,7 +2881,7 @@
     compressOldWalks();
     setTimeout(() => PM.mapStyle.podar().catch(() => {}), 60000);
     setTimeout(() => W.purgarCache().catch(() => {}), 90000);
-    if (PM.state.rota) setTimeout(() => toast('⚠️ ' + PM.t('Tu partida guardada no se podía leer: se ha apartado y empiezas de cero. Si tienes una copia de seguridad, impórtala en Perfil → Ajustes.'), 'warn', 10000), 1500);
+    if (PM.state.rota && !PM.state.bloqueada) setTimeout(() => toast('⚠️ ' + PM.t('Tu partida guardada no se podía leer: se ha apartado y empiezas de cero. Si tienes una copia de seguridad, impórtala en Perfil → Ajustes.'), 'warn', 10000), 1500);
     scheduleStreakReminder();
     document.addEventListener('visibilitychange', () => { if (document.hidden) scheduleStreakReminder(); });
     // tramos pintados con versiones anteriores: su geometría (pendiente de subir y la de tu nube) para reconocerlos con la nueva fuente de mapas

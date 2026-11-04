@@ -54,21 +54,28 @@ PM.mapStyle = (function () {
   const clave = (u) => u.replace(/\/planet\/\d{8}_\d+_[a-z]+\//, '/planet/');
   const VIGENCIA = 60 * 86400000;   // una tesela guardada se renueva a los 60 días (si hay cobertura; sin ella, sirve la que haya)
   const plazo = (ms) => (window.AbortSignal && AbortSignal.timeout ? { signal: AbortSignal.timeout(ms) } : {});
-  async function cachedFetch(url, tileFirst) {
-    const c = window.caches ? await caches.open(CACHE) : null, key = clave(url);
-    const copia = c ? (await c.match(key)) || (key !== url ? await c.match(url) : null) : null;
-    if (copia && tileFirst && Date.now() - (+copia.headers.get('x-pm-t') || 0) < VIGENCIA) return copia.arrayBuffer();
+  // info (opcional): se apunta si la pieza ha quedado guardada en el móvil (guardada) o no existe (vacia)
+  async function cachedFetch(url, tileFirst, info) {
+    const key = clave(url);
+    let c = null, copia = null;
+    // (un almacén averiado o bloqueado no puede dejar sin mapa teniendo cobertura: se sigue por la red, sin guardar)
+    try { c = window.caches ? await caches.open(CACHE) : null; copia = c ? (await c.match(key)) || (key !== url ? await c.match(url) : null) : null; }
+    catch (e) { c = null; copia = null; }
+    if (copia && tileFirst && Date.now() - (+copia.headers.get('x-pm-t') || 0) < VIGENCIA) { if (info) info.guardada = true; return copia.arrayBuffer(); }
     try {
       // (con una copia a mano no se espera a una red floja: arrancar con poca cobertura era quedarse minutos sin mapa)
       const r = await fetch(url, plazo(copia ? 6000 : 20000));
       if (r.ok) {
         const buf = await r.arrayBuffer();
-        if (c) c.put(key, new Response(buf.slice(0), { headers: { 'Content-Type': r.headers.get('content-type') || 'application/octet-stream', 'x-pm-t': String(Date.now()) } })).catch(() => {});
+        if (c) {
+          const puesto = c.put(key, new Response(buf.slice(0), { headers: { 'Content-Type': r.headers.get('content-type') || 'application/octet-stream', 'x-pm-t': String(Date.now()) } }));
+          if (info) { try { await puesto; info.guardada = true; } catch (e) { /* sin sitio: se ve, pero no queda guardada */ } } else puesto.catch(() => {});
+        }
         return buf;
       }
-      if (!copia && (r.status === 404 || r.status === 204)) return new ArrayBuffer(0);
+      if (!copia && (r.status === 404 || r.status === 204)) { if (info) info.vacia = true; return new ArrayBuffer(0); }
     } catch (e) {}
-    if (copia) return copia.arrayBuffer();
+    if (copia) { if (info) info.guardada = true; return copia.arrayBuffer(); }
     throw new Error('Sin conexión y sin copia de ' + url);
   }
   const pre = (u) => (typeof u === 'string' && /^https?:/.test(u) ? P + u : u);
@@ -116,10 +123,11 @@ PM.mapStyle = (function () {
     (style.layers || []).forEach((l) => { const f = l.layout && l.layout['text-font']; if (Array.isArray(f) && typeof f[0] === 'string') fonts.add(f.join(',')); });
     if (style.glyphs) fonts.forEach((f) => ['0-255', '256-511', '8192-8447'].forEach((r) => urls.add(style.glyphs.replace('{fontstack}', encodeURIComponent(f)).replace('{range}', r))));
     if (typeof style.sprite === 'string') ['', '@2x'].forEach((x) => { urls.add(style.sprite + x + '.json'); urls.add(style.sprite + x + '.png'); });
-    const list = [...urls]; let done = 0;
-    const worker = async () => { while (list.length) { const u = list.pop(); try { await cachedFetch(u, true); } catch (e) {} done++; progress && progress(done, urls.size); } };
+    // (cuenta lo que ha quedado guardado de verdad, no lo que se ha pedido: una pieza que falla, o que no cabe, no está)
+    const list = [...urls]; let done = 0, ok = 0;
+    const worker = async () => { while (list.length) { const u = list.pop(), info = {}; try { await cachedFetch(u, true, info); } catch (e) {} if (info.guardada || info.vacia) ok++; done++; progress && progress(done, urls.size); } };
     await Promise.all(Array.from({ length: 6 }, worker));
-    return urls.size;
+    return { total: urls.size, ok, fallidas: urls.size - ok };
   }
   // El mapa guardado no puede crecer sin fin: OpenFreeMap cambia la ruta de sus teselas cada semana y las de antes se quedaban
   // ahí, ocupando el móvil para siempre. Una vez por semana se quitan las más antiguas.

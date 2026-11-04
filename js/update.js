@@ -99,18 +99,26 @@ PM.update = (function () {
       // (la descarga tarda: si mientras tanto empezó un paseo, se queda apartada y no se programa hasta terminarlo)
       if (paseando()) { setStatus('Actualización en espera: se buscará al terminar el paseo'); return; }
       await U().next({ id: b.id });
+      // (y si el paseo empezó mientras se programaba, se aparta otra vez: su hold() pudo ir antes que este next())
+      if (paseando()) { await hold(); setStatus('Actualización en espera: se buscará al terminar el paseo'); return; }
       setStatus(`La ${remote.version} está descargada: se aplica al volver a abrir la app`);
-      if (manual) await U().set({ id: b.id });                 // «Actualizar ahora»: se recarga ya
+      if (manual) await aplicar(b.id);                 // «Actualizar ahora»: se recarga ya
       else showReadyBanner(remote);
     } catch (e) {
       setStatus(`No se pudo descargar la ${remote.version}: ${(e && e.message) || e}. Se reintentará.`);
     } finally { busy = false; }
   }
 
+  // aplicar ya (la app se recarga): nunca con un paseo en marcha, mirado justo antes; cada espera al actualizador da tiempo a empezar uno
+  async function aplicar(id) {
+    if (PM.walking && PM.walking()) { await hold(); setStatus('Actualización en espera: se buscará al terminar el paseo'); return false; }
+    await U().set({ id });
+    return true;
+  }
   async function applyVersion(version) {
     const list = await U().list().catch(() => ({ bundles: [] }));
-    const b = list.bundles.find((x) => x.version === version && x.status !== 'error');
-    if (b) await U().set({ id: b.id });
+    const b = (list.bundles || []).find((x) => x.version === version && x.status !== 'error');
+    return b ? aplicar(b.id) : false;
   }
 
   // Versión nueva ya descargada: aviso visible (también encima de la pantalla de inicio) para aplicarla al momento
@@ -123,7 +131,7 @@ PM.update = (function () {
     el.querySelector('.btn').addEventListener('click', async () => {
       if (PM.walking && PM.walking()) { el.querySelector('span').innerHTML = 'Termina el paseo y la aplico 😉'; return; }
       el.querySelector('.btn').textContent = '⏳';
-      await applyVersion(remote.version);
+      if (!(await applyVersion(remote.version))) { el.querySelector('.btn').textContent = 'Actualizar ahora'; if (PM.walking && PM.walking()) el.querySelector('span').innerHTML = 'Termina el paseo y la aplico 😉'; }
     });
     el.querySelector('.x').addEventListener('click', () => el.remove());   // si no, se aplica sola al volver a abrir
     document.body.appendChild(el);

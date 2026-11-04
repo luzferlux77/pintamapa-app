@@ -144,23 +144,40 @@ PM.cards = (function () {
     return dbp;
   }
   // Cada pintor tiene sus fotos («pintor:lugar»): antes la clave era solo el lugar y otro pintor del mismo móvil veía
-  // (y firmaba) la foto ajena. Las fotos antiguas, guardadas solo con el lugar, siguen valiendo para el pintor que
-  // tiene esa foto apuntada en su partida.
+  // (y firmaba) la foto ajena. Una foto antigua, guardada solo con el lugar, es de este pintor solo si ningún otro pintor
+  // de este móvil tiene apuntada una foto de ese lugar: entonces pasa a su clave (la antigua se conserva). Si la tienen
+  // apuntada varios, no se sabe de quién es y no se enseña a ninguno.
   const fotoKey = (id) => (PM.player ? PM.player.slug + ':' : '') + id;
-  async function getPhoto(id) {
+  let ajenas = null;   // lugares con foto apuntada por OTRO pintor de este móvil (se mira una vez)
+  function fotosAjenas() {
+    if (ajenas) return ajenas;
+    ajenas = new Set();
+    for (const p of PM.players()) {
+      if (PM.player && p.slug === PM.player.slug) continue;
+      try { const o = JSON.parse(localStorage.getItem('pintamapa_save_' + p.slug + '_' + PM.profile) || 'null'); for (const id of Object.keys((o && o.cardPhotos) || {})) ajenas.add(id); }
+      catch (e) { /* partida ilegible de otro pintor: no reclama nada */ }
+    }
+    return ajenas;
+  }
+  // estricto: si no se puede leer el almacén, error (para la copia de seguridad: no es lo mismo que «no hay foto»)
+  async function getPhoto(id, estricto) {
     if (!(S().cardPhotos || {})[id]) return null;   // (este pintor no le hizo foto)
     try {
       const d = await db();
-      const get = (k) => new Promise((res) => { const q = d.transaction('fotos').objectStore('fotos').get(k); q.onsuccess = () => res(q.result || null); q.onerror = () => res(null); });
-      return (await get(fotoKey(id))) || (await get(id));
-    } catch (e) { return null; }
+      const get = (k) => new Promise((res, ko) => { const q = d.transaction('fotos').objectStore('fotos').get(k); q.onsuccess = () => res(q.result || null); q.onerror = () => (estricto ? ko(q.error || new Error('foto')) : res(null)); });
+      const mia = await get(fotoKey(id));
+      if (mia || !PM.player) return mia || (await get(id));
+      const vieja = fotosAjenas().has(id) ? null : await get(id);
+      if (vieja) putPhoto(id, vieja).catch(() => {});   // (queda a su nombre)
+      return vieja;
+    } catch (e) { if (estricto) throw e; return null; }
   }
   // la foto de una carta que pasa a otro identificador (mismo sitio, identificador nuevo)
   async function moverFoto(oldId, newId) {
     try {
       const d = await db();
       const get = (k) => new Promise((res) => { const q = d.transaction('fotos').objectStore('fotos').get(k); q.onsuccess = () => res(q.result || null); q.onerror = () => res(null); });
-      const img = (await get(fotoKey(oldId))) || (await get(oldId));
+      const img = (await get(fotoKey(oldId))) || (!PM.player || !fotosAjenas().has(oldId) ? await get(oldId) : null);
       if (img && !(await get(fotoKey(newId)))) await putPhoto(newId, img);
     } catch (e) { /* sin fotos */ }
   }

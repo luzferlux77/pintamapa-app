@@ -185,6 +185,21 @@ PM.cloud = (function () {
         await write(path, await encrypt(key, { id, img: small }), cur && cur.sha, 'foto', token);
         v.up = Date.now(); PM.state.save();
       }
+      // y al revés: tus fotos que están en la nube pero no en este móvil (móvil nuevo, partida recuperada de la nube). Solo
+      // si la de la nube es la versión apuntada (up ≥ t); unas pocas en cada copia, y una que no se pueda bajar se reintenta en la siguiente
+      let pedidas = 0;
+      for (const [id, v] of Object.entries(PM.state.data.cardPhotos || {})) {
+        if (pedidas >= 15) break;
+        if (!PM.cards || !v || !(v.up && v.up >= (v.t || 0))) continue;
+        let tengo; try { tengo = await PM.cards.getPhoto(id, true); } catch (e) { continue; }   // (sin poder leer el almacén no se pisa nada)
+        if (tengo) continue;
+        pedidas++;
+        try {
+          const r = await readRaw(base + 'fotos/' + (await photoName(id, pass)) + '.json', token);
+          const o = r && await decrypt(key, r.data);
+          if (o && o.id === id && typeof o.img === 'string' && o.img.startsWith('data:image/')) await PM.cards.putPhoto(id, o.img);
+        } catch (e) { /* se reintenta en la próxima copia */ }
+      }
       return true;
     } finally { busy = false; }
   }
