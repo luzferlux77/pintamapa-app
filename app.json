@@ -1,8 +1,8 @@
 {
-  "version": "0.8.0",
-  "notes": "Móvil en el bolsillo: el GPS ya no pierde posiciones con la pantalla apagada, se despierta si se duerme y el paseo ya no se pausa solo por falta de lecturas",
+  "version": "0.8.1",
+  "notes": "Auditoría v0.8.0: el GPS no pausa ni mezcla paseos por respuestas viejas o imprecisas, lecturas desordenadas ignoradas, copias coherentes, fotos de la nube por turnos y sin pisar versiones, catálogo determinista",
   "native": 8,
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.8.0/pintamapa-web-0.8.0.zip",
-  "checksum": "ed7b4b619a3b99391e6512bebd8173f01e6bf6629bce965d22016bfaeb31ccfb",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.8.0/PintaMapa-v0.8.0.apk"
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.8.1/pintamapa-web-0.8.1.zip",
+  "checksum": "7e138574331b6524567e85f8b072a36c7221a4215a7f14b334f2eebabbbb3676",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.8.1/PintaMapa-v0.8.1.apk"
 }
