@@ -440,8 +440,11 @@
   let lmDirty = false, lmFlushT = null;
   function placeLandmark(lm) {
     const got = !!S().landmarks[lm.id], prev = lmIndex[lm.id];
-    if (!prev || prev.got !== got) lmDirty = true;
+    // (también si el mismo lugar llega con otros datos: posición, nombre, tipo o rareza; antes el mapa seguía con los viejos)
+    const otro = (a, b) => a.pos[0] !== b.pos[0] || a.pos[1] !== b.pos[1] || a.name !== b.name || a.emoji !== b.emoji || a.rarity !== b.rarity || !!a.must !== !!b.must;
+    if (!prev || prev.got !== got || (prev.lm !== lm && otro(prev.lm, lm))) lmDirty = true;
     lmIndex[lm.id] = { lm, got };
+    if (got && lmHalos[lm.id] && prev && prev.lm.pos && (prev.lm.pos[0] !== lm.pos[0] || prev.lm.pos[1] !== lm.pos[1])) delete lmHalos[lm.id];
     if (got && !lmHalos[lm.id]) {
       lmHalos[lm.id] = { type: 'Feature', properties: {}, geometry: { type: 'Point', coordinates: ll(lm.pos) } };
       setSrc('pm-halos', FC(Object.values(lmHalos)));

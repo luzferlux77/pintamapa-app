@@ -56,21 +56,9 @@ PM.world = (function () {
     if (L.evangelica(tags) && (landmarks[el.type[0] + el.id] || pool[el.type[0] + el.id])) { delete pool[el.type[0] + el.id]; removeLandmark(el.type[0] + el.id); return; }
     const { lm } = L.candidato(el);
     if (!lm) return;
-    // ya conquistado con otro id (llegó de otra fuente de datos): se usa el de tu conquista
-    if (PM.state && !PM.state.data.landmarks[lm.id]) {
-      if (!lmBatch) cartasPorNombre = null;
-      for (const cid of cartasDe(lm.name)) if (PM.geo.dist(PM.state.data.landmarks[cid].pos, lm.pos) < 60) { lm.id = cid; break; }
-    }
+    // (el id es SIEMPRE el de la fuente, igual para todos: antes se cambiaba por el de una carta tuya con el mismo nombre
+    // cerca, y dos jugadores llamaban distinto al mismo sitio. Tu carta con otro id pasa a este: migrarConquistas)
     if (lmBatch) lmBatch.push(lm); else commitLandmarks([lm]);
-  }
-  // tus cartas por nombre, hecho una vez por carga: con cientos de cartas, recorrerlas por cada candidato era lo que más pesaba
-  let cartasPorNombre = null;
-  function cartasDe(name) {
-    if (!cartasPorNombre) {
-      cartasPorNombre = new Map();
-      for (const [cid, r] of Object.entries(PM.state.data.landmarks)) if (r.pos) { if (!cartasPorNombre.has(r.name)) cartasPorNombre.set(r.name, []); cartasPorNombre.get(r.name).push(cid); }
-    }
-    return cartasPorNombre.get(name) || [];
   }
 
   function removeLandmark(id) {
@@ -223,14 +211,23 @@ PM.world = (function () {
   // Y si son el mismo sitio con datos de días distintos (la precarga y la consulta por zona), gana el que tiene más
   // artículos (y luego más protección): tampoco depende de cuál llegue antes.
   // (la copia de la precarga va por delante: solo ella sabe lo que recomiendan las guías, qué objetos del mapa es y cuánto se lee)
+  // Orden COMPLETO: a igualdad de lo anterior decide lo siguiente, hasta el nombre y el tipo. Antes dos versiones que
+  // empataban en «tiene guía» (una citada por 1 guía y otra por 3) dependían de cuál llegara primero.
   const extra = (x) => (x.guia ? 2 : 0) + (x.osm ? 1 : 0) + (x.pv ? 1 : 0);
-  const before = (a, b) => extra(a) !== extra(b) ? extra(a) > extra(b) : a.pos[0] < b.pos[0] || (a.pos[0] === b.pos[0] && (a.pos[1] < b.pos[1]
-    || (a.pos[1] === b.pos[1] && ((a.wp || 0) > (b.wp || 0) || ((a.wp || 0) === (b.wp || 0) && (a.her || 0) > (b.her || 0))))));
+  const CLAVES = [(x) => extra(x), (x) => +x.guia || 0, (x) => (x.osm || []).length, (x) => +x.pv || 0,
+    (x) => -x.pos[0], (x) => -x.pos[1], (x) => +x.wp || 0, (x) => +x.her || 0, (x) => +x.prio || 0];
+  function before(a, b) {
+    for (const f of CLAVES) { const u = f(a), v = f(b); if (u !== v) return u > v; }
+    const t = (x) => (x.name || '') + '\u0000' + (x.kind || '') + '\u0000' + (x.emoji || '') + '\u0000' + (x.texto || '');
+    return t(a) < t(b);
+  }
   function commitLandmarks(list) {
     for (const lm of list) {
       const o = pool[lm.id];
       if (!o) pool[lm.id] = lm;
-      else if (o !== lm && before(lm, o)) { pool[lm.id] = lm; if (landmarks[lm.id]) removeLandmark(lm.id); }
+      // (una versión mejor del mismo sitio sustituye también a la que está en el mapa, conquistada o no: antes la
+      // conquistada se quedaba con los datos viejos porque no se puede quitar)
+      else if (o !== lm && before(lm, o)) { pool[lm.id] = lm; if (landmarks[lm.id]) landmarks[lm.id] = lm; }
     }
     selectLandmarks();
   }
@@ -250,12 +247,15 @@ PM.world = (function () {
   }
   // ¿están ya todos los datos de la zona de este punto? (sus calles cargadas y, si el lugar venía de Wikidata, también
   // los lugares de Wikidata de esa zona: se nota en que ya hay alguno)
+  // (lo dicen las marcas de la zona: llegó la respuesta entera de Wikidata, o los lugares de la fuente de los lugares. Antes
+  // bastaba con que hubiera UN lugar de Wikidata en la zona, y con eso se podía quitar o trasladar una carta)
+  const zonaWd = new Set(), zonaVt = new Set();
+  function marcarZona(k, c) { if (c && !c.wdMiss) zonaWd.add(k); if (c && c.vtPois) zonaVt.add(k); }
   function zonaCompleta(pos, id) {
     if (!pos) return false;
     const k = tileKeyOf(pos[0], pos[1]), t = tiles[k];
     if (!t || !t.loaded) return false;
-    if (!/^n?Q\d+$/.test(id)) return true;
-    return Object.values(pool).some((lm) => /^nQ\d+$/.test(lm.id) && lm.pos && tileKeyOf(lm.pos[0], lm.pos[1]) === k);
+    return /^n?Q\d+$/.test(id) ? zonaWd.has(k) : zonaVt.has(k);
   }
   function migrarConquistas() {
     const s = PM.state && PM.state.data;
@@ -286,12 +286,39 @@ PM.world = (function () {
   }
   function selectLandmarks() {
     migrarConquistas();
-    const isCap = (o) => !!(PM.state && PM.state.data.landmarks[o.id]);
-    const { keep, why } = L.seleccionar(Object.values(pool), { isCap, zona: (p) => tileKeyOf(p[0], p[1]) });
+    // La selección es COMÚN: no sabe qué has conquistado (antes lo conquistado iba primero y ocupaba cupo: a quien tenía
+    // la Biblioteca Sofia Barat le desaparecía el Taller Masriera, y a quien no, no)
+    const { keep, why, dup } = L.seleccionar(Object.values(pool), { zona: (p) => tileKeyOf(p[0], p[1]) });
+    const s = PM.state && PM.state.data;
+    // tu carta de una versión que la selección deja fuera (duplicada, o demasiado cerca de la que se queda) pasa al sitio
+    // que se queda si de verdad es el mismo (L.mismaCarta, la regla estricta); fecha, visitas y foto se conservan. Si no es
+    // el mismo, se queda como está. Preferencia: el que la selección da por su duplicado, el del mismo nombre, el más cerca
+    if (s) {
+      const G = 0.003, gk = (p) => Math.floor(p[0] / G) + '_' + Math.floor(p[1] / G), grid = new Map();
+      for (const id of keep) { const lm = pool[id]; if (lm.pos && !s.landmarks[id]) { const k = gk(lm.pos); (grid.get(k) || grid.set(k, []).get(k)).push(lm); } }
+      let n = 0;
+      for (const id of Object.keys(s.landmarks)) {
+        const yo = pool[id];
+        if (!yo || !yo.pos || keep.has(id)) continue;
+        const pref = dup && dup.get(id), i = Math.floor(yo.pos[0] / G), j = Math.floor(yo.pos[1] / G);
+        let best = null, bs = Infinity;
+        for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) for (const lm of grid.get((i + a) + '_' + (j + b)) || []) {
+          // (el que la selección da por su duplicado ya es el mismo sitio en el mapa de todos: la carta va con él, aunque
+          // el nombre esté en otro idioma, «Mercat de Sant Antoni» / «Mercado de San Antonio»)
+          if (s.landmarks[lm.id] || (lm.id !== pref && !L.mismaCarta(yo, lm))) continue;
+          const sc = PM.geo.dist(yo.pos, lm.pos) - (lm.id === pref ? 1e6 : 0) - (L.sameName(yo.name, lm.name) ? 1000 : 0);
+          if (sc < bs) { bs = sc; best = lm; }
+        }
+        if (best) { trasladar(s, id, best.id, best); n++; }
+      }
+      if (n) { PM.state.save(); emit('lmMigrated', { n }); }
+    }
     lastWhy = why;
     // se aplica: fuera los que ya no tocan (nunca lo conquistado) y dentro los nuevos
     for (const id of Object.keys(landmarks)) if (!keep.has(id) && pool[id]) removeLandmark(id);
     for (const id of keep) if (!landmarks[id]) accept(pool[id]);
+    // lo tuyo, aparte: lo conquistado sigue en el mapa aunque no esté en la selección común, sin quitarle sitio a nada
+    if (s) for (const id in s.landmarks) if (pool[id] && !keep.has(id)) { if (!landmarks[id]) accept(pool[id]); why.set(id, 'conquistado (fuera de la selección común: ' + (why.get(id) || '—') + ')'); }
   }
   // por qué un lugar está (o no) en el mapa y cómo se calcula su puntuación
   function porque(id) {
@@ -563,7 +590,7 @@ PM.world = (function () {
   // ---------------- Caché local de barrios (IndexedDB) ----------------
   // Cada barrio se descarga una vez y se guarda 90 días: menos datos móviles, menos batería y arranque instantáneo.
   const CACHE_DAYS = 90;
-  const CACHE_V = 22;   // 22: las zonas guardadas por la versión previa, sin las preparadas; 21: guías, enlaces, tamaño de los sitios grandes y clases nuevas (y las zonas preparadas); 20: clases corregidas, calles famosas, protección nacional de todo el mundo y nombres en mayúscula; 19: año también de la inauguración (P1619: estaciones antiguas como la de Cornellà); 18: clases por orden fijo (lo que el edificio ES), catedrales católicas/anglicanas/ortodoxas, sin conjuntos ni esculturas de museo; 17: visitantes al año y atracción turística (puntuación de guía); 16: uso de cada edificio (hotel, escuela…) para la puntuación; 15: templos budistas y sintoístas, rascacielos, sin barrios ni cuadros de museo; 14: nivel de patrimonio, zoos, acuarios, puertas de muralla (puntuación igual para todos); 13: estaciones de tren históricas de Wikidata (antes se perdían); 12: lugares solo de mapas vectoriales + Wikidata   // súbelo si cambia lo que se descarga (p. ej. nuevos tipos de puntos): fuerza a renovar la caché
+  const CACHE_V = 23;   // 23: los lugares del mapa solo de la fuente de los lugares (antes, de la que contestara antes); 22: las zonas guardadas por la versión previa, sin las preparadas; 21: guías, enlaces, tamaño de los sitios grandes y clases nuevas (y las zonas preparadas); 20: clases corregidas, calles famosas, protección nacional de todo el mundo y nombres en mayúscula; 19: año también de la inauguración (P1619: estaciones antiguas como la de Cornellà); 18: clases por orden fijo (lo que el edificio ES), catedrales católicas/anglicanas/ortodoxas, sin conjuntos ni esculturas de museo; 17: visitantes al año y atracción turística (puntuación de guía); 16: uso de cada edificio (hotel, escuela…) para la puntuación; 15: templos budistas y sintoístas, rascacielos, sin barrios ni cuadros de museo; 14: nivel de patrimonio, zoos, acuarios, puertas de muralla (puntuación igual para todos); 13: estaciones de tren históricas de Wikidata (antes se perdían); 12: lugares solo de mapas vectoriales + Wikidata   // súbelo si cambia lo que se descarga (p. ej. nuevos tipos de puntos): fuerza a renovar la caché
   const cache = (function () {
     let dbp = null;
     function db() {
@@ -964,8 +991,8 @@ PM.world = (function () {
       const j = await r.json();
       if (!(j.v >= 3)) { cdnMissing.add(k); return null; }   // formato muy antiguo (sin barrios): mejor de OpenStreetMap
       const entry = { v: CACHE_V, t: Date.now(), els: j.els, wdMiss: !!j.wdMiss || j.v < 4, extrasMiss: j.v < 6 };   // v<6: sin estudios de TV ni bomberos nuevos
-      cache.put(k, entry);
-      if (entry.wdMiss || entry.extrasMiss) setTimeout(() => completeTile(k, entry), 4000);
+      cache.put(k, entry); marcarZona(k, entry);
+      setTimeout(() => completeTile(k, entry), 4000);   // (siempre: sus lugares del mapa se piden a la fuente de los lugares)
       if (j.name || j.city) {
         const t = ensureTile(k);
         t.name = t.name || j.name; t.city = t.city || j.city;
@@ -980,7 +1007,8 @@ PM.world = (function () {
     const c = await cache.get(k);
     // (guardado con otra versión de los datos: se vuelve a pedir, igual en todos los móviles)
     if (!(c && c.v === CACHE_V && Date.now() - c.t < CACHE_DAYS * 86400000)) return null;
-    if (c.wdMiss || c.extrasMiss || (!c.src && !c.vtPois)) setTimeout(() => completeTile(k, c), 3000);
+    marcarZona(k, c);
+    if (c.wdMiss || c.extrasMiss || !c.vtPois) setTimeout(() => completeTile(k, c), 3000);
     return c.els;
   }
   // Completa un barrio guardado sin los lugares de Wikidata (y los añade al mapa en cuanto llegan)
@@ -1001,28 +1029,33 @@ PM.world = (function () {
           try { const d = await overpass(QUERY(bb), 45000); add = add.concat(d.elements.map(slim).filter((el) => tilesOf(el).has(k))); extrasMiss = false; }
           catch (err) { extrasFailT = Date.now(); console.warn('Extras del barrio pendientes (Overpass no responde)', k, err); }
         }
-        // zona bajada sin los mapas vectoriales (Overpass o GitHub): sus lugares, una vez por zona. Hace falta SIEMPRE
-        // (no solo si Overpass falla): los lugares salen solo de los mapas vectoriales y Wikidata, iguales para todos
+        // zona sin los lugares de la fuente de los lugares (bajada por Overpass, o contestó otro mapa vectorial): se piden
+        // solo a ella, una vez por zona. Hace falta SIEMPRE: los lugares salen solo de ahí y de Wikidata, iguales para todos
+        // (si no contesta, la zona sigue pendiente y se reintenta; nunca se rellena con lo de otra fuente)
         let vtPois = !!c.vtPois;
-        if (!c.src && !vtPois && !vtDown()) {
+        if (!vtPois && PM.vtiles && PM.vtiles.fetchPois) {
           try {
-            const got = await PM.vtiles.fetchBox(s + 1e-6, w + 1e-6, n - 1e-6, e - 1e-6);
-            add = add.concat(got.els.filter((el) => el.tags && el.tags.name && !el.tags.highway && !el.tags.place && tilesOf(el).has(k)));
+            const got = await PM.vtiles.fetchPois(s + 1e-6, w + 1e-6, n - 1e-6, e - 1e-6);
+            add = add.concat(got.filter((el) => el.tags.name && tilesOf(el).has(k)));
             vtPois = true;
-          } catch (err) { vtFailT = Date.now(); }
+          } catch (err) { /* pendiente */ }
         }
         if (wdMiss) {
           const got = (await zonaPreparada(k)) || await wikidataBox(bb);
           if (got !== null) { add = add.concat(got.filter((el) => tilesOf(el).has(k))); wdMiss = false; }
         }
         const cur = (await cache.get(k)) || c;
-        const have = new Set(cur.els.map((el) => el.type + el.id)); add = add.filter((el) => !have.has(el.type + el.id));   // sin duplicados al volver a pedir
-        cache.put(k, Object.assign({}, cur, { els: cur.els.concat(add), wdMiss, extrasMiss, vtPois }));
+        // lo que llega sustituye a lo guardado con el mismo id (puede traer más: guías, enlaces, lecturas), sin duplicados;
+        // antes se tiraba la versión nueva y la zona se daba por completa con la ficha vieja
+        const llave = (el) => el.type + el.id, nuevos = new Map(add.map((el) => [llave(el), el]));
+        add = [...nuevos.values()];
+        cache.put(k, Object.assign({}, cur, { els: cur.els.filter((el) => !nuevos.has(llave(el))).concat(add), wdMiss, extrasMiss, vtPois }));
         // Wikidata falló (red floja, servidor ocupado): se reintenta en 2 minutos, hasta 5 veces en esta sesión.
         // Si no, ese móvil se quedaba sin los lugares de Wikidata de la zona hasta volver a abrir la app.
-        const pending = (x) => x.wdMiss || (!x.src && !x.vtPois);   // (lo mismo si faltan los lugares del mapa vectorial)
-        if (pending({ wdMiss, src: cur.src, vtPois }) && (wdRetries[k] = (wdRetries[k] || 0) + 1) <= 5) setTimeout(async () => { const c2 = await cache.get(k); if (c2 && pending(c2)) completeTile(k, c2); }, 120000);
+        const pending = (x) => x.wdMiss || !x.vtPois;   // (lo mismo si faltan los lugares del mapa vectorial)
+        if (pending({ wdMiss, vtPois }) && (wdRetries[k] = (wdRetries[k] || 0) + 1) <= 5) setTimeout(async () => { const c2 = await cache.get(k); if (c2 && pending(c2)) completeTile(k, c2); }, 120000);
         while (loading.has(k)) await new Promise((res) => setTimeout(res, 200));   // (sus calles aún están entrando: lo de aquí, al acabar)
+        marcarZona(k, { wdMiss, vtPois });   // (antes de meterlos: la selección que sigue ya sabe que la zona está entera)
         if (add.length && tiles[k] && (tiles[k].loaded || tiles[k].partial)) { ingest(add, new Set([k])); emit('loaded', { tiles: [k] }); }
       } catch (err) { console.warn('Zona sin completar', k, err);   // (sin esto, un solo error paraba la cola: ninguna zona más se completaba en toda la sesión)
       } finally { completing.delete(k); }
@@ -1034,9 +1067,13 @@ PM.world = (function () {
   const ZONAS_CDN = 'https://luzferlux77.github.io/pintamapa-app/zonas/';
   let zonasIdx = null;
   const zonasData = new Map();   // (las últimas, ya leídas: un paseo pide muchas celdas de la misma)
+  // (si no se puede leer, vacío por ahora y se vuelve a intentar al cabo de 30 s: antes un corte al abrir dejaba la sesión
+  // entera sin las zonas preparadas)
+  let zonasFallo = 0;
   function zonasIndice() {
+    if (zonasIdx && zonasFallo && Date.now() - zonasFallo > 30000) { zonasIdx = null; zonasFallo = 0; }
     if (!zonasIdx) zonasIdx = (typeof fetch === 'undefined' ? Promise.resolve(null) : fetch('data/zonas.json').then((r) => (r.ok ? r.json() : null)).catch(() => null))
-      .then((j) => (j && j.k ? { t: j.t, k: new Set(j.k) } : { k: new Set() }));
+      .then((j) => { if (j && j.k) return { t: j.t, k: new Set(j.k) }; zonasFallo = Date.now(); return { k: new Set() }; });
     return zonasIdx;
   }
   async function zonaPreparada(k) {
@@ -1070,11 +1107,13 @@ PM.world = (function () {
   async function vectorTiles(keys) {
     try {
       const [s, w, n, e] = bboxOf(keys).split(',').map(Number);
-      const { els, src } = await PM.vtiles.fetchBox(s + 1e-6, w + 1e-6, n - 1e-6, e - 1e-6);
+      const { els, src, poisOk } = await PM.vtiles.fetchBox(s + 1e-6, w + 1e-6, n - 1e-6, e - 1e-6);
       const per = {}; keys.forEach((k) => (per[k] = []));
       for (const el of els) for (const k of tilesOf(el)) if (per[k]) per[k].push(el);
       for (const k of keys) {
-        const entry = { v: CACHE_V, t: Date.now(), els: per[k], wdMiss: true, extrasMiss: true, src };
+        // (vtPois: sus lugares son los de la fuente de los lugares; si contestó otra, se piden luego a esa: completeTile)
+        const entry = { v: CACHE_V, t: Date.now(), els: per[k], wdMiss: true, extrasMiss: true, src, vtPois: !!poisOk };
+        marcarZona(k, entry);
         cache.put(k, entry);
         setTimeout(() => completeTile(k, entry), 1500);   // patrimonio, contornos de barrio y Wikidata: después, sin prisa
       }
@@ -1143,7 +1182,6 @@ PM.world = (function () {
   // Mete elementos en el mundo (calles troceadas en los barrios aceptados + monumentos). Va por pasos, uno por elemento, para
   // poder repartirlo en turnos (ingestPorTurnos); lote: los candidatos de esta carga
   function* ingestPasos(elements, accept, lote) {
-    cartasPorNombre = null;
     const newPieces = [], footways = [];
     const seen = new Set();
     for (const el of elements) {
@@ -1286,10 +1324,13 @@ PM.world = (function () {
   const PRE_CDN = 'https://luzferlux77.github.io/pintamapa-app/lugares/', PRE_DIAS = 60;
   let preIndex = null, preIndexP = null;
   const preDone = new Set(), preData = {};
+  // (si no se puede leer, vacío por ahora y se vuelve a intentar al cabo de 30 s: antes se quedaba vacío toda la sesión)
+  let preIndexFallo = 0;
   function preIdx() {
     if (preIndex) return Promise.resolve(preIndex);
-    if (!preIndexP) preIndexP = (typeof fetch === 'undefined' ? Promise.resolve([]) : fetch('data/ciudades.json').then((r) => (r.ok ? r.json() : [])).catch(() => []))
-      .then((j) => (preIndex = Array.isArray(j) ? j : []));
+    if (preIndexP && preIndexFallo && Date.now() - preIndexFallo > 30000) { preIndexP = null; preIndexFallo = 0; }
+    if (!preIndexP) preIndexP = (typeof fetch === 'undefined' ? Promise.resolve(null) : fetch('data/ciudades.json').then((r) => (r.ok ? r.json() : null)).catch(() => null))
+      .then((j) => { if (Array.isArray(j)) return (preIndex = j); preIndexFallo = Date.now(); return []; });
     return preIndexP;
   }
   // ver: versión que da el índice (si la guardada es de otra, se vuelve a descargar: precarga regenerada)

@@ -432,7 +432,7 @@
     };
     // 1) lo de Wikidata que es el MISMO sitio que algo del mapa (mismo Q, mismo tipo cerca o nombre parecido; no
     //    cualquier cosa a 40 m): se queda uno
-    const osmGrid = new Map(), drop = new Map(), mapaId = new Map();   // id → motivo
+    const osmGrid = new Map(), drop = new Map(), mapaId = new Map(), dup = new Map();   // id → motivo · dup: id → id del que se queda (es el mismo sitio)
     for (const o of all) if (!o.fromWd) { gridAdd(osmGrid, o); mapaId.set(o.id, o); }
     // enlace exacto (la precarga sabe qué objetos del mapa son cada lugar de Wikidata): se anota antes de comparar nada
     for (const lm of all) if (lm.fromWd && lm.osm) for (const id of lm.osm) { const o = mapaId.get(id); if (o) o.wd = lm.wd; }
@@ -447,7 +447,7 @@
         // seguro que es el mismo: se queda la versión de Wikidata (sabe más), salvo que ya conquistaras la del mapa
         const capS = same.find((o) => cap.get(o));
         if (capS && !cap.get(lm)) { drop.set(lm.id, 'duplicado de ' + capS.name + ' (ya conquistado)'); continue; }
-        same.forEach((o) => { if (!cap.get(o)) drop.set(o.id, 'duplicado de ' + lm.name + ' (mismo Wikidata)'); });
+        same.forEach((o) => { if (!cap.get(o)) { drop.set(o.id, 'duplicado de ' + lm.name + ' (mismo Wikidata)'); dup.set(o.id, lm.id); } });
         const spec = same.filter((o) => o.kind !== 'Patrimonio').sort((x, y) => y.prio - x.prio || (x.id < y.id ? -1 : 1))[0];
         if (lm.kind === 'Patrimonio' && spec) { lm._spec = lm.emoji; lm.kind = spec.kind; lm.emoji = spec.emoji; }
         continue;
@@ -460,11 +460,11 @@
       const capO = close.find((o) => cap.get(o));
       if (capO && !cap.get(lm)) { drop.set(lm.id, 'duplicado de ' + capO.name + ' (ya conquistado)'); continue; }
       if (close.every((o) => !o.wd && !o.wiki) && lm.prio >= Math.max(...close.map((o) => o.prio))) {
-        close.forEach((o) => { if (!cap.get(o)) drop.set(o.id, 'duplicado de ' + lm.name + ' (Wikidata sabe más)'); });
+        close.forEach((o) => { if (!cap.get(o)) { drop.set(o.id, 'duplicado de ' + lm.name + ' (Wikidata sabe más)'); dup.set(o.id, lm.id); } });
         // Wikidata solo sabe que es «patrimonio» y el mapa dice qué es (el Alcázar de Toledo, un castillo): ese tipo
         const spec = close.filter((o) => o.kind !== 'Patrimonio' && o._n && o._n === lm._n).sort((x, y) => y.prio - x.prio || (x.id < y.id ? -1 : 1))[0];
         if (lm.kind === 'Patrimonio' && spec) { lm._spec = lm.emoji; lm.kind = spec.kind; lm.emoji = spec.emoji; }
-      } else if (!cap.get(lm)) drop.set(lm.id, 'duplicado de ' + close[0].name + ' (del mapa)');
+      } else if (!cap.get(lm)) { drop.set(lm.id, 'duplicado de ' + close[0].name + ' (del mapa)'); dup.set(lm.id, close[0].id); }
     }
     // 2) de más importante a menos: cada uno entra si no tiene otro ya elegido demasiado cerca y queda cupo
     //    (los icónicos entran siempre y no se tapan entre ellos; lo conquistado, siempre)
@@ -504,7 +504,7 @@
       else if (!isC) { if (!shop) zoneN[zk] = (zoneN[zk] || 0) + 1; kindN[kk] = (kindN[kk] || 0) + 1; }
       if (!shop) allN[zk] = (allN[zk] || 0) + 1;
     }
-    return { keep, why };
+    return { keep, why, dup };
   }
 
   PM.capRadius = capRadius;

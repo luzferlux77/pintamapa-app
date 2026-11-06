@@ -220,12 +220,24 @@ PM.vtiles = (function () {
       next(); timer = setTimeout(next, 2500);
     });
   }
+  // Los LUGARES del juego salen solo de la primera fuente (OpenFreeMap): las otras usan otro esquema, con otra lista de
+  // lugares y sin el id de OpenStreetMap (los numeran por orden), y según cuál contestara antes cada móvil veía lugares
+  // distintos. Las calles sí pueden venir de cualquiera (solo sirven para pintar).
+  const CANON = SOURCES[0].name;
+  const esLugar = (el) => !!(el.tags && !el.tags.highway && !el.tags.place);
+  const cajaDe = (s, w, n, e) => { const t = []; for (let X = tx(w); X <= tx(e); X++) for (let Y = ty(n); Y <= ty(s); Y++) t.push([X, Y]); return t; };
   async function fetchBox(s, w, n, e) {
-    const tiles = [];
-    for (let X = tx(w); X <= tx(e); X++) for (let Y = ty(n); Y <= ty(s); Y++) tiles.push([X, Y]);
+    const tiles = cajaDe(s, w, n, e);
     // si un trozo falla, se reintenta solo ese (una vez, al segundo); los demás no se tiran
     const got = await Promise.all(tiles.map(([X, Y]) => fetchAny(X, Y).catch(() => new Promise((r) => setTimeout(r, 1200)).then(() => fetchAny(X, Y)))));
-    return { els: got.flatMap((g) => g.els), src: [...new Set(got.map((g) => g.src))].join('+') };
+    // poisOk: todos los trozos son de la fuente de los lugares (si no, los lugares se piden luego solo a ella: fetchPois)
+    return { els: got.flatMap((g) => (g.src === CANON ? g.els : g.els.filter((el) => !esLugar(el)))), src: [...new Set(got.map((g) => g.src))].join('+'), poisOk: got.every((g) => g.src === CANON) };
+  }
+  // solo los lugares, y solo de la fuente de los lugares (si no contesta, error: se reintenta más tarde, nunca con otra)
+  async function fetchPois(s, w, n, e) {
+    const src = SOURCES[0];
+    const got = await Promise.all(cajaDe(s, w, n, e).map(([X, Y]) => fetchTile(src, X, Y).catch(() => new Promise((r) => setTimeout(r, 1200)).then(() => fetchTile(src, X, Y)))));
+    return got.flat().filter(esLugar);
   }
 
   // una tesela concreta (z14) y sus límites: para medir una ciudad entera sin contar dos veces el borde de cada tesela
@@ -233,5 +245,5 @@ PM.vtiles = (function () {
   const latOf = (y) => { const n = Math.PI - 2 * Math.PI * y / 2 ** Z; return 180 / Math.PI * Math.atan(Math.sinh(n)); };
   const tileBox = (X, Y) => [latOf(Y + 1), lonOf(X), latOf(Y), lonOf(X + 1)];   // [s, w, n, e]
   const fetchXY = (X, Y) => fetchAny(X, Y);
-  return { fetchBox, decode, convert, SOURCES, tx, ty, tileBox, fetchXY };
+  return { fetchBox, fetchPois, decode, convert, SOURCES, CANON, tx, ty, tileBox, fetchXY };
 })();
