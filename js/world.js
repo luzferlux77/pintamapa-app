@@ -112,6 +112,68 @@ PM.world = (function () {
     return ci.polys.some((poly) => inRing(p, poly[0]) && !poly.slice(1).some((h) => inRing(p, h)));
   }
   function shapeCity(p) { for (const name in cityInfo) if (cityInfo[name].polys && inCity(p, cityInfo[name])) return name; return null; }
+
+  // ---------- Identidad de cada ciudad ----------
+  // Cada ciudad es su elemento de Wikidata (Q…), apuntado en la partida: s.ciudadId = { clave: { q, n: nombre, r: región } }.
+  // La clave es el nombre que se ve; si dos municipios se llaman igual (San Fernando de Cádiz y el de Bahamas), el que llega
+  // después lleva su provincia o su país: «San Fernando (Bahamas)». Antes iban los dos a la misma clave: el segundo pisaba el
+  // contorno, los imprescindibles y el porcentaje del primero, y lo pintado en uno contaba para el otro.
+  let regLocal = {};   // (sin partida —«Mi progreso» en la web—: el de la partida de la nube, con usarCiudades)
+  const regCiudad = () => (PM.state && PM.state.data ? (PM.state.data.ciudadId || (PM.state.data.ciudadId = {})) : regLocal);
+  const baseDe = (k) => { const r = regCiudad()[k]; return (r && r.n) || (cityInfo[k] && cityInfo[k].nombre) || k; };
+  // (las regiones que pueden distinguir a dos homónimas, de la preferida a la última: provincia, comunidad o estado, país y
+  // comarca; nunca el propio nombre —Córdoba, provincia de Córdoba—. «Córdoba (Argentina)», no «Córdoba (Pedanía Capital)»)
+  const regionDe = (a, name) => [...new Set([a.province, a.state, a.country, a.county].map((x) => PM.limpio(x || '')).filter((x) => x && x !== name))];
+  const regiones = (r) => [].concat(r || []).filter((x) => typeof x === 'string' && x);
+  // ¿está p a más de m metros del recuadro bb [s, w, n, e]?
+  const lejos = (p, bb, m) => PM.geo.dist(p, [Math.min(Math.max(p[0], bb[0]), bb[2]), Math.min(Math.max(p[1], bb[1]), bb[3])]) > m;
+  const centroZona = (tk) => { const [[s, w], [n, e]] = tileBounds(tk); return [(s + n) / 2, (w + e) / 2]; };
+  // ¿lo guardado con esta clave está sobre todo lejos de bb? Entonces la clave es de otra ciudad con el mismo nombre. En una
+  // partida de antes, con lo de dos homónimas mezclado, el nombre a secas se lo queda la que tiene más (metros pintados y
+  // cartas), que es donde estarán los logros; la otra lleva su región
+  function datosFuera(k, bb) {
+    const s = PM.state && PM.state.data;
+    if (!s) return false;
+    let dentro = 0, fuera = 0;
+    for (const [tk, v] of Object.entries(s.tileNames || {})) if (v && v.city === k) { const w = 1 + ((s.paintedByTile || {})[tk] || 0); if (lejos(centroZona(tk), bb, 15000)) fuera += w; else dentro += w; }
+    for (const r of Object.values(s.landmarks || {})) if (r && r.city === k && r.pos) { if (lejos(r.pos, bb, 15000)) fuera += 100; else dentro += 100; }
+    return fuera > dentro;
+  }
+  // La clave de una ciudad: la que ya tenga su Q; si no, su nombre si está libre; si no, «nombre (región)»
+  function claveCiudad(name, q, region, bb) {
+    const reg = regCiudad(), rs = regiones(region);
+    if (q) for (const k in reg) if (reg[k] && reg[k].q === q) return k;
+    // (una que ya se distinguió por su región antes de saber su Q)
+    if (rs.length) for (const k in reg) if (reg[k] && !reg[k].q && reg[k].n === name && rs.includes(reg[k].r)) { reg[k].q = q || null; return k; }
+    const libre = (k) => {
+      if (reg[k]) return false;
+      const ci = cityInfo[k];
+      if (ci && bb && L.otraCiudad(ci, q, bb)) return false;
+      return !bb || !datosFuera(k, bb);
+    };
+    let k = libre(name) ? name : null, r = rs[0] || '';
+    for (const x of rs) if (!k && libre(`${name} (${x})`)) { k = `${name} (${x})`; r = x; }
+    if (!k && q && libre(`${name} (${q})`)) k = `${name} (${q})`;
+    for (let i = 2; !k; i++) if (libre(`${name} (${i})`)) k = `${name} (${i})`;
+    reg[k] = { q: q || null, n: name, r };
+    if (PM.state && PM.state.save) PM.state.save();
+    return k;
+  }
+  // La ciudad de una zona recién nombrada (Nominatim solo da el nombre): la del contorno si es ella; si no, la homónima
+  // que caiga cerca; y si todas las conocidas con ese nombre están lejos, es otra ciudad: clave nueva con su región
+  function ciudadDeZona(name, p, region) {
+    if (/^(Zona sin nombre|Ciudad desconocida)$/.test(name)) return name;
+    const sc = shapeCity(p);
+    if (sc && baseDe(sc) === name) return sc;
+    const reg = regCiudad(), cands = Object.keys(reg).filter((k) => reg[k] && reg[k].n === name);
+    if (!reg[name] && cityInfo[name] && baseDe(name) === name) cands.push(name);
+    if (!cands.length) return name;
+    const rs = regiones(region);
+    for (const k of cands) { const ci = cityInfo[k]; if (ci ? !lejos(p, ci.bbox, 5000) : reg[k] && rs.includes(reg[k].r)) return k; }
+    // (todas lejos, o de otra región: otra ciudad. Sin datos para saberlo —contorno aún no pedido—, la de siempre)
+    const otra = cands.every((k) => cityInfo[k] || (reg[k] && reg[k].r && rs.length && !rs.includes(reg[k].r)));
+    return otra ? claveCiudad(name, null, region, [p[0], p[1], p[0], p[1]]) : cands.includes(name) ? name : cands[0];
+  }
   // contorno de la ciudad que hay en ese punto (Nominatim, en la misma cola que los nombres de barrio: 1 por segundo)
   const cityAsked = new Set();
   function ensureCity(lat, lon) {
@@ -135,14 +197,17 @@ PM.world = (function () {
       const polys = (g.type === 'Polygon' ? [g.coordinates] : g.coordinates).map((poly) => poly.map(rnd));
       let bb = [90, 180, -90, -180];
       polys.forEach((poly) => poly[0].forEach(([x, y]) => { bb = [Math.min(bb[0], y), Math.min(bb[1], x), Math.max(bb[2], y), Math.max(bb[3], x)]; }));
-      const ex = j.extratags || {};
-      // (otra ciudad con el mismo nombre —Córdoba, Valencia—: sus imprescindibles no son los de la que ya conocíamos)
-      const otra = L.otraCiudad(cityInfo[name], ex.wikidata || null, bb);
+      const ex = j.extratags || {}, q = /^Q\d+$/.test(ex.wikidata || '') ? ex.wikidata : null, region = regionDe(a, name);
+      // (otra ciudad con el mismo nombre —Córdoba, Valencia, San Fernando—: va con su propia clave, sin tocar la que ya conocíamos)
+      const key = claveCiudad(name, q, region, bb), prev = cityInfo[key];
+      const otra = L.otraCiudad(prev, q, bb);
       if (otra) mustCache = null;
-      cityInfo[name] = { v: CITY_V, q: ex.wikidata || null, pop: parseInt(String(ex.population || '').replace(/\D/g, ''), 10) || 0, polys, bbox: bb, t: Date.now(), must: otra ? null : (cityInfo[name] || {}).must || null, mustT: otra ? null : (cityInfo[name] || {}).mustT || null };
+      cityInfo[key] = { v: CITY_V, q, nombre: name, r: (regCiudad()[key] || {}).r || region[0] || '', pop: parseInt(String(ex.population || '').replace(/\D/g, ''), 10) || 0, polys, bbox: bb, t: Date.now(), must: otra ? null : (prev || {}).must || null, mustT: otra ? null : (prev || {}).mustT || null };
+      if (otra) albMem.delete(key);
       saveCityInfo();
-      emit('named', { city: name });
-      cityMust(name);
+      emit('named', { city: key });
+      cityMust(key);
+      return key;
     } catch (e) { /* sin conexión: se volverá a pedir en otra sesión */ }
   }
   // los lugares más conocidos del municipio (una sola vez por ciudad)
@@ -1428,7 +1493,9 @@ PM.world = (function () {
       // si alguna carta tuya de esa ciudad cae dentro de su radio (dos ciudades con el mismo nombre no se confunden)
       const mias = Object.values((PM.state && PM.state.data.landmarks) || {}).filter((r) => r.pos && r.city === city)
         .concat(Object.values(landmarks).filter((lm) => lm.pos && api.cityAt(lm.pos) === city));
-      const c = (await preIdx()).find((x) => x.name === city && mias.some((lm) => PM.geo.dist(lm.pos, x.c) <= x.r * 1000));
+      // (con su Q apuntado, ese archivo y no otro; si no, por el nombre —sin la región que distingue a las homónimas—)
+      const rq = (regCiudad()[city] || {}).q, nom = baseDe(city);
+      const c = (await preIdx()).find((x) => rq ? x.q === rq : x.name === nom && mias.some((lm) => PM.geo.dist(lm.pos, x.c) <= x.r * 1000));
       const d = c && await albumArchivo(c.q, c.t);
       if (d) {
         out.portada = d.portada; out.parcial = false; if (d.oficial) out.oficial = true;
@@ -1540,8 +1607,9 @@ PM.world = (function () {
         const j = await r.json();
         const a = j.address || {};
         for (const k of Object.keys(a)) a[k] = PM.limpio(a[k]);
-        t.city = a.city || a.town || a.village || a.municipality || 'Zona sin nombre';
-        t.name = a.suburb || a.neighbourhood || a.quarter || a.city_district || a.hamlet || t.city;
+        const nombre = a.city || a.town || a.village || a.municipality || 'Zona sin nombre';
+        t.city = ciudadDeZona(nombre, [(s + n) / 2, (w + e) / 2], regionDe(a, nombre));   // (la clave: con su región si hay otra con ese nombre)
+        t.name = a.suburb || a.neighbourhood || a.quarter || a.city_district || a.hamlet || nombre;
         if (PM.state && a.country && t.city) { const cs = PM.state.data.countries || (PM.state.data.countries = {}); if (!cs[t.city]) cs[t.city] = { name: a.country, cc: a.country_code || '' }; }
       } catch (e) {
         // sin conexión: nombre provisional que NO se guarda (antes quedaba «Ciudad desconocida» para siempre);
@@ -1568,7 +1636,10 @@ PM.world = (function () {
     const cs = PM.state.data.cities;
     let shared = {};
     try { shared = JSON.parse(localStorage.getItem('pintamapa_cities') || '{}'); } catch (e) {}
-    if (shared[city] && !(cs[city] && cs[city].total)) { cs[city] = { total: shared[city] }; PM.state.save(); emit('city', { city }); return; }
+    // (lo medido se comparte entre perfiles por el Q de la ciudad: en cada perfil, la misma clave puede ser otra homónima)
+    const cq = (cityInfo[city] && cityInfo[city].q) || (regCiudad()[city] || {}).q, sk = cq || city;
+    const yaMedida = shared[sk] || (cq && baseDe(city) === city ? shared[city] : 0);
+    if (yaMedida && !(cs[city] && cs[city].total)) { cs[city] = { total: yaMedida }; PM.state.save(); emit('city', { city }); return; }
     // ya medida (con Overpass), midiéndose o medida a ojo con los mapas vectoriales y ya reintentada en esta sesión
     if ((cs[city] && cs[city].total && (cs[city].src !== 'vt' || cityRetried.has(city))) || cityPending.has(city)) return;
     cityPending.add(city); cityRetried.add(city);
@@ -1588,7 +1659,7 @@ PM.world = (function () {
         // (la partida pudo cambiar de objeto mientras se medía: una copia en la nube la sustituye al terminar)
         const c2 = PM.state.data.cities;
         c2[city] = Object.assign(c2[city] || {}, { total: len }); delete c2[city].src;
-        try { shared[city] = len; localStorage.setItem('pintamapa_cities', JSON.stringify(shared)); } catch (e) {}
+        try { shared[(cityInfo[city] && cityInfo[city].q) || sk] = len; localStorage.setItem('pintamapa_cities', JSON.stringify(shared)); } catch (e) {}
         PM.state.save();
         emit('city', { city });
       }
@@ -1599,7 +1670,7 @@ PM.world = (function () {
       if (len > 0) {
         const c2 = PM.state.data.cities;
         c2[city] = Object.assign(c2[city] || {}, { total: len, src: 'vt' });
-        try { shared[city] = len; localStorage.setItem('pintamapa_cities', JSON.stringify(shared)); } catch (e) {}
+        try { shared[(cityInfo[city] && cityInfo[city].q) || sk] = len; localStorage.setItem('pintamapa_cities', JSON.stringify(shared)); } catch (e) {}
         PM.state.save();
         emit('city', { city });
       }
@@ -1751,8 +1822,39 @@ PM.world = (function () {
         const c = q && shapeCity(q);
         if (c && b.city !== c) { b.city = c; n++; }
       }
+      // zonas guardadas con una homónima (San Fernando) que en realidad caen en el contorno de la otra («San Fernando
+      // (Bahamas)»): pasan a la suya, con lo pintado. Solo entre ciudades del mismo nombre: en el borde entre dos municipios
+      // distintos manda el nombre que dio Nominatim, como siempre
+      for (const [tk, v] of Object.entries(s.tileNames || {})) {
+        if (!v || !v.city) continue;
+        const c = shapeCity(centroZona(tk));
+        if (c && c !== v.city && baseDe(c) === baseDe(v.city)) { v.city = c; if (tiles[tk]) tiles[tk].city = c; n++; }
+      }
       return n;
     },
+    // Al arrancar (una vez): las ciudades guardadas de antes quedan ligadas a su Q, y lo que se guardó con su nombre pero cae
+    // muy lejos de su contorno (de otra ciudad que se llama igual: antes se juntaban) se separa. Se pide el contorno de esa otra;
+    // al llegar, fixRecords le pasa sus zonas y sus cartas. Devuelve cuántas ciudades ha tocado.
+    migrarCiudades() {
+      const s = PM.state && PM.state.data;
+      if (!s) return 0;
+      const reg = regCiudad();
+      let n = 0;
+      for (const [k, ci] of Object.entries(cityInfo)) {
+        const r = reg[k], otraK = ci.q && Object.keys(reg).find((x) => x !== k && reg[x] && reg[x].q === ci.q);
+        // (contorno guardado con una clave que la partida tiene para otra ciudad, o repetido: fuera, se vuelve a pedir)
+        if ((r && r.q && ci.q && r.q !== ci.q) || otraK) { delete cityInfo[k]; albMem.delete(k); n++; continue; }
+        if (!r) { reg[k] = { q: ci.q || null, n: ci.nombre || k, r: ci.r || '' }; n++; } else if (!r.q && ci.q) { r.q = ci.q; n++; }
+      }
+      const pedidos = [];
+      const fuera = (p, k) => { const ci = cityInfo[k]; if (!ci || !lejos(p, ci.bbox, 15000) || pedidos.some((q) => PM.geo.dist(q, p) < 20000)) return; pedidos.push(p); ensureCity(p[0], p[1]); };
+      for (const [tk, v] of Object.entries(s.tileNames || {})) if (v && v.city) fuera(centroZona(tk), v.city);
+      for (const r of Object.values(s.landmarks || {})) if (r && r.city && r.pos) fuera(r.pos, r.city);
+      if (n) { saveCityInfo(); PM.state.save(); }
+      return n;
+    },
+    // la clave de ciudad que corresponde a un nombre y su Q (pruebas y migraciones)
+    claveCiudad: (name, q, region) => claveCiudad(name, q || null, region || ''), nombreCiudad: baseDe, usarCiudades: (reg) => { regLocal = reg && typeof reg === 'object' ? reg : {}; },
     // carga las celdas que faltan para tener entero el barrio: de 12 en 12, las más cercanas a su centro primero (se vuelve
     // a llamar hasta completarlo). Antes, con más de 12 no cargaba ninguna y el % se quedaba en «calculando…» para siempre
     ensureBarrio(id) {

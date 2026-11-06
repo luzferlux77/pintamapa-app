@@ -1,10 +1,45 @@
 // PintaMapa — fusión de dos partidas sin perder nada (móvil ↔ nube, o dos móviles del mismo pintor).
 // Lo pintado/capturado se une; los contadores se quedan con el máximo; los paseos se juntan por id.
 (function (root) {
+  // Ciudades: la clave es el nombre visible y s.ciudadId la liga a su Q de Wikidata. Cambiar la clave de una ciudad en toda
+  // la partida (zonas, cartas, cromos y lo que va por ciudad)
+  const POR_CIUDAD = ['cities', 'citiesWon', 'cityRank', 'albumes', 'countries', 'cityCards', 'ciudadId'];
+  function renombrarCiudad(s, de, a) {
+    for (const k of ['tileNames', 'landmarks', 'barrioCards']) for (const r of Object.values(s[k] || {})) if (r && r.city === de) r.city = a;
+    for (const k of POR_CIUDAD) { const o = s[k]; if (o && typeof o === 'object' && de in o) { if (!(a in o)) o[a] = o[de]; delete o[de]; } }
+  }
+  // La otra partida (b) con las claves de esta (a): la misma ciudad (mismo Q) con otra clave pasa a la de a; y una clave que en
+  // cada partida es una ciudad distinta (San Fernando de Cádiz en un móvil, el de Bahamas en otro) se distingue con su región.
+  // Antes se juntaban: lo de las dos ciudades acababa en una
+  function igualarCiudades(a, b) {
+    const ia = a.ciudadId || {}, ib = b.ciudadId || {}, porQ = {}, cambios = [], usadas = new Set(Object.keys(ia));
+    for (const [k, v] of Object.entries(ia)) if (v && v.q) porQ[v.q] = k;
+    for (const [k, v] of Object.entries(ib)) {
+      if (!v) continue;
+      if (v.q && porQ[v.q]) { if (porQ[v.q] !== k) cambios.push([k, porQ[v.q]]); continue; }
+      const o = ia[k];
+      if (o && (o.q && v.q ? o.q !== v.q : !!(o.r && v.r && o.r !== v.r))) {
+        const base = v.n || k;
+        let nk = `${base} (${v.r || v.q})`;
+        for (let i = 2; usadas.has(nk) || (ib[nk] && nk !== k); i++) nk = `${base} (${i})`;
+        usadas.add(nk); cambios.push([k, nk]);
+      }
+    }
+    if (!cambios.length) return b;
+    b = JSON.parse(JSON.stringify(b));   // (no se toca la partida que llegó)
+    // (en dos pasos: una clave nueva puede ser la vieja de otra)
+    cambios.forEach(([de], i) => renombrarCiudad(b, de, '\u0000' + i));
+    cambios.forEach(([, nk], i) => renombrarCiudad(b, '\u0000' + i, nk));
+    return b;
+  }
   function merge(a, b) {
     if (!a && !b) return a;
     a = a || {}; b = b || {};   // también con una sola partida: así se aplican los filtros (p. ej. paseos < 2 min)
+    b = igualarCiudades(a, b);
     const out = Object.assign({}, a, b);
+    // (cada ciudad con su Q: si una partida lo sabe y la otra no, se queda el que lo sabe)
+    out.ciudadId = Object.assign({}, a.ciudadId || {});
+    for (const [k, v] of Object.entries(b.ciudadId || {})) { const o = out.ciudadId[k]; if (!o || (v && v.q && !o.q)) out.ciudadId[k] = v; }
     const union = (k) => { out[k] = Object.assign({}, a[k] || {}, b[k] || {}); };
     const unionMin = (k) => {
       out[k] = Object.assign({}, a[k] || {});
@@ -77,6 +112,7 @@
     out.avoid = Object.values(av);
     return out;
   }
+  merge.renombrarCiudad = renombrarCiudad;
   if (typeof module !== 'undefined' && module.exports) module.exports = merge;
   else { root.PM = root.PM || {}; root.PM.merge = merge; }
 })(typeof window !== 'undefined' ? window : globalThis);

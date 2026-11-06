@@ -105,6 +105,7 @@ PM.limpiarPartida = function (d) {
   for (const k of ['barrioNames']) { const o = obj(d[k]); if (o) for (const id of Object.keys(o)) o[id] = typeof o[id] === 'string' ? L(o[id]) : ''; }
   { const o = obj(d.tileNames); if (o) for (const id of Object.keys(o)) { const v = o[id]; if (!v || typeof v !== 'object') delete o[id]; else { v.name = L(v.name); v.city = L(v.city); } } }
   { const o = obj(d.countries); if (o) for (const id of Object.keys(o)) { const v = o[id]; if (!v || typeof v !== 'object') delete o[id]; else v.name = L(v.name); } }
+  { const o = obj(d.ciudadId); if (d.ciudadId != null && !o) d.ciudadId = {}; if (o) for (const id of Object.keys(o)) { const v = o[id]; if (!v || typeof v !== 'object' || /[<>"]/.test(id)) { delete o[id]; continue; } o[id] = { q: /^Q\d+$/.test(v.q || '') ? v.q : null, n: L(typeof v.n === 'string' ? v.n : id), r: L(typeof v.r === 'string' ? v.r : '') }; } }
   for (const k of ['citiesWon', 'cities', 'cityRank', 'albumes']) {   // (ciudades como clave: una clave con < > se renombra)
     const o = obj(d[k]); if (!o) continue;
     for (const id of Object.keys(o)) if (/[<>"]/.test(id)) { const v = o[id]; delete o[id]; o[L(id)] = v; }

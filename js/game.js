@@ -64,6 +64,7 @@ PM.state = (function () {
     perfect: {},        // tileKey -> fecha (100 %)
     citiesWon: {},      // ciudad -> fecha
     cities: {},         // ciudad -> {total}
+    ciudadId: {},       // ciudad -> {q: Wikidata, n: nombre, r: región} (dos ciudades con el mismo nombre no se mezclan)
     tileNames: {},
     achievements: {},
     cardInfo: {},       // cromos: foto/texto de Wikipedia por monumento

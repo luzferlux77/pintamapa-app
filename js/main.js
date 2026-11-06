@@ -2626,7 +2626,7 @@
     const obj = (o) => o && typeof o === 'object' && !Array.isArray(o);
     if (!obj(d) || d.app !== 'PintaMapa' || !obj(d.save)) return 'Este archivo no es una copia de PintaMapa';
     const s = d.save;
-    for (const k of ['painted', 'landmarks', 'heat', 'paintedByTile', 'conqueredB', 'perfectB', 'barrioNames', 'citiesWon', 'cities', 'tileNames', 'achievements', 'cardInfo', 'cardPhotos', 'barrioCards', 'cityCards', 'setsDone', 'countries', 'cityRank', 'barrioRank'])
+    for (const k of ['painted', 'landmarks', 'heat', 'paintedByTile', 'conqueredB', 'perfectB', 'barrioNames', 'citiesWon', 'cities', 'tileNames', 'achievements', 'cardInfo', 'cardPhotos', 'barrioCards', 'cityCards', 'setsDone', 'countries', 'cityRank', 'barrioRank', 'ciudadId'])
       if (s[k] != null && !obj(s[k])) return 'La copia está dañada (' + k + ')';
     if (s.walks != null && !Array.isArray(s.walks)) return 'La copia está dañada (walks)';
     if (s.stats != null && !obj(s.stats)) return 'La copia está dañada (stats)';
@@ -3197,6 +3197,7 @@
     PM.sound._ctx(); PM.sound._sleepSoon(Date.now());   // (se desbloquea el audio con el toque y se suspende enseguida)
     G.ensureDaily();
     { const nt = S().notified; if (nt) { const hoy = PM.today(); for (const k of Object.keys(nt)) if (nt[k] !== hoy) delete nt[k]; } }   // (avisos de otros días: ya no sirven y crecían sin parar en la partida)
+    W.migrarCiudades();   // (cada ciudad, ligada a su Q; lo de una homónima guardado con su nombre se separa)
     if (PM.fillLandmarkCities(S()) + W.fixRecords(S())) PM.state.save();   // lugares conquistados sin ciudad (o con la de la celda vecina): se corrige
     if (!PM.cloud.allowed() && Object.keys(S().pendingGeo || {}).length) { S().pendingGeo = {}; PM.state.save(); }   // sin nube: no hay nada que subir
     recolorAll();

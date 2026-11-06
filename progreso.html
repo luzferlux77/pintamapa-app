@@ -883,6 +883,7 @@
       P.innerHTML = h;
       if (tab === 'alb') {
         PM.fillLandmarkCities(A.s);
+        PM.world.usarCiudades(A.s.ciudadId || (A.s.ciudadId = {}));   // (las ciudades con el mismo nombre se distinguen como en el móvil)
         PM.album.usar({ save: () => A.s, albumDe: albumWeb });
         $('#alb-fs').addEventListener('click', () => pantallaAlbum(true));
         const irA = (e) => { pantallaAlbum(false); $('#bigmap').scrollIntoView({ behavior: 'smooth', block: 'nearest' }); map.flyTo({ center: ll(e.pos), zoom: 17 }); };
