@@ -604,6 +604,8 @@
   // en lotes; medir la velocidad por la hora de llegada daría velocidades absurdas (falso "vas en coche").
   function onMove(p, isTeleport, fixTime, fixSpeed, fixBearing, noShow) {
     const now = fixTime || Date.now();
+    fixNow = now;
+    if (isTeleport) cortarUnion();
     const visible = !document.hidden;
     if (visible && !noShow) showAt(p, mode === 'gps' && !isTeleport);
     if (visible && haloOn && Date.now() - fxT > 5000) fxSync();   // pintando: ondas en los conquistados que tienes cerca
@@ -933,10 +935,16 @@
   // dos calles que en el mapa no llegan a tocarse…), se pinta también lo que las une POR LAS CALLES, solo si el
   // camino es casi recto y va por donde has andado: nada de rodeos ni de calles que no has pisado.
   // En plazas y calles peatonales (sus líneas del mapa no siguen tu paso) se permite más hueco y más separación.
-  let bridgePc = null, bridgeP = null, bridgeT = 0;
+  let bridgePc = null, bridgeP = null, bridgeT = 0, fixNow = 0;
   const walkedPts = [];   // tus últimas posiciones (para saber si la unión va por donde has andado)
+  // al empezar o reanudar un paseo (o tras un salto) no se une con lo de antes: antes un paseo nuevo podía «unirse» con el
+  // final del anterior si estaba cerca
+  // (y la velocidad media se pone a cero: la del final del paseo anterior, o de antes de la pausa —en el autobús—, hacía
+  // creer que ibas demasiado rápido y las primeras lecturas no pintaban)
+  function cortarUnion() { bridgePc = null; bridgeP = null; bridgeT = 0; walkedPts.length = 0; speed = 0; tooFast = false; }
   function bridgeTo(pc, p, aura) {
-    const prev = bridgePc, pp = bridgeP, now = Date.now(), fresh = now - bridgeT < 60000;
+    // (la hora de la lectura, no la del reloj: con la pantalla apagada las lecturas llegan en tanda)
+    const prev = bridgePc, pp = bridgeP, now = fixNow || Date.now(), fresh = now - bridgeT < 60000;
     bridgePc = pc; bridgeP = p; bridgeT = now;
     if (!prev || !fresh || prev === pc || !W.pieces[prev.id] || PM.debug.sinPuentes || PM.geo.dist(pp, p) > 70) return;
     const ends = (x) => [x.pts[0], x.pts[x.pts.length - 1]];
@@ -1284,7 +1292,7 @@
   }, 5000);
 
   // Gancho de pruebas (consola del navegador): PM.debug.walkTo([lat, lon]), PM.debug.setPace(0..4)
-  PM.debug = { map, walkTo(p) { target = p; follow = true; }, setPace(i) { pace = i; turbo = false; }, get pos() { return pos.slice(); },
+  PM.debug = { map, repasar: (x) => repasarPaseo(x), walkTo(p) { target = p; follow = true; }, setPace(i) { pace = i; turbo = false; }, get pos() { return pos.slice(); },
     get bearing() { return map.getBearing(); }, get heading() { return heading; }, get gap() { return { lastP, lastT, pending: pendingGaps.length, autoResumed, lastSeen: session && session.lastSeen }; }, trim: () => trimMemory(), revisar: () => revisarCartas(), backup: () => buildBackup(), importData: (d) => importData(d), fix(lat, lon, t, acc = 5, spd, brg) { const m = mode; mode = 'gps'; try { onFix({ latitude: lat, longitude: lon, accuracy: acc, speed: spd, bearing: brg }, t); } finally { mode = m; } }, newSession() { if (session) endSession(); startSession(); $('#sheet').classList.remove('show'); }, endSession: () => endSession(), get sessionTrack() { return session && session.track; }, harvest: () => harvestOld(), flushGeo: () => geoFlush(), get geo() { return { pgeo: pgeo.size, zonas: pgeoTile.size, barrios: Object.keys(bgeo).length, recogidas: Object.keys(harvested).length, ready: geoReady }; }, get painted() { return paintedF; },
     // avanza el juego n fotogramas a mano (pruebas con la pestaña oculta, donde el navegador congela la animación)
  };
@@ -1534,7 +1542,7 @@
   function startSession() {
     if (placesOff) setPlaces(false, true);   // pintando, los lugares se ven siempre (si no, pasarías de largo)
     session = { start: Date.now(), resumedAt: Date.now(), elapsed: 0, paused: false, st: newSessionStats(), track: [] };
-    lastP = null; walkAnchor = null;
+    lastP = null; walkAnchor = null; cortarUnion();
     persistSession(); syncGPS(); renderSession();
     PM.update.hold();
     PM.sound.pickup(); PM.vibrate(60);
@@ -1573,10 +1581,111 @@
     quietas = [];
     session.paused = false; session.resumedAt = Date.now();
     if (session.track && session.track.length) session.track.push(null);   // corte del recorrido (pausa)
-    lastP = null; walkAnchor = null; paintPrev = null; recentP = [];   // no se pinta el "salto" desde donde pausaste
+    lastP = null; walkAnchor = null; paintPrev = null; recentP = []; cortarUnion();   // no se pinta el "salto" desde donde pausaste
     persistSession(); syncGPS(); renderSession();
     PM.update.hold();
     toast('▶ ¡Seguimos pintando!', 'info');
+  }
+  // Repaso al acabar el paseo («postproducción», idea del usuario): con todo el recorrido delante se unen los cortes que
+  // quedaron en lo pintado. Con el GPS cortando las esquinas (y algo desviado de la calle), la unión en el momento no
+  // siempre se atreve: quedaban esquinas sin unir y trozos sueltos de 5-15 m. Aquí, cada dos extremos sueltos de lo pintado
+  // junto a tu recorrido, a menos de 40 m, se unen por las calles si el camino es corto (sin rodeos) y va pegado a por
+  // donde pasaste. Nada de calles que no has pisado. Devuelve [cortes unidos, metros pintados].
+  function repasarPaseo(s) {
+    const track = (s.track || []), tramos = [];
+    for (let i = 1; i < track.length; i++) if (track[i] && track[i - 1] && PM.geo.dist(track[i - 1], track[i]) < 80) tramos.push([track[i - 1], track[i]]);
+    if (!tramos.length) return [0, 0];
+    const painted = S().painted;
+    // pasillo de tu recorrido (rejilla de ~110 m para medir rápido)
+    const GR = 0.001, rej = new Map(), kG = (p) => Math.floor(p[0] / GR) + '_' + Math.floor(p[1] / GR);
+    for (const t of tramos) for (const q of [t[0], t[1], PM.geo.lerp(t[0], t[1], 0.5)]) { const k = kG(q); if (!rej.has(k)) rej.set(k, []); if (!rej.get(k).includes(t)) rej.get(k).push(t); }
+    const aRecorrido = (p) => { const i = Math.floor(p[0] / GR), j = Math.floor(p[1] / GR); let d = Infinity; for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) for (const t of rej.get((i + a) + '_' + (j + b)) || []) d = Math.min(d, PM.geo.distToPolyline(p, t)); return d; };
+    // lo pintado junto a tu recorrido y sus extremos sueltos (que no tocan otro tramo pintado)
+    const cerca = new Map();
+    for (const t of tramos) for (const q of [t[0], PM.geo.lerp(t[0], t[1], 0.5)]) for (const pc of W.piecesNear(q, 20)) if (painted[pc.id] && !pc.trail) cerca.set(pc.id, pc);
+    const toca = (e, yo) => W.piecesNear(e, 3).some((o) => o.id !== yo && painted[o.id] && (PM.geo.dist(o.pts[0], e) < 2 || PM.geo.dist(o.pts[o.pts.length - 1], e) < 2 || PM.geo.distToPolyline(e, o.pts) < 1));
+    const sueltos = [];
+    for (const pc of [...cerca.values()].sort((a, b) => (a.id < b.id ? -1 : 1))) for (const e of [pc.pts[0], pc.pts[pc.pts.length - 1]]) if (aRecorrido(e) < 25 && !toca(e, pc.id)) sueltos.push({ e, id: pc.id });
+    // trazos: lo pintado que ya está unido entre sí (solo se juntan extremos de trazos DISTINTOS: dos extremos del mismo
+    // trazo ya están unidos, y cerrarlos pintaba el otro lado de una rotonda o de una lágrima por donde no pasaste)
+    const padre = new Map([...cerca.keys()].map((id) => [id, id]));
+    const raiz = (x) => { while (padre.get(x) !== x) { padre.set(x, padre.get(padre.get(x))); x = padre.get(x); } return x; };
+    const unir = (a, b) => { if (padre.has(a) && padre.has(b)) padre.set(raiz(a), raiz(b)); };
+    for (const pc of cerca.values()) for (const e of [pc.pts[0], pc.pts[pc.pts.length - 1]]) for (const o of W.piecesNear(e, 3)) if (o.id !== pc.id && padre.has(o.id) && (PM.geo.dist(o.pts[0], e) < 2 || PM.geo.dist(o.pts[o.pts.length - 1], e) < 2 || PM.geo.distToPolyline(e, o.pts) < 1)) unir(pc.id, o.id);
+    // pares de extremos sueltos, de más cerca a más lejos
+    const pares = [];
+    for (let i = 0; i < sueltos.length; i++) for (let j = i + 1; j < sueltos.length; j++) {
+      if (sueltos[i].id === sueltos[j].id || raiz(sueltos[i].id) === raiz(sueltos[j].id)) continue;
+      const d = PM.geo.dist(sueltos[i].e, sueltos[j].e);
+      if (d >= 2 && d <= 40) pares.push([d, sueltos[i], sueltos[j]]);
+    }
+    pares.sort((x, y) => x[0] - y[0] || (x[1].id + x[2].id < y[1].id + y[2].id ? -1 : 1));
+    // Esquinas: se prolonga cada calle pintada (la misma calle, en línea: < 25°) hasta 25 m. Si las prolongaciones de dos
+    // extremos sueltos se encuentran en el mismo cruce, se pinta hasta ahí. Solo alarga lo que ya pintabas hasta donde se
+    // junta (el GPS corta la esquina y, algo desviado, deja el cruce a 20 m de tus lecturas: el pasillo no lo alcanzaba)
+    const pegados = (q) => W.piecesNear(q, 3).filter((o) => !o.trail && (PM.geo.dist(o.pts[0], q) < 1.5 || PM.geo.dist(o.pts[o.pts.length - 1], q) < 1.5));
+    function prolongar(su) {
+      const pc = W.pieces[su.id]; if (!pc) return null;
+      const otro = PM.geo.dist(pc.pts[0], su.e) < PM.geo.dist(pc.pts[pc.pts.length - 1], su.e) ? pc.pts[pc.pts.length - 1] : pc.pts[0];
+      const kx = Math.cos(su.e[0] * Math.PI / 180), vec = (a, b) => { const v = [b[0] - a[0], (b[1] - a[1]) * kx], l = Math.hypot(v[0], v[1]); return l ? [v[0] / l, v[1] / l] : null; };
+      let dir = vec(otro, su.e), cur = su.e, largo = 0; const cadena = [], vistos = new Set([pc.id]), puntos = [su.e];
+      while (dir && largo <= 25) {
+        let mejor = null, bc = 0.9;
+        for (const o of pegados(cur)) {
+          if (vistos.has(o.id)) continue;
+          const lejos = PM.geo.dist(o.pts[0], cur) < PM.geo.dist(o.pts[o.pts.length - 1], cur) ? o.pts[o.pts.length - 1] : o.pts[0];
+          const v = vec(cur, lejos), c = v ? v[0] * dir[0] + v[1] * dir[1] : 0;
+          if (c > bc) { bc = c; mejor = [o, lejos, v]; }
+        }
+        if (!mejor) break;
+        const [o, lejos, v] = mejor;
+        if (painted[o.id]) break;   // (sigue en algo ya pintado: hasta aquí)
+        vistos.add(o.id); cadena.push(o); largo += o.len; cur = lejos; dir = v;
+        puntos.push(cur);
+      }
+      return { cadena, puntos };   // (puntos[i]: hasta dónde llega con los i primeros tramos de la cadena)
+    }
+    // el primer sitio donde se encuentran las dos prolongaciones (o una llega al extremo de la otra): lo que hay que pintar
+    function cierre(A, B) {
+      const pa = prolongar(A), pb = prolongar(B);
+      if (!pa || !pb) return null;
+      let mejor = null;
+      const toma = (i, j) => { if ((i || j) && (!mejor || i + j < mejor[0] + mejor[1])) mejor = [i, j]; };
+      for (let i = 0; i < pa.puntos.length; i++) for (let j = 0; j < pb.puntos.length; j++) {
+        if (PM.geo.dist(pa.puntos[i], pb.puntos[j]) < 2) toma(i, j);
+        // (los tramos van por casillas de ~11 m y una calle desemboca en mitad de un tramo de la otra: también vale)
+        if (i && PM.geo.distToPolyline(pb.puntos[j], pa.cadena[i - 1].pts) < 2) toma(i, j);
+        if (j && PM.geo.distToPolyline(pa.puntos[i], pb.cadena[j - 1].pts) < 2) toma(i, j);
+      }
+      return mejor ? pa.cadena.slice(0, mejor[0]).concat(pb.cadena.slice(0, mejor[1])) : null;
+    }
+    let n = 0, m = 0;
+    for (const [d, A, B] of pares) {
+      if (raiz(A.id) === raiz(B.id) || (toca(A.e, A.id) && toca(B.e, B.id))) continue;   // (ya unidos por un par anterior)
+      if (d <= 25) {
+        const esquina = cierre(A, B);
+        if (esquina && esquina.length && esquina.reduce((a, q) => a + q.len, 0) <= 40 &&esquina.every((q) => aRecorrido(q.mid) < 25)) {
+          const nuevos = esquina.filter((q) => !painted[q.id]);
+          for (const q of nuevos) G.paintPiece(q, false);
+          n++; m += nuevos.reduce((a, q) => a + q.len, 0); unir(A.id, B.id);
+          continue;
+        }
+      }
+      const r = W.route(A.e, B.e, d * 1.6 + 15);
+      if (!r || !r.pieces.length || r.len > d * 1.6 + 15) continue;
+      const pcs = r.pieces.map((id) => W.pieces[id]).filter(Boolean);
+      const nuevos = pcs.filter((q) => !painted[q.id]);
+      if (!nuevos.length) continue;
+      const largo = nuevos.reduce((a, q) => a + q.len, 0);
+      if (largo > 45 || nuevos.some((q) => q.trail)) continue;
+      // pegado a tu recorrido: el GPS se desvía de la calle y en las esquinas corta, así que el margen crece con el hueco
+      const margen = (pcs.every((q) => q.ped) ? 25 : 15) + d * 0.3;
+      const muestras = (r.path || []).concat(nuevos.map((q) => q.mid));
+      if (muestras.some((q) => aRecorrido(q) > margen)) continue;
+      for (const q of nuevos) G.paintPiece(q, false);
+      n++; m += largo; unir(A.id, B.id);
+    }
+    return [n, m];
   }
   function endSession() {
     if (!session) return;
@@ -1584,6 +1693,10 @@
     // huecos pendientes (GPS en el bolsillo justo al final, calles aún sin llegar): se pintan si ya se puede; si no, al
     // menos cuentan los metros y el recorrido (antes se tiraban al cerrar el paseo)
     retryGaps(true);
+    // repaso: se unen los cortes que quedaron en lo pintado
+    let repaso = [0, 0];
+    if (!PM.debug.sinRepaso) try { repaso = repasarPaseo(session); } catch (e) { console.warn('Repaso del paseo', e); }
+    if (repaso[0]) { session.st.unidos = repaso[0]; flushPaint(); }
     if (!session.paused) session.elapsed += Date.now() - session.resumedAt;
     const s = session; session = null;
     if (s.elapsed >= 120000) {   // los paseos de menos de 2 minutos no se guardan en el historial (lo pintado sí cuenta)
@@ -1644,6 +1757,7 @@
         <div><b>x${st.bestCombo}</b><small>mejor combo</small></div>
       </div>
       <p>${st.conquests ? `🚩 ¡Conquistaste ${st.conquests} barrio(s)! ` : ''}Velocidad media ${PM.dec(kmh, 1)} km/h.</p>
+      ${st.unidos ? `<p class="muted">🧩 Repaso: he unido ${st.unidos} ${st.unidos === 1 ? 'corte' : 'cortes'} de lo pintado (esquinas y trozos sueltos).</p>` : ''}
       <p class="muted">${st.painted > 0 ? '¡Buen paseo! Mañana tendrás misiones nuevas.' : 'Hoy no pintaste calles nuevas: prueba por calles que aún estén grises.'}</p>
       ${s.elapsed >= 120000 ? '<button class="btn on" id="sum-detail">📊 Estadísticas, vídeo y exportar</button>' : ''}`);
     if ($('#sum-detail')) $('#sum-detail').addEventListener('click', () => openWalk(S().walks.find((w) => w.id === String(s.start))));
@@ -1736,7 +1850,8 @@
         if (gpsWanted()) { if (!gpsWatch || Date.now() - lastFixT > 20000) startGPS(); }   // el servicio pudo morir en el bolsillo
         else locateOnce();                                                               // sin paseo: una lectura para recolocarte
       }
-      curTile = null; W.ensureAround(pos[0], pos[1]);
+      // (la zona de donde estás, no null: quieto no llega otra lectura y el rótulo se quedaba en «Cargando calles…»)
+      curTile = W.tileKeyOf(pos[0], pos[1]); W.ensureAround(pos[0], pos[1]);
     }
   });
 

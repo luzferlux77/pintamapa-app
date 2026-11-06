@@ -451,6 +451,8 @@
     // ---- paseo, combos ----
     '¡Paseo completado!': ['Passeig completat!', 'Walk complete!', 'Balade terminée !'],
     '🏁 Paseo terminado': ['🏁 Passeig acabat', '🏁 Walk finished', '🏁 Balade terminée'],
+    'Repaso: he unido {n} cortes de lo pintado (esquinas y trozos sueltos).': ['Repàs: he unit {n} talls del que has pintat (cantonades i trossos solts).', 'Touch-up: I joined {n} gaps in your painting (corners and loose bits).', 'Retouche : j’ai relié {n} coupures de ta peinture (angles et morceaux isolés).'],
+    'Repaso: he unido {n} corte de lo pintado (esquinas y trozos sueltos).': ['Repàs: he unit {n} tall del que has pintat (cantonades i trossos solts).', 'Touch-up: I joined {n} gap in your painting (corners and loose bits).', 'Retouche : j’ai relié {n} coupure de ta peinture (angles et morceaux isolés).'],
     '¡Buen paseo! Mañana tendrás misiones nuevas.': ['Bon passeig! Demà tindràs missions noves.', 'Great walk! You’ll have new missions tomorrow.', 'Belle balade ! Demain, nouvelles missions.'],
     '🔥 ¡Combo {n}! Pintura ×{m} · sigue pintando calles nuevas': ['🔥 Combo {n}! Pintura ×{m} · continua pintant carrers nous', '🔥 Combo {n}! Paint ×{m} · keep painting new streets', '🔥 Combo {n} ! Peinture ×{m} · continue à peindre de nouvelles rues'],
     'COMBO {n}': ['COMBO {n}', 'COMBO {n}', 'COMBO {n}'],

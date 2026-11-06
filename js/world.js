@@ -387,7 +387,7 @@ PM.world = (function () {
     p.pts = pts; p.len = len; p.mid = mid;
     const cells = new Set(pts.map((q) => cellKey(q[0], q[1])));
     cells.add(cellKey(mid[0], mid[1]));
-    cells.forEach((c) => { const l = index[c] || (index[c] = []); if (!l.includes(p.id)) l.push(p.id); });
+    cells.forEach((c) => { const l = index[c] || (index[c] = []); if (!l.includes(p.id)) l.push(p.id); (p.cells || (p.cells = new Set())).add(c); });
   }
   function addWay(wayId, geom, acceptTiles, wide, trail, ped) {
     const added = [], crecidos = [];
@@ -427,6 +427,7 @@ PM.world = (function () {
       const cells = new Set(pts.map((q) => cellKey(q[0], q[1])));
       cells.add(cellKey(mid[0], mid[1]));
       cells.forEach((c) => (index[c] = index[c] || []).push(id));
+      p.cells = cells;   // (todas las casillas donde está apuntado: al descargar la zona se quita de todas)
       added.push(p);
     }
     for (const p of added) linkJunctions(p);
@@ -448,6 +449,7 @@ PM.world = (function () {
           if (id === p.id || seen.has(id)) continue;
           seen.add(id);
           const pc = pieces[id];
+          if (!pc) continue;
           let best = null, bd = 36;   // 6 m al cuadrado
           for (const v of pc.pts) { const dx = (v[1] - q[1]) * kx, dy = (v[0] - q[0]) * ky, d2 = dx * dx + dy * dy; if (d2 < bd) { bd = d2; best = v; } }
           const b = best && gnodes.get(gkey(best));
@@ -1171,7 +1173,7 @@ PM.world = (function () {
       if (!ids) continue;
       for (const id of ids) {
         const pc = pieces[id];
-        if (pc.trail) continue;
+        if (!pc || pc.trail) continue;
         const d = PM.geo.distToPolyline(q, pc.pts);
         if (d <= 11 || (pc.wide && d <= 20)) return true;
       }
@@ -1280,7 +1282,10 @@ PM.world = (function () {
       for (const p of t.pieces) {
         if (pieces[p.id] !== p) continue;
         delete pieces[p.id];
-        const cells = new Set(p.pts.map((q) => cellKey(q[0], q[1])));
+        // (de TODAS las casillas donde se apuntó: un tramo ampliado tenía otra geometría y otro centro, y se quedaba apuntado
+        // en casillas viejas; la siguiente búsqueda de calles cercanas fallaba con un tramo que ya no existe)
+        const cells = new Set(p.cells || []);
+        for (const g of [p.pts].concat(p.alt || [])) for (const q of g) cells.add(cellKey(q[0], q[1]));
         cells.add(cellKey(p.mid[0], p.mid[1]));
         for (const c of cells) { const L = index[c]; if (!L) continue; const i = L.indexOf(p.id); if (i >= 0) L.splice(i, 1); if (!L.length) delete index[c]; }
         graphRemove(p);
@@ -1638,7 +1643,7 @@ PM.world = (function () {
       for (const id of ids) {
         if (seen.has(id)) continue; seen.add(id);
         const pc = pieces[id];
-        if (PM.geo.distToPolyline(p, pc.pts) <= radiusM) out.push(pc);
+        if (pc && PM.geo.distToPolyline(p, pc.pts) <= radiusM) out.push(pc);
       }
     }
     return out;
