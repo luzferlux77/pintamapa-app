@@ -1,8 +1,8 @@
 {
-  "version": "0.7.7",
-  "notes": "Se pinta la calle cuando vas por su acera a 12-18 m de la línea del mapa (antes esos tramos se quedaban sin pintar)",
+  "version": "0.7.8",
+  "notes": "Repaso general: el % del barrio ya no se queda en «calculando…», Nominatim con una sola cola, velocidad a 0 al pararte, nombres en otros alfabetos",
   "native": 7,
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.7.7/pintamapa-web-0.7.7.zip",
-  "checksum": "c5b56c2c74cd8daf4c83cf669f154157875d9b354767db66e0a5117293dfc925",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.7.7/PintaMapa-v0.7.7.apk"
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.7.8/pintamapa-web-0.7.8.zip",
+  "checksum": "ba3ae1dd0fc6eb59436d01452eea14684dbd5651914b348a12a4419aeeb69738",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.7.8/PintaMapa-v0.7.8.apk"
 }
