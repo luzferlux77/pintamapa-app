@@ -1,8 +1,8 @@
 {
-  "version": "0.7.6",
-  "notes": "Pintado sin cortes: repaso al acabar cada paseo que une esquinas y trozos sueltos; arreglos del pintado al empezar o reanudar",
+  "version": "0.7.7",
+  "notes": "Se pinta la calle cuando vas por su acera a 12-18 m de la línea del mapa (antes esos tramos se quedaban sin pintar)",
   "native": 7,
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.7.6/pintamapa-web-0.7.6.zip",
-  "checksum": "302a5b75cf473f813f55947a43d4e2a9c15c85344c20776dc7a9242820a3f46b",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.7.6/PintaMapa-v0.7.6.apk"
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.7.7/pintamapa-web-0.7.7.zip",
+  "checksum": "c5b56c2c74cd8daf4c83cf669f154157875d9b354767db66e0a5117293dfc925",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.7.7/PintaMapa-v0.7.7.apk"
 }
