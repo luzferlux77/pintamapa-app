@@ -398,3 +398,61 @@ PM.simplifyTrack = function (track, tol = 3) {
   flush();
   return out;
 };
+
+// ---------------- Registro de errores (Perfil → Ajustes → «Informe de errores») ----------------
+// Los fallos de la app quedaban invisibles en el móvil. Se guardan los últimos 50 (los repetidos, juntos, con cuántas veces),
+// con la versión y la hora, SIN nada que diga dónde estás: se borran coordenadas y claves de zona del texto.
+PM.errores = (function () {
+  const KEY = 'pintamapa_errores', MAX = 50;
+  let lista = [];
+  try { lista = JSON.parse(localStorage.getItem(KEY) || '[]'); if (!Array.isArray(lista)) lista = []; } catch (e) { lista = []; }
+  const limpia = (t) => String(t == null ? '' : t)
+    .replace(/-?\d{1,3}\.\d{3,}/g, '·')                 // coordenadas
+    .replace(/\b\d{4}_\d{3,4}\b/g, 'zona')              // claves de zona (~1 km)
+    .replace(/(https?:\/\/[^\s?#]+)[?#][^\s)]*/g, '$1') // sin parámetros en las direcciones
+    .replace(/https?:\/\/[^\s)]*\/(js|lib)\//g, '')     // solo el nombre del archivo
+    .slice(0, 400);
+  let guardarT = null;
+  const guardar = () => { clearTimeout(guardarT); guardarT = setTimeout(() => { try { localStorage.setItem(KEY, JSON.stringify(lista)); } catch (e) {} }, 500); };
+  function add(tipo, msg, donde) {
+    const m = limpia(msg), d = limpia(donde || ''), ult = lista[lista.length - 1];
+    if (!m) return;
+    if (ult && ult.m === m && ult.tipo === tipo) { ult.n = (ult.n || 1) + 1; ult.t = Date.now(); guardar(); return; }
+    lista.push({ t: Date.now(), v: (PM.VERSION && PM.VERSION.app) || '?', tipo, m, d });
+    if (lista.length > MAX) lista = lista.slice(-MAX);
+    guardar();
+  }
+  // fallos de red de los servidores de mapas o de Wikipedia: no son fallos de la app (sin cobertura, servidor caído)
+  const RED = /Failed to fetch|NetworkError|Load failed|AJAXError|HTTP [45]\d\d|tiempo agotado|aborted|AbortError|timeout|sin red/i;
+  if (typeof window !== 'undefined' && window.addEventListener) {
+    window.addEventListener('error', (e) => {
+      if (!e || !e.message) return;   // (una imagen o un archivo que no carga: no es un fallo de la app)
+      if (/ResizeObserver loop/.test(e.message)) return;
+      add('error', e.message, (e.filename || '').split('/').pop() + ':' + (e.lineno || '') + (e.error && e.error.stack ? ' · ' + String(e.error.stack).split('\n').slice(1, 3).join(' ') : ''));
+    });
+    window.addEventListener('unhandledrejection', (e) => {
+      const r = e && e.reason, msg = r && (r.message || String(r));
+      if (!msg || RED.test(msg)) return;
+      add('promesa', msg, r && r.stack ? String(r.stack).split('\n').slice(1, 3).join(' ') : '');
+    });
+  }
+  // los avisos de la propia app (console.warn) también: «Zona sin completar», «Repaso del paseo»…
+  if (typeof console !== 'undefined' && console.warn && !console.warn.__pm) {
+    const w0 = console.warn.bind(console);
+    const w = function (...a) {
+      try { const txt = a.map((x) => (x && x.message ? x.message : typeof x === 'string' ? x : '')).filter(Boolean).join(' · '); if (txt && !RED.test(txt)) add('aviso', txt); } catch (e) {}
+      return w0(...a);
+    };
+    w.__pm = true; console.warn = w;
+  }
+  return {
+    add, lista: () => lista.slice(),
+    borrar() { lista = []; try { localStorage.removeItem(KEY); } catch (e) {} },
+    // el informe para enviar: versión, móvil y los errores (sin ubicaciones ni nada personal)
+    informe() {
+      const ua = (typeof navigator !== 'undefined' && navigator.userAgent || '').replace(/\s*\([^)]*Build[^)]*\)/, '');
+      const cab = `PintaMapa ${(PM.VERSION && PM.VERSION.app) || '?'} (nativa ${(PM.VERSION && PM.VERSION.native) || '?'}) · ${PM.isNative ? 'app' : 'web'} · ${ua.slice(0, 160)}`;   // (el navegador y la versión de Android: sin pasar por limpia, que se comería los números de versión)
+      return [cab, `${lista.length} registro(s)`, ''].concat(lista.slice().reverse().map((x) => `${new Date(x.t).toISOString().slice(0, 16).replace('T', ' ')} · v${x.v} · ${x.tipo}${x.n > 1 ? ' ×' + x.n : ''}: ${x.m}${x.d ? ' (' + x.d + ')' : ''}`)).join('\n');
+    },
+  };
+})();

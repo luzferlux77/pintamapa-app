@@ -70,7 +70,7 @@
     for (let i = 0; i <= 48; i++) { const a = i / 48 * 2 * Math.PI; out.push(ll(PM.geo.offset(c, Math.cos(a) * r, Math.sin(a) * r))); }
     return { type: 'Feature', properties: props || {}, geometry: { type: 'Polygon', coordinates: [out] } };
   };
-  const SRC = ['pm-streets', 'pm-painted', 'pm-barrios', 'pm-halos', 'pm-fx', 'pm-fxline', 'pm-lms'];
+  const SRC = ['pm-streets', 'pm-painted', 'pm-barrios', 'pm-halos', 'pm-fx', 'pm-fxline', 'pm-lms', 'pm-mano'];
   let FUN = null;   // foto de perfil (js/fun.js)
   const srcData = {}; SRC.forEach((id) => (srcData[id] = FC([])));
   function setSrc(id, fc) { srcData[id] = fc; const src = mapReady && map.getSource(id); if (src) src.setData(fc); }
@@ -95,6 +95,8 @@
     // efecto de conquista (ola de color + contorno brillante)
     add({ id: 'pm-fx-fill', type: 'fill', source: 'pm-fx', paint: { 'fill-color': paintColor(), 'fill-opacity': ['get', 'o'] } });
     add({ id: 'pm-fx-line', type: 'line', source: 'pm-fxline', layout: round, paint: { 'line-color': paintColor(), 'line-width': ['get', 'w'], 'line-opacity': ['get', 'o'], 'line-blur': 1.5 } }, true);
+    // pintar a mano: el tramo que se pintaría, en amarillo (distinto de tu color: se ve qué es lo nuevo)
+    add({ id: 'pm-mano', type: 'line', source: 'pm-mano', layout: round, paint: { 'line-color': '#facc15', 'line-width': zw(4, 9, 16), 'line-opacity': 0.9 } }, true);
     add({ id: 'pm-lms', type: 'symbol', source: 'pm-lms', layout: { 'icon-image': ['get', 'icon'], 'icon-allow-overlap': true, 'icon-ignore-placement': true,
       'symbol-sort-key': ['get', 'z'], 'icon-size': ['interpolate', ['linear'], ['zoom'], 12, 0.55, 15, 0.85, 17, 1] } }, true);
     add({ id: 'pm-barrio-conq', type: 'line', source: 'pm-barrios', filter: ['==', ['get', 'c'], 1], layout: round,
@@ -628,6 +630,7 @@
       // Quieto (en casa, en un bar), el GPS «se pasea» unos metros cada pocos minutos: eso no es andar. Una lectura cercana que
       // llega a menos de 0,2 m/s no pinta, no suma metros ni entra en el recorrido (un paseo del 3-nov sumó 240 m así, sentado)
       const deriva = mode === 'gps' && !jump && implied != null && implied < 0.2 && d < 40;
+      if (mode === 'gps' && dt > 0 && dt < 3600) { const g = gpsSt(); g.t += dt; if (dt > 60 && d > 40) { g.cortes++; g.corte += dt; } if (jump) g.saltos++; }
       if (jump) {
         if (visible) toast('📡 Salto del GPS ignorado (no se pinta)', 'warn', 2500);
       } else if (implied != null) speed = speed * 0.6 + implied * 0.4;
@@ -1086,6 +1089,79 @@
     target = p;
     follow = true; zoomAround();
   });
+  // ---------------- Pintar a mano (corregir lo que el GPS dejó sin pintar) ----------------
+  // Mantén pulsada una calle: se pinta ese tramo (la misma calle, a los dos lados, hasta 150 m) si pasa junto a un
+  // recorrido tuyo (a menos de 30 m). El GPS nunca será perfecto (una acera rara, un túnel): así no hace falta volver.
+  // Solo junto a tus recorridos: no se puede pintar lo que no has andado.
+  const MANO_PASILLO = 30, MANO_MAX = 150;   // (30 m: el GPS desviado más una acera ancha; una calle paralela suele quedar más lejos)
+  function junto(p) {
+    const tracks = (S().walks || []).map((w) => w.track || []).concat(session && session.track ? [session.track] : []);
+    const dLat = MANO_PASILLO / 111320 * 3;
+    for (const tr of tracks) for (let i = 1; i < tr.length; i++) {
+      const a = tr[i - 1], b = tr[i];
+      if (!a || !b || (Math.abs(a[0] - p[0]) > dLat && Math.abs(b[0] - p[0]) > dLat) || PM.geo.dist(a, b) > 400) continue;
+      if (PM.geo.distToPolyline(p, [a, b]) <= MANO_PASILLO) return true;
+    }
+    return false;
+  }
+  function tramoAMano(p) {
+    const c = W.piecesNear(p, 15).filter((pc) => !pc.trail).map((pc) => [pc, PM.geo.distToPolyline(p, pc.pts)]).sort((a, b) => a[1] - b[1])[0];
+    if (!c) return { motivo: 'Ahí no hay ninguna calle del mapa.' };
+    const pc0 = c[0];
+    if (S().painted[pc0.id]) return { motivo: 'Esa calle ya está pintada.' };
+    if (!junto(pc0.mid)) return { motivo: 'Solo puedes pintar a mano calles junto a un recorrido tuyo (a menos de 30 m).' };
+    // la misma calle a los dos lados (en línea: menos de 25°), sin pintar y junto a tus recorridos
+    const kx = Math.cos(p[0] * Math.PI / 180), vec = (a, b) => { const v = [b[0] - a[0], (b[1] - a[1]) * kx], l = Math.hypot(v[0], v[1]); return l ? [v[0] / l, v[1] / l] : null; };
+    const pegados = (q) => W.piecesNear(q, 3).filter((o) => !o.trail && (PM.geo.dist(o.pts[0], q) < 1.5 || PM.geo.dist(o.pts[o.pts.length - 1], q) < 1.5));
+    const out = [pc0], vistos = new Set([pc0.id]);
+    let largo = pc0.len;
+    for (const [desde, hacia] of [[pc0.pts[0], pc0.pts[pc0.pts.length - 1]], [pc0.pts[pc0.pts.length - 1], pc0.pts[0]]]) {
+      let cur = hacia, dir = vec(desde, hacia);
+      while (dir && largo < MANO_MAX) {
+        let mejor = null, bc = 0.9;
+        for (const o of pegados(cur)) {
+          if (vistos.has(o.id)) continue;
+          const lejos = PM.geo.dist(o.pts[0], cur) < PM.geo.dist(o.pts[o.pts.length - 1], cur) ? o.pts[o.pts.length - 1] : o.pts[0];
+          const v = vec(cur, lejos), cs = v ? v[0] * dir[0] + v[1] * dir[1] : 0;
+          if (cs > bc) { bc = cs; mejor = [o, lejos, v]; }
+        }
+        if (!mejor || S().painted[mejor[0].id] || !junto(mejor[0].mid)) break;
+        vistos.add(mejor[0].id); out.push(mejor[0]); largo += mejor[0].len; cur = mejor[1]; dir = mejor[2];
+      }
+    }
+    return { tramos: out, largo };
+  }
+  let manoT = 0;
+  function pintarAMano(p) {
+    if (Date.now() - manoT < 1200 || !mapReady) return;   // (en algunos móviles llegan la pulsación larga y el menú a la vez)
+    manoT = Date.now();
+    const r = tramoAMano(p);
+    if (!r.tramos) { toast(r.motivo, 'info', 3500); return; }
+    PM.vibrate(30);
+    setSrc('pm-mano', FC(r.tramos.map((q) => lineF(q.pts))));   // lo que se pintaría, resaltado
+    openSheet('🖌️ Pintar a mano', `<p>¿Pinto este tramo de calle (${PM.fmtDist(r.largo)})? Pasa junto a un recorrido tuyo: si el GPS lo dejó sin pintar, así queda como andado.</p>
+      <button class="btn on" id="mano-si" style="width:100%;margin:6px 0">🖌️ Pintar ${PM.fmtDist(r.largo)}</button>`);
+    const limpiar = () => setSrc('pm-mano', FC([]));
+    const sh = $('#sheet'), obs = new MutationObserver(() => { if (!sh.classList.contains('show')) { limpiar(); obs.disconnect(); } });
+    obs.observe(sh, { attributes: true, attributeFilter: ['class'] });
+    $('#mano-si').addEventListener('click', () => {
+      let n = 0; for (const q of r.tramos) if (!S().painted[q.id]) { G.paintPiece(q, false); n++; }
+      const s = S(); s.stats.aMano = (s.stats.aMano || 0) + 1; PM.state.save();
+      sh.classList.remove('show'); limpiar(); flushPaint();
+      toast(`🖌️ Pintado a mano: ${PM.fmtDist(r.largo)}`, 'ok', 2500);
+    });
+  }
+  // pulsación larga en el móvil (650 ms sin moverse) y botón derecho en el ordenador
+  let lp = null;
+  const lpFin = () => { if (lp) { clearTimeout(lp.t); lp = null; } };
+  map.on('touchstart', (e) => {
+    lpFin();
+    if (!e.originalEvent.touches || e.originalEvent.touches.length !== 1) return;
+    const ll0 = e.lngLat; lp = { pt: e.point, t: setTimeout(() => { lp = null; pintarAMano([ll0.lat, ll0.lng]); }, 650) };
+  });
+  map.on('touchmove', (e) => { if (lp && Math.hypot(e.point.x - lp.pt.x, e.point.y - lp.pt.y) > 10) lpFin(); });
+  map.on('touchend', lpFin); map.on('touchcancel', lpFin); map.on('movestart', (e) => { if (e.originalEvent) lpFin(); });
+  map.on('contextmenu', (e) => { lpFin(); pintarAMano([e.lngLat.lat, e.lngLat.lng]); });
   map.on('dragstart', () => { if (touching >= 2 && follow) return;   // pinza siguiéndote: es zoom, no te dejo de seguir
     follow = false; zoomAround(); $('#btn-center').classList.add('show'); clearTimeout(recenterTimer); });
   map.on('dragend', () => { clearTimeout(recenterTimer); recenterTimer = setTimeout(recenter, 8000); });
@@ -1387,6 +1463,7 @@
     gpsIcon(acc > 35 ? 'weak' : 'ok', acc);
     lastFixT = Date.now();
     if (c.altitude != null && isFinite(c.altitude) && (c.altitudeAccuracy == null || c.altitudeAccuracy < 30)) lastAlt = c.altitude;
+    if (acc > 35 && session && !session.paused) gpsSt().flojas++;
     if (acc > 35) {   // con mucho error podríamos pintar la calle de al lado: no pinta, pero sirve de guía para rellenar el hueco
       if (acc <= 120 && session && !session.paused) softFixes.push({ p: [c.latitude, c.longitude], t: t || c.time || Date.now() });
       if (softFixes.length > 60) softFixes.shift();
@@ -1413,6 +1490,7 @@
         const vuelta = PM.geo.dist(base, h.p) + PM.geo.dist(h.p, f.p), recta = PM.geo.dist(base, f.p);
         // muy fuera del camino entre la anterior y la siguiente, y un «pico» (ida y vuelta): rebote, se descarta
         if (!(dev > Math.max(20, h.acc * 1.5) && vuelta > recta * 1.6 + 20)) onMove(h.p, false, h.t, h.spd, h.brg, true);
+        else if (session) gpsSt().rebotes++;
       } else onMove(h.p, false, h.t, h.spd, h.brg, true);
     }
     heldFix = f || null;
@@ -1546,6 +1624,9 @@
     }
   }
   const newSessionStats = () => ({ walked: 0, painted: 0, pts: 0, pieces: 0, captures: 0, bestCombo: 0, conquests: 0 });
+  // calidad del GPS del paseo (informe del resumen): t = segundos entre lecturas; corte = segundos de los cortes (más de 60 s sin
+  // lecturas habiendo avanzado más de 40 m: parado no llegan lecturas y eso no es un corte); flojas, saltos y rebotes descartados
+  function gpsSt() { return session && (session.st.gps || (session.st.gps = { t: 0, corte: 0, cortes: 0, flojas: 0, saltos: 0, rebotes: 0 })); }
 
   function sessionElapsed() {
     if (!session) return 0;
@@ -1757,6 +1838,21 @@
   // copia en la nube cada 30 min mientras paseas (si Android cierra la app, no se pierde lo pintado); al terminar, siempre
   setInterval(() => { if (session && !session.paused) PM.sync.auto(); }, 30 * 60000);
 
+  // Informe de calidad del GPS del paseo: cuánto rato hubo lecturas y cuántas veces se cortó (para saber si un tramo sin
+  // pintar es del GPS, de Android frenando la app con la pantalla apagada, o de una zona sin calles en el mapa)
+  function informeGPS(st) {
+    const g = st && st.gps;
+    if (!g || g.t < 120) return '';
+    const pct = Math.max(0, Math.min(100, Math.round(100 * (1 - g.corte / g.t))));
+    const min = Math.max(1, Math.round(g.corte / 60));
+    const partes = [`<span>GPS con señal el ${pct} % del paseo.</span>`];
+    partes.push(g.cortes ? `<span>${g.cortes === 1 ? `1 corte (${min} min sin lecturas).` : `${g.cortes} cortes (${min} min sin lecturas).`}</span>` : '<span>Sin cortes.</span>');
+    if (g.rebotes) partes.push(`<span>${g.rebotes === 1 ? '1 rebote del GPS descartado.' : `${g.rebotes} rebotes del GPS descartados.`}</span>`);
+    // muchos cortes: casi siempre es el ahorro de batería de Android frenando el GPS con la pantalla apagada
+    const malo = g.cortes >= 2 || g.corte > 180;
+    return `<p class="muted gps-inf">📡 ${partes.join(' ')}</p>` + (malo ? `<p class="muted">Los cortes suelen ser el ahorro de batería del móvil frenando el GPS con la pantalla apagada.${
+      isNative && PmSys ? ' <button class="btn" id="gps-bat">🔋 Quitar el ahorro de batería</button>' : ''} Si alguna calle quedó sin pintar, mantenla pulsada en el mapa.</p>` : '');
+  }
   function showSummary(s) {
     const st = s.st, movMs = PM.movingMs(s), min = movMs / 60000;   // velocidad con el tiempo en movimiento (como Strava)
     const kmh = min > 0 ? (st.walked / 1000) / (min / 60) : 0;
@@ -1771,10 +1867,12 @@
         <div><b>x${st.bestCombo}</b><small>mejor combo</small></div>
       </div>
       <p>${st.conquests ? `🚩 ¡Conquistaste ${st.conquests} barrio(s)! ` : ''}Velocidad media ${PM.dec(kmh, 1)} km/h.</p>
+      ${informeGPS(st)}
       ${st.unidos ? `<p class="muted">🧩 Repaso: he unido ${st.unidos} ${st.unidos === 1 ? 'corte' : 'cortes'} de lo pintado (esquinas y trozos sueltos).</p>` : ''}
       <p class="muted">${st.painted > 0 ? '¡Buen paseo! Mañana tendrás misiones nuevas.' : 'Hoy no pintaste calles nuevas: prueba por calles que aún estén grises.'}</p>
       ${s.elapsed >= 120000 ? '<button class="btn on" id="sum-detail">📊 Estadísticas, vídeo y exportar</button>' : ''}`);
     if ($('#sum-detail')) $('#sum-detail').addEventListener('click', () => openWalk(S().walks.find((w) => w.id === String(s.start))));
+    if ($('#gps-bat')) $('#gps-bat').addEventListener('click', async () => { try { await PmSys.requestBattery(); } catch (e) { toast('Ábrelo en Ajustes → Aplicaciones → PintaMapa → Batería → Sin restricciones', 'warn', 6000); } });
     celebrate('¡Paseo completado!', `${PM.fmtDist(st.walked)} caminados · ${PM.fmtDist(st.painted)} pintados · +${PM.fmtNum(st.pts)} pts`, '🏁');
   }
 
@@ -2743,6 +2841,10 @@
         <div class="seg"><button class="btn on" id="off-dl" data-km="3">⬇️ Mi zona (3 km)</button><button class="btn" id="off-dl2" data-km="6">⬇️ Mi ciudad (6 km)</button></div><p class="muted" id="off-msg">Calculando lo guardado…</p>`);
       html += card('🥾 Paseos y reloj', `<p class="muted">Estadísticas, vídeo del recorrido, exportar a GPX/KML/KMZ e importar desde un reloj.</p>
         <button class="btn" id="opt-walks">🥾 Ver mis paseos (${D.walks.length})</button>`);
+      { const E = PM.errores ? PM.errores.lista() : [], ult = E.slice(-4).reverse();
+        html += card('🐞 Informe de errores', `<p class="muted">${E.length ? `La app ha apuntado ${E.length} ${E.length === 1 ? 'fallo' : 'fallos'}. Envíalo para que se pueda arreglar: no lleva tu ubicación ni nada personal.` : '👍 No hay ningún fallo apuntado.'}</p>
+          ${ult.map((x) => `<p class="muted err-it"><b>${new Date(x.t).toLocaleString(PM.LOCALE, { dateStyle: 'short', timeStyle: 'short' })}</b> · ${esc(x.m.slice(0, 120))}${x.n > 1 ? ` <b>×${x.n}</b>` : ''}</p>`).join('')}
+          ${E.length ? '<div class="seg"><button class="btn on" id="err-send">📤 Enviar informe</button><button class="btn" id="err-del">🗑️ Borrar</button></div>' : ''}`); }
       html += card('🔄 Versión', `<p class="muted">PintaMapa <b>v${PM.VERSION.app}</b> · ${(PM.update.status() || {}).msg || 'Se busca actualización al abrir la app.'}</p>
         ${PM.isNative ? '<button class="btn" id="opt-upd">🔄 Buscar actualización ahora</button>' : ''}
         <p class="muted">Perfil: <b>${PM.profile === 'real' ? '📡 Real' : '🕹️ Prueba'}</b></p>`);
@@ -2798,6 +2900,17 @@
     $('#opt-lang') && $('#opt-lang').addEventListener('change', (e) => PM.i18n.set(e.target.value));
     $('#opt-dark') && $('#opt-dark').addEventListener('change', (e) => { S().theme = e.target.checked ? 'dark' : 'light'; PM.state.save(); applyTheme(); });
     $('#opt-walks') && $('#opt-walks').addEventListener('click', panelWalks);
+    // informe de errores: por compartir (correo, WhatsApp, Telegram…) o, en la web, copiado al portapapeles
+    if ($('#err-send')) $('#err-send').addEventListener('click', async () => {
+      const txt = PM.errores.informe();
+      try {
+        const Sh = isNative && window.Capacitor.Plugins.Share;
+        if (Sh) { await Sh.share({ title: 'Informe de errores de PintaMapa', text: txt }); return; }
+        if (navigator.share) { await navigator.share({ title: 'Informe de errores de PintaMapa', text: txt }); return; }
+      } catch (e) { if (e && /cancel/i.test(e.message || '')) return; }
+      try { await navigator.clipboard.writeText(txt); toast('📋 Informe copiado: pégalo en un mensaje', 'ok', 3500); } catch (e) { toast('No se pudo compartir el informe', 'warn'); }
+    });
+    if ($('#err-del')) $('#err-del').addEventListener('click', () => { if (!confirm(PM.t('¿Borrar los fallos apuntados?'))) return; PM.errores.borrar(); toast('🗑️ Informe borrado', 'ok'); profTab = 'aj'; panelProfile(); });
     $('#opt-bv') && $('#opt-bv').addEventListener('click', () => PM.need('js/bienvenida.js').then(() => PM.bienvenida.abrir(() => {})));
     if ($('#bk-exp')) $('#bk-exp').addEventListener('click', exportBackup);
     if ($('#bk-imp')) $('#bk-imp').addEventListener('click', importBackup);
