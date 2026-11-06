@@ -1515,10 +1515,51 @@
   // toda la tarde en casa). Se reanuda con ▶ cuando vuelvas a salir.
   let quietas = [];   // lecturas de los últimos minutos {p, t, blanda}
   function stillCheck(p, blanda) { const t = Date.now(); quietas.push({ p: p.slice(), t, blanda: !!blanda }); while (quietas.length && t - quietas[0].t > 16 * 60000) quietas.shift(); }
+  // ¿Quieto, o el GPS dormido? Sin lecturas no se sabe: el GPS no manda nada si no te mueves (filtro de 8-25 m), pero en el
+  // bolsillo Android también puede dejar de darlas aunque andes. Antes, 15 min sin lecturas = «quieto»: se pausaba el paseo
+  // y se APAGABA el GPS, y el resto del paseo ya no se pintaba. Ahora se pide una posición nueva: si te has movido (o el GPS
+  // no contesta) era el GPS dormido, y se reinicia; si sigues en el mismo sitio, estabas quieto de verdad.
+  let vigilando = false, vigilaT = 0;
+  async function posicionAhora() {
+    try {
+      const Geo = isNative && window.Capacitor.Plugins.Geolocation;
+      if (Geo) { const r = await Geo.getCurrentPosition({ enableHighAccuracy: true, timeout: 20000, maximumAge: 0 }); return r && r.coords ? { p: [r.coords.latitude, r.coords.longitude], acc: r.coords.accuracy || 0, t: r.timestamp || Date.now() } : null; }
+      if (navigator.geolocation) return await new Promise((ok) => navigator.geolocation.getCurrentPosition((r) => ok({ p: [r.coords.latitude, r.coords.longitude], acc: r.coords.accuracy || 0, t: r.timestamp || Date.now() }), () => ok(null), { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 }));
+    } catch (e) { /* sin respuesta */ }
+    return null;
+  }
+  // true si el GPS estaba dormido (y se ha despertado); false si de verdad estás donde estabas
+  async function gpsDespierto() {
+    vigilando = true; vigilaT = Date.now();
+    try {
+      const q = await posicionAhora();
+      if (!session || session.paused || mode !== 'gps') return false;
+      const ref = lastP || pos, g = gpsSt();
+      if (!q) { if (g) g.reinicios = (g.reinicios || 0) + 1; PM.errores && PM.errores.add('aviso', 'GPS sin respuesta durante el paseo: se reinicia'); startGPS(); return true; }
+      if (q.acc <= 50 && ref && PM.geo.dist(q.p, ref) > 60) {
+        if (g) g.reinicios = (g.reinicios || 0) + 1;
+        PM.errores && PM.errores.add('aviso', 'GPS dormido durante el paseo (te habías movido): se reinicia');
+        startGPS();
+        onFix({ latitude: q.p[0], longitude: q.p[1], accuracy: q.acc }, q.t);   // (el tramo sin lecturas se rellena por las calles)
+        return true;
+      }
+      stillCheck(q.p);   // (sigues ahí: cuenta como lectura de «quieto»)
+      return false;
+    } finally { vigilando = false; }
+  }
+  // vigilante: 2 min sin ninguna lectura con el paseo en marcha → se mira si el GPS sigue vivo (andando llega una cada pocos
+  // segundos; en el emulador, tras 5 min sin GPS con la pantalla bloqueada, el GPS ya no volvió solo hasta reiniciarlo)
   setInterval(() => {
-    if (!session || session.paused || mode !== 'gps') return;
+    if (!gpsWanted() || vigilando || !lastFixT || Date.now() - lastFixT < 2 * 60000 || Date.now() - vigilaT < 2 * 60000) return;
+    gpsDespierto();
+  }, 30000);
+  setInterval(async () => {
+    if (!session || session.paused || mode !== 'gps' || vigilando) return;
     if (Date.now() - (session.resumedAt || session.start || 0) < 15 * 60000) return;   // (recién empezado o reanudado: aún no)
     if (!PM.estaQuieto(quietas, Date.now())) return;
+    // sin NINGUNA lectura en 15 min no se sabe si estás quieto: se pregunta antes de pausar y apagar el GPS
+    if (!quietas.some((q) => Date.now() - q.t <= 15 * 60000) && await gpsDespierto()) return;
+    if (!session || session.paused || !PM.estaQuieto(quietas, Date.now())) return;
     pauseSession();
     notify('⏸ Paseo en pausa', 'Llevas 15 minutos sin moverte: he pausado el paseo y apagado el GPS para ahorrar batería. Pulsa ▶ para seguir.', 'info');
   }, 60000);
@@ -1599,7 +1640,17 @@
   }
   const gpsWanted = () => mode === 'gps' && session && !session.paused;
   PM.walking = () => !!session && !session.paused;
-  function syncGPS() { if (gpsWanted()) { if (!gpsWatch && !gpsPending) startGPS(); } else stopGPS(); }
+  // con un paseo en marcha, el procesador del móvil no se suspende (la pantalla sí se apaga): si se suspendía, en el
+  // bolsillo la app dejaba de recibir el GPS y de vigilarlo hasta que algo la despertaba (PmSystemPlugin.despierto)
+  let despiertoOn = null;
+  function despierto(on) {
+    if (!isNative || despiertoOn === on) return;
+    const P = nativePlugin('PmSystem');
+    if (!P || !P.despierto) return;   // (APK anterior sin esta función: como antes)
+    despiertoOn = on;
+    P.despierto({ on }).catch(() => { despiertoOn = null; });
+  }
+  function syncGPS() { despierto(!!gpsWanted()); if (gpsWanted()) { if (!gpsWatch && !gpsPending) startGPS(); } else stopGPS(); }
 
   function setMode(m) {
     const changed = m !== mode;
@@ -1848,8 +1899,9 @@
     const partes = [`<span>GPS con señal el ${pct} % del paseo.</span>`];
     partes.push(g.cortes ? `<span>${g.cortes === 1 ? `1 corte (${min} min sin lecturas).` : `${g.cortes} cortes (${min} min sin lecturas).`}</span>` : '<span>Sin cortes.</span>');
     if (g.rebotes) partes.push(`<span>${g.rebotes === 1 ? '1 rebote del GPS descartado.' : `${g.rebotes} rebotes del GPS descartados.`}</span>`);
+    if (g.reinicios) partes.push(`<span>${g.reinicios === 1 ? 'El GPS se durmió 1 vez y lo desperté.' : `El GPS se durmió ${g.reinicios} veces y lo desperté.`}</span>`);
     // muchos cortes: casi siempre es el ahorro de batería de Android frenando el GPS con la pantalla apagada
-    const malo = g.cortes >= 2 || g.corte > 180;
+    const malo = g.cortes >= 2 || g.corte > 180 || g.reinicios >= 2;
     return `<p class="muted gps-inf">📡 ${partes.join(' ')}</p>` + (malo ? `<p class="muted">Los cortes suelen ser el ahorro de batería del móvil frenando el GPS con la pantalla apagada.${
       isNative && PmSys ? ' <button class="btn" id="gps-bat">🔋 Quitar el ahorro de batería</button>' : ''} Si alguna calle quedó sin pintar, mantenla pulsada en el mapa.</p>` : '');
   }

@@ -455,6 +455,8 @@
     'GPS con señal el {p} % del paseo.': ['GPS amb senyal el {p} % del passeig.', 'GPS signal for {p} % of the walk.', 'Signal GPS pendant {p} % de la balade.'],
     '1 corte ({m} min sin lecturas).': ['1 tall ({m} min sense lectures).', '1 dropout ({m} min without readings).', '1 coupure ({m} min sans relevés).'],
     '{n} cortes ({m} min sin lecturas).': ['{n} talls ({m} min sense lectures).', '{n} dropouts ({m} min without readings).', '{n} coupures ({m} min sans relevés).'],
+    'El GPS se durmió 1 vez y lo desperté.': ['El GPS s’ha adormit 1 vegada i l’he despertat.', 'The GPS fell asleep once and I woke it up.', 'Le GPS s’est endormi 1 fois et je l’ai réveillé.'],
+    'El GPS se durmió {n} veces y lo desperté.': ['El GPS s’ha adormit {n} vegades i l’he despertat.', 'The GPS fell asleep {n} times and I woke it up.', 'Le GPS s’est endormi {n} fois et je l’ai réveillé.'],
     'Sin cortes.': ['Sense talls.', 'No dropouts.', 'Aucune coupure.'],
     '1 rebote del GPS descartado.': ['1 rebot del GPS descartat.', '1 GPS bounce discarded.', '1 rebond du GPS écarté.'],
     '{n} rebotes del GPS descartados.': ['{n} rebots del GPS descartats.', '{n} GPS bounces discarded.', '{n} rebonds du GPS écartés.'],
