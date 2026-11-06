@@ -131,8 +131,14 @@ PM.cloud = (function () {
       const base = await folderOf(slug, pass);
       PM.state.flush();
       const hk = 'h_' + slug, photosPend = Object.values(PM.state.data.cardPhotos || {}).some((v) => !(v.up && v.up >= (v.t || 0)));
+      // De qué versión es la imagen que hay en ESTE móvil (fr_: id → t). Las fotos de antes se apuntan con la versión que
+      // dice la partida AHORA, antes de juntarla con la de la nube: si la nube trae otra más nueva, se nota y se baja
+      const fr = cfg['fr_' + slug] || (cfg['fr_' + slug] = {}), fi = cfg['fi_' + slug] || (cfg['fi_' + slug] = {});
+      for (const [id, v] of Object.entries(PM.state.data.cardPhotos || {})) if (v && fr[id] == null && PM.cards) { try { if (await PM.cards.getPhoto(id, true)) fr[id] = v.t || 0; } catch (e) { /* almacén ilegible: se mira otro día */ } }
+      saveCfg();
+      const bajarPend = () => Object.entries(PM.state.data.cardPhotos || {}).some(([id, v]) => v && v.up && v.up >= (v.t || 0) && fr[id] !== (v.t || 0));
       const sinCambios = !force && cfg[hk] && cfg[hk] === await huella();
-      if (sinCambios && !Object.keys(PM.state.data.pendingGeo || {}).length && !photosPend) return 'sin cambios';
+      if (sinCambios && !Object.keys(PM.state.data.pendingGeo || {}).length && !photosPend && !bajarPend()) return 'sin cambios';
       let subida = sinCambios;
       for (let attempt = 0; attempt < 3 && !subida; attempt++) {
         // foto de la partida que se sube (copia profunda: lo que se pinte mientras tanto no la cambia)
@@ -183,23 +189,24 @@ PM.cloud = (function () {
         const path = base + 'fotos/' + (await photoName(id, pass)) + '.json';
         const cur = await readRaw(path, token).catch(() => null);
         await write(path, await encrypt(key, { id, img: small }), cur && cur.sha, 'foto', token);
-        v.up = Date.now(); PM.state.save();
+        v.up = Date.now(); fr[id] = v.t || 0; saveCfg(); PM.state.save();
       }
       // y al revés: tus fotos que están en la nube pero no en este móvil (móvil nuevo, partida recuperada de la nube). Solo
       // si la de la nube es la versión apuntada (up ≥ t); unas pocas en cada copia, y una que no se pueda bajar se reintenta en la siguiente
-      let pedidas = 0;
-      for (const [id, v] of Object.entries(PM.state.data.cardPhotos || {})) {
-        if (pedidas >= 15) break;
-        if (!PM.cards || !v || !(v.up && v.up >= (v.t || 0))) continue;
-        let tengo; try { tengo = await PM.cards.getPhoto(id, true); } catch (e) { continue; }   // (sin poder leer el almacén no se pisa nada)
-        if (tengo) continue;
-        pedidas++;
+      // Cola: las pendientes (sin imagen aquí, o con una versión que no es la de la nube), empezando por las que llevan más
+      // tiempo sin intentarse (fi_: id → último intento). Antes se pedían siempre las primeras 15: si fallaban, las demás
+      // no llegaban nunca; y una imagen vieja se daba por buena porque «ya había una»
+      const cola = Object.entries(PM.state.data.cardPhotos || {}).filter(([id, v]) => PM.cards && v && v.up && v.up >= (v.t || 0) && fr[id] !== (v.t || 0))
+        .sort((a, b) => (fi[a[0]] || 0) - (fi[b[0]] || 0) || (a[0] < b[0] ? -1 : 1));
+      for (const [id, v] of cola.slice(0, 15)) {
+        fi[id] = Date.now();
         try {
           const r = await readRaw(base + 'fotos/' + (await photoName(id, pass)) + '.json', token);
           const o = r && await decrypt(key, r.data);
-          if (o && o.id === id && typeof o.img === 'string' && o.img.startsWith('data:image/')) await PM.cards.putPhoto(id, o.img);
-        } catch (e) { /* se reintenta en la próxima copia */ }
+          if (o && o.id === id && typeof o.img === 'string' && o.img.startsWith('data:image/')) { await PM.cards.putPhoto(id, o.img); fr[id] = v.t || 0; delete fi[id]; }
+        } catch (e) { /* se reintenta en otra copia, cuando le vuelva el turno */ }
       }
+      saveCfg();
       return true;
     } finally { busy = false; }
   }

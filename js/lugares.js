@@ -418,7 +418,8 @@
     const isCap = ctx.isCap || (() => false), zona = ctx.zona, C = CONF;
     const why = new Map(), byId = (x, y) => (x.id < y.id ? -1 : x.id > y.id ? 1 : 0);
     // lo que se decide en cada pasada se recalcula desde cero (tipo heredado del mapa, iglesia principal)
-    for (const lm of cands) { if (lm._spec) { lm.kind = 'Patrimonio'; lm.emoji = lm._spec; delete lm._spec; } prep(lm); }
+    // (y el enlace a Wikidata de un candidato del mapa vuelve al suyo: el de la pasada anterior no puede decidir esta)
+    for (const lm of cands) { if (lm._spec) { lm.kind = 'Patrimonio'; lm.emoji = lm._spec; delete lm._spec; } if (!lm.fromWd) { if (!('_wd0' in lm)) lm._wd0 = lm.wd || null; lm.wd = lm._wd0; } prep(lm); }
     iglesiasPrincipales(cands);
     const cap = new Map(); for (const lm of cands) cap.set(lm, !!isCap(lm));
     const all = cands.slice().sort((x, y) => (cap.get(y) - cap.get(x)) || (y.principal - x.principal) || (y.prio - x.prio) || byId(x, y));

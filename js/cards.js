@@ -142,7 +142,14 @@ PM.cards = (function () {
   // ---------------- Fotos propias (en el móvil, IndexedDB) ----------------
   let dbp = null;
   function db() {
-    if (!dbp) dbp = new Promise((res, rej) => { const r = indexedDB.open('pintamapa_fotos', 1); r.onupgradeneeded = () => r.result.createObjectStore('fotos'); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); });
+    // (si la apertura falla, no se queda memorizado el fallo: la siguiente vez se vuelve a intentar; y si el sistema cierra
+    // la base —poca memoria, otra versión—, también se abre de nuevo)
+    if (!dbp) dbp = new Promise((res, rej) => {
+      const r = indexedDB.open('pintamapa_fotos', 1);
+      r.onupgradeneeded = () => r.result.createObjectStore('fotos');
+      r.onsuccess = () => { const d = r.result; d.onclose = () => { dbp = null; }; d.onversionchange = () => { d.close(); dbp = null; }; res(d); };
+      r.onerror = () => { dbp = null; rej(r.error || new Error('No se pudo abrir el almacén de fotos')); };
+    });
     return dbp;
   }
   // Cada pintor tiene sus fotos («pintor:lugar»): antes la clave era solo el lugar y otro pintor del mismo móvil veía

@@ -606,7 +606,17 @@
   // fixTime: hora real de la lectura GPS. Con la pantalla bloqueada Android entrega las posiciones
   // en lotes; medir la velocidad por la hora de llegada daría velocidades absurdas (falso "vas en coche").
   function onMove(p, isTeleport, fixTime, fixSpeed, fixBearing, noShow) {
+    // (la hora del GPS se usa tal cual aunque vaya por delante del reloj del móvil: con el reloj del móvil atrasado, todas
+    // las lecturas parecen «del futuro» y recortarlas dejaba de pintar)
     const now = fixTime || Date.now();
+    // Una lectura con la misma hora o poco anterior a la última ya procesada (repetida, o de un lote que llega desordenado) no
+    // cuenta: no pinta, no suma metros ni rellena huecos. Antes, sin un tiempo positivo, el hueco se rellenaba por las calles
+    // sin poder comprobar la velocidad, y la última hora retrocedía. Si retrocede MUCHO (más de 10 min: la anterior era una
+    // hora rara, o el reloj del GPS saltó), se empieza un tramo nuevo sin rellenar, en vez de ignorar todo lo que venga
+    if (session && !session.paused && lastP && !isTeleport && mode === 'gps' && now <= lastT) {
+      if (lastT - now < 10 * 60000) return;
+      isTeleport = true;
+    }
     fixNow = now;
     if (isTeleport) cortarUnion();
     const visible = !document.hidden;
@@ -642,7 +652,7 @@
       if (!jump && !deriva && !tooFast && mode === 'gps' && d > (PM.debug.umbralHueco || 20) && d < 3000) {
         const maxLen = Math.max(d * 2, d + 250);
         const r = (via.length && routeVia(lastP, p, via)) || W.route(lastP, p, maxLen);
-        if (r && r.len <= Math.max(maxLen, r.via ? r.len : 0) && (dt <= 0 || r.len / dt <= MAX_SPEED * 1.5)) {
+        if (r && dt > 0 && r.len <= Math.max(maxLen, r.via ? r.len : 0) && r.len / dt <= MAX_SPEED * 1.5) {
           routed = true;
           fillGap(r, lastP, p, lastT, now); paintPrev = null; recentP = [];
           paintAround(p, [p[0] - lastP[0], (p[1] - lastP[1]) * Math.cos(p[0] * Math.PI / 180)]);
@@ -750,7 +760,8 @@
     for (const g of pendingGaps) {
       const maxLen = Math.max(g.d * 2, g.d + 250), dt = (g.tb - g.ta) / 1000;
       const r = (g.via.length && routeVia(g.a, g.b, g.via)) || W.route(g.a, g.b, maxLen);
-      if (r && r.len <= Math.max(maxLen, r.via ? r.len : 0) && (dt <= 0 || r.len / dt <= MAX_SPEED * 1.5)) { fillGap(r, g.a, g.b, g.ta, g.tb); continue; }
+      if (!(dt > 0)) continue;   // (hueco sin un tiempo válido —guardado por una versión anterior—: no se rellena)
+      if (r && r.len <= Math.max(maxLen, r.via ? r.len : 0) && r.len / dt <= MAX_SPEED * 1.5) { fillGap(r, g.a, g.b, g.ta, g.tb); continue; }
       if (!final && Date.now() - g.since < (g.noStreets ? 30 : 3) * 60000) { keep.push(g); continue; }   // (sin calles aún: sin cobertura, hasta media hora)
       // sin camino posible (de verdad no lo hay): como antes, lo que haya justo en línea recta (si es corto)
       if (g.d < 400) { const st = Math.ceil(g.d / 4), h = [g.b[0] - g.a[0], (g.b[1] - g.a[1]) * Math.cos(g.b[0] * Math.PI / 180)]; for (let i = 1; i <= st; i++) paintAround(PM.geo.lerp(g.a, g.b, i / st), h); }
@@ -1528,38 +1539,51 @@
     } catch (e) { /* sin respuesta */ }
     return null;
   }
-  // true si el GPS estaba dormido (y se ha despertado); false si de verdad estás donde estabas
+  // Qué dice una posición pedida a propósito: 'movido' (el GPS estaba dormido: se reinicia), 'quieto' (precisa y en el
+  // mismo sitio: solo esto permite pausar), 'incierto' (imprecisa, rara o sin respuesta: nunca justifica pausar) o
+  // 'cancelado' (mientras se esperaba, el paseo terminó, se pausó o empezó otro: la respuesta ya no vale para nada)
+  const coordOk = (p) => Array.isArray(p) && isFinite(p[0]) && isFinite(p[1]) && Math.abs(p[0]) <= 90 && Math.abs(p[1]) <= 180 && !(p[0] === 0 && p[1] === 0);
   async function gpsDespierto() {
+    const ses = session;   // (la respuesta es para ESTE paseo)
     vigilando = true; vigilaT = Date.now();
     try {
       const q = await posicionAhora();
-      if (!session || session.paused || mode !== 'gps') return false;
+      if (session !== ses || !ses || ses.paused || mode !== 'gps') return 'cancelado';
       const ref = lastP || pos, g = gpsSt();
-      if (!q) { if (g) g.reinicios = (g.reinicios || 0) + 1; PM.errores && PM.errores.add('aviso', 'GPS sin respuesta durante el paseo: se reinicia'); startGPS(); return true; }
-      if (q.acc <= 50 && ref && PM.geo.dist(q.p, ref) > 60) {
+      const valida = q && coordOk(q.p), acc = valida ? +q.acc || 999 : 999;
+      if (!valida) { if (g) g.reinicios = (g.reinicios || 0) + 1; PM.errores && PM.errores.add('aviso', 'GPS sin respuesta durante el paseo: se reinicia'); startGPS(); return 'incierto'; }
+      const d = ref ? PM.geo.dist(q.p, ref) : 0;
+      if (d > Math.max(60, acc)) {   // movido de verdad (más que su propio error): el GPS se había dormido
         if (g) g.reinicios = (g.reinicios || 0) + 1;
         PM.errores && PM.errores.add('aviso', 'GPS dormido durante el paseo (te habías movido): se reinicia');
         startGPS();
-        onFix({ latitude: q.p[0], longitude: q.p[1], accuracy: q.acc }, q.t);   // (el tramo sin lecturas se rellena por las calles)
-        return true;
+        onFix({ latitude: q.p[0], longitude: q.p[1], accuracy: acc }, Date.now());   // (el tramo sin lecturas se rellena por las calles)
+        return 'movido';
       }
-      stillCheck(q.p);   // (sigues ahí: cuenta como lectura de «quieto»)
-      return false;
+      if (acc <= 50) { stillCheck(q.p); return 'quieto'; }   // precisa y en el mismo sitio: quieto de verdad
+      stillCheck(q.p, true);   // imprecisa: ni movido ni quieto (cuenta como lectura blanda)
+      return 'incierto';
     } finally { vigilando = false; }
   }
   // vigilante: 2 min sin ninguna lectura con el paseo en marcha → se mira si el GPS sigue vivo (andando llega una cada pocos
-  // segundos; en el emulador, tras 5 min sin GPS con la pantalla bloqueada, el GPS ya no volvió solo hasta reiniciarlo)
+  // segundos; en el emulador, tras 5 min sin GPS con la pantalla bloqueada, el GPS ya no volvió solo hasta reiniciarlo).
+  // También si el GPS se pidió y aún no ha dado NINGUNA lectura (antes ese caso quedaba fuera)
+  var gpsPedidoT = 0;   // (var: startGPS puede llamarse antes de llegar aquí al arrancar)
   setInterval(() => {
-    if (!gpsWanted() || vigilando || !lastFixT || Date.now() - lastFixT < 2 * 60000 || Date.now() - vigilaT < 2 * 60000) return;
+    if (!gpsWanted() || vigilando) return;
+    const ultimo = Math.max(lastFixT || 0, gpsPedidoT || 0, session.resumedAt || session.start || 0);
+    if (!ultimo || Date.now() - ultimo < 2 * 60000 || Date.now() - vigilaT < 2 * 60000) return;
     gpsDespierto();
   }, 30000);
   setInterval(async () => {
-    if (!session || session.paused || mode !== 'gps' || vigilando) return;
-    if (Date.now() - (session.resumedAt || session.start || 0) < 15 * 60000) return;   // (recién empezado o reanudado: aún no)
-    if (!PM.estaQuieto(quietas, Date.now())) return;
-    // sin NINGUNA lectura en 15 min no se sabe si estás quieto: se pregunta antes de pausar y apagar el GPS
-    if (!quietas.some((q) => Date.now() - q.t <= 15 * 60000) && await gpsDespierto()) return;
-    if (!session || session.paused || !PM.estaQuieto(quietas, Date.now())) return;
+    const ses = session;
+    if (!ses || ses.paused || mode !== 'gps' || vigilando) return;
+    const lleva15 = () => Date.now() - (ses.resumedAt || ses.start || 0) >= 15 * 60000;   // (recién empezado o reanudado: aún no)
+    if (!lleva15() || !PM.estaQuieto(quietas, Date.now())) return;
+    // sin NINGUNA lectura en 15 min no se sabe si estás quieto: se pregunta antes, y solo «quieto» de verdad deja pausar
+    if (!quietas.some((q) => Date.now() - q.t <= 15 * 60000) && (await gpsDespierto()) !== 'quieto') return;
+    // (mientras se esperaba pudo empezar otro paseo, pausarse o reanudarse: todo se vuelve a mirar para ESTE paseo)
+    if (session !== ses || ses.paused || mode !== 'gps' || !lleva15() || !PM.estaQuieto(quietas, Date.now())) return;
     pauseSession();
     notify('⏸ Paseo en pausa', 'Llevas 15 minutos sin moverte: he pausado el paseo y apagado el GPS para ahorrar batería. Pulsa ▶ para seguir.', 'info');
   }, 60000);
@@ -1567,6 +1591,7 @@
   // al llegar ya no vale y su vigilante se quita en el acto (antes quedaba un GPS encendido sin paseo).
   let gpsGen = 0, gpsPending = false;
   async function startGPS() {
+    gpsPedidoT = Date.now();   // (el vigilante cuenta desde aquí si aún no llega ninguna lectura)
     // con el GPS nativo, el vigilante nuevo se crea ANTES de quitar el viejo: si el servicio se quedara un instante
     // sin vigilantes, Android le quita el «primer plano» y con la pantalla apagada ya no recibiría posiciones
     const old = gpsWatch && gpsWatch.bg ? gpsWatch : null;
@@ -2540,17 +2565,22 @@
   // Lleva TODA la partida, tus fotos de cromos, la forma de lo pintado, los contornos de tus barrios y los
   // imprescindibles de cada ciudad: en el móvil nuevo se ve todo al momento, sin nube.
   async function buildBackup() {
+    // Una foto fija del momento en que empieza: la partida, las formas y los contornos se copian YA, antes de esperar a leer
+    // las fotos. Antes se copiaban después, y una foto hecha mientras tanto entraba apuntada pero sin su imagen y sin avisar
     const s = S(), photos = {}, sinFoto = [], fallidas = [];
-    // (una foto que no se puede leer se reintenta; las que faltan se cuentan y se avisa: la copia no se da por completa sin decirlo)
-    for (const id of Object.keys(s.cardPhotos || {})) {
-      let p = null, err = false;
-      for (let i = 0; i < 2 && !p; i++) { try { p = await PM.cards.getPhoto(id, true); err = false; } catch (e) { err = true; } }
-      if (p) photos[id] = p; else (err ? fallidas : sinFoto).push(id);
-    }
     const save = JSON.parse(JSON.stringify(s)); delete save.session; delete save.pendingGeo;
     const geo = {};
-    for (const [k, ids] of pgeoTile) { const o = {}; for (const id of ids) if (s.painted[id]) o[id] = pgeo.get(id).p; if (Object.keys(o).length) geo[k] = o; }
+    for (const [k, ids] of pgeoTile) { const o = {}; for (const id of ids) if (s.painted[id] && pgeo.get(id)) o[id] = pgeo.get(id).p; if (Object.keys(o).length) geo[k] = o; }
     let cityinfo = null; try { cityinfo = JSON.parse(localStorage.getItem('pintamapa_cityinfo') || 'null'); } catch (e) {}
+    // (una foto que no se puede leer se reintenta; las que faltan se cuentan y se avisa: la copia no se da por completa sin decirlo)
+    for (const id of Object.keys(save.cardPhotos || {})) {
+      let p = null, err = false;
+      for (let i = 0; i < 2 && !p; i++) { try { p = await PM.cards.getPhoto(id, true); err = false; } catch (e) { err = true; } }
+      // (si mientras se leía la foto se cambió por otra, la imagen leída es la nueva: van juntos sus datos nuevos)
+      const ahora = (S().cardPhotos || {})[id];
+      if (p && ahora && save.cardPhotos[id] && ahora.t !== save.cardPhotos[id].t) save.cardPhotos[id] = JSON.parse(JSON.stringify(ahora));
+      if (p) photos[id] = p; else (err ? fallidas : sinFoto).push(id);
+    }
     // fotosFaltan: apuntadas pero sin la imagen en este móvil (p. ej. llegaron de la nube); fotosFallidas: no se pudieron leer
     return { app: 'PintaMapa', version: PM.VERSION.app, player: PM.player ? PM.player.name : '', t: Date.now(), save, photos, geo, bgeo, cityinfo, fotosFaltan: sinFoto.length, fotosFallidas: fallidas.length };
   }
@@ -2661,7 +2691,8 @@
       } catch (e) { res.formas = Object.keys(geo).length + Object.keys(bg).length; }   // (se recogerán solas, zona a zona, al volver a pasar: se avisa)
     }
     // (esto estaba después del return: los imprescindibles de la copia nunca llegaban al móvil nuevo)
-    if (d.cityinfo) { try { const ci = JSON.parse(localStorage.getItem('pintamapa_cityinfo') || '{}'); localStorage.setItem('pintamapa_cityinfo', JSON.stringify(Object.assign({}, d.cityinfo, ci))); } catch (e) {} }
+    // contornos de ciudad de la copia: solo los que están bien (uno roto rompía después las consultas del mapa)
+    if (d.cityinfo && typeof d.cityinfo === 'object') { try { const ci = JSON.parse(localStorage.getItem('pintamapa_cityinfo') || '{}'), buenos = {}; for (const [k, v] of Object.entries(d.cityinfo)) { const ok = PM.ciudadValida(v); if (ok) buenos[k] = ok; } localStorage.setItem('pintamapa_cityinfo', JSON.stringify(Object.assign({}, buenos, ci))); } catch (e) {} }
     return res;
   }
   function importBackup() {
@@ -2894,7 +2925,7 @@
       html += card('🥾 Paseos y reloj', `<p class="muted">Estadísticas, vídeo del recorrido, exportar a GPX/KML/KMZ e importar desde un reloj.</p>
         <button class="btn" id="opt-walks">🥾 Ver mis paseos (${D.walks.length})</button>`);
       { const E = PM.errores ? PM.errores.lista() : [], ult = E.slice(-4).reverse();
-        html += card('🐞 Informe de errores', `<p class="muted">${E.length ? `La app ha apuntado ${E.length} ${E.length === 1 ? 'fallo' : 'fallos'}. Envíalo para que se pueda arreglar: no lleva tu ubicación ni nada personal.` : '👍 No hay ningún fallo apuntado.'}</p>
+        html += card('🐞 Informe de errores', `<p class="muted">${E.length ? `La app ha apuntado ${E.length} ${E.length === 1 ? 'fallo' : 'fallos'}. Envíalo para que se pueda arreglar: se le quitan las coordenadas, las zonas del mapa y los nombres de tus sitios. Puedes leerlo antes de enviarlo.` : '👍 No hay ningún fallo apuntado.'}</p>
           ${ult.map((x) => `<p class="muted err-it"><b>${new Date(x.t).toLocaleString(PM.LOCALE, { dateStyle: 'short', timeStyle: 'short' })}</b> · ${esc(x.m.slice(0, 120))}${x.n > 1 ? ` <b>×${x.n}</b>` : ''}</p>`).join('')}
           ${E.length ? '<div class="seg"><button class="btn on" id="err-send">📤 Enviar informe</button><button class="btn" id="err-del">🗑️ Borrar</button></div>' : ''}`); }
       html += card('🔄 Versión', `<p class="muted">PintaMapa <b>v${PM.VERSION.app}</b> · ${(PM.update.status() || {}).msg || 'Se busca actualización al abrir la app.'}</p>

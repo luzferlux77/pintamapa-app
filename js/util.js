@@ -405,10 +405,12 @@ PM.simplifyTrack = function (track, tol = 3) {
 PM.errores = (function () {
   const KEY = 'pintamapa_errores', MAX = 50;
   let lista = [];
-  try { lista = JSON.parse(localStorage.getItem(KEY) || '[]'); if (!Array.isArray(lista)) lista = []; } catch (e) { lista = []; }
+  // (solo las entradas sanas: un registro dañado —[null], fechas imposibles— no puede romper el propio informe)
+  const sana = (x) => x && typeof x === 'object' && isFinite(x.t) && Math.abs(x.t) < 8.64e15 && typeof x.m === 'string';
+  try { lista = JSON.parse(localStorage.getItem(KEY) || '[]'); lista = Array.isArray(lista) ? lista.filter(sana) : []; } catch (e) { lista = []; }
   const limpia = (t) => String(t == null ? '' : t)
     .replace(/-?\d{1,3}\.\d{3,}/g, '·')                 // coordenadas
-    .replace(/\b\d{4}_\d{3,4}\b/g, 'zona')              // claves de zona (~1 km)
+    .replace(/-?\d{2,5}_-?\d{2,5}/g, 'zona')            // claves de zona (~1 km), en los dos hemisferios
     .replace(/(https?:\/\/[^\s?#]+)[?#][^\s)]*/g, '$1') // sin parámetros en las direcciones
     .replace(/https?:\/\/[^\s)]*\/(js|lib)\//g, '')     // solo el nombre del archivo
     .slice(0, 400);
@@ -452,7 +454,29 @@ PM.errores = (function () {
     informe() {
       const ua = (typeof navigator !== 'undefined' && navigator.userAgent || '').replace(/\s*\([^)]*Build[^)]*\)/, '');
       const cab = `PintaMapa ${(PM.VERSION && PM.VERSION.app) || '?'} (nativa ${(PM.VERSION && PM.VERSION.native) || '?'}) · ${PM.isNative ? 'app' : 'web'} · ${ua.slice(0, 160)}`;   // (el navegador y la versión de Android: sin pasar por limpia, que se comería los números de versión)
-      return [cab, `${lista.length} registro(s)`, ''].concat(lista.slice().reverse().map((x) => `${new Date(x.t).toISOString().slice(0, 16).replace('T', ' ')} · v${x.v} · ${x.tipo}${x.n > 1 ? ' ×' + x.n : ''}: ${x.m}${x.d ? ' (' + x.d + ')' : ''}`)).join('\n');
+      // y los nombres de sitios que la app conoce (ciudades, barrios, zonas con nombre): por si un aviso los lleva
+      const nombres = new Set();
+      try { for (const k of Object.keys(JSON.parse(localStorage.getItem('pintamapa_cityinfo') || '{}'))) nombres.add(k); } catch (e) {}
+      try { const tn = (PM.state && PM.state.data && PM.state.data.tileNames) || {}; for (const v of Object.values(tn)) { if (v && v.name) nombres.add(v.name); if (v && v.city) nombres.add(v.city); } } catch (e) {}
+      const quita = (t) => { let r = String(t || ''); for (const n of [...nombres].filter((x) => typeof x === 'string' && x.length >= 4).sort((a, b) => b.length - a.length)) r = r.split(n).join('[lugar]'); return r; };
+      const fecha = (t) => { try { return new Date(t).toISOString().slice(0, 16).replace('T', ' '); } catch (e) { return '?'; } };
+      return [cab, `${lista.length} registro(s)`, ''].concat(lista.filter(sana).slice().reverse().map((x) => `${fecha(x.t)} · v${x.v} · ${x.tipo}${x.n > 1 ? ' ×' + x.n : ''}: ${quita(x.m)}${x.d ? ' (' + quita(x.d) + ')' : ''}`)).join('\n');
     },
   };
 })();
+
+// Contorno de ciudad guardado (pintamapa_cityinfo, también en las copias de seguridad): se comprueba antes de usarlo o
+// guardarlo. Antes una copia con «polys: [null]» se guardaba tal cual y luego cualquier consulta de ciudad fallaba.
+// Devuelve la entrada saneada o null si no sirve; los imprescindibles inválidos se quitan sin tirar el contorno.
+PM.ciudadValida = function (ci) {
+  if (!ci || typeof ci !== 'object' || Array.isArray(ci)) return null;
+  const okP = (q) => Array.isArray(q) && q.length >= 2 && isFinite(q[0]) && isFinite(q[1]) && Math.abs(q[0]) <= 90 && Math.abs(q[1]) <= 180;
+  const b = ci.bbox;
+  if (!Array.isArray(b) || b.length !== 4 || !b.every((x) => isFinite(x)) || b[0] > b[2] || b[1] > b[3] || Math.abs(b[0]) > 90 || Math.abs(b[2]) > 90 || Math.abs(b[1]) > 180 || Math.abs(b[3]) > 180) return null;
+  if (!Array.isArray(ci.polys) || !ci.polys.length) return null;
+  const polys = ci.polys.filter((poly) => Array.isArray(poly) && poly.length && poly.every((ring) => Array.isArray(ring) && ring.length >= 4 && ring.every(okP)));
+  if (!polys.length) return null;
+  const out = Object.assign({}, ci, { polys });
+  if (out.must != null) out.must = Array.isArray(out.must) ? out.must.filter((m) => m && typeof m === 'object' && okP(m.pos) && typeof m.name === 'string') : null;
+  return out;
+};

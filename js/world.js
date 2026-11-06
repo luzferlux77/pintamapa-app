@@ -84,7 +84,8 @@ PM.world = (function () {
   }
   let cityInfo = {};
   try { cityInfo = JSON.parse(localStorage.getItem('pintamapa_cityinfo') || '{}'); } catch (e) {}
-  for (const k in cityInfo) if (!cityInfo[k] || cityInfo[k].v !== CITY_V) delete cityInfo[k];
+  // (de otra versión, o con un contorno roto —una copia dañada—: fuera; se vuelve a pedir)
+  for (const k in cityInfo) { const ok = cityInfo[k] && cityInfo[k].v === CITY_V && PM.ciudadValida && PM.ciudadValida(cityInfo[k]); if (ok) cityInfo[k] = ok; else delete cityInfo[k]; }
   // (comparte espacio con tu partida en el almacén del móvil: las ciudades más antiguas no se guardan si ocupan demasiado; se pueden volver a pedir)
   const CITY_MAX = 1000000;
   const saveCityInfo = () => {
@@ -168,7 +169,7 @@ PM.world = (function () {
       mustCache = null;
       saveCityInfo();
       emit('named', { city: name });
-    } catch (e) { console.warn('Imprescindibles de', name, 'pendientes', e); }
+    } catch (e) { console.warn('Imprescindibles pendientes', e); }   // (sin el nombre de la ciudad: el aviso va al informe de errores)
     // (si falló, no se reintenta en esta sesión: nada de pedírselo a Wikidata en bucle)
   }
   // La lista fija cambia solo cuando se renueva la precarga (cada ciudad lleva su versión en el índice): si no, se quedaba la
@@ -218,7 +219,9 @@ PM.world = (function () {
     (x) => -x.pos[0], (x) => -x.pos[1], (x) => +x.wp || 0, (x) => +x.her || 0, (x) => +x.prio || 0];
   function before(a, b) {
     for (const f of CLAVES) { const u = f(a), v = f(b); if (u !== v) return u > v; }
-    const t = (x) => (x.name || '') + '\u0000' + (x.kind || '') + '\u0000' + (x.emoji || '') + '\u0000' + (x.texto || '');
+    // (hasta el contenido: con qué objetos del mapa está enlazado, su ficha y su artículo; dos copias con el mismo número de
+    // enlaces pero distintos —n111 y n222— dependían del orden, y esos enlaces deciden qué otros lugares son duplicados)
+    const t = (x) => [x.name, x.kind, x.emoji, x.texto, (x.osm || []).slice().sort().join(','), x.wd, x.wiki, x.rarity, x.her, x.anio].map((v) => (v == null ? '' : String(v))).join('\u0000');
     return t(a) < t(b);
   }
   function commitLandmarks(list) {
@@ -242,6 +245,8 @@ PM.world = (function () {
       pos: [+lm.pos[0].toFixed(6), +lm.pos[1].toFixed(6)], wiki: lm.wiki || r.wiki || null, wd: lm.wd || r.wd || null } : {});
     delete s.landmarks[oldId];
     for (const k of ['cardInfo', 'cardPhotos']) if (s[k] && s[k][oldId]) { if (!s[k][newId]) s[k][newId] = s[k][oldId]; delete s[k][oldId]; }
+    // (en la nube la foto se guarda con el identificador del lugar: con el nuevo hay que volver a subirla)
+    if (s.cardPhotos && s.cardPhotos[newId]) s.cardPhotos[newId] = Object.assign({}, s.cardPhotos[newId], { up: 0 });
     if (PM.cards && PM.cards.moverFoto) PM.cards.moverFoto(oldId, newId);
     (s.lmGone || (s.lmGone = {}))[oldId] = newId;   // (para que la copia de la nube no la devuelva con el identificador viejo)
   }
@@ -1587,7 +1592,7 @@ PM.world = (function () {
         PM.state.save();
         emit('city', { city });
       }
-    } catch (e) { console.warn('No se pudo medir la ciudad', city, e); }
+    } catch (e) { console.warn('No se pudo medir la ciudad', e); }   // (sin su nombre: va al informe de errores)
     // plan B (Overpass caído, cosa frecuente): se mide con los mapas vectoriales dentro del contorno del municipio
     if (!(PM.state.data.cities[city] && PM.state.data.cities[city].total)) {
       const len = Math.round(await measureCityVT(city) * 1.09);   // (los mapas vectoriales se dejan túneles y algunas vías: ~9 % menos)
@@ -1716,7 +1721,7 @@ PM.world = (function () {
           const K = s.landmarks[keep], D = s.landmarks[drop];
           K.t = Math.min(K.t || Infinity, D.t || Infinity); K.visits = Math.max(K.visits || 1, D.visits || 1); K.last = Math.max(K.last || 0, D.last || 0);
           if (D.shiny) K.shiny = 1;
-          if (s.cardPhotos && s.cardPhotos[drop] && !s.cardPhotos[keep]) { s.cardPhotos[keep] = s.cardPhotos[drop]; if (PM.cards && PM.cards.moverFoto) PM.cards.moverFoto(drop, keep); }
+          if (s.cardPhotos && s.cardPhotos[drop] && !s.cardPhotos[keep]) { s.cardPhotos[keep] = Object.assign({}, s.cardPhotos[drop], { up: 0 }); if (PM.cards && PM.cards.moverFoto) PM.cards.moverFoto(drop, keep); }   // (up: 0 → se sube con su identificador nuevo)
           for (const k of ['cardInfo', 'cardPhotos']) if (s[k]) delete s[k][drop];
           delete s.landmarks[drop];
           (s.lmGone || (s.lmGone = {}))[drop] = keep; n++;
