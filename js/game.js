@@ -6,7 +6,16 @@ PM.profile = PM.isNative ? 'real' : 'prueba';   // en el móvil solo existe la p
 
 // Pintor (jugador) de este dispositivo: se pide el nombre al empezar. Cada nombre tiene su propia partida,
 // así queda preparada la separación de perfiles (varias personas en el mismo móvil o PC).
-PM.slug = (n) => String(n || '').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9_-]/g, '').slice(0, 30);
+// identificador del pintor (claves de su partida y de su nube). Con letras latinas, el de siempre (no puede cambiar: es
+// donde est\u00e1 tu partida). Un nombre en otro alfabeto (\u0418\u0432\u0430\u043d, \u0645\u062d\u0645\u062f, \u674e\u660e) se quedaba vac\u00edo y no dejaba entrar: entonces se
+// hace con los c\u00f3digos de sus letras (\u00abu\u00bb + base 36), siempre igual para el mismo nombre
+PM.slug = (n) => {
+  const s = String(n || '').trim().toLowerCase();
+  const lat = s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9_-]/g, '').slice(0, 30);
+  if (lat.length >= 2) return lat;
+  const otras = [...s.normalize('NFC')].filter((c) => /[\p{L}\p{N}]/u.test(c));
+  return otras.length >= 2 ? ('u' + otras.map((c) => c.codePointAt(0).toString(36)).join('')).slice(0, 30) : lat;
+};
 PM.player = (function () {
   try { const p = JSON.parse(localStorage.getItem('pintamapa_player') || 'null'); return p && p.slug ? Object.assign(p, { name: PM.limpio(p.name || p.slug) }) : null; } catch (e) { return null; }
 })();

@@ -259,17 +259,30 @@ PM.fillLandmarkCities = function (s) {
 
 // País de cada ciudad (para agrupar las cartas): se pregunta una vez por ciudad y se guarda en la partida (s.countries)
 PM.flag = (cc) => (cc && cc.length === 2 ? String.fromCodePoint(...cc.toUpperCase().split('').map((c) => 127397 + c.charCodeAt(0))) : '🏳️');
+// Nominatim (nombres de sitios de OpenStreetMap) admite UNA petición por segundo y, si se pasa, bloquea un rato. Antes cada
+// parte de la app llevaba su propio ritmo (nombres de zonas, países, fichas de las cartas: estas, sin pausa) y juntas se
+// pasaban; al abrir los cromos con muchas fichas caducadas salían cientos seguidas. Ahora todo va por esta cola.
+let nomiCola = Promise.resolve(), nomiT = 0;
+PM.nominatim = function (url, ms = 15000) {
+  const turno = nomiCola.then(async () => {
+    const espera = 1100 - (Date.now() - nomiT);
+    if (espera > 0) await new Promise((res) => setTimeout(res, espera));
+    nomiT = Date.now();
+    return fetch(url, AbortSignal.timeout ? { signal: AbortSignal.timeout(ms) } : {});
+  });
+  nomiCola = turno.catch(() => {});   // (un fallo no para la cola)
+  return turno;
+};
 PM.ensureCountries = async function (s, cityPos) {
   s.countries = s.countries || {};
   let changed = false;
   for (const [city, pos] of Object.entries(cityPos)) {
     if (s.countries[city] || !pos || city === 'Otros lugares') continue;
     try {
-      const r = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=3&accept-language=es&lat=${pos[0]}&lon=${pos[1]}`);
+      const r = await PM.nominatim(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=3&accept-language=es&lat=${pos[0]}&lon=${pos[1]}`);   // (por la cola: 1 por segundo)
       const a = (await r.json()).address || {};
       if (a.country) { s.countries[city] = { name: a.country, cc: a.country_code || '' }; changed = true; }
     } catch (e) { /* sin conexión: se agrupa como "Otros países" */ }
-    await new Promise((res) => setTimeout(res, 1100));   // Nominatim: 1 petición por segundo
   }
   return changed;
 };

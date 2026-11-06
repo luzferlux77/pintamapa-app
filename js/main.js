@@ -264,7 +264,7 @@
 
 
   // ---------- Barrios reales: contorno del barrio donde estás y de los conquistados, con bandera ----------
-  let curBarrio = null;
+  let curBarrio = null, ensureBT = 0;
   let flagTimer = null;
   function refreshFlag() { clearTimeout(flagTimer); flagTimer = setTimeout(renderBarrios, 120); }
   // (las «zonas a evitar» se retiraron: las que hubiera guardadas siguen en la partida, pero ya no se aplican)
@@ -989,6 +989,12 @@
     $('#radar').classList.toggle('show', parts.length > 0);
   }
   setInterval(updateRadar, 1000);
+  // parado, el GPS deja de dar lecturas (una cada 8 m): sin esto el indicador se quedaba con la última velocidad (5 km/h
+  // quieto, o «¡muy rápido!» al bajar del autobús). Sin lecturas en 15 s, velocidad 0
+  setInterval(() => {
+    if (mode !== 'gps' || document.hidden || !lastFixT || Date.now() - lastFixT < 15000 || (speed === 0 && !tooFast)) return;
+    speed = 0; tooFast = false; updateSpeedBadge();
+  }, 3000);
   setInterval(() => { if (session && !session.paused) checkNearMust(pos); }, 5000);
 
   // Captura por permanencia: CAPTURE_SECONDS seguidos a menos de CAPTURE_RADIUS del monumento.
@@ -1905,13 +1911,17 @@
     const bq = t && (t.loaded || t.partial) ? hudB.b : null;
     const B = bq && W.barrios[bq.id];
     if (t && (t.loaded || t.partial)) {
-      if (bq && bq.id !== curBarrio) { curBarrio = bq.id; W.ensureBarrio(bq.id); renderBarrios(); }
+      if (bq && bq.id !== curBarrio) { curBarrio = bq.id; ensureBT = 0; renderBarrios(); }
       const done = B && W.barrioComplete(bq.id);
+      // sus zonas se piden al entrar y, mientras falte alguna, cada 15 s: si al entrar aún no había llegado el contorno del
+      // barrio, la petición no hacía nada y el % se quedaba en «calculando…» hasta cambiar de barrio
+      if (bq && !done && Date.now() - ensureBT > 15000) { ensureBT = Date.now(); W.ensureBarrio(bq.id); }
+      const grande = B && !done && W.barrioGrande && W.barrioGrande(bq.id);
       const { pr, cp } = hudPct(bq && bq.id, B, t.city);
       if (bq && B && S().conqueredB[bq.id]) checkRank(bq.id, pr, B);
       if (bq && B && done) checkBarrioNear(bq.id, pr, B);
       setT('#barrio-name', (bq && S().conqueredB[bq.id] ? RANKS[rankOf(bq.id)].ic + ' ' : '') + ((B && B.name) || (bq && bq.name) || t.name || 'Barrio sin explorar'));
-      setT('#barrio-pct', !B ? '' : !done ? 'calculando…' : B.total ? PM.dec(pr * 100, 1) + ' %' : 'sin calles');
+      setT('#barrio-pct', !B ? '' : grande ? 'barrio enorme' : !done ? 'calculando…' : B.total ? PM.dec(pr * 100, 1) + ' %' : 'sin calles');
       setW('#barrio-bar i', (pr * 100).toFixed(1) + '%');
       if (t.city) {
         if (begun) albumPisado(t);
@@ -2236,7 +2246,7 @@
       if (vibrar) await nearChannelReady(L);
       L.schedule({ notifications: [{ id: Math.floor(Date.now() % 2e9), title, body, ...NO_EXACTA, ...(vibrar ? { channelId: 'cerca' } : {}), schedule: { at: new Date(Date.now() + 500) } }] }).catch(() => {});
     })();
-    else toast(`<b>${title}</b> ${body}`, kind, 5000);
+    else toast(`<b>${PM.esc(title)}</b> ${PM.esc(body)}`, kind, 5000);   // (llevan nombres de lugares y barrios: como texto)
   }
   const once = (key) => { const s = S(), d = PM.today(); s.notified = s.notified || {}; if (s.notified[key] === d) return false; s.notified[key] = d; PM.state.save(); return true; };
   // racha: si llevas días seguidos y hoy aún no has salido, aviso a las 20:30

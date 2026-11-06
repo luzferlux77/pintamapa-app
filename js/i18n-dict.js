@@ -74,6 +74,7 @@
     'Cargando las calles de {n} zonas…': ['Carregant els carrers de {n} zones…', 'Loading streets of {n} areas…', 'Chargement des rues de {n} zones…'],
     '🏙️ Localizando ciudad…': ['🏙️ Localitzant la ciutat…', '🏙️ Finding city…', '🏙️ Localisation de la ville…'],
     '(midiendo ciudad…)': ['(mesurant la ciutat…)', '(measuring city…)', '(mesure de la ville…)'],
+    'barrio enorme': ['barri enorme', 'huge district', 'quartier immense'],
     'calculando…': ['calculant…', 'calculating…', 'calcul…'],
     'Barrio sin explorar': ['Barri per explorar', 'Unexplored neighbourhood', 'Quartier inexploré'],
     'Zona sin nombre': ['Zona sense nom', 'Unnamed area', 'Zone sans nom'],

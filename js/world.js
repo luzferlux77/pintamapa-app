@@ -126,7 +126,7 @@ PM.world = (function () {
   async function fetchCityShape(lat, lon) {
     if (shapeCity([lat, lon])) return;
     try {
-      const r = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=10&accept-language=es&extratags=1&polygon_geojson=1&polygon_threshold=0.0003&lat=${lat}&lon=${lon}`, plazo(20000));
+      const r = await PM.nominatim(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=10&accept-language=es&extratags=1&polygon_geojson=1&polygon_threshold=0.0003&lat=${lat}&lon=${lon}`, 20000);   // (por la cola común: 1 por segundo)
       const j = await r.json(), a = j.address || {}, g = j.geojson;
       const name = PM.limpio(a.city || a.town || a.village || a.municipality);
       if (!name || !g || !/Polygon$/.test(g.type) || (j.name && j.name !== name)) return;   // sin contorno de municipio: se sigue por celdas
@@ -925,6 +925,12 @@ PM.world = (function () {
     emit('barrios', {});
   }
   // ¿Están cargadas todas las calles del barrio? (para dar por bueno su %)
+  function barrioGrande(id) {
+    const B = barrios[id];
+    if (!B) return false;
+    const [i0, j0] = tileIJ(tileKeyOf(B.bbox[0], B.bbox[1])), [i1, j1] = tileIJ(tileKeyOf(B.bbox[2], B.bbox[3]));
+    return (i1 - i0 + 1) * (j1 - j0 + 1) > 30;
+  }
   function barrioComplete(id) {
     const B = barrios[id];
     if (!B) return false;
@@ -1525,7 +1531,7 @@ PM.world = (function () {
       const t = tiles[key];
       try {
         const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=14&accept-language=es&lat=${(s + n) / 2}&lon=${(w + e) / 2}`;
-        const r = await fetch(url, plazo(15000));
+        const r = await PM.nominatim(url);   // (por la cola común: 1 por segundo)
         const j = await r.json();
         const a = j.address || {};
         for (const k of Object.keys(a)) a[k] = PM.limpio(a[k]);
@@ -1742,15 +1748,19 @@ PM.world = (function () {
       }
       return n;
     },
-    // carga las celdas que faltan para tener entero el barrio (hasta 12)
+    // carga las celdas que faltan para tener entero el barrio: de 12 en 12, las más cercanas a su centro primero (se vuelve
+    // a llamar hasta completarlo). Antes, con más de 12 no cargaba ninguna y el % se quedaba en «calculando…» para siempre
     ensureBarrio(id) {
       const B = barrios[id];
-      if (!B || barrioComplete(id)) return;
+      if (!B || barrioComplete(id) || barrioGrande(id)) return;
       const [i0, j0] = tileIJ(tileKeyOf(B.bbox[0], B.bbox[1])), [i1, j1] = tileIJ(tileKeyOf(B.bbox[2], B.bbox[3]));
-      const need = [];
-      for (let i = i0; i <= i1; i++) for (let j = j0; j <= j1; j++) if (!ensureTile(i + '_' + j).loaded) need.push(i + '_' + j);
-      if (need.length && need.length <= 12) loadTiles(need).catch(() => {});
+      const ci = (i0 + i1) / 2, cj = (j0 + j1) / 2, need = [];
+      for (let i = i0; i <= i1; i++) for (let j = j0; j <= j1; j++) { const k = i + '_' + j, t = ensureTile(k); if (!t.loaded && !loading.has(k)) need.push(k); }
+      need.sort((a, b) => { const [ai, aj] = tileIJ(a), [bi, bj] = tileIJ(b); return Math.hypot(ai - ci, aj - cj) - Math.hypot(bi - ci, bj - cj) || (a < b ? -1 : 1); });
+      if (need.length) loadTiles(need.slice(0, 12)).catch(() => {});
     },
+    // barrio enorme (un distrito entero): no se carga entero ni se puede conquistar
+    barrioGrande,
     albumDe, purgarCache, completado: () => completeChain,   // (cuando acabe la cola: Wikidata de las zonas pedidas ya ha llegado)
     formaDe: fetchCityShape, conForma: (city) => !!(cityInfo[city] && cityInfo[city].polys),   // («Mi progreso»: el contorno de una ciudad sin pasear por ella)
     _graph: () => gnodes, _pool: () => pool, _classify: classify, _usoNoTuristico: L.usoNoTuristico, _revisar: (r) => { const f = L.revisarRegistro(r); if (f) Object.assign(r, f); return f; }, _conf: L.CONF, porque, _why: () => lastWhy, precargaCerca, _precarga: () => preData, _zonaPreparada: zonaPreparada, _reselect: () => selectLandmarks(), _ingest: (els, keys) => { keys.forEach((k) => ensureTile(k)); ingest(els, new Set(keys)); }, _ingestTurnos: (els, keys) => { keys.forEach((k) => ensureTile(k)); return ingestPorTurnos(els, new Set(keys)); }, _measureCity: (c) => measureCityVT(c),   // (pruebas)

@@ -81,7 +81,9 @@ PM.cards = (function () {
   async function contexto(lm) {
     const out = {};
     try {
-      const j = await getJSON(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=18&accept-language=${LANG()}&lat=${lm.pos[0]}&lon=${lm.pos[1]}`);
+      const rn = await PM.nominatim(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=18&accept-language=${LANG()}&lat=${lm.pos[0]}&lon=${lm.pos[1]}`, 9000);   // (por la cola: 1 por segundo)
+      if (!rn.ok) throw new Error('HTTP ' + rn.status);
+      const j = await rn.json();
       const a = (j && j.address) || {};
       if (a.road) out.addr = a.road + (a.house_number ? ', ' + a.house_number : '');
       const barrio = a.neighbourhood || a.quarter || a.suburb, city = a.city || a.town || a.village;
