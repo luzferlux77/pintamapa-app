@@ -1,8 +1,8 @@
 {
-  "version": "0.7.8",
-  "notes": "Repaso general: el % del barrio ya no se queda en «calculando…», Nominatim con una sola cola, velocidad a 0 al pararte, nombres en otros alfabetos",
+  "version": "0.7.9",
+  "notes": "Informe del GPS al acabar cada paseo, pintar a mano una calle junto a tu recorrido (pulsación larga) e informe de errores en Ajustes",
   "native": 7,
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.7.8/pintamapa-web-0.7.8.zip",
-  "checksum": "ba3ae1dd0fc6eb59436d01452eea14684dbd5651914b348a12a4419aeeb69738",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.7.8/PintaMapa-v0.7.8.apk"
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.7.9/pintamapa-web-0.7.9.zip",
+  "checksum": "7043910243a0e6bca97fb6e441d424b24db5738a93561391216f3506b5ac8570",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.7.9/PintaMapa-v0.7.9.apk"
 }
