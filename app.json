@@ -1,8 +1,8 @@
 {
-  "version": "0.8.1",
-  "notes": "Auditoría v0.8.0: el GPS no pausa ni mezcla paseos por respuestas viejas o imprecisas, lecturas desordenadas ignoradas, copias coherentes, fotos de la nube por turnos y sin pisar versiones, catálogo determinista",
+  "version": "0.8.2",
+  "notes": "Ciudades con el mismo nombre (Córdoba, San Fernando…): cada una con su identificador de Wikidata, sin mezclar contornos, porcentajes, cartas ni álbumes; las partidas antiguas se separan solas",
   "native": 8,
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.8.1/pintamapa-web-0.8.1.zip",
-  "checksum": "7e138574331b6524567e85f8b072a36c7221a4215a7f14b334f2eebabbbb3676",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.8.1/PintaMapa-v0.8.1.apk"
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.8.2/pintamapa-web-0.8.2.zip",
+  "checksum": "3bfa3202e2bbf0ad6202b5b46ae41e51bdf079da3c14001f29a0a7f80735f074",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.8.2/PintaMapa-v0.8.2.apk"
 }
