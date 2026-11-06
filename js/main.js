@@ -6,7 +6,8 @@
 
   const PAINT_RADIUS = 12;      // m: margen para el error del GPS (calle por la que vas). Ajustado con pruebas de GPS realista (tests/pruebas-navegador.js)
   const TRAIL_RADIUS = 20;      // m: en senderos (GPS peor entre árboles)
-  const PAINT_CORE = 5;         // m: parado o sin dirección conocida, se pinta solo lo que pisas
+  const ACERA_RADIUS = 18;      // m: por la acera de una calle con aceras anchas, si es la calle más cercana y vas en paralelo
+  const PAINT_CORE = 5;        // m: parado o sin dirección conocida, se pinta solo lo que pisas
   const WIDE_RADIUS = 40;       // m: en avenidas anchas basta una acera para pintar ambas calzadas
   const CAPTURE_RADIUS = 30;    // m: hay que estar así de cerca de un monumento…
   const CAPTURE_SECONDS = 10;   // …durante este tiempo para capturarlo (no vale pasar de largo)
@@ -896,11 +897,18 @@
     const aura = nearCache.v.d <= AURA_RADIUS;
     const hl = heading ? Math.hypot(heading[0], heading[1]) : 0;
     // 1) candidatas: cerca y en tu dirección
-    const cand = [];
-    for (const piece of W.piecesNear(p, WIDE_RADIUS)) {
-      const dist = PM.geo.distToPolyline(p, piece.pts);
+    const cand = [], cerca = W.piecesNear(p, WIDE_RADIUS).map((pc) => [pc, PM.geo.distToPolyline(p, pc.pts)]);
+    // la calle o camino más cercano de todos (cualquier dirección, senderos incluidos: si vas por un camino del mapa que
+    // va junto a la calle, vas por el camino y no por la acera)
+    let masCerca = Infinity; for (const [, d] of cerca) if (d < masCerca) masCerca = d;
+    for (const [piece, dist] of cerca) {
+      const lim = piece.wide ? WIDE_RADIUS : piece.trail ? TRAIL_RADIUS : (PM.debug.radio || PAINT_RADIUS);
+      // Acera: en una calle con aceras anchas (o aparcamiento, o un bulevar) andas a 12-18 m de la línea de la calle, que el
+      // mapa dibuja por el centro. Si es la calle más cercana de todas y vas en paralelo, es la tuya: se pinta. Antes esos
+      // tramos se quedaban sin pintar si la calle no estaba marcada como ancha.
+      const acera = !PM.debug.sinAcera && !piece.wide && !piece.trail && hl && dist > lim && dist <= ACERA_RADIUS && dist <= masCerca + 0.01;
       // senderos: el GPS va peor entre árboles y los caminos serpentean → más margen de distancia y de ángulo
-      if (dist > (piece.wide ? WIDE_RADIUS : piece.trail ? TRAIL_RADIUS : (PM.debug.radio || PAINT_RADIUS))) continue;
+      if (dist > lim && !acera) continue;
       // Sin dirección conocida (parado, primera lectura): solo lo que pisas. Con dirección: solo tramos
       // que van en tu misma dirección (al pasar por un cruce no se pinta el arranque de la calle lateral).
       let ok = !hl && dist <= PAINT_CORE;
@@ -909,7 +917,7 @@
         const v = [b[0] - a[0], (b[1] - a[1]) * Math.cos(a[0] * Math.PI / 180)];
         const vl = Math.hypot(v[0], v[1]);
         // lejos (otra calzada de una avenida) se exige ir casi paralelo: < ~30°; cerca basta < ~53°
-        ok = vl > 0 && Math.abs((v[0] * heading[0] + v[1] * heading[1]) / (vl * hl)) >= (piece.trail ? 0.4 : dist > PAINT_RADIUS ? 0.85 : 0.6);
+        ok = vl > 0 && Math.abs((v[0] * heading[0] + v[1] * heading[1]) / (vl * hl)) >= (piece.trail ? 0.4 : acera ? 0.9 : dist > PAINT_RADIUS ? 0.85 : 0.6);
       }
       // cruces: el arranque de la calle lateral justo en la esquina se pinta un poquito (si lo pisas)
       if (!ok && hl && piece.len < 8 && dist <= 5) ok = true;
