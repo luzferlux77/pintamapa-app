@@ -1,8 +1,8 @@
 {
-  "version": "0.8.2",
-  "notes": "Ciudades con el mismo nombre (Córdoba, San Fernando…): cada una con su identificador de Wikidata, sin mezclar contornos, porcentajes, cartas ni álbumes; las partidas antiguas se separan solas",
+  "version": "0.8.3",
+  "notes": "El paseo ya no se pausa solo: solo con el botón de pausa. Al reabrir la app tras un rato, el paseo sigue pintando",
   "native": 8,
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.8.2/pintamapa-web-0.8.2.zip",
-  "checksum": "3bfa3202e2bbf0ad6202b5b46ae41e51bdf079da3c14001f29a0a7f80735f074",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.8.2/PintaMapa-v0.8.2.apk"
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.8.3/pintamapa-web-0.8.3.zip",
+  "checksum": "fe64c192ecbcf88fa523de6a77a53d3a07a99c00d0308a1ff3bbf9f1ba3fe630",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.8.3/PintaMapa-v0.8.3.apk"
 }
