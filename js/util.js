@@ -310,9 +310,6 @@ PM.movingMs = function (w) {
   return r;
 };
 
-// ¿Quince minutos sin moverte? lecturas {p, t, blanda}: todas las de ese rato cerca de su centro (70 m; 150 m las imprecisas).
-// Sin ninguna lectura en ese rato, también (quieto, el GPS no avisa). Antes era un círculo de 50 m alrededor de la primera
-// lectura: en interior el GPS baila 30-40 m, una sola desviada reiniciaba la cuenta y el paseo seguía encendido una hora y media.
 // Los tramos de un recorrido GPX/TCX: cada <trkseg> (o <Track> de un TCX) por separado, con sus puntos {lat, lon, t, e}.
 // Dos tramos seguidos se juntan si el corte es solo de grabación (≤ 30 s y < 50 m: las vueltas automáticas de un reloj);
 // si no (el GPS se cortó, una pausa larga), quedan separados y entre ellos no se pinta nada
@@ -335,13 +332,6 @@ PM.tramosGPX = function (xml) {
     else out.push(s);
   }
   return out;
-};
-PM.estaQuieto = function (lecturas, ahora, min = 15) {
-  const L = (lecturas || []).filter((q) => ahora - q.t <= min * 60000);
-  if (!L.length) return true;
-  const base = L.some((q) => !q.blanda) ? L.filter((q) => !q.blanda) : L;
-  const c = [base.reduce((s, q) => s + q.p[0], 0) / base.length, base.reduce((s, q) => s + q.p[1], 0) / base.length];
-  return L.every((q) => PM.geo.dist(c, q.p) <= (q.blanda ? 150 : 70));
 };
 
 // Conquista y rangos: barrio 60 % bronce · 80 % plata · 90 % oro (· leyenda: 100 % y todos sus lugares)

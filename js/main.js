@@ -1478,12 +1478,9 @@
     if (acc > 35) {   // con mucho error podríamos pintar la calle de al lado: no pinta, pero sirve de guía para rellenar el hueco
       if (acc <= 120 && session && !session.paused) softFixes.push({ p: [c.latitude, c.longitude], t: t || c.time || Date.now() });
       if (softFixes.length > 60) softFixes.shift();
-      // (tampoco pinta, pero dice que te mueves: 15 min de GPS flojo andando no son un paseo olvidado)
-      if (acc <= 120) stillCheck([c.latitude, c.longitude], true);
       return;
     }
     pos = [c.latitude, c.longitude];
-    stillCheck(pos);
     const f = { p: pos.slice(), t: t || c.time || Date.now(), acc, spd: c.speed, brg: c.bearing != null ? c.bearing : c.heading };
     if (!(session && !session.paused) || PM.debug.sinFiltro) { onMove(f.p, false, f.t, f.spd, f.brg); return; }
     // Pintando: cada lectura se confirma con la siguiente. Un rebote del GPS entre edificios (una lectura suelta
@@ -1522,10 +1519,9 @@
   // Al guardar el móvil vuelve la precisión normal: con la pantalla apagada ya no se toca el GPS, y si estaba en ahorro
   // (parado con la app abierta), todo el paseo en el bolsillo iría con lecturas cada 25 m
   document.addEventListener('visibilitychange', () => { if (document.hidden && gpsSaver && gpsWatch && gpsWatch.bg) { gpsSaver = false; gpsSaverT = Date.now(); startGPS(); } });
-  // Paseo olvidado: 15 min sin moverte (PM.estaQuieto) → se pausa solo y se apaga el GPS (si no, el GPS seguía a tope
-  // toda la tarde en casa). Se reanuda con ▶ cuando vuelvas a salir.
-  let quietas = [];   // lecturas de los últimos minutos {p, t, blanda}
-  function stillCheck(p, blanda) { const t = Date.now(); quietas.push({ p: p.slice(), t, blanda: !!blanda }); while (quietas.length && t - quietas[0].t > 16 * 60000) quietas.shift(); }
+  // El paseo NUNCA se pausa solo (orden del usuario, 8-nov-2026): solo con ⏸ o al finalizar. La pausa automática por «15 min
+  // sin moverte» se equivocaba (GPS flojo o dormido en el bolsillo, un rato parado en un semáforo largo o un bar) y, como
+  // apagaba el GPS, el resto del recorrido ya no se pintaba. Parado no se pinta ni se suma nada de todos modos (deriva).
   // ¿Quieto, o el GPS dormido? Sin lecturas no se sabe: el GPS no manda nada si no te mueves (filtro de 8-25 m), pero en el
   // bolsillo Android también puede dejar de darlas aunque andes. Antes, 15 min sin lecturas = «quieto»: se pausaba el paseo
   // y se APAGABA el GPS, y el resto del paseo ya no se pintaba. Ahora se pide una posición nueva: si te has movido (o el GPS
@@ -1560,9 +1556,7 @@
         onFix({ latitude: q.p[0], longitude: q.p[1], accuracy: acc }, Date.now());   // (el tramo sin lecturas se rellena por las calles)
         return 'movido';
       }
-      if (acc <= 50) { stillCheck(q.p); return 'quieto'; }   // precisa y en el mismo sitio: quieto de verdad
-      stillCheck(q.p, true);   // imprecisa: ni movido ni quieto (cuenta como lectura blanda)
-      return 'incierto';
+      return acc <= 50 ? 'quieto' : 'incierto';   // (en el mismo sitio: el GPS sigue vivo y no hay nada que rellenar)
     } finally { vigilando = false; }
   }
   // vigilante: 2 min sin ninguna lectura con el paseo en marcha → se mira si el GPS sigue vivo (andando llega una cada pocos
@@ -1575,18 +1569,6 @@
     if (!ultimo || Date.now() - ultimo < 2 * 60000 || Date.now() - vigilaT < 2 * 60000) return;
     gpsDespierto();
   }, 30000);
-  setInterval(async () => {
-    const ses = session;
-    if (!ses || ses.paused || mode !== 'gps' || vigilando) return;
-    const lleva15 = () => Date.now() - (ses.resumedAt || ses.start || 0) >= 15 * 60000;   // (recién empezado o reanudado: aún no)
-    if (!lleva15() || !PM.estaQuieto(quietas, Date.now())) return;
-    // sin NINGUNA lectura en 15 min no se sabe si estás quieto: se pregunta antes, y solo «quieto» de verdad deja pausar
-    if (!quietas.some((q) => Date.now() - q.t <= 15 * 60000) && (await gpsDespierto()) !== 'quieto') return;
-    // (mientras se esperaba pudo empezar otro paseo, pausarse o reanudarse: todo se vuelve a mirar para ESTE paseo)
-    if (session !== ses || ses.paused || mode !== 'gps' || !lleva15() || !PM.estaQuieto(quietas, Date.now())) return;
-    pauseSession();
-    notify('⏸ Paseo en pausa', 'Llevas 15 minutos sin moverte: he pausado el paseo y apagado el GPS para ahorrar batería. Pulsa ▶ para seguir.', 'info');
-  }, 60000);
   // Cada alta del GPS lleva un número: si mientras Android la prepara se finaliza o pausa el paseo (o se pide otra),
   // al llegar ya no vale y su vigilante se quita en el acto (antes quedaba un GPS encendido sin paseo).
   let gpsGen = 0, gpsPending = false;
@@ -1691,12 +1673,18 @@
 
   // ---------------- Sesiones de paseo: empezar / pausar / reanudar / finalizar ----------------
   let session = S().session || null;   // sobrevive a cerrar la app
-  let autoResumed = false;
+  // Android cerró la app con el paseo en marcha (en el bolsillo, o sin batería): el paseo SIGUE al volver, nunca queda en
+  // pausa (antes, si habían pasado más de 20 min, se pausaba y lo que anduvieras después no se pintaba hasta pulsar ▶).
+  // Si fue hace poco, el hueco desde tu última posición se rellena por las calles; si fue hace más de 20 min no se adivina
+  // por dónde fuiste: empieza un tramo nuevo y ese rato sin la app no cuenta como tiempo de paseo
+  let autoResumed = false, vueltaLarga = false;
   if (session && !session.paused) {
-    if (Date.now() - (session.lastSeen || 0) < 20 * 60000) autoResumed = true;   // Android la cerró hace poco: el paseo sigue solo
-    else {                                                                          // hace mucho: queda en pausa
+    autoResumed = true;
+    if (Date.now() - (session.lastSeen || 0) >= 20 * 60000) {
+      vueltaLarga = true;
       session.elapsed += Math.max(0, (session.lastSeen || session.resumedAt) - session.resumedAt);
-      session.paused = true;
+      session.resumedAt = Date.now();
+      if (session.track && session.track.length) session.track.push(null);   // corte del recorrido
     }
   }
   const newSessionStats = () => ({ walked: 0, painted: 0, pts: 0, pieces: 0, captures: 0, bestCombo: 0, conquests: 0 });
@@ -1749,7 +1737,6 @@
   }
   function resumeSession() {
     if (!session || !session.paused) return;
-    quietas = [];
     session.paused = false; session.resumedAt = Date.now();
     if (session.track && session.track.length) session.track.push(null);   // corte del recorrido (pausa)
     lastP = null; walkAnchor = null; paintPrev = null; recentP = []; cortarUnion();   // no se pinta el "salto" desde donde pausaste
@@ -3204,7 +3191,8 @@
     teleport(pos);
     // la app se cerró a mitad de paseo (Android, en el bolsillo): el hueco desde tu última posición se rellena
     // por las calles con la primera lectura buena (como si el GPS hubiera tardado en contestar)
-    if (autoResumed && session && !session.paused && session.lastSeen && S().lastPos) lastT = session.lastSeen;
+    if (autoResumed && !vueltaLarga && session && !session.paused && session.lastSeen && S().lastPos) lastT = session.lastSeen;
+    else if (vueltaLarga) { lastP = null; cortarUnion(); }   // (hace mucho: tramo nuevo, sin rellenar)
     setMode(mode);
     setOrient(orient);
     renderSession();
