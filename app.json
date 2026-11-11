@@ -1,8 +1,8 @@
 {
-  "version": "0.8.3",
-  "notes": "El paseo ya no se pausa solo: solo con el botón de pausa. Al reabrir la app tras un rato, el paseo sigue pintando",
+  "version": "0.8.4",
+  "notes": "Repaso al terminar el paseo: se revisan todas tus posiciones GPS y se pinta lo que se quedó sin pintar. Con el móvil en el bolsillo, el GPS se comprueba al sacarlo. Corregido: el informe del GPS de cada paseo se borraba",
   "native": 8,
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.8.3/pintamapa-web-0.8.3.zip",
-  "checksum": "fe64c192ecbcf88fa523de6a77a53d3a07a99c00d0308a1ff3bbf9f1ba3fe630",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.8.3/PintaMapa-v0.8.3.apk"
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.8.4/pintamapa-web-0.8.4.zip",
+  "checksum": "81cef348cd00282efb1e813d8f3e4eaf59c226f95da9d9ebec36cbcf9626dcb2",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.8.4/PintaMapa-v0.8.4.apk"
 }
