@@ -1,8 +1,8 @@
 {
-  "version": "0.8.4",
-  "notes": "Repaso al terminar el paseo: se revisan todas tus posiciones GPS y se pinta lo que se quedó sin pintar. Con el móvil en el bolsillo, el GPS se comprueba al sacarlo. Corregido: el informe del GPS de cada paseo se borraba",
+  "version": "0.8.5",
+  "notes": "Corregido: una ciudad podía salir repetida con la provincia entre paréntesis (se juntan solas); la foto nueva de una carta podía no subirse a la nube; textos sin traducir",
   "native": 8,
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.8.4/pintamapa-web-0.8.4.zip",
-  "checksum": "81cef348cd00282efb1e813d8f3e4eaf59c226f95da9d9ebec36cbcf9626dcb2",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.8.4/PintaMapa-v0.8.4.apk"
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.8.5/pintamapa-web-0.8.5.zip",
+  "checksum": "1c7ab48fc0fc7bcc1d4949ae90ac87dd3df25bd68e562853efff4dd7576c557c",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.8.5/PintaMapa-v0.8.5.apk"
 }
