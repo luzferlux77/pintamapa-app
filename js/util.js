@@ -122,7 +122,13 @@ PM.limpiarPartida = function (d) {
   if (Array.isArray(d.walks)) {
     d.walks = d.walks.filter((w) => w && typeof w === 'object' && !Array.isArray(w));
     for (const w of d.walks) {
-      const st = obj(w.st) || (w.st = {}); for (const k of Object.keys(st)) if (typeof st[k] !== 'number') st[k] = +st[k] || 0;
+      // (st.gps es el informe de calidad del GPS del paseo —un grupo de cifras—: antes se quedaba en 0 al volver a abrir la
+      // app, y de los paseos guardados ya no se sabía cuántos cortes había tenido el GPS)
+      const st = obj(w.st) || (w.st = {});
+      for (const k of Object.keys(st)) {
+        if (k === 'gps' && obj(st.gps)) { for (const g of Object.keys(st.gps)) if (typeof st.gps[g] !== 'number' || !isFinite(st.gps[g])) st.gps[g] = +st.gps[g] || 0; continue; }
+        if (typeof st[k] !== 'number') st[k] = +st[k] || 0;
+      }
       if (!(isFinite(w.elapsed) && w.elapsed >= 0)) w.elapsed = 0;
       if (w.start != null && !isFinite(w.start)) w.start = isFinite(+w.id) ? +w.id : 0;
       // (un punto que no es una posición —{}, [999, 999]— rompía el dibujo y la repetición del paseo; null es un corte: se queda)

@@ -145,6 +145,15 @@ PM.world = (function () {
     if (q) for (const k in reg) if (reg[k] && reg[k].q === q) return k;
     // (una que ya se distinguió por su región antes de saber su Q)
     if (rs.length) for (const k in reg) if (reg[k] && !reg[k].q && reg[k].n === name && rs.includes(reg[k].r)) { reg[k].q = q || null; return k; }
+    // (o apuntada sin Q ni región —su contorno no traía el Q, o se quitó para hacer sitio— y lo guardado con ella está aquí:
+    // es esta misma. Antes se le abría una segunda clave «nombre (región)» a la misma ciudad)
+    for (const k in reg) {
+      const r = reg[k];
+      if (!r || r.q || r.r || r.n !== name || !bb) continue;
+      if ((cityInfo[k] && L.otraCiudad(cityInfo[k], q, bb)) || datosFuera(k, bb)) continue;
+      r.q = q || null; r.r = rs[0] || '';
+      return k;
+    }
     const libre = (k) => {
       if (reg[k]) return false;
       const ci = cityInfo[k];
