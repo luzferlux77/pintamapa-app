@@ -183,13 +183,17 @@ PM.cloud = (function () {
       const photos = PM.state.data.cardPhotos || {};
       for (const [id, v] of Object.entries(photos)) {
         if (v.up && v.up >= (v.t || 0)) continue;
+        // (la versión que se sube es la de ahora: si mientras se sube cambias la foto, la nueva queda pendiente. Antes se
+        // apuntaba «subida» con la hora del final y la foto nueva no llegaba nunca a la nube)
+        const tSube = v.t || 0;
         const img = PM.cards && await PM.cards.getPhoto(id);
         if (!img) continue;
         const small = await shrink(img, 800);
         const path = base + 'fotos/' + (await photoName(id, pass)) + '.json';
         const cur = await readRaw(path, token).catch(() => null);
         await write(path, await encrypt(key, { id, img: small }), cur && cur.sha, 'foto', token);
-        v.up = Date.now(); fr[id] = v.t || 0; saveCfg(); PM.state.save();
+        const ahora = (PM.state.data.cardPhotos || {})[id] || v;
+        ahora.up = Math.max(tSube, 1); fr[id] = tSube; saveCfg(); PM.state.save();
       }
       // y al revés: tus fotos que están en la nube pero no en este móvil (móvil nuevo, partida recuperada de la nube). Solo
       // si la de la nube es la versión apuntada (up ≥ t); unas pocas en cada copia, y una que no se pueda bajar se reintenta en la siguiente

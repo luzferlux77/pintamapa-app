@@ -142,7 +142,7 @@ PM.world = (function () {
   // La clave de una ciudad: la que ya tenga su Q; si no, su nombre si está libre; si no, «nombre (región)»
   function claveCiudad(name, q, region, bb) {
     const reg = regCiudad(), rs = regiones(region);
-    if (q) for (const k in reg) if (reg[k] && reg[k].q === q) return k;
+    if (q) for (const k in reg) if (reg[k] && reg[k].q === q) { if (!reg[k].r && rs[0]) reg[k].r = rs[0]; return k; }   // (ya conocida; si no se sabía su región, ahora sí)
     // (una que ya se distinguió por su región antes de saber su Q)
     if (rs.length) for (const k in reg) if (reg[k] && !reg[k].q && reg[k].n === name && rs.includes(reg[k].r)) { reg[k].q = q || null; return k; }
     // (o apuntada sin Q ni región —su contorno no traía el Q, o se quitó para hacer sitio— y lo guardado con ella está aquí:
@@ -177,11 +177,14 @@ PM.world = (function () {
     const reg = regCiudad(), cands = Object.keys(reg).filter((k) => reg[k] && reg[k].n === name);
     if (!reg[name] && cityInfo[name] && baseDe(name) === name) cands.push(name);
     if (!cands.length) return name;
-    const rs = regiones(region);
-    for (const k of cands) { const ci = cityInfo[k]; if (ci ? !lejos(p, ci.bbox, 5000) : reg[k] && rs.includes(reg[k].r)) return k; }
-    // (todas lejos, o de otra región: otra ciudad. Sin datos para saberlo —contorno aún no pedido—, la de siempre)
-    const otra = cands.every((k) => cityInfo[k] || (reg[k] && reg[k].r && rs.length && !rs.includes(reg[k].r)));
-    return otra ? claveCiudad(name, null, region, [p[0], p[1], p[0], p[1]]) : cands.includes(name) ? name : cands[0];
+    const rs = regiones(region), rDe = (k) => (reg[k] && reg[k].r) || (cityInfo[k] && cityInfo[k].r) || '';
+    for (const k of cands) { const ci = cityInfo[k]; if (ci && !lejos(p, ci.bbox, 5000)) return k; }
+    // de otra región (sabiendo las dos): otra ciudad con el mismo nombre, con su propia clave
+    if (rs.length && cands.every((k) => rDe(k) && !rs.includes(rDe(k)))) return claveCiudad(name, null, region, [p[0], p[1], p[0], p[1]]);
+    // de la misma región, o sin saberla: la que ya conocíamos aunque caiga lejos de su contorno (un enclave, o Nominatim que
+    // nombra mal una zona: una del puerto de Barcelona salió como «Sant Boi de Llobregat» y se le abría «Sant Boi de Llobregat
+    // (Barcelona)»). Si de verdad es otra, al llegar su contorno (ensureCity) se le abre su clave y fixRecords le pasa la zona
+    return cands.find((k) => rDe(k) && rs.includes(rDe(k))) || (cands.includes(name) ? name : cands[0]);
   }
   // contorno de la ciudad que hay en ese punto (Nominatim, en la misma cola que los nombres de barrio: 1 por segundo)
   const cityAsked = new Set();
@@ -1854,6 +1857,20 @@ PM.world = (function () {
         // (contorno guardado con una clave que la partida tiene para otra ciudad, o repetido: fuera, se vuelve a pedir)
         if ((r && r.q && ci.q && r.q !== ci.q) || otraK) { delete cityInfo[k]; albMem.delete(k); n++; continue; }
         if (!r) { reg[k] = { q: ci.q || null, n: ci.nombre || k, r: ci.r || '' }; n++; } else if (!r.q && ci.q) { r.q = ci.q; n++; }
+        if (reg[k] && !reg[k].r && ci.r) { reg[k].r = ci.r; n++; }
+      }
+      // claves repetidas (v0.8.2-0.8.4): una zona mal nombrada por Nominatim abría «Sant Boi de Llobregat (Barcelona)», sin Q ni
+      // contorno, con el mismo nombre y la misma región que «Sant Boi de Llobregat». Se juntan con la de verdad (zonas, cartas…)
+      const rDe = (k) => (reg[k] && reg[k].r) || (cityInfo[k] && cityInfo[k].r) || '';
+      for (const k of Object.keys(reg)) {
+        const r = reg[k];
+        if (!r || r.q || cityInfo[k] || !r.r || k === r.n) continue;
+        const igual = Object.keys(reg).find((x) => x !== k && reg[x] && reg[x].n === r.n && rDe(x) === r.r && (reg[x].q || cityInfo[x]));
+        if (!igual || !PM.merge || !PM.merge.renombrarCiudad) continue;
+        PM.merge.renombrarCiudad(s, k, igual);
+        delete reg[k];
+        for (const t of Object.values(tiles)) if (t.city === k) t.city = igual;
+        albMem.delete(k); albMem.delete(igual); n++;
       }
       const pedidos = [];
       const fuera = (p, k) => { const ci = cityInfo[k]; if (!ci || !lejos(p, ci.bbox, 15000) || pedidos.some((q) => PM.geo.dist(q, p) < 20000)) return; pedidos.push(p); ensureCity(p[0], p[1]); };
