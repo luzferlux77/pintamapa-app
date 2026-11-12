@@ -879,7 +879,7 @@
   let lastAlt = null;
   const trackPt = (p, t) => { const q = [+p[0].toFixed(6), +p[1].toFixed(6), Math.round(((t || Date.now()) - session.start) / 1000)]; if (lastAlt != null) q.push(Math.round(lastAlt * 10) / 10); return q; };
   // lecturas con poca precisión (bolsillo, poca cobertura): no pintan solas, pero guían la ruta del hueco
-  let softFixes = [], lastFixT = 0;
+  let softFixes = [], lastFixT = 0, lastBuenaT = 0;   // (lastBuenaT: la última lectura precisa —≤ 35 m—, la que pinta)
   function routeVia(a, b, via) {
     const pts = [a];
     for (const q of via) if (PM.geo.dist(pts[pts.length - 1], q) > 35 && PM.geo.dist(q, b) > 35) pts.push(q);
@@ -1483,6 +1483,8 @@
     const acc = c.accuracy || 0;
     gpsIcon(acc > 35 ? 'weak' : 'ok', acc);
     lastFixT = Date.now();
+    if (acc <= 35) lastBuenaT = lastFixT;
+    if (session && !session.paused) anotarDiario(acc);
     if (c.altitude != null && isFinite(c.altitude) && (c.altitudeAccuracy == null || c.altitudeAccuracy < 30)) lastAlt = c.altitude;
     if (acc > 35 && session && !session.paused) gpsSt().flojas++;
     if (acc > 35) {   // con mucho error podríamos pintar la calle de al lado: no pinta, pero sirve de guía para rellenar el hueco
@@ -1529,6 +1531,22 @@
   // Al guardar el móvil vuelve la precisión normal: con la pantalla apagada ya no se toca el GPS, y si estaba en ahorro
   // (parado con la app abierta), todo el paseo en el bolsillo iría con lecturas cada 25 m
   document.addEventListener('visibilitychange', () => { if (document.hidden && gpsSaver && gpsWatch && gpsWatch.bg) { gpsSaver = false; gpsSaverT = Date.now(); startGPS(); } });
+  // Diario del paseo, minuto a minuto: [minuto, lecturas buenas, imprecisas, mejor precisión (m), pantalla apagada 0/1] y avisos
+  // [minuto, 'qué']. Ocupa poco (unos 2 KB por hora) y se guarda con el paseo: así se sabe qué hizo el GPS en el bolsillo
+  // (antes solo quedaba el recorrido, y un tramo rellenado por las calles no decía si el GPS se había callado o daba lecturas
+  // imprecisas)
+  function anotarDiario(acc) {
+    const d = session.diario || (session.diario = []), m = Math.floor((Date.now() - session.start) / 60000);
+    let e = d[d.length - 1];
+    if (!e || e[0] !== m) { if (d.length >= 600) return; e = [m, 0, 0, 999, 0]; d.push(e); }
+    if (acc <= 35) e[1]++; else e[2]++;
+    e[3] = Math.min(e[3], Math.round(acc || 0)); if (document.hidden) e[4] = 1;
+  }
+  function avisoDiario(que) {
+    if (!session) return;
+    const a = session.avisos || (session.avisos = []);
+    if (a.length < 150) a.push([Math.floor((Date.now() - session.start) / 60000), String(que).slice(0, 24)]);
+  }
   // El paseo NUNCA se pausa solo (orden del usuario, 8-nov-2026): solo con ⏸ o al finalizar. La pausa automática por «15 min
   // sin moverte» se equivocaba (GPS flojo o dormido en el bolsillo, un rato parado en un semáforo largo o un bar) y, como
   // apagaba el GPS, el resto del recorrido ya no se pintaba. Parado no se pinta ni se suma nada de todos modos (deriva).
@@ -1557,15 +1575,17 @@
       if (session !== ses || !ses || ses.paused || mode !== 'gps') return 'cancelado';
       const ref = lastP || pos, g = gpsSt();
       const valida = q && coordOk(q.p), acc = valida ? +q.acc || 999 : 999;
-      if (!valida) { if (g) g.reinicios = (g.reinicios || 0) + 1; PM.errores && PM.errores.add('aviso', 'GPS sin respuesta durante el paseo: se reinicia'); startGPS(); return 'incierto'; }
+      if (!valida) { if (g) g.reinicios = (g.reinicios || 0) + 1; avisoDiario('vig:sin respuesta'); PM.errores && PM.errores.add('aviso', 'GPS sin respuesta durante el paseo: se reinicia'); startGPS(); return 'incierto'; }
       const d = ref ? PM.geo.dist(q.p, ref) : 0;
       if (d > Math.max(60, acc)) {   // movido de verdad (más que su propio error): el GPS se había dormido
         if (g) g.reinicios = (g.reinicios || 0) + 1;
+        avisoDiario('vig:movido ' + Math.round(d) + 'm');
         PM.errores && PM.errores.add('aviso', 'GPS dormido durante el paseo (te habías movido): se reinicia');
         startGPS();
         onFix({ latitude: q.p[0], longitude: q.p[1], accuracy: acc }, Date.now());   // (el tramo sin lecturas se rellena por las calles)
         return 'movido';
       }
+      avisoDiario((acc <= 50 ? 'vig:quieto ' : 'vig:incierto ') + Math.round(acc) + 'm');
       return acc <= 50 ? 'quieto' : 'incierto';   // (en el mismo sitio: el GPS sigue vivo y no hay nada que rellenar)
     } finally { vigilando = false; }
   }
@@ -1575,7 +1595,7 @@
   var gpsPedidoT = 0;   // (var: startGPS puede llamarse antes de llegar aquí al arrancar)
   setInterval(() => {
     if (!gpsWanted() || vigilando) return;
-    const ultimo = Math.max(lastFixT || 0, gpsPedidoT || 0, session.resumedAt || session.start || 0);
+    const ultimo = Math.max(lastBuenaT || 0, gpsPedidoT || 0, session.resumedAt || session.start || 0);
     if (!ultimo || Date.now() - ultimo < 2 * 60000 || Date.now() - vigilaT < 2 * 60000) return;
     gpsDespierto();
   }, 30000);
@@ -1584,8 +1604,9 @@
   // frenar los temporizadores de la app (el vigilante de arriba tarda más en saltar), pero este momento siempre llega.
   // Si te habías movido, el tramo se rellena por las calles; si no, no pasa nada.
   document.addEventListener('visibilitychange', () => {
+    if (session && !session.paused) avisoDiario(document.hidden ? 'oculta' : 'visible');
     if (document.hidden || !gpsWanted() || vigilando) return;
-    const ultimo = Math.max(lastFixT || 0, gpsPedidoT || 0, session.resumedAt || session.start || 0);
+    const ultimo = Math.max(lastBuenaT || 0, gpsPedidoT || 0, session.resumedAt || session.start || 0);
     if (Date.now() - ultimo < 20000 || Date.now() - vigilaT < 20000) return;
     gpsDespierto();
   });
@@ -1987,7 +2008,7 @@
     const s = session; session = null;
     if (s.elapsed >= 120000) {   // los paseos de menos de 2 minutos no se guardan en el historial (lo pintado sí cuenta)
       // (rev: 0 = quedan trozos por repasar cuando sus calles estén cargadas —repasoPendiente—; 1 = repasado entero)
-      S().walks.push({ id: String(s.start), start: s.start, elapsed: s.elapsed, st: s.st, track: s.track || [], rev: rp.falta && !PM.debug.sinRepaso ? 0 : 1 });
+      S().walks.push({ id: String(s.start), start: s.start, elapsed: s.elapsed, st: s.st, track: s.track || [], rev: rp.falta && !PM.debug.sinRepaso ? 0 : 1, diario: s.diario || [], avisos: s.avisos || [] });
     }
     persistSession(); syncGPS(); renderSession();
     showSummary(s);
@@ -2039,6 +2060,7 @@
     const min = Math.max(1, Math.round(g.corte / 60));
     const partes = [`<span>GPS con señal el ${pct} % del paseo.</span>`];
     partes.push(g.cortes ? `<span>${g.cortes === 1 ? `1 corte (${min} min sin lecturas).` : `${g.cortes} cortes (${min} min sin lecturas).`}</span>` : '<span>Sin cortes.</span>');
+    if (g.flojas >= 10) partes.push(`<span>${g.flojas} lecturas imprecisas (en el bolsillo el GPS pierde precisión): ese tramo se ha pintado siguiendo las calles.</span>`);
     if (g.rebotes) partes.push(`<span>${g.rebotes === 1 ? '1 rebote del GPS descartado.' : `${g.rebotes} rebotes del GPS descartados.`}</span>`);
     if (g.reinicios) partes.push(`<span>${g.reinicios === 1 ? 'El GPS se durmió 1 vez y lo desperté.' : `El GPS se durmió ${g.reinicios} veces y lo desperté.`}</span>`);
     // muchos cortes: casi siempre es el ahorro de batería de Android frenando el GPS con la pantalla apagada
@@ -3322,6 +3344,7 @@
     teleport(pos);
     // la app se cerró a mitad de paseo (Android, en el bolsillo): el hueco desde tu última posición se rellena
     // por las calles con la primera lectura buena (como si el GPS hubiera tardado en contestar)
+    if (autoResumed && session && !session.paused) avisoDiario('reabierta ' + Math.round((Date.now() - (session.lastSeen || Date.now())) / 60000) + 'min');
     if (autoResumed && !vueltaLarga && session && !session.paused && session.lastSeen && S().lastPos) lastT = session.lastSeen;
     else if (vueltaLarga) { lastP = null; cortarUnion(); }   // (hace mucho: tramo nuevo, sin rellenar)
     setMode(mode);

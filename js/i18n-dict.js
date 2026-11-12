@@ -485,6 +485,7 @@
     'Informe copiado: pégalo en un mensaje': ['Informe copiat: enganxa’l en un missatge', 'Report copied: paste it into a message', 'Rapport copié : colle-le dans un message'],
     'No se pudo compartir el informe': ['No s’ha pogut compartir l’informe', 'Couldn’t share the report', 'Impossible de partager le rapport'],
     'Repaso: he pintado {n} que se habían quedado sin pintar en tu recorrido.': ['Repàs: he pintat {n} que s’havien quedat sense pintar al teu recorregut.', 'Touch-up: I painted {n} that had been left unpainted along your route.', 'Retouche : j’ai peint {n} qui étaient restés sans peinture sur ton parcours.'],
+    '{n} lecturas imprecisas (en el bolsillo el GPS pierde precisión): ese tramo se ha pintado siguiendo las calles.': ['{n} lectures imprecises (a la butxaca el GPS perd precisió): aquell tram s’ha pintat seguint els carrers.', '{n} imprecise readings (in your pocket the GPS loses accuracy): that stretch was painted following the streets.', '{n} lectures imprécises (dans la poche le GPS perd en précision) : ce tronçon a été peint en suivant les rues.'],
     'Repaso de tu paseo': ['Repàs del teu passeig', 'Walk touch-up', 'Retouche de ta balade'],
     'más pintados': ['més pintats', 'more painted', 'de plus peints'],
     'Repaso: he unido {n} cortes de lo pintado (esquinas y trozos sueltos).': ['Repàs: he unit {n} talls del que has pintat (cantonades i trossos solts).', 'Touch-up: I joined {n} gaps in your painting (corners and loose bits).', 'Retouche : j’ai relié {n} coupures de ta peinture (angles et morceaux isolés).'],

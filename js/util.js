@@ -90,6 +90,12 @@ PM.bgeoSano = function (o) {
   }
   return out;
 };
+// diario del GPS de un paseo (main.js, anotarDiario): filas de números y avisos [minuto, texto corto]; lo demás, fuera
+PM.diarioSano = function (w) {
+  if (w.diario != null) w.diario = Array.isArray(w.diario) ? w.diario.filter((e) => Array.isArray(e) && e.length === 5 && e.every((x) => typeof x === 'number' && isFinite(x))).slice(0, 600) : [];
+  if (w.avisos != null) w.avisos = Array.isArray(w.avisos) ? w.avisos.filter((e) => Array.isArray(e) && typeof e[0] === 'number' && isFinite(e[0]) && typeof e[1] === 'string').map((e) => [e[0], PM.limpio(e[1]).slice(0, 24)]).slice(0, 150) : [];
+  return w;
+};
 PM.limpiarPartida = function (d) {
   if (!d || typeof d !== 'object') return d;
   const L = PM.limpio, obj = (o) => (o && typeof o === 'object' && !Array.isArray(o) ? o : null);
@@ -133,8 +139,10 @@ PM.limpiarPartida = function (d) {
       if (w.start != null && !isFinite(w.start)) w.start = isFinite(+w.id) ? +w.id : 0;
       // (un punto que no es una posición —{}, [999, 999]— rompía el dibujo y la repetición del paseo; null es un corte: se queda)
       if (w.track != null) w.track = Array.isArray(w.track) ? w.track.filter((q) => q === null || PM.puntoOk(q)) : [];
+      PM.diarioSano(w);
     }
   }
+  if (d.session && typeof d.session === 'object') PM.diarioSano(d.session);
   if (d.lastPos != null && !PM.puntoOk(d.lastPos)) d.lastPos = null;
   if (d.session != null && !(obj(d.session) && isFinite(d.session.start) && obj(d.session.st))) d.session = null;
   if (d.session && Array.isArray(d.session.track)) d.session.track = d.session.track.filter((q) => q === null || PM.puntoOk(q));
