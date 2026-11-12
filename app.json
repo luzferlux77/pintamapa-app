@@ -1,8 +1,8 @@
 {
-  "version": "0.8.7",
-  "notes": "Póster de tu mapa más a mano: en los accesos rápidos del perfil y junto a cada ciudad (abre el póster de esa ciudad)",
+  "version": "0.9.0",
+  "notes": "Interfaz más simple: Paseos en la barra de abajo, perfil con 3 pestañas, ajustes por grupos, resumen del paseo más claro, avisos de uno en uno y letra y botones más grandes",
   "native": 8,
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.8.7/pintamapa-web-0.8.7.zip",
-  "checksum": "9a5c636f921660b950a54bcb1cad27e3b60f7128923ccdae9d49eeeeb2e22105",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.8.7/PintaMapa-v0.8.7.apk"
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.9.0/pintamapa-web-0.9.0.zip",
+  "checksum": "7237f715b3b10e4a973d602c3e6e43666ffa621567605415b0c08b8a4a1285d3",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.9.0/PintaMapa-v0.9.0.apk"
 }
