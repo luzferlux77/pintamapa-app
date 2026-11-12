@@ -230,6 +230,16 @@ PM.levelName = (l) => {
   const t = PM.LEVEL_TIERS[Math.floor((l - 100) / 100)], n = ((l - 100) % 100) + 1;
   return { label: t.name + ' ' + n, short: String(n), tier: t };
 };
+// ¿Toca fiesta al pasar del nivel «from» al «to»? 'rango' al entrar en un rango (99 → Bronce 1, Bronce 100 → Plata 1…) y
+// 'hito' cada 10 niveles (10, 20… 90; y Bronce 10, 20… 100). Si en un salto se cruzan varios, gana el rango y, si no, el más alto
+PM.hitoNivel = function (from, to) {
+  let r = null;
+  for (let l = Math.max(1, from + 1); l <= to; l++) {
+    if (l >= 100 && (l - 100) % 100 === 0) r = { tipo: 'rango', nivel: l };
+    else if ((!r || r.tipo !== 'rango') && (l <= 99 ? l % 10 === 0 : ((l - 100) % 100 + 1) % 10 === 0)) r = { tipo: 'hito', nivel: l };
+  }
+  return r;
+};
 PM.levelInfo = function (xp) {
   xp = xp || 0;
   let l = 1;

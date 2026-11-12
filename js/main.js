@@ -1403,7 +1403,7 @@
   }, 5000);
 
   // Gancho de pruebas (consola del navegador): PM.debug.walkTo([lat, lon]), PM.debug.setPace(0..4)
-  PM.debug = { map, repasar: (x) => repasarPaseo(x), repintar: (t, a, b) => repintarRecorrido(t, a, b), repasoPendiente: () => repasoPendiente(), walkTo(p) { target = p; follow = true; }, setPace(i) { pace = i; turbo = false; }, get pos() { return pos.slice(); },
+  PM.debug = { map, fiesta: (nivel, desde) => { const h = PM.hitoNivel(desde != null ? desde : nivel - 1, nivel); if (h) fiesta(h, []); return h; }, repasar: (x) => repasarPaseo(x), repintar: (t, a, b) => repintarRecorrido(t, a, b), repasoPendiente: () => repasoPendiente(), walkTo(p) { target = p; follow = true; }, setPace(i) { pace = i; turbo = false; }, get pos() { return pos.slice(); },
     get bearing() { return map.getBearing(); }, get heading() { return heading; }, get gap() { return { lastP, lastT, pending: pendingGaps.length, autoResumed, lastSeen: session && session.lastSeen }; }, trim: () => trimMemory(), revisar: () => revisarCartas(), backup: () => buildBackup(), importData: (d) => importData(d), fix(lat, lon, t, acc = 5, spd, brg) { const m = mode; mode = 'gps'; try { onFix({ latitude: lat, longitude: lon, accuracy: acc, speed: spd, bearing: brg }, t); } finally { mode = m; } }, newSession() { if (session) endSession(); startSession(); $('#sheet').classList.remove('show'); }, endSession: () => endSession(), get sessionTrack() { return session && session.track; }, harvest: () => harvestOld(), flushGeo: () => geoFlush(), get geo() { return { pgeo: pgeo.size, zonas: pgeoTile.size, barrios: Object.keys(bgeo).length, recogidas: Object.keys(harvested).length, ready: geoReady }; }, get painted() { return paintedF; },
     // avanza el juego n fotogramas a mano (pruebas con la pestaña oculta, donde el navegador congela la animación)
  };
@@ -2327,6 +2327,16 @@
   window.addEventListener('pm-save-error', (e) => toast('⚠️ ' + PM.t(e.detail === 'rota' ? 'Tu partida antigua no se podía leer y no hay sitio para apartarla: no se guarda nada encima hasta que liberes espacio en el móvil.' : 'No se pudo guardar la partida en el móvil (¿sin espacio?). Libera espacio o haz una copia de seguridad.'), 'warn', 8000));
   window.addEventListener('pm-rota-apartada', () => toast('✅ ' + PM.t('Tu partida antigua ya está apartada: se vuelve a guardar con normalidad.'), 'ok'));
   window.addEventListener('pm-save-ok', () => toast('✅ ' + PM.t('Partida guardada de nuevo'), 'ok'));
+  // Fiesta de nivel (cada 10 niveles) o de rango (Bronce, Plata…): se carga fiesta.js al momento. Con el móvil guardado
+  // espera a que vuelvas a verlo (si no, te la perderías)
+  let fiestaPend = null;
+  function fiesta(h, colores) {
+    if (document.hidden) { if (!fiestaPend || h.tipo === 'rango' || fiestaPend.h.tipo !== 'rango') fiestaPend = { h, colores }; return; }
+    const s = S();
+    PM.need('js/fiesta.js').then(() => PM.fiesta.mostrar(h, { nombre: PM.player ? PM.player.name : '', km: (s.stats || {}).paintedM || 0, lugares: Object.keys(s.landmarks || {}).length,
+      barrios: Object.keys(s.conqueredB || {}).length, colores: colores || [], enPaseo: !!(session && !session.paused) })).catch(() => toast('⭐ ¡' + PM.levelName(h.nivel).label + '!', 'gold'));
+  }
+  document.addEventListener('visibilitychange', () => { if (!document.hidden && fiestaPend) { const p = fiestaPend; fiestaPend = null; setTimeout(() => fiesta(p.h, p.colores), 600); } });
   function celebrate(title, sub, emoji) {
     const o = $('#celebrate');
     o.querySelector('.emoji').textContent = emoji;
@@ -2434,10 +2444,14 @@
       case 'cityRank':
         celebrate(`¡${d.city}: ciudad de ${PM.RANKS[d.rank].name}! ${PM.RANKS[d.rank].ic}`, `Has pintado el ${d.rank === 1 ? 80 : 90} % de sus calles. +${d.rank === 1 ? '10000' : '15000'}`, PM.RANKS[d.rank].ic);
         break;
-      case 'levelup':
+      case 'levelup': {
+        // cada 10 niveles y al cambiar de rango: fiesta a pantalla completa (fiesta.js); el resto, el aviso de siempre
+        const h = PM.hitoNivel(d.from != null ? d.from : d.level - 1, d.level);
+        if (h) { fiesta(h, d.colors); break; }
         PM.sound.levelUp(); PM.vibrate([80, 40, 80]);
         toast(`${PM.levelName(d.level).tier ? PM.levelName(d.level).tier.icon : '⭐'} ¡Nivel ${PM.levelName(d.level).label}!` + (d.colors.length ? ` Nuevo color: <b style="color:${d.colors[0].c}">${d.colors[0].name}</b>` : ''), 'gold', 4000);
         break;
+      }
       case 'mission':
         toast(`🎯 Misión completada: ${d.m.text} · +${d.m.reward}`, 'gold', 3500);
         PM.sound.capture();

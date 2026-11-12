@@ -218,7 +218,7 @@ PM.game = (function () {
     PM.state.save();
     emit('xp', { n, reason });
     if (after > before) {
-      emit('levelup', { level: after, colors: COLORS.filter((c) => c.lvl > before && c.lvl <= after) });
+      emit('levelup', { level: after, from: before, colors: COLORS.filter((c) => c.lvl > before && c.lvl <= after) });
     }
   }
 
