@@ -1,8 +1,8 @@
 {
-  "version": "0.8.5",
-  "notes": "Corregido: una ciudad podía salir repetida con la provincia entre paréntesis (se juntan solas); la foto nueva de una carta podía no subirse a la nube; textos sin traducir",
+  "version": "0.8.6",
+  "notes": "Con el móvil en el bolsillo, el vigilante del GPS también actúa si solo llegan lecturas imprecisas. Diario del GPS de cada paseo para saber qué pasó en el bolsillo",
   "native": 8,
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.8.5/pintamapa-web-0.8.5.zip",
-  "checksum": "1c7ab48fc0fc7bcc1d4949ae90ac87dd3df25bd68e562853efff4dd7576c557c",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.8.5/PintaMapa-v0.8.5.apk"
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.8.6/pintamapa-web-0.8.6.zip",
+  "checksum": "f9e4cd232ec6833d91c517ab7f6b331c9c1051a6d37460eb6bb686dedc04278e",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.8.6/PintaMapa-v0.8.6.apk"
 }
