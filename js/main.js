@@ -2991,7 +2991,8 @@
         ${D.first ? `<small class="pf-since">Pintando desde ${new Date(D.first).toLocaleDateString(PM.LOCALE, { month: 'long', year: 'numeric' })} · 🔥 ${st.streak || 0} día${st.streak === 1 ? '' : 's'} de racha</small>` : ''}</div></div>
       <div class="pf-quick">
         <button data-go="walks"><span>🥾</span>Paseos</button><button data-go="album"><span>🃏</span>Cromos</button>
-        <button data-go="ach"><span>🏆</span>Logros</button><button data-go="week"><span>📽️</span>Mi semana</button>
+        <button data-go="ach"><span>🏆</span>Logros</button><button data-go="week"><span>📽️</span>Semana</button>
+        <button data-go="poster"><span>🖼️</span>Póster</button>
       </div>
       <div class="pf-tabs">${[['res', 'Resumen'], ['rec', 'Récords'], ['cit', 'Ciudades'], ['aj', 'Ajustes']].map(([k, l]) => `<button data-tab="${k}" class="${profTab === k ? 'on' : ''}">${l}</button>`).join('')}</div>`;
 
@@ -3033,7 +3034,8 @@
       const cities = {};
       for (const k in s.tileNames) { const c = s.tileNames[k].city; if (c) cities[c] = true; }
       const cl = Object.keys(cities).map((c) => [c, G.cityProgress(c)]).sort((x, y) => y[1].painted - x[1].painted);
-      html += card('🏙️ Tus ciudades', cl.length ? cl.map(([c, cp]) => `<div class="mission"><div class="mt">${s.citiesWon[c] ? PM.RANKS[(s.cityRank || {})[c] || 0].ic : '🏙️'} ${esc(c)}<span>${PM.dec(cp.pct * 100, 2)} %</span></div>
+      if (cl.some(([, cp]) => cp.painted > 0)) html += `<button class="pf-week pf-poster" id="pf-poster"><span>🖼️</span><div><b>Póster de tu mapa</b><small>Cada ciudad con sus calles pintadas, en alta resolución, para imprimir o compartir</small></div><em>▶</em></button>`;
+      html += card('🏙️ Tus ciudades', cl.length ? cl.map(([c, cp]) => `<div class="mission"><div class="mt">${s.citiesWon[c] ? PM.RANKS[(s.cityRank || {})[c] || 0].ic : '🏙️'} ${esc(c)}<span>${PM.dec(cp.pct * 100, 2)} %${cp.painted > 0 ? ` <button class="ci-poster" data-poster="${esc(c)}" aria-label="Póster de ${esc(c)}" title="Póster de ${esc(c)}">🖼️</button>` : ''}</span></div>
           <div class="bar"><i style="width:${Math.min(100, cp.pct / PM.CONQ.city * 100)}%"></i></div>
           <small>${PM.fmtDist(cp.painted)} de ${cp.total ? PM.fmtDist(cp.total) : '?'} · ${(() => { const rk = PM.rankFor('city', cp.pct), nx = PM.RANK_MIN.city[rk + 1]; return (rk >= 0 ? `${PM.RANKS[rk].ic} ${PM.RANKS[rk].name} · ` : '') + (nx ? 'faltan ' + (cp.total ? PM.fmtDist(Math.max(0, cp.total * nx - cp.painted)) : '?') + ` para ${Math.round(nx * 100)} %` : '¡oro conseguido!'); })()}</small></div>`).join('') : '<p class="muted">Sal a pintar y aquí verás tus ciudades.</p>', 'conquista 70 % · plata 80 · oro 90');
       const bc = Object.entries(s.barrioCards || {}).map(([id, v]) => Object.assign({ id }, v)).sort((x, y) => y.t - x.t);
@@ -3090,8 +3092,11 @@
     if (S().avatar) { const d = document.createElement('button'); d.className = 'av-del'; d.textContent = 'Quitar foto'; d.addEventListener('click', () => { FUN.removeAvatar(); panelProfile(); }); $('.av-wrap').appendChild(d); }
     $('#pf-lvl').addEventListener('click', panelLevel);
     $('#pf-week') && $('#pf-week').addEventListener('click', openWeek);
-    $('#pf-poster') && $('#pf-poster').addEventListener('click', () => PM.need('lib/mp4-muxer.js', 'js/replay.js', 'js/poster.js').then(() => PM.poster.open(artCtx())));
-    const go = { walks: panelWalks, album: panelAlbum, ach: panelAchievements, week: openWeek, cit: () => { profTab = 'cit'; panelProfile(); } };
+    // póster de tu mapa: en Resumen, en los accesos rápidos y en cada ciudad de «Tus ciudades» (abre con esa ciudad)
+    const poster = (ciudad) => PM.need('lib/mp4-muxer.js', 'js/replay.js', 'js/poster.js').then(() => PM.poster.open(artCtx(), ciudad));
+    $('#pf-poster') && $('#pf-poster').addEventListener('click', () => poster());
+    document.querySelectorAll('[data-poster]').forEach((b) => b.addEventListener('click', (e) => { e.stopPropagation(); poster(b.dataset.poster); }));
+    const go = { walks: panelWalks, album: panelAlbum, ach: panelAchievements, week: openWeek, poster: () => poster(), cit: () => { profTab = 'cit'; panelProfile(); } };
     document.querySelectorAll('.pf-quick [data-go]').forEach((b) => b.addEventListener('click', () => go[b.dataset.go]()));
     document.querySelectorAll('.pf-tile[data-act]').forEach((b) => b.addEventListener('click', () => go[b.dataset.act]()));
     document.querySelectorAll('.pf-tabs [data-tab]').forEach((b) => b.addEventListener('click', () => { profTab = b.dataset.tab; panelProfile(); }));

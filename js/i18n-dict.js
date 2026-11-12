@@ -973,6 +973,8 @@
     // ---- póster ----
     '🖼️ Póster de tu mapa': ['🖼️ Pòster del teu mapa', '🖼️ Poster of your map', '🖼️ Affiche de ta carte'],
     'Póster de tu mapa': ['Pòster del teu mapa', 'Poster of your map', 'Affiche de ta carte'],
+    'Póster': ['Pòster', 'Poster', 'Affiche'], 'Semana': ['Setmana', 'Week', 'Semaine'], 'Póster de {c}': ['Pòster de {c}', 'Poster of {c}', 'Affiche de {c}'],
+    'Cada ciudad con sus calles pintadas, en alta resolución, para imprimir o compartir': ['Cada ciutat amb els seus carrers pintats, en alta resolució, per imprimir o compartir', 'Each city with its painted streets, in high resolution, to print or share', 'Chaque ville avec ses rues peintes, en haute résolution, à imprimer ou partager'],
     'Tu ciudad pintada en alta resolución, para imprimir o compartir': ['La teva ciutat pintada en alta resolució, per imprimir o compartir', 'Your painted city in high resolution, to print or share', 'Ta ville peinte en haute résolution, à imprimer ou partager'],
     'Para imprimir en A4 o enmarcar. También queda genial en el móvil.': ['Per imprimir en A4 o emmarcar. També queda genial al mòbil.', 'To print in A4 or frame. Looks great on your phone too.', 'À imprimer en A4 ou à encadrer. Superbe aussi sur le téléphone.'],
     '⏳ Creando el póster en alta resolución…': ['⏳ Creant el pòster en alta resolució…', '⏳ Creating the high-resolution poster…', '⏳ Création de l’affiche en haute résolution…'],

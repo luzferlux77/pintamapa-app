@@ -114,11 +114,12 @@ PM.poster = (function () {
   }
 
   // ---------- ventana ----------
-  async function open(ctx) {
+  // (inicial: la ciudad con la que se abre —desde «Tus ciudades» en el perfil—; si no, la que más has pintado)
+  async function open(ctx, inicial) {
     const { S, W } = ctx, s = S();
     const cities = {}; for (const k in s.tileNames || {}) { const ci = s.tileNames[k].city; if (ci && (s.paintedByTile || {})[k]) cities[ci] = (cities[ci] || 0) + s.paintedByTile[k]; }
     const cityList = Object.entries(cities).sort((a, b) => b[1] - a[1]).map(([c]) => c);
-    let theme = 'claro', area = cityList[0] || 'all';
+    let theme = 'claro', area = inicial && (inicial === 'all' || cityList.includes(inicial)) ? inicial : cityList[0] || 'all';
     const ov = document.createElement('div'); ov.id = 'poster-view';
     ov.innerHTML = `<div class="po-box"><div class="po-head"><b>🖼️ Póster de tu mapa</b><button class="po-x">✕</button></div>
       <div class="po-prev"><canvas></canvas><div class="po-load">Preparando tus calles…</div></div>
