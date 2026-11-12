@@ -1,8 +1,8 @@
 {
-  "version": "0.8.6",
-  "notes": "Con el móvil en el bolsillo, el vigilante del GPS también actúa si solo llegan lecturas imprecisas. Diario del GPS de cada paseo para saber qué pasó en el bolsillo",
+  "version": "0.8.7",
+  "notes": "Póster de tu mapa más a mano: en los accesos rápidos del perfil y junto a cada ciudad (abre el póster de esa ciudad)",
   "native": 8,
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.8.6/pintamapa-web-0.8.6.zip",
-  "checksum": "f9e4cd232ec6833d91c517ab7f6b331c9c1051a6d37460eb6bb686dedc04278e",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.8.6/PintaMapa-v0.8.6.apk"
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.8.7/pintamapa-web-0.8.7.zip",
+  "checksum": "9a5c636f921660b950a54bcb1cad27e3b60f7128923ccdae9d49eeeeb2e22105",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.8.7/PintaMapa-v0.8.7.apk"
 }
