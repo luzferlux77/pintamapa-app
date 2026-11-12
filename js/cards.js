@@ -388,46 +388,20 @@ PM.cards = (function () {
     const ids = Object.keys(s.landmarks).sort((a, b) => s.landmarks[b].t - s.landmarks[a].t);
     let tab = 'cromos';
     const draw = async () => {
-      let html = `<div class="seg tabs"><button class="btn ${tab === 'cromos' ? 'on' : ''}" data-t="cromos">📖 Álbumes (${PM.album.ciudades().length})</button>
-        <button class="btn ${tab === 'col' ? 'on' : ''}" data-t="col">📚 Colecciones</button>
-        <button class="btn ${tab === 'bar' ? 'on' : ''}" data-t="bar">🏘️ Barrios (${Object.keys(s.barrioCards || {}).length})</button>
-        <button class="btn ${tab === 'must' ? 'on' : ''}" data-t="must">⭐ Imprescindibles</button></div>`;
+      let html = `<div class="seg tabs"><button class="btn ${tab === 'cromos' ? 'on' : ''}" data-t="cromos">Álbumes</button>
+        <button class="btn ${tab === 'col' ? 'on' : ''}" data-t="col">Colecciones</button>
+        <button class="btn ${tab === 'bar' ? 'on' : ''}" data-t="bar">Barrios</button></div>`;
+      // (v0.9: sin la sección «Imprescindibles»: cada álbum de ciudad ya tiene su pestaña ★, y tocar un hueco lleva al mapa)
       if (tab === 'cromos') {
         html += '<div id="city-stacks"></div>';
       } else if (tab === 'col') {
-        // por ciudad: conquistados / descubiertos
-        const byCity = {};
-        for (const [id, r] of Object.entries(s.landmarks)) { const c = r.city || 'Otras'; (byCity[c] = byCity[c] || { got: 0, known: new Set() }).got++; byCity[c].known.add(id); }
-        for (const lm of Object.values(PM.world.landmarks)) { const c = PM.world.cityAt(lm.pos); if (c && byCity[c]) byCity[c].known.add(lm.id); else if (c) (byCity[c] = { got: 0, known: new Set([lm.id]) }); }
-        html += '<h4>Por ciudad</h4>' + Object.entries(byCity).sort((a, b) => b[1].got - a[1].got).map(([c, v]) =>
-          `<div class="mission"><div class="mt">🏙️ ${esc(c)}<span>${v.got}/${v.known.size}</span></div><div class="bar"><i style="width:${(v.got / Math.max(1, v.known.size) * 100).toFixed(0)}%"></i></div>
-           <small>Descubiertos al explorar: cuanto más andes, más aparecen.</small></div>`).join('');
-        html += '<h4>Colecciones temáticas</h4>' + SETS.map((set) => {
+        // (solo las colecciones temáticas: el «por ciudad» repetía el porcentaje de cada álbum)
+        html += SETS.map((set) => {
           const n = setCount(set), tier = s.setsDone[set.id] || 0, next = set.goals[tier];
           return `<div class="mission ${tier >= 3 ? 'done' : ''}"><div class="mt">${set.icon} ${set.name}<span>${tier ? TIER[tier - 1] : ''}</span></div>
             <div class="bar"><i style="width:${next ? Math.min(100, n / next * 100) : 100}%"></i></div>
             <small>${n} ${next ? '/ ' + next + ' para ' + TIER[tier] : '· ¡colección completa!'}</small></div>`;
         }).join('');
-      } else if (tab === 'must') {
-        // los imprescindibles de cada ciudad: los que tienes (a color) y los que te faltan (en gris, toca para verlos en el mapa)
-        // la lista FIJA de cada ciudad (los más conocidos de todo el municipio; más en las grandes), estén cargados o no en el mapa
-        const byCity = {};
-        const add = (c, x) => { const L = byCity[c] = byCity[c] || []; if (!L.some((y) => y.id === x.id)) L.push(x); };
-        const fixed = PM.world.mustLists();
-        for (const [c, L] of Object.entries(fixed)) L.forEach((e) => {
-          // sin cargar en el mapa ahora: el tuyo ya conseguido de esa lista (mismo sitio)
-          // (antes valía cualquier imprescindible tuyo a menos de 400 m: uno daba por conseguido a su vecino)
-          if (!e.id) { const r = Object.entries(s.landmarks).find(([id, v]) => PM.lugares.esMust(e, id, v)); if (r) e.id = r[0]; }
-          const got = e.id && s.landmarks[e.id];
-          add(c, { id: e.id || 'q:' + e.q, name: got ? got.name : e.name, emoji: got ? got.emoji : e.emoji, kind: e.kind });
-        });
-        for (const [id, r] of Object.entries(s.landmarks)) if (r.must && !fixed[r.city]) add(r.city || 'Otros lugares', { id, name: r.name, emoji: r.emoji, kind: r.kind });
-        const cities = Object.entries(byCity).map(([c, L]) => [c, L, L.filter((x) => s.landmarks[x.id]).length]).sort((a, b) => b[2] - a[2] || b[1].length - a[1].length);
-        html += cities.length ? '<p class="muted">Los lugares que no te puedes perder en cada ciudad. Valen el doble. Toca uno para verlo en el mapa.</p>' + cities.map(([c, L, g]) => `
-          <div class="must-city"><div class="mc-h"><b>${esc(c)}</b><span>${g}/${L.length}${g >= L.length ? ' 🏆' : ''}</span></div><div class="bar"><i style="width:${Math.round(g / Math.max(1, L.length) * 100)}%"></i></div>
-          <div class="must-grid">${L.map((x) => { const got = !!s.landmarks[x.id], u = PM.emojiURL(x.emoji); return `<button class="must-it ${got ? 'got' : ''}" data-go="${esc(x.id)}">
-            <span class="mi-ic">${u ? `<img src="${u}" alt="">` : (x.emoji || '📍')}</span><b>${esc(x.name)}</b><small>${got ? '✓ conseguido' : '📍 ver en el mapa'}</small></button>`; }).join('')}</div></div>`).join('')
-          : '<p class="muted">Aún no hay imprescindibles. Abre el mapa de una ciudad y aparecerán aquí los lugares que no te puedes perder (siempre los mismos; más cuanto más grande es la ciudad).</p>';
       } else {
         const bc = Object.entries(s.barrioCards || {}).sort((a, b) => b[1].t - a[1].t);
         html += bc.length ? '<div class="cromos">' + bc.map(([, b]) => barrioCardHTML(b)).join('') + '</div>'

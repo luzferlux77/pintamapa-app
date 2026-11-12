@@ -106,7 +106,7 @@ PM.bienvenida = (function () {
     G.on((ev, d) => {
       if (!vivo) return;
       if (ev === 'painted' && S().guia < 3) { S().guia = 3; PM.state.save(); dibuja(); }
-      if (ev === 'captured' && d.first) fin('🎉 ' + PM.t('¡Tu primera carta! La tienes en Cromos, dentro del álbum de tu ciudad.'));
+      if (ev === 'captured' && d.first) fin('🎉 ' + PM.t('¡Tu primera carta! La tienes en el Álbum, en la página de tu ciudad.'));
     });
     reloj = setInterval(dibuja, 2000);
     dibuja();
