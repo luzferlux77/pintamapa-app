@@ -1,8 +1,8 @@
 {
-  "version": "0.9.0",
-  "notes": "Interfaz más simple: Paseos en la barra de abajo, perfil con 3 pestañas, ajustes por grupos, resumen del paseo más claro, avisos de uno en uno y letra y botones más grandes",
+  "version": "0.9.1",
+  "notes": "Fiestas al subir de nivel: cada 10 niveles y, más espectacular, al pasar a Bronce, Plata, Oro… con imagen para presumir",
   "native": 8,
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.9.0/pintamapa-web-0.9.0.zip",
-  "checksum": "7237f715b3b10e4a973d602c3e6e43666ffa621567605415b0c08b8a4a1285d3",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.9.0/PintaMapa-v0.9.0.apk"
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.9.1/pintamapa-web-0.9.1.zip",
+  "checksum": "b06b97e2374f2e2a9951e8ad974e91100f71ad754b4a900e038268f149ffd8fa",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.9.1/PintaMapa-v0.9.1.apk"
 }
