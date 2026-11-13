@@ -681,3 +681,18 @@ input.sw:checked { background: var(--accent, #2563eb); } input.sw:checked::after
 .pf-week.sobrio small { color: var(--muted); opacity: 1; }
 /* con una hoja abierta, los avisos salen arriba (debajo del marcador) y no tapan su título */
 body:has(#sheet.show) #toasts { bottom: auto; top: calc(96px + var(--safe-top)); }
+
+/* sin indicador de velocidad en pantalla (petición del usuario): por encima de 20 km/h sale un aviso y no se pinta */
+#speed { display: none !important; }
+/* medalla del barrio donde estás: botón redondo junto al GPS, los lugares y la brújula */
+#btn-medalla { right: 116px; }
+body:has(#gps.show) #btn-medalla { right: 168px; }
+#btn-medalla.show { display: flex; }
+#btn-medalla .md-anillo { position: absolute; inset: -1px; width: calc(100% + 2px); height: calc(100% + 2px); transform: rotate(-90deg); }
+#btn-medalla .md-anillo circle { fill: none; stroke-width: 3; stroke: var(--line); }
+#btn-medalla .md-anillo .md-pr { stroke: var(--rk, #cd7f32); stroke-linecap: round; stroke-dasharray: 122.5; stroke-dashoffset: 122.5; transition: stroke-dashoffset .6s; }
+#btn-medalla .md-ic { position: relative; font-size: 21px; line-height: 1; }
+#btn-medalla.rk-1 .md-ic { filter: grayscale(1); opacity: .45; }
+#btn-medalla.rk-1 { --rk: #9aa3b5; }
+#btn-medalla.rk0 { --rk: #cd7f32; } #btn-medalla.rk1 { --rk: #a8b0bd; } #btn-medalla.rk2 { --rk: #eab308; } #btn-medalla.rk3 { --rk: #a855f7; }
+#btn-medalla.rk0, #btn-medalla.rk1, #btn-medalla.rk2, #btn-medalla.rk3 { background: radial-gradient(circle at 35% 30%, #fff, var(--sheet) 70%); }

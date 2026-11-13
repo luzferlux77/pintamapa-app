@@ -809,6 +809,9 @@
     'Toda tu partida en un archivo, en Documentos/PintaMapa. En otro móvil, impórtala: se suma a lo que tengas, sin perder nada.': ['Tota la teva partida en un arxiu, a Documents/PintaMapa. En un altre mòbil, importa-la: se suma al que tinguis, sense perdre res.', 'Your whole game in one file, in Documents/PintaMapa. On another phone, import it: it adds to what you have, nothing is lost.', 'Toute ta partie dans un fichier, dans Documents/PintaMapa. Sur un autre téléphone, importe-la : elle s’ajoute à ce que tu as, rien ne se perd.'],
     'Para ver el mapa y pintar sin cobertura (metro, montaña, viajes).': ['Per veure el mapa i pintar sense cobertura (metro, muntanya, viatges).', 'To see the map and paint without coverage (underground, mountains, trips).', 'Pour voir la carte et peindre sans réseau (métro, montagne, voyages).'],
     'Álbum': ['Àlbum', 'Album', 'Album'], 'Barrios': ['Barris', 'Neighbourhoods', 'Quartiers'],
+    // (medalla del barrio en su botón y aviso de velocidad)
+    'Tu medalla en este barrio': ['La teva medalla en aquest barri', 'Your medal in this neighbourhood', 'Ta médaille dans ce quartier'], 'Barrio sin conquistar': ['Barri sense conquerir', 'Neighbourhood not conquered yet', 'Quartier pas encore conquis'],
+    'Vas a más de 20 km/h: así no se pinta (solo andando o corriendo)': ['Vas a més de 20 km/h: així no es pinta (només caminant o corrent)', 'You’re going over 20 km/h: that doesn’t paint (only walking or running)', 'Tu vas à plus de 20 km/h : ça ne peint pas (seulement à pied ou en courant)'],
     // (sobre de cartas: sobre.js)
     'Desliza el dedo por arriba para rasgarlo': ['Llisca el dit per dalt per estripar-lo', 'Swipe across the top to tear it open', 'Glisse le doigt en haut pour le déchirer'],
     // (fiestas de nivel y de rango: fiesta.js)

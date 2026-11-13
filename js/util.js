@@ -86,7 +86,10 @@ PM.bgeoSano = function (o) {
   for (const [id, g] of Object.entries(o)) {
     if (!g || typeof g !== 'object' || !Array.isArray(g.segs)) continue;
     const segs = g.segs.filter((sg) => Array.isArray(sg)).map((sg) => sg.filter(PM.puntoOk)).filter((sg) => sg.length >= 2);
-    out[id] = { name: typeof g.name === 'string' ? PM.limpio(g.name) : '', segs, pos: PM.puntoOk(g.pos) ? g.pos : null };
+    // (zona: anillos cerrados [lon, lat] para teñir el barrio conquistado en el mapa)
+    const lonlat = (q) => Array.isArray(q) && q.length >= 2 && typeof q[0] === 'number' && typeof q[1] === 'number' && Math.abs(q[0]) <= 180 && Math.abs(q[1]) <= 90;
+    const zona = Array.isArray(g.zona) ? g.zona.filter((r) => Array.isArray(r)).map((r) => r.filter(lonlat)).filter((r) => r.length >= 4) : [];
+    out[id] = { name: typeof g.name === 'string' ? PM.limpio(g.name) : '', segs, pos: PM.puntoOk(g.pos) ? g.pos : null, zona };
   }
   return out;
 };

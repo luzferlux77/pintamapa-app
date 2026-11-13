@@ -13,7 +13,7 @@
   const CAPTURE_SECONDS = 10;   // …durante este tiempo para capturarlo (no vale pasar de largo)
   const CAPTURE_EXIT = 40;      // m: margen para que un salto del GPS no cancele la captura
   const AURA_RADIUS = 80;       // m de "aura" de monumento (puntos x2)
-  const MAX_SPEED = 7;          // m/s (~25 km/h): más rápido no pinta (anti-coche) en modo GPS
+  const MAX_SPEED = 5.6;        // m/s (~20 km/h, lo más rápido que corre una persona): más rápido no pinta (bici, patinete, coche)
 
   // Punto de inicio de la simulación (sin GPS): Carrer de Bellaterra, Cornellà de Llobregat
   const HOME = [41.35763, 2.07386];
@@ -70,7 +70,7 @@
     for (let i = 0; i <= 48; i++) { const a = i / 48 * 2 * Math.PI; out.push(ll(PM.geo.offset(c, Math.cos(a) * r, Math.sin(a) * r))); }
     return { type: 'Feature', properties: props || {}, geometry: { type: 'Polygon', coordinates: [out] } };
   };
-  const SRC = ['pm-streets', 'pm-painted', 'pm-barrios', 'pm-halos', 'pm-fx', 'pm-fxline', 'pm-lms', 'pm-mano'];
+  const SRC = ['pm-streets', 'pm-painted', 'pm-barrios', 'pm-terr', 'pm-halos', 'pm-fx', 'pm-fxline', 'pm-lms', 'pm-mano'];
   let FUN = null;   // foto de perfil (js/fun.js)
   const srcData = {}; SRC.forEach((id) => (srcData[id] = FC([])));
   function setSrc(id, fc) { srcData[id] = fc; const src = mapReady && map.getSource(id); if (src) src.setData(fc); }
@@ -84,6 +84,9 @@
     const round = { 'line-cap': 'round', 'line-join': 'round' };
     add({ id: 'pm-streets', type: 'line', source: 'pm-streets', filter: ['!=', ['get', 't'], 1], layout: round, paint: { 'line-color': '#9aa3b5', 'line-opacity': 0.38, 'line-width': zw(0.8, 2.4, 6) } });
     add({ id: 'pm-trails', type: 'line', source: 'pm-streets', filter: ['==', ['get', 't'], 1], paint: { 'line-color': '#9a8a66', 'line-opacity': 0.85, 'line-width': zw(0.8, 2.2, 4), 'line-dasharray': [1.5, 2] } });
+    // barrios conquistados: su zona teñida del color de su rango (debajo de lo pintado). La medalla ya no va en el mapa, donde
+    // se perdía entre los lugares: va en su botón redondo (#btn-medalla)
+    add({ id: 'pm-terr', type: 'fill', source: 'pm-terr', paint: { 'fill-color': ['match', ['get', 'rk'], 1, PM.RANKS[1].color, 2, PM.RANKS[2].color, 3, PM.RANKS[3].color, PM.RANKS[0].color], 'fill-opacity': 0.24 } });
     add({ id: 'pm-glow', type: 'line', source: 'pm-painted', layout: round, paint: { 'line-color': paintColor(), 'line-opacity': 0.22, 'line-width': zw(4, 14, 30), 'line-blur': zw(2, 6, 12) } });
     add({ id: 'pm-paint', type: 'line', source: 'pm-painted', layout: round, paint: { 'line-color': paintExpr(), 'line-width': zw(1.6, 5, 11, ['+', 1, ['*', 0.2, ['get', 'h']]]) } });
     // halo de los conquistados: simbólico (tamaño fijo en pantalla, no el radio real); solo mientras pintas.
@@ -199,11 +202,41 @@
     }
     try { localStorage.setItem(H_KEY, JSON.stringify(harvested)); } catch (e) {}
   }
+  // La zona de un barrio, para teñirla: anillos cerrados [lon, lat]. Con su contorno de OpenStreetMap, sus tramos unidos en
+  // anillos; si el barrio es solo un punto en el mapa (la Gavarra), la envolvente de sus calles
+  function anillosDe(segs) {
+    const key = (q) => q[0].toFixed(6) + ',' + q[1].toFixed(6), libres = segs.map((s) => s.slice()), out = [];
+    while (libres.length) {
+      let ring = libres.shift();
+      for (let g = 0; g < 500 && key(ring[0]) !== key(ring[ring.length - 1]); g++) {
+        const fin = key(ring[ring.length - 1]), i = libres.findIndex((s) => key(s[0]) === fin || key(s[s.length - 1]) === fin);
+        if (i < 0) break;
+        const s = libres.splice(i, 1)[0]; ring = ring.concat(key(s[0]) === fin ? s.slice(1) : s.slice().reverse().slice(1));
+      }
+      if (ring.length > 3 && key(ring[0]) === key(ring[ring.length - 1])) out.push(ring.map((q) => [q[1], q[0]]));
+    }
+    return out;
+  }
+  function envolvente(pts) {   // [lon, lat] → polígono convexo cerrado
+    pts = pts.slice().sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+    const cr = (o, a, b) => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]), lo = [], up = [];
+    for (const p of pts) { while (lo.length >= 2 && cr(lo[lo.length - 2], lo[lo.length - 1], p) <= 0) lo.pop(); lo.push(p); }
+    for (let i = pts.length - 1; i >= 0; i--) { const p = pts[i]; while (up.length >= 2 && cr(up[up.length - 2], up[up.length - 1], p) <= 0) up.pop(); up.push(p); }
+    const h = lo.slice(0, -1).concat(up.slice(0, -1));
+    return h.length >= 3 ? h.concat([h[0]]) : [];
+  }
+  function zonaDe(B) {
+    if (B.segs && B.segs.length) { const r = anillosDe(B.segs); if (r.length) return r; }
+    const pts = [];
+    for (const x of B.pieces || []) { const pc = typeof x === 'string' ? W.pieces[x] : x; if (pc && pc.pts) for (const q of pc.pts) pts.push([q[1], q[0]]); }
+    const h = pts.length >= 3 ? envolvente(pts) : [];
+    return h.length ? [h] : [];
+  }
   function bgeoSave(B) {   // contorno de un barrio conquistado (simplificado)
     const segs = (B.segs || []).map((sg) => PM.simplifyTrack(sg.map((q) => [q[0], q[1]]), 4).map((q) => [+q[0].toFixed(5), +q[1].toFixed(5)]));
-    const cur = bgeo[B.id];
-    if (cur && cur.segs.length === segs.length && cur.pos) return;
-    bgeo[B.id] = { name: B.name, segs, pos: B.pos ? [+B.pos[0].toFixed(5), +B.pos[1].toFixed(5)] : null };
+    const cur = bgeo[B.id], zona = zonaDe(B).map((r) => r.map((q) => [+q[0].toFixed(5), +q[1].toFixed(5)]));
+    if (cur && cur.segs.length === segs.length && cur.pos && (cur.zona || []).length === zona.length) return;
+    bgeo[B.id] = { name: B.name, segs, pos: B.pos ? [+B.pos[0].toFixed(5), +B.pos[1].toFixed(5)] : null, zona };
     if (geoReady) geoDb().then((db) => db.transaction('meta', 'readwrite').objectStore('meta').put(bgeo, 'barrios')).catch(() => {});
   }
   // zonas (celdas de 0,01°) que se ven ahora en el mapa (con un margen)
@@ -352,21 +385,30 @@
 
   function renderBarrios() {
     flagMarkers.forEach((m) => m.remove()); flagMarkers = [];
-    const f = [];
+    const f = [], z = [];
+    // (sin banderas en el mapa: se perdían entre los lugares. Cada barrio conquistado es su zona teñida del color de su rango,
+    // con su contorno; la medalla, en su botón redondo)
+    const zonaF = (rings, rk) => { for (const r of rings) { z.push({ type: 'Feature', properties: { rk }, geometry: { type: 'Polygon', coordinates: [r] } }); } };
     for (const B of Object.values(W.barrios)) {
       const conq = !!S().conqueredB[B.id], cur = B.id === curBarrio;
       if (conq) bgeoSave(B);
-      if (B.segs && (cur || conq)) { const rk = conq ? rankOf(B.id) : 0; B.segs.forEach((sg) => f.push(lineF(sg, { c: conq ? 1 : 0, cur: cur ? 1 : 0, rk }))); }
-      if (conq && B.pos) { const rk = rankOf(B.id); flagMarkers.push(htmlMarker(B.pos, `<div class="flag rk${rk}" title="${RANKS[rk].name}">${RANKS[rk].ic}</div>`, { anchor: 'bottom-left' })); }
+      const rk = conq ? rankOf(B.id) : 0;
+      if (B.segs && (cur || conq)) B.segs.forEach((sg) => f.push(lineF(sg, { c: conq ? 1 : 0, cur: cur ? 1 : 0, rk })));
+      if (conq) {
+        const rings = zonaDe(B); zonaF(rings, rk);
+        if (!(B.segs && B.segs.length)) rings.forEach((r) => f.push(lineF(r.map((q) => [q[1], q[0]]), { c: 1, cur: cur ? 1 : 0, rk })));   // (barrio que es solo un punto: el contorno es el de su zona)
+      }
     }
-    // los conquistados que no están cargados ahora (lejos, en otra ciudad, en otro país): con su contorno guardado
+    // los conquistados que no están cargados ahora (lejos, en otra ciudad, en otro país): con su contorno y su zona guardados
     for (const [id, g] of Object.entries(bgeo)) {
       if (W.barrios[id] || !S().conqueredB[id]) continue;
       const rk = rankOf(id);
       g.segs.forEach((sg) => f.push(lineF(sg, { c: 1, cur: 0, rk })));
-      if (g.pos) flagMarkers.push(htmlMarker(g.pos, `<div class="flag rk${rk}" title="${RANKS[rk].name}">${RANKS[rk].ic}</div>`, { anchor: 'bottom-left' }));
+      zonaF(g.zona || [], rk);
+      if (!g.segs.length) (g.zona || []).forEach((r) => f.push(lineF(r.map((q) => [q[1], q[0]]), { c: 1, cur: 0, rk })));
     }
     setSrc('pm-barrios', FC(f));
+    setSrc('pm-terr', FC(z));
   }
 
   function flushPaint() {
@@ -548,7 +590,7 @@
   // ---------------- Movimiento y lógica de pintura ----------------
   let mode = PM.profile === 'real' ? 'gps' : 'sim';   // perfil real = GPS; perfil prueba = simulación
   let follow = true;
-  let lastP = null, lastT = 0, speed = 0, tooFast = false;
+  let lastP = null, lastT = 0, speed = 0, tooFast = false, avisoRapidoT = 0;
   let curTile = null;
   let walkAnchor = null;
   let turbo = false;
@@ -645,7 +687,10 @@
         if (visible) toast('📡 Salto del GPS ignorado (no se pinta)', 'warn', 2500);
       } else if (implied != null) speed = speed * 0.6 + implied * 0.4;
       else if (fixSpeed != null && fixSpeed > 0) speed = speed * 0.5 + fixSpeed * 0.5;
+      const eraRapido = tooFast;
       tooFast = mode === 'gps' && speed > MAX_SPEED;
+      // (el indicador de velocidad se quitó de la pantalla: al pasar del tope, un aviso, como mucho uno por minuto)
+      if (tooFast && !eraRapido && Date.now() - avisoRapidoT > 60000) { avisoRapidoT = Date.now(); toast('🚲 ' + PM.t('Vas a más de 20 km/h: así no se pinta (solo andando o corriendo)'), 'warn', 4500); }
       // (en vehículo no se pinta ni se guarda el recorrido: queda un corte, y el repaso del final no une lo de antes con lo de después)
       if (tooFast && session.track && session.track.length && session.track[session.track.length - 1] !== null) session.track.push(null);
       // Hueco entre lecturas (GPS en el bolsillo): se pinta el camino más corto POR LAS CALLES
@@ -2235,6 +2280,22 @@
     if (!hudV || hudV.id !== id || hudV.city !== city || hudV.m !== m || now - hudV.t > 1000) hudV = { id, city, m, t: now, pr: B ? G.barrioProgress(id) : 0, cp: city ? G.cityProgress(city) : null };
     return hudV;
   }
+  // Botón redondo con la medalla del barrio donde estás (junto al GPS, los lugares y la brújula): el metal de tu rango y un
+  // anillo con lo que falta para el siguiente; sin conquistar, la medalla apagada y el anillo hacia el 60 %. Toca: su ficha
+  function medallaBtn(id, pr) {
+    const el = $('#btn-medalla'); if (!el) return;
+    const conq = !!(id && S().conqueredB[id]), rk = conq ? rankOf(id) : -1;
+    const meta = conq ? (RANKS[rk + 1] ? RANKS[rk + 1].min : 1) : PM.CONQ.barrio, base = conq ? RANKS[rk].min : 0;
+    const k = pr == null ? 0 : Math.max(0, Math.min(1, (pr - (conq ? base : 0)) / Math.max(0.001, meta - (conq ? base : 0))));
+    const key = (id || '-') + '|' + rk + '|' + Math.round(k * 50);
+    if (el.dataset.k === key) return;
+    el.dataset.k = key;
+    el.classList.toggle('show', !!id);
+    el.className = el.className.replace(/\brk-?\d\b/g, '').trim() + ' rk' + (conq ? rk : '-1');
+    el.querySelector('.md-ic').textContent = conq ? RANKS[rk].ic : '🥉';
+    el.querySelector('.md-pr').style.strokeDashoffset = String(122.5 * (1 - (conq && rk === 3 ? 1 : k)));
+    el.setAttribute('aria-label', conq ? PM.t('Tu medalla en este barrio') + ': ' + RANKS[rk].name : PM.t('Barrio sin conquistar'));
+  }
   function updateHUD() {
     if (document.hidden) return;   // pantalla apagada: nada que pintar (antes, 4 veces por segundo en el bolsillo)
     const lp = G.levelProgress();
@@ -2257,6 +2318,7 @@
       if (bq && B && done) checkBarrioNear(bq.id, pr, B);
       setT('#barrio-name', (bq && S().conqueredB[bq.id] ? RANKS[rankOf(bq.id)].ic + ' ' : '') + ((B && B.name) || (bq && bq.name) || t.name || 'Barrio sin explorar'));
       setT('#barrio-pct', !B ? '' : grande ? 'barrio enorme' : !done ? 'calculando…' : B.total ? PM.dec(pr * 100, 1) + ' %' : 'sin calles');
+      medallaBtn(bq && B ? bq.id : null, done && B && B.total ? pr : null);
       setW('#barrio-bar i', (pr * 100).toFixed(1) + '%');
       if (t.city) {
         if (begun) albumPisado(t);
@@ -2744,6 +2806,7 @@
     return `<svg viewBox="0 0 ${S0} ${S0}" width="${S0}" height="${S0}">${grey}${col}</svg>`;
   }
   $('#hud .barrio').addEventListener('click', () => showBarrioHistory(curBarrio));
+  $('#btn-medalla').addEventListener('click', () => curBarrio && showBarrioHistory(curBarrio));
 
   // ---------------- Copia de seguridad en archivo ----------------
   // Copia de seguridad en archivo, en el propio móvil (Documentos/PintaMapa) y, si quieres, enviada a donde elijas.

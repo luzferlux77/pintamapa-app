@@ -75,7 +75,7 @@ PM.sobre = (function () {
       <text x="60" y="73" text-anchor="middle" font-family="Georgia, 'Noto Serif', serif" font-size="38" font-weight="700" fill="#4a3510">P</text></svg>`;
   }
   // el plano de las calles alrededor del lugar conquistado (las que has pintado, en tu color); sin calles cargadas, una trama
-  function plano(cv, pos) {
+  function plano(cv, pos, reintento) {
     if (!cv) return;
     const W = cv.clientWidth || 260, H = cv.clientHeight || 340, dpr = Math.min(2, devicePixelRatio || 1);
     cv.width = W * dpr; cv.height = H * dpr;
@@ -83,7 +83,16 @@ PM.sobre = (function () {
     // (todas las calles cargadas dentro del recuadro, unos 600 × 800 m: piecesNear solo da las más cercanas)
     const pcs = [];
     if (pos && PM.world && PM.world.pieces) { const dLat = 0.0045, dLon = 0.0045 / Math.cos(pos[0] * Math.PI / 180); for (const pc of Object.values(PM.world.pieces)) { const m = pc.mid; if (m && Math.abs(m[0] - pos[0]) < dLat && Math.abs(m[1] - pos[1]) < dLon) pcs.push(pc); } }
-    if (!pcs.length) { cv.classList.add('vacio'); return; }
+    if (!pcs.length) {
+      cv.classList.add('vacio');
+      // (calles de esa zona aún sin cargar —la app recién abierta, una carta de otra ciudad—: se piden y, si el sobre sigue
+      // cerrado cuando lleguen, se dibuja el plano)
+      if (pos && !reintento && PM.world && PM.world.ensureKeys && PM.world.tileKeyOf) {
+        const ks = new Set(); for (const dy of [-0.004, 0, 0.004]) for (const dx of [-0.005, 0, 0.005]) ks.add(PM.world.tileKeyOf(pos[0] + dy, pos[1] + dx));
+        PM.world.ensureKeys([...ks]).then(() => { if (document.body.contains(cv) && !cv.closest('.abierto')) { cv.classList.remove('vacio'); plano(cv, pos, true); } }).catch(() => {});
+      }
+      return;
+    }
     const k = Math.cos(pos[0] * Math.PI / 180), esc = W / 0.0072;   // ~600 m de ancho
     const px = (q) => [W / 2 + (q[1] - pos[1]) * k * esc, H * 0.44 - (q[0] - pos[0]) * esc];
     const pintado = (PM.state && PM.state.data && PM.state.data.painted) || {};
