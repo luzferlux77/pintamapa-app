@@ -266,8 +266,8 @@ PM.tcg = (function () {
   function interactive(el) {
     const rot = el.querySelector('.tcg-rot');
     let flipped = false, raf = null, target = { x: 50, y: 50 }, cur = { x: 50, y: 50 }, active = false, dedo = null, movido = false;
-    const touch = !!(window.matchMedia && matchMedia('(hover: none)').matches);
-    const GIRO = touch ? 0.5 : 1;   // en el móvil, la mitad que en el PC (±7° y ±9°): se nota sin marear
+    // (igual en el móvil que en el PC: ±14° y ±18°. Antes en el móvil era la mitad y el usuario notaba que giraba poco)
+    const GIRO = 1;
     const apply = () => {
       const k = el._soft ? 0.1 : 0.18; cur.x += (target.x - cur.x) * k; cur.y += (target.y - cur.y) * k;
       const rx = (cur.y - 50) / 50 * -14 * GIRO, ry = (cur.x - 50) / 50 * 18 * GIRO;
@@ -304,7 +304,8 @@ PM.tcg = (function () {
       if (!base) base = { g: e.gamma, b: e.beta };
       base.g += (e.gamma - base.g) * 0.004; base.b += (e.beta - base.b) * 0.004;
       el._soft = true;
-      const nx = 50 + clamp((e.gamma - base.g) * 1.8), ny = 50 + clamp((e.beta - base.b) * 1.8);
+      // (2,6: inclinar el móvil unos 18° lleva la carta al tope; antes hacían falta 27°)
+      const nx = 50 + clamp((e.gamma - base.g) * 2.6), ny = 50 + clamp((e.beta - base.b) * 2.6);
       if (Math.abs(nx - target.x) < 0.6 && Math.abs(ny - target.y) < 0.6) return;   // (el temblor del sensor no mueve la carta: así no parpadea ni gasta)
       target = { x: nx, y: ny };
       el.classList.add('active'); go();

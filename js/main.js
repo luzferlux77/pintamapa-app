@@ -2382,7 +2382,7 @@
   function showNextCard() {
     if (document.hidden) return;
     const v = document.getElementById('tcg-view');
-    if (!cardQueue.length || (v && v.classList.contains('show'))) return;
+    if (!cardQueue.length || (v && v.classList.contains('show')) || document.getElementById('sobre')) return;   // (ni con un sobre abriéndose)
     const [id, pts] = cardQueue.shift();
     PM.cards.open(id, { isNew: true, pts });
   }

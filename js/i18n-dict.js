@@ -809,6 +809,8 @@
     'Toda tu partida en un archivo, en Documentos/PintaMapa. En otro móvil, impórtala: se suma a lo que tengas, sin perder nada.': ['Tota la teva partida en un arxiu, a Documents/PintaMapa. En un altre mòbil, importa-la: se suma al que tinguis, sense perdre res.', 'Your whole game in one file, in Documents/PintaMapa. On another phone, import it: it adds to what you have, nothing is lost.', 'Toute ta partie dans un fichier, dans Documents/PintaMapa. Sur un autre téléphone, importe-la : elle s’ajoute à ce que tu as, rien ne se perd.'],
     'Para ver el mapa y pintar sin cobertura (metro, montaña, viajes).': ['Per veure el mapa i pintar sense cobertura (metro, muntanya, viatges).', 'To see the map and paint without coverage (underground, mountains, trips).', 'Pour voir la carte et peindre sans réseau (métro, montagne, voyages).'],
     'Álbum': ['Àlbum', 'Album', 'Album'], 'Barrios': ['Barris', 'Neighbourhoods', 'Quartiers'],
+    // (sobre de cartas: sobre.js)
+    'Desliza el dedo por arriba para rasgarlo': ['Llisca el dit per dalt per estripar-lo', 'Swipe across the top to tear it open', 'Glisse le doigt en haut pour le déchirer'],
     // (fiestas de nivel y de rango: fiesta.js)
     '¡NUEVO HITO!': ['NOU FITA!', 'NEW MILESTONE!', 'NOUVEAU PALIER !'], '¡NUEVO RANGO!': ['NOU RANG!', 'NEW RANK!', 'NOUVEAU RANG !'],
     'Normal': ['Normal', 'Normal', 'Normal'], 'Nuevo color': ['Color nou', 'New colour', 'Nouvelle couleur'],

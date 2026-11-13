@@ -309,8 +309,10 @@ PM.cards = (function () {
 
   async function open(id, opts = {}) {
     if (!recOf(id)) return;
+    let primera = !!opts.isNew;   // (carta recién conquistada: antes de verla, se abre su sobre —sobre.js—)
     const show = async () => {
       const d = await dataFor(id);
+      if (primera) { primera = false; try { await PM.need('js/sobre.js'); return PM.sobre.abrir(d, show); } catch (e) { /* sin el sobre: la carta directamente */ } }
       PM.tcg.open(d, {
         badge: opts.isNew ? `${recOf(id).shiny ? '✨ ¡CARTA BRILLANTE! ✨' : recOf(id).must ? '⭐ ¡IMPRESCINDIBLE! ⭐' : '¡Nueva carta!'} ${opts.pts ? '+' + opts.pts + ' pts' : ''}` : '',
         actions: [{ label: d.own ? '📸 Cambiar foto' : d.img ? '📸 Tu foto' : '📸 Hazle la foto', primary: !d.img, on: () => editPhoto(id, show) }],
