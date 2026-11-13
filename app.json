@@ -1,8 +1,8 @@
 {
-  "version": "0.9.4",
-  "notes": "Diario GPS nativo: con el móvil en el bolsillo y la app congelada, las posiciones se guardan y se recuperan al despertar (APK nueva)",
+  "version": "0.9.5",
+  "notes": "Sobre de cartas realista que se rasga con el dedo, la carta sale sola a su tamaño y los nombres de las cartas ya no se cortan",
   "native": 9,
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.9.4/pintamapa-web-0.9.4.zip",
-  "checksum": "22f452a3bc336975dd258a9663ac11f93c3c6183d229467741c4e0e9d0ef32f2",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.9.4/PintaMapa-v0.9.4.apk"
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.9.5/pintamapa-web-0.9.5.zip",
+  "checksum": "5ac0196840ba0fb92b7d9a3aa9095a973752695aa43090a35422479019ee8422",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.9.5/PintaMapa-v0.9.5.apk"
 }
