@@ -1523,13 +1523,16 @@
   const BG = nativePlugin('BackgroundGeolocation');
   let gpsWatch = null;
 
-  function onFix(c, t) {
+  // rec: lectura recuperada del diario GPS nativo (con la app congelada en el bolsillo no llegó en su momento). Su hora es la
+  // del GPS, no «ahora»; y una lectura en directo que ya se recuperó del diario (llega tarde, en tromba) no se repite
+  function onFix(c, t, rec) {
     if (mode !== 'gps' || !c) return;
+    if (!rec && t && t <= recHasta) return;
     const acc = c.accuracy || 0;
     gpsIcon(acc > 35 ? 'weak' : 'ok', acc);
-    lastFixT = Date.now();
-    if (acc <= 35) lastBuenaT = lastFixT;
-    if (session && !session.paused) anotarDiario(acc);
+    lastFixT = rec ? Math.max(lastFixT || 0, t) : Date.now();
+    if (acc <= 35) lastBuenaT = rec ? Math.max(lastBuenaT || 0, t) : lastFixT;
+    if (session && !session.paused && !rec) anotarDiario(acc);
     if (c.altitude != null && isFinite(c.altitude) && (c.altitudeAccuracy == null || c.altitudeAccuracy < 30)) lastAlt = c.altitude;
     if (acc > 35 && session && !session.paused) gpsSt().flojas++;
     if (acc > 35) {   // con mucho error podríamos pintar la calle de al lado: no pinta, pero sirve de guía para rellenar el hueco
@@ -1542,7 +1545,7 @@
     if (!(session && !session.paused) || PM.debug.sinFiltro) { onMove(f.p, false, f.t, f.spd, f.brg); return; }
     // Pintando: cada lectura se confirma con la siguiente. Un rebote del GPS entre edificios (una lectura suelta
     // desviada 30-60 m) hacía que se trazara un camino hasta ella y de vuelta, pintando calles que no pisaste.
-    if (!document.hidden) showAt(f.p, true);   // tu punto se mueve ya; lo que se pinta espera a la siguiente lectura
+    if (!document.hidden && !rec) showAt(f.p, true);   // tu punto se mueve ya; lo que se pinta espera a la siguiente lectura
     holdFix(f);
   }
   let heldFix = null, heldTimer = null;
@@ -1634,6 +1637,39 @@
       return acc <= 50 ? 'quieto' : 'incierto';   // (en el mismo sitio: el GPS sigue vivo y no hay nada que rellenar)
     } finally { vigilando = false; }
   }
+  // Diario GPS nativo (APK native 9+): con la pantalla apagada en el bolsillo Android congela la parte web aunque el servicio
+  // de GPS siga vivo (paseos del 13-nov-2026: ni una lectura en 7 min con el servicio en marcha). El servicio apunta cada
+  // posición en un archivo; al despertar se recuperan las que no llegaron, en orden y con su hora, como si hubieran llegado
+  // en su momento (pintan las calles por donde pasaste de verdad, no un relleno adivinado)
+  var recHasta = 0, recuperando = false;   // (var: onFix la mira y está antes)
+  async function recuperarDiarioGps() {
+    if (!isNative || recuperando || !gpsWanted()) return 0;
+    const P = nativePlugin('PmSystem');
+    if (!P || !P.diarioGps) return 0;   // (APK anterior sin diario: como antes)
+    const ses = session;
+    recuperando = true;
+    try {
+      const desde = Math.max(lastT || 0, recHasta, ses.resumedAt || ses.start || 0);
+      const r = await P.diarioGps({ desde });
+      if (session !== ses || !gpsWanted()) return 0;
+      const filas = PM.filasDiarioGps(r && r.datos, Math.max(desde, lastT || 0));
+      if (!filas.length) return 0;
+      // la lectura en espera (la última en directo) es más nueva: se aparta, entran las recuperadas y luego ella
+      const h = heldFix; heldFix = null; clearTimeout(heldTimer);
+      let n = 0;
+      for (const f of filas) {
+        if (h && f.t >= h.t) break;
+        recHasta = Math.max(recHasta, f.t);
+        onFix({ latitude: f.la, longitude: f.lo, accuracy: f.a, speed: f.s, bearing: f.b }, f.t, true);
+        n++;
+      }
+      if (h) holdFix(h);
+      if (n) { const g = gpsSt(); if (g) g.recuperadas = (g.recuperadas || 0) + n; avisoDiario('nativo:' + n); }
+      return n;
+    } catch (e) { return 0; } finally { recuperando = false; }
+  }
+  function hayDiarioGps() { const P = isNative && nativePlugin('PmSystem'); return !!(P && P.diarioGps); }
+  function vaciarDiarioGps() { const P = isNative && nativePlugin('PmSystem'); if (P && P.vaciarDiarioGps) P.vaciarDiarioGps().catch(() => {}); recHasta = 0; }
   // vigilante: 2 min sin ninguna lectura con el paseo en marcha → se mira si el GPS sigue vivo (andando llega una cada pocos
   // segundos; en el emulador, tras 5 min sin GPS con la pantalla bloqueada, el GPS ya no volvió solo hasta reiniciarlo).
   // También si el GPS se pidió y aún no ha dado NINGUNA lectura (antes ese caso quedaba fuera)
@@ -1642,14 +1678,18 @@
     if (!gpsWanted() || vigilando) return;
     const ultimo = Math.max(lastBuenaT || 0, gpsPedidoT || 0, session.resumedAt || session.start || 0);
     if (!ultimo || Date.now() - ultimo < 2 * 60000 || Date.now() - vigilaT < 2 * 60000) return;
-    gpsDespierto();
+    // (primero lo que el servicio apuntó mientras la app estaba congelada: si el GPS seguía vivo, no hay nada que despertar)
+    if (!hayDiarioGps()) { gpsDespierto(); return; }
+    recuperarDiarioGps().then(() => { if (gpsWanted() && !vigilando && Date.now() - Math.max(lastBuenaT || 0, gpsPedidoT || 0) >= 2 * 60000) gpsDespierto(); });
   }, 30000);
   // Al sacar el móvil del bolsillo (la app vuelve a verse) se mira en el acto: si hace más de 20 s que no llega ninguna
   // lectura, se pregunta ya la posición en vez de esperar a los 2 min del vigilante. Con la pantalla apagada Android puede
   // frenar los temporizadores de la app (el vigilante de arriba tarda más en saltar), pero este momento siempre llega.
   // Si te habías movido, el tramo se rellena por las calles; si no, no pasa nada.
-  document.addEventListener('visibilitychange', () => {
+  document.addEventListener('visibilitychange', async () => {
     if (session && !session.paused) avisoDiario(document.hidden ? 'oculta' : 'visible');
+    if (document.hidden || !gpsWanted() || vigilando) return;
+    await recuperarDiarioGps();   // (lo que el GPS apuntó mientras la app estaba congelada en el bolsillo)
     if (document.hidden || !gpsWanted() || vigilando) return;
     const ultimo = Math.max(lastBuenaT || 0, gpsPedidoT || 0, session.resumedAt || session.start || 0);
     if (Date.now() - ultimo < 20000 || Date.now() - vigilaT < 20000) return;
@@ -1790,7 +1830,7 @@
   function startSession() {
     if (placesOff) setPlaces(false, true);   // pintando, los lugares se ven siempre (si no, pasarías de largo)
     session = { start: Date.now(), resumedAt: Date.now(), elapsed: 0, paused: false, st: newSessionStats(), track: [] };
-    lastP = null; walkAnchor = null; cortarUnion();
+    lastP = null; walkAnchor = null; cortarUnion(); vaciarDiarioGps();
     persistSession(); syncGPS(); renderSession();
     PM.update.hold();
     PM.sound.pickup(); PM.vibrate(60);
@@ -2082,7 +2122,7 @@
       <button class="btn sbtn stop" id="s-end" title="Finalizar">⏹</button>`;
     if (session.paused) $('#s-resume').addEventListener('click', resumeSession);
     else $('#s-pause').addEventListener('click', pauseSession);
-    $('#s-end').addEventListener('click', () => { if (confirm('¿Finalizar el paseo? Se apagará el GPS.')) endSession(); });
+    $('#s-end').addEventListener('click', () => { if (confirm('¿Finalizar el paseo? Se apagará el GPS.')) recuperarDiarioGps().catch(() => 0).then(() => endSession()); });   // (antes, lo que el GPS apuntó con la app congelada)
     updateSessionInfo();
   }
   function updateSessionInfo() {
@@ -3443,6 +3483,7 @@
     else if (vueltaLarga) { lastP = null; cortarUnion(); }   // (hace mucho: tramo nuevo, sin rellenar)
     setMode(mode);
     setOrient(orient);
+    if (autoResumed && !vueltaLarga) setTimeout(() => recuperarDiarioGps(), 1500);   // (si el GPS siguió apuntando mientras tanto)
     renderSession();
     requestAnimationFrame(loop);
     PM.sync.auto(null, true);   // al abrir: se mira la nube aunque aquí no haya cambios

@@ -80,6 +80,23 @@ PM.limpio = (t) => (t == null ? t : String(t).replace(/[<>]/g, '').replace(/"/g,
 // una posición de verdad: [lat, lon, …] con cifras finitas y en su rango
 PM.puntoOk = (p) => Array.isArray(p) && p.length >= 2 && typeof p[0] === 'number' && typeof p[1] === 'number' && Math.abs(p[0]) <= 90 && Math.abs(p[1]) <= 180;
 // contornos de barrios conquistados ({ id: { name, segs:[[punto…]…], pos } }): solo los que se pueden dibujar
+// Diario GPS nativo (pm_gps.csv, APK native 9+): «hora,lat,lon,precisión,velocidad,rumbo» por fila. Devuelve las lecturas
+// válidas con hora posterior a «desde», en orden y sin repetidas (-1 = el GPS no lo sabe)
+PM.filasDiarioGps = function (texto, desde) {
+  const out = [], vistas = new Set();
+  if (typeof texto !== 'string' || !texto) return out;
+  for (const ln of texto.split('\n')) {
+    const c = ln.split(',');
+    if (c.length < 4) continue;
+    const t = +c[0], la = +c[1], lo = +c[2], a = +c[3], s = c[4] != null ? +c[4] : -1, b = c[5] != null ? +c[5] : -1;
+    if (!isFinite(t) || t <= (desde || 0) || vistas.has(t)) continue;
+    if (!isFinite(la) || !isFinite(lo) || Math.abs(la) > 90 || Math.abs(lo) > 180 || (la === 0 && lo === 0)) continue;
+    vistas.add(t);
+    out.push({ t, la, lo, a: isFinite(a) && a >= 0 ? a : 999, s: isFinite(s) && s >= 0 ? s : null, b: isFinite(b) && b >= 0 ? b : null });
+  }
+  return out.sort((x, y) => x.t - y.t);
+};
+
 PM.bgeoSano = function (o) {
   const out = {};
   if (!o || typeof o !== 'object' || Array.isArray(o)) return out;
