@@ -1,8 +1,8 @@
 {
-  "version": "0.9.2",
-  "notes": "Al conquistar una carta, ábrela rasgando su sobre con el dedo: el sobre lleva el plano de tus calles en oro. La carta gira igual en el móvil que en el PC",
+  "version": "0.9.3",
+  "notes": "Medalla del barrio en botón redondo, zona teñida en el mapa, sin velocidad en pantalla y no pinta a más de 20 km/h",
   "native": 8,
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.9.2/pintamapa-web-0.9.2.zip",
-  "checksum": "6de19204d1ff8ea6f795e6efeb61a6fcc990e717e79081cdc989454be28739cf",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.9.2/PintaMapa-v0.9.2.apk"
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.9.3/pintamapa-web-0.9.3.zip",
+  "checksum": "981321de343165821f08cdcf85c82d9a8fa431314a2ace658c666ecae726caff",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.9.3/PintaMapa-v0.9.3.apk"
 }
