@@ -3,6 +3,24 @@
 // al ratón o a la inclinación del móvil; se voltea al tocarla. Se usa en la app y en «Mi progreso».
 PM.tcg = (function () {
   const esc = (t) => String(t == null ? '' : t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  // El nombre de la carta NUNCA se corta (petición del usuario, 13-nov-2026: salía «Torre de telecomunicaciones de…»). Se
+  // calcula el tamaño de letra por su longitud, simulando el salto de línea palabra a palabra: en 2 líneas si cabe sin
+  // bajar mucho la letra; si no, en 3. Como depende solo del texto, sale igual en la carta grande, en las miniaturas del
+  // álbum y en la imagen para compartir. porLinea = letras que caben en una línea con la letra a tamaño normal.
+  function lineasDe(txt, cabe) {
+    let n = 1, ancho = 0;
+    for (const w of String(txt).split(/\s+/).filter(Boolean)) {
+      if (w.length > cabe) return 99;   // (una palabra que no cabe ni sola: hay que bajar la letra)
+      if (!ancho) ancho = w.length; else if (ancho + 1 + w.length <= cabe) ancho += 1 + w.length; else { n++; ancho = w.length; }
+    }
+    return n;
+  }
+  function tamTitulo(txt, porLinea) {
+    for (const [lineas, desde, hasta] of [[2, 1, 0.74], [3, 0.9, 0.5]]) {
+      for (let k = desde; k >= hasta - 1e-9; k -= 0.02) if (lineasDe(txt, porLinea / k) <= lineas) return +k.toFixed(2);
+    }
+    return 0.5;
+  }
   // (una foto de Commons con apóstrofo —«Sant Pere d'Or.jpg»— rompía el url('…') y la carta salía sin foto)
   const cssUrl = (u) => String(u).replace(/'/g, '%27').replace(/\\/g, '%5C');
 
@@ -197,7 +215,7 @@ PM.tcg = (function () {
           ${foto || `<circle cx="100" cy="100" r="54" class="s4"/><text x="100" y="146" class="sr">${esc(R.sym)}</text>`}
           <circle cx="100" cy="100" r="${foto ? 67 : 60}" class="s3"/>
         </svg>
-        <div class="bk-name" translate="no">${esc(d.name)}</div>
+        <div class="bk-name" translate="no" style="--k: ${tamTitulo(d.name, 24)}">${esc(d.name)}</div>
         <div class="bk-sub" translate="no">${esc([d.barrio, d.city].filter(Boolean).join(' · ') || d.kind || '')}</div>
         <div class="bk-motto"><i></i><span>Sal a la calle · Pinta tu ciudad · Conquístala</span><i></i></div>
         <div class="bk-grid">
@@ -231,7 +249,7 @@ PM.tcg = (function () {
             <div class="tcg-top">
               <div class="tcg-stage"><span>${esc(PM.t(T.name))} · ${esc(PM.t(R.name))}</span><span class="tcg-code">${code(d)}</span></div>
               ${d.shiny || d.must ? `<div class="tcg-shinytag ${d.must ? 'musttag' : ''}">${d.must ? '⭐ IMPRESCINDIBLE' : ''}${d.must && d.shiny ? ' · ' : ''}${d.shiny ? '✨ BRILLANTE' : ''}</div>` : ''}
-              <div class="tcg-title"><b translate="no">${esc(d.name)}</b><span class="tcg-hp"><small>PTS</small>${pts}<i class="tcg-orb">${esc(d.emoji || '📍')}</i></span></div>
+              <div class="tcg-title"><b translate="no" style="--k: ${tamTitulo(d.name, 19)}">${esc(d.name)}</b><span class="tcg-hp"><small>PTS</small>${pts}<i class="tcg-orb">${esc(d.emoji || '📍')}</i></span></div>
             </div>
             <div class="tcg-art">
               <div class="tcg-photo" ${d.img ? `style="background-image:url('${esc(cssUrl(d.img))}')"` : ''}>${d.img ? '' : `<span>${esc(d.emoji || '📍')}</span>`}</div>
@@ -445,7 +463,7 @@ PM.tcg = (function () {
   .tcg-rule { font-size: .52em; line-height: 1.35; color: #3a2500; background: linear-gradient(90deg, #ffe9a8, #f6d36b); border-radius: .45em; padding: .35em .6em; box-shadow: inset 0 0 0 .1em rgba(160,110,10,.45); }
   .tcg-rule b { background: #b45309; color: #fff; padding: .05em .45em; border-radius: .3em; margin-right: .3em; letter-spacing: .05em; }
   .tcg-title { display: flex; align-items: center; justify-content: space-between; gap: .5em; }
-  .tcg-title b { font-size: 1.3em; font-weight: 900; color: #1b1b1b; line-height: 1.05; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; letter-spacing: -.01em; }
+  .tcg-title b { font-size: calc(1.3em * var(--k, 1)); font-weight: 900; color: #1b1b1b; line-height: 1.05; letter-spacing: -.01em; min-width: 0; overflow-wrap: break-word; }   /* (nunca cortado: ver tamTitulo) */
   .tcg-hp { display: flex; align-items: center; gap: .25em; font-weight: 900; font-size: 1.25em; color: #c81e1e; white-space: nowrap; }
   .tcg-hp small { font-size: .5em; color: #c81e1e; }
   .tcg-orb { display: grid; place-items: center; width: 1.6em; height: 1.6em; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #fff8, transparent 45%), var(--orb); font-style: normal; font-size: .85em; box-shadow: 0 .1em .25em rgba(0,0,0,.4), inset 0 -.15em .3em rgba(0,0,0,.25); }
@@ -557,8 +575,8 @@ PM.tcg = (function () {
   .bk-seal .st { fill: #e3c88d; font: 600 10.5px Inter, system-ui, sans-serif; letter-spacing: 1.5px; }
   .bk-seal .se { text-anchor: middle; font-size: 46px; }
   .bk-seal .sr { text-anchor: middle; fill: #fff4d6; font: 700 11px Inter, system-ui, sans-serif; letter-spacing: 3px; }
-  .bk-name { font-family: Georgia, "Times New Roman", serif; font-size: 1.32em; line-height: 1.12; text-align: center; color: #fff; font-weight: 700; letter-spacing: -.01em;
-    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; max-width: 100%; }
+  .bk-name { font-family: Georgia, "Times New Roman", serif; font-size: calc(1.32em * var(--k, 1)); line-height: 1.12; text-align: center; color: #fff; font-weight: 700; letter-spacing: -.01em;
+    max-width: 100%; overflow-wrap: break-word; }
   .bk-sub { font-size: .66em; color: #9aa6ba; margin-top: .35em; letter-spacing: .04em; text-align: center; }
   .bk-motto { margin-top: auto; margin-bottom: .9em; width: 100%; display: flex; align-items: center; gap: .6em; font-family: Georgia, serif; font-style: italic; font-size: .58em; color: #c9b27c; white-space: nowrap; }
   .bk-motto i { flex: 1; height: 1px; background: rgba(212,175,106,.35); }
@@ -652,5 +670,5 @@ PM.tcg = (function () {
     });
   }
 
-  return { html, open, close, interactive, toPng, download, typeOf, stacks, byCountry };
+  return { _tamTitulo: tamTitulo, html, open, close, interactive, toPng, download, typeOf, stacks, byCountry };
 })();
