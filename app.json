@@ -1,8 +1,8 @@
 {
-  "version": "0.9.3",
-  "notes": "Medalla del barrio en botón redondo, zona teñida en el mapa, sin velocidad en pantalla y no pinta a más de 20 km/h",
-  "native": 8,
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.9.3/pintamapa-web-0.9.3.zip",
-  "checksum": "981321de343165821f08cdcf85c82d9a8fa431314a2ace658c666ecae726caff",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.9.3/PintaMapa-v0.9.3.apk"
+  "version": "0.9.4",
+  "notes": "Diario GPS nativo: con el móvil en el bolsillo y la app congelada, las posiciones se guardan y se recuperan al despertar (APK nueva)",
+  "native": 9,
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.9.4/pintamapa-web-0.9.4.zip",
+  "checksum": "22f452a3bc336975dd258a9663ac11f93c3c6183d229467741c4e0e9d0ef32f2",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.9.4/PintaMapa-v0.9.4.apk"
 }
