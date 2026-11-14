@@ -1,10 +1,10 @@
 {
-  "version": "0.9.6",
-  "notes": "Las versiones antiguas de la app quedan bloqueadas hasta instalar la nueva (la partida no se pierde)",
+  "version": "0.9.7",
+  "notes": "El GPS del bolsillo ahora sí recupera todo lo andado con la pantalla apagada, y no quedan dos GPS encendidos a la vez",
   "native": 1,
   "nativeApk": 9,
   "apkMin": "0.9.4",
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.9.6/pintamapa-web-0.9.6.zip",
-  "checksum": "978b87144025d7fbc0cc673c46e728db52634e054c57b2fe1d8db384bb1e87da",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.9.6/PintaMapa-v0.9.6.apk"
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.9.7/pintamapa-web-0.9.7.zip",
+  "checksum": "b6d411785e02fd41c0264af6fe7c339227edfd158244236a2e1a834f07cfd8c8",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.9.7/PintaMapa-v0.9.7.apk"
 }
