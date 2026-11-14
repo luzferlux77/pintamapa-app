@@ -1,8 +1,10 @@
 {
-  "version": "0.9.5",
-  "notes": "Sobre de cartas realista que se rasga con el dedo, la carta sale sola a su tamaño y los nombres de las cartas ya no se cortan",
-  "native": 9,
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.9.5/pintamapa-web-0.9.5.zip",
-  "checksum": "5ac0196840ba0fb92b7d9a3aa9095a973752695aa43090a35422479019ee8422",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.9.5/PintaMapa-v0.9.5.apk"
+  "version": "0.9.6",
+  "notes": "Las versiones antiguas de la app quedan bloqueadas hasta instalar la nueva (la partida no se pierde)",
+  "native": 1,
+  "nativeApk": 9,
+  "apkMin": "0.9.4",
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.9.6/pintamapa-web-0.9.6.zip",
+  "checksum": "978b87144025d7fbc0cc673c46e728db52634e054c57b2fe1d8db384bb1e87da",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.9.6/PintaMapa-v0.9.6.apk"
 }
