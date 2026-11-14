@@ -126,6 +126,12 @@
     'Imprescindibles de': ['Imprescindibles de', 'Must-sees of', 'Incontournables de'],
     'Sobre de conquista': ['Sobre de conquesta', 'Conquest pack', 'Paquet de conquête'],
     'Contiene 1 carta': ['Conté 1 carta', 'Contains 1 card', 'Contient 1 carte'],
+    // ---- versión caducada (caducada.js) ----
+    'Esta versión de PintaMapa ya no funciona': ['Aquesta versió de PintaMapa ja no funciona', 'This version of PintaMapa no longer works', 'Cette version de PintaMapa ne fonctionne plus'],
+    'Para seguir jugando, instala la versión nueva. Tu partida, tus calles y tus cartas se quedan como están.': ['Per continuar jugant, instal·la la versió nova. La teva partida, els teus carrers i les teves cartes es queden com estan.', 'To keep playing, install the new version. Your game, your streets and your cards stay as they are.', 'Pour continuer à jouer, installe la nouvelle version. Ta partie, tes rues et tes cartes restent telles quelles.'],
+    'Descargar la versión nueva': ['Descarregar la versió nova', 'Download the new version', 'Télécharger la nouvelle version'],
+    'Cuando termine la descarga, ábrela e instálala encima de esta.': ['Quan acabi la descàrrega, obre-la i instal·la-la a sobre d’aquesta.', 'When the download finishes, open it and install it over this one.', 'Quand le téléchargement est fini, ouvre-le et installe-le par-dessus celle-ci.'],
+    'Tienes la {a}; hace falta la {b} o una posterior.': ['Tens la {a}; cal la {b} o una de posterior.', 'You have {a}; you need {b} or later.', 'Tu as la {a} ; il faut la {b} ou une plus récente.'],
     'Toca el sobre para abrirlo': ['Toca el sobre per obrir-lo', 'Tap the pack to open it', 'Touche le paquet pour l’ouvrir'],
     'Toca la carta para darle la vuelta': ['Toca la carta per girar-la', 'Tap the card to flip it', 'Touche la carte pour la retourner'],
     'Girar': ['Girar', 'Flip', 'Retourner'],
