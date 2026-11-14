@@ -94,7 +94,16 @@ PM.filasDiarioGps = function (texto, desde) {
     vistas.add(t);
     out.push({ t, la, lo, a: isFinite(a) && a >= 0 ? a : 999, s: isFinite(s) && s >= 0 ? s : null, b: isFinite(b) && b >= 0 ? b : null });
   }
-  return out.sort((x, y) => x.t - y.t);
+  out.sort((x, y) => x.t - y.t);
+  // (con dos vigilantes a la vez —uno huérfano de antes de recargarse la app— cada posición se apunta dos veces con
+  // menos de 1 s de diferencia: paseo del 14-nov-2026. La segunda no aporta nada y mete zigzag)
+  // (si la segunda es más precisa, se queda esa)
+  const res = [];
+  for (const f of out) {
+    const u = res[res.length - 1];
+    if (u && f.t - u.t < 1000) { if (f.a < u.a) res[res.length - 1] = f; } else res.push(f);
+  }
+  return res;
 };
 
 PM.bgeoSano = function (o) {
