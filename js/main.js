@@ -3450,7 +3450,7 @@
     el.innerHTML = `<div class="hm-card">
       <div class="hm-me">${FUN ? FUN.avatarHTML('hm-av') : ''}<div class="hm-who"><b>${esc(PM.player.name)}</b><span class="hm-lvl">${lp.tier ? lp.tier.icon + ' ' : '⭐ '}Nivel ${lp.label}</span>
         <div class="pf-xp"><i style="width:${(lp.pct * 100).toFixed(1)}%"></i></div></div></div>
-      <div class="hm-stats"><div><b>🔥 ${streak}</b><small>racha</small></div><div><b>${PM.fmtDist(st.paintedM || 0)}</b><small>pintados</small></div><div><b>${nL}</b><small>lugares</small></div><div><b>${nB}</b><small>barrios</small></div></div>
+      <div class="hm-stats"><div><b>🔥 ${streak}</b><small>racha</small></div><div><b>${PM.fmtDist(st.paintedM || 0)}</b><small>pintados</small></div><div><b>${nL}</b><small>${nL === 1 ? 'lugar' : 'lugares'}</small></div><div><b>${nB}</b><small>${nB === 1 ? 'barrio' : 'barrios'}</small></div></div>
       <button class="btn primary hm-go" id="hm-go">${s.session ? '▶ Seguir con tu paseo' : '▶ Salir a pintar'}</button>
       <p class="hm-msg">${msg}</p></div>`;
     $('#hm-go').addEventListener('click', () => begin());

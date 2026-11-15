@@ -126,6 +126,8 @@
     'Imprescindibles de': ['Imprescindibles de', 'Must-sees of', 'Incontournables de'],
     'Sobre de conquista': ['Sobre de conquesta', 'Conquest pack', 'Paquet de conquête'],
     'Contiene 1 carta': ['Conté 1 carta', 'Contains 1 card', 'Contient 1 carte'],
+    'barrio': ['barri', 'neighbourhood', 'quartier'],
+    'lugar': ['lloc', 'place', 'lieu'],
     // ---- álbum: índice ----
     'Índice': ['Índex', 'Contents', 'Sommaire'],
     'Carpeta anterior': ['Carpeta anterior', 'Previous folder', 'Dossier précédent'],
