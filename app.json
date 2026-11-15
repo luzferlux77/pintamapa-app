@@ -1,10 +1,10 @@
 {
-  "version": "0.9.20",
-  "notes": "Cartas: en el móvil, un brillo limpio de luz en vez del arcoíris",
+  "version": "0.9.21",
+  "notes": "Nueva carta en Cornellà: la locomotora de vapor nº 37 de la carretera d'Esplugues",
   "native": 1,
   "nativeApk": 9,
   "apkMin": "0.9.4",
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.9.20/pintamapa-web-0.9.20.zip",
-  "checksum": "c0a16a960a787286688cdb0200ab4fb74f145eb9c772c1207effc2a03df10a7c",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.9.20/PintaMapa-v0.9.20.apk"
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.9.21/pintamapa-web-0.9.21.zip",
+  "checksum": "5ef92a6897ad967c4d607f6a15f7d249a97fa75fbadc30fb34329099ae085d29",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.9.21/PintaMapa-v0.9.21.apk"
 }
