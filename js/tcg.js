@@ -554,18 +554,22 @@ PM.tcg = (function () {
     background-size: 280% 280%; background-position: var(--mx) var(--my); }
   #tcg-view .tcg { touch-action: none; }   /* (el dedo inclina la carta: no desplaza la pantalla) */
   @media (hover: none) {
-    /* móvil: la carta gira en 3D y ahí Android dibuja mal las MEZCLAS de color (franjas cortadas, bordes que bailan, parpadeos).
-       El mismo holograma, sin mezclas: capas de color con transparencia que aparecen al inclinar */
-    .tcg-glitter { display: none; }
-    .tcg-holo { mix-blend-mode: normal; }
-    .r-epico .tcg-holo { opacity: calc(var(--hyp) * .32); } .r-legendario .tcg-holo { opacity: calc(.06 + var(--hyp) * .34); }
-    .tcg-foil { mix-blend-mode: normal; opacity: calc(var(--holo) * var(--hyp) * .22); }
-    .r-legendario .tcg-foil { opacity: calc(.05 + var(--hyp) * .3); }
-    .tcg.shiny .tcg-foil { animation: none; opacity: calc(.12 + var(--hyp) * .25); }
+    /* MÓVIL (v0.9.20, petición del usuario: «hacen un arcoíris raro, no un efecto holográfico; hazlo seguro o lo mínimo para que
+       brille»). La carta gira en 3D y ahí Android dibuja mal las mezclas de color, y las franjas de arcoíris en movimiento se ven
+       raras en una pantalla de móvil. Aquí: NADA de arcoíris, ni mezclas, ni animaciones. El marco, de metal pulido (plata, azul,
+       violeta u oro según la rareza) y el brillo, una franja de luz blanca —dorada en las legendarias— que cruza la carta al
+       inclinarla, como el reflejo de un cromo plastificado, más el resplandor suave del punto de luz */
+    .tcg-glitter, .tcg-holo { display: none; }
+    .r-raro .tcg-front, .r-epico .tcg-front { background: linear-gradient(135deg, var(--b1), var(--b2) 30%, var(--b3) 60%, var(--b4)); }
+    .r-legendario .tcg-front { background: linear-gradient(135deg, #fff6cf, #e6c25a 22%, #fffbe8 42%, #d4a52c 62%, #fff2b8 80%, #c99a24); }
+    .tcg-foil, .tcg.shiny .tcg-foil { mix-blend-mode: normal; animation: none; background-image: linear-gradient(115deg, transparent 32%, rgba(255,255,255,0) 40%, rgba(255,255,255,.55) 50%, rgba(255,255,255,0) 60%, transparent 68%);
+      background-size: 260% 260%; background-position: var(--mx) var(--my); opacity: calc(var(--hyp) * .45); }
+    .r-raro .tcg-foil { opacity: calc(var(--hyp) * .6); } .r-epico .tcg-foil { opacity: calc(var(--hyp) * .7); }
+    .r-legendario .tcg-foil, .tcg.shiny .tcg-foil { opacity: calc(var(--hyp) * .8); background-image: linear-gradient(115deg, transparent 32%, rgba(255,240,190,0) 40%, rgba(255,236,170,.6) 50%, rgba(255,240,190,0) 60%, transparent 68%); }
     .tcg.shiny .tcg-glitter { display: none; }
     .tcg-glare { mix-blend-mode: normal; opacity: calc(var(--hyp) * .22); background: radial-gradient(circle at var(--mx) var(--my), rgba(255,255,255,.75) 0%, rgba(255,255,255,0) 45%); }
     .tcg:not(.active) .tcg-glare { opacity: 0; }
-    .bk-holo { mix-blend-mode: normal; opacity: calc(var(--hyp) * .1); }
+    .bk-holo { mix-blend-mode: normal; opacity: calc(var(--hyp) * .35); background-image: linear-gradient(115deg, transparent 32%, rgba(255,255,255,0) 40%, rgba(255,255,255,.35) 50%, rgba(255,255,255,0) 60%, transparent 68%); background-size: 260% 260%; background-position: var(--mx) var(--my); }
     .tcg-back .tcg-glare { opacity: calc(var(--hyp) * .12) !important; }
   }
   /* --- reverso: sello de conquista --- */
