@@ -1,10 +1,10 @@
 {
-  "version": "0.9.9",
-  "notes": "En los álbumes se ven todas las carpetas de la ciudad a la vez, con lo que llevas de cada una",
+  "version": "0.9.10",
+  "notes": "Álbumes más claros: un índice con todas las carpetas de la ciudad y, dentro, los barrios como apartados",
   "native": 1,
   "nativeApk": 9,
   "apkMin": "0.9.4",
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.9.9/pintamapa-web-0.9.9.zip",
-  "checksum": "83d28737baf937bd07bcdb06f6583a0794177462debd9de9e03a92ee549983b7",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.9.9/PintaMapa-v0.9.9.apk"
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.9.10/pintamapa-web-0.9.10.zip",
+  "checksum": "e2ac0720c70ce88756fe3f9bb49f1e671c5be6563b640c16b41f41cfa50197bd",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.9.10/PintaMapa-v0.9.10.apk"
 }
