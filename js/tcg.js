@@ -257,13 +257,13 @@ PM.tcg = (function () {
                 <span class="tcg-tipo">${T.ic} ${esc(PM.t(T.name))}</span>
                 <span class="tcg-hp"><small>PTS</small>${pts}</span>
               </div>
-              ${d.shiny || d.must ? `<div class="tcg-shinytag ${d.must ? 'musttag' : ''}">${d.must ? '★ ' + esc(PM.t('IMPRESCINDIBLE')) : ''}${d.must && d.shiny ? ' · ' : ''}${d.shiny ? '✨ ' + esc(PM.t('BRILLANTE')) : ''}</div>` : ''}
               <div class="tcg-name">
                 <div class="tcg-title"><b translate="no" style="--k: ${tamTitulo(d.name, 19)}">${esc(d.name)}</b></div>
                 <div class="tcg-sub" translate="no"><i class="tcg-orb">${esc(d.emoji || '📍')}</i><span>${esc(PM.t(d.kind || ''))}${sitio ? ' · ' + esc(sitio) : ''}</span></div>
               </div>
             </div>
             <div class="tcg-panel" data-ic="${T.ic}">
+              ${d.must || d.shiny ? `<div class="tcg-etiquetas">${d.must ? `<span class="tcg-shinytag musttag">★ ${esc(PM.t('IMPRESCINDIBLE'))}</span>` : ''}${d.shiny ? `<span class="tcg-shinytag">✨ ${esc(PM.t('BRILLANTE'))}</span>` : ''}</div>` : ''}
               ${(() => { const tx = descText(d); return `<div class="tcg-flavor ${fitClass(tx)}" translate="no">${esc(tx)}</div>`; })()}
               <div class="tcg-foot"><span class="tcg-num">Nº ${d.number || 1}<small>/${d.total || 1}</small></span>
                 <span class="tcg-credit">${esc(d.own ? PM.t('Foto propia') : (d.credit || 'Foto: Wikimedia Commons'))}</span>
@@ -541,10 +541,11 @@ PM.tcg = (function () {
   .tcg.shiny .tcg-glitter { opacity: .9 !important; }
   /* IMPRESCINDIBLE: doble aro rojo y oro con resplandor, y su cinta */
   .tcg.must .tcg-rot { box-shadow: 0 0 0 .22em #f59e0b, 0 0 0 .42em #b91c1c, 0 0 1.8em rgba(245,158,11,.6); }
-  .tcg-shinytag { position: absolute; z-index: 4; left: 50%; top: 15%; transform: translateX(-50%) rotate(-3deg); background: linear-gradient(90deg, #b45309, #facc15, #b45309);
-    color: #1a1200; font-weight: 900; font-size: .58em; letter-spacing: .12em; padding: .22em .9em; border-radius: 99px; box-shadow: 0 .15em .5em rgba(0,0,0,.35); white-space: nowrap; }
+  /* etiquetas (imprescindible, brillante): en una fila justo antes de la descripción, nunca encima de la foto */
+  .tcg-etiquetas { display: flex; flex-wrap: wrap; gap: .35em; }
+  .tcg-shinytag { display: inline-block; background: linear-gradient(90deg, #b45309, #facc15, #b45309); color: #1a1200; font-weight: 900; font-size: .56em; letter-spacing: .1em; padding: .25em .8em; border-radius: 99px; box-shadow: 0 .1em .3em rgba(0,0,0,.2); white-space: nowrap; }
   .tcg-shinytag.musttag { background: linear-gradient(90deg, #991b1b, #f59e0b, #991b1b); color: #fff; text-shadow: 0 1px 1px rgba(0,0,0,.35); }
-  .tcg.mini .tcg-shinytag { font-size: .62em; top: 17%; }
+  .tcg.mini .tcg-shinytag { font-size: .66em; }
   /* sin animaciones en las miniaturas (en el álbum hay decenas a la vez) ni si el sistema pide reducir el movimiento */
   .tcg.mini .tcg-stars, .tcg.mini.shiny .tcg-foil { animation: none; }
   @media (prefers-reduced-motion: reduce) { .tcg-stars, .tcg.shiny .tcg-foil { animation: none !important; } }
