@@ -128,6 +128,9 @@
     'Contiene 1 carta': ['Conté 1 carta', 'Contains 1 card', 'Contient 1 carte'],
     'barrio': ['barri', 'neighbourhood', 'quartier'],
     'lugar': ['lloc', 'place', 'lieu'],
+    'IMPRESCINDIBLE': ['IMPRESCINDIBLE', 'MUST-SEE', 'INCONTOURNABLE'],
+    'BRILLANTE': ['BRILLANT', 'SHINY', 'BRILLANT'],
+    'Foto propia': ['Foto pròpia', 'Own photo', 'Photo perso'],
     // ---- álbum: índice ----
     'Te falta 1': ['Et falta 1', '1 to go', 'Il t’en manque 1'],
     'Te faltan {n}': ['Et falten {n}', '{n} to go', 'Il t’en manque {n}'],

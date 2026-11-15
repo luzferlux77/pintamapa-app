@@ -1,6 +1,6 @@
-// PintaMapa — cartas coleccionables estilo TCG (como las de Pokémon): anverso con "tipo", PTS, ataques,
-// debilidad/resistencia, historia y número de colección; reverso con emblema; brillo holográfico que sigue
-// al ratón o a la inclinación del móvil; se voltea al tocarla. Se usa en la app y en «Mi progreso».
+// PintaMapa — cartas coleccionables: anverso con la foto a sangre, el nombre, el tipo con su color, los puntos, por qué merece
+// la pena y su historia; reverso con el sello de conquista; holograma por capas (más cuanto más rara) que sigue al ratón o a la
+// inclinación del móvil; se voltea al tocarla. Se usa en la app y en «Mi progreso».
 PM.tcg = (function () {
   const esc = (t) => String(t == null ? '' : t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   // El nombre de la carta NUNCA se corta (petición del usuario, 13-nov-2026: salía «Torre de telecomunicaciones de…»). Se
@@ -25,19 +25,18 @@ PM.tcg = (function () {
   const cssUrl = (u) => String(u).replace(/'/g, '%27').replace(/\\/g, '%5C');
 
   // "Tipos" según la clase de sitio: color de la carta y orbe
+  // (v0.9.15: colores vivos, «de dopamina»: t1/t2 = degradado del tipo; c1/c2 = el panel claro de abajo; ic = su símbolo)
   const TYPES = {
-    ayto:     { name: 'Gobierno',  c1: '#fff6d6', c2: '#f3cf6b', orb: '#e0a400', kinds: ['Ayuntamiento'] },
-    templo:   { name: 'Espíritu',  c1: '#f1e6ff', c2: '#c7a6f2', orb: '#8b5cf6', kinds: ['Iglesia', 'Iglesia principal', 'Basílica', 'Catedral', 'Templo', 'Ermita / Monasterio'] },
-    historia: { name: 'Historia',  c1: '#f5e9dc', c2: '#d6b48e', orb: '#a16207', kinds: ['Castillo', 'Palacio', 'Patrimonio', 'Molino', 'Monumento', 'Torre / Puerta', 'Puente', 'Ruinas', 'Lugar histórico', 'Memorial'] },
-    cultura:  { name: 'Cultura',   c1: '#e3f1ff', c2: '#9cc7f2', orb: '#2563eb', kinds: ['Museo', 'Teatro', 'Biblioteca', 'Universidad', 'Estudio de televisión'] },
-    deporte:  { name: 'Deporte',   c1: '#ffe6e1', c2: '#f5a08f', orb: '#e53e1f', kinds: ['Estadio', 'Campo de fútbol'] },
-    verde:    { name: 'Naturaleza', c1: '#e3f7e3', c2: '#9fd89f', orb: '#16a34a', kinds: ['Parque', 'Mirador', 'Zoo / Acuario'] },
-    ciudad:   { name: 'Ciudad',    c1: '#eef0f4', c2: '#c3c9d4', orb: '#64748b', kinds: ['Parque temático', 'Rascacielos', 'Aeropuerto', 'Estación', 'Plaza', 'Mercado', 'Calle emblemática'] },
+    ayto:     { name: 'Gobierno',  ic: '🏛️', t1: '#ffb300', t2: '#ff5e00', c1: '#fff8e1', c2: '#ffe2a8', orb: '#e0a400', kinds: ['Ayuntamiento'] },
+    templo:   { name: 'Espíritu',  ic: '🕊️', t1: '#a855f7', t2: '#ec4899', c1: '#f7efff', c2: '#ecd6ff', orb: '#8b5cf6', kinds: ['Iglesia', 'Iglesia principal', 'Basílica', 'Catedral', 'Templo', 'Ermita / Monasterio'] },
+    historia: { name: 'Historia',  ic: '🏰', t1: '#f97316', t2: '#b45309', c1: '#fff3e6', c2: '#fbd9b4', orb: '#a16207', kinds: ['Castillo', 'Palacio', 'Patrimonio', 'Molino', 'Monumento', 'Torre / Puerta', 'Puente', 'Ruinas', 'Lugar histórico', 'Memorial'] },
+    cultura:  { name: 'Cultura',   ic: '🎭', t1: '#06b6d4', t2: '#3b5bf6', c1: '#eaf8ff', c2: '#c4e6ff', orb: '#2563eb', kinds: ['Museo', 'Teatro', 'Biblioteca', 'Universidad', 'Estudio de televisión'] },
+    deporte:  { name: 'Deporte',   ic: '⚽', t1: '#ff3d3d', t2: '#ff9a1f', c1: '#fff0ec', c2: '#ffd0c4', orb: '#e53e1f', kinds: ['Estadio', 'Campo de fútbol'] },
+    verde:    { name: 'Naturaleza', ic: '🌿', t1: '#22c55e', t2: '#0d9488', c1: '#ecfbf1', c2: '#c3f0d4', orb: '#16a34a', kinds: ['Parque', 'Mirador', 'Zoo / Acuario'] },
+    ciudad:   { name: 'Ciudad',    ic: '🏙️', t1: '#6366f1', t2: '#0ea5e9', c1: '#eef1ff', c2: '#d3dcff', orb: '#64748b', kinds: ['Parque temático', 'Rascacielos', 'Aeropuerto', 'Estación', 'Plaza', 'Mercado', 'Calle emblemática'] },
   };
   const typeOf = (kind) => Object.entries(TYPES).find(([, t]) => t.kinds.includes(kind)) || ['ciudad', TYPES.ciudad];
   const RAR = { comun: { sym: '●', name: 'Común', holo: 0.15 }, raro: { sym: '◆', name: 'Rara', holo: 0.45 }, epico: { sym: '★', name: 'Épica', holo: 0.8 }, legendario: { sym: '★★', name: 'Legendaria', holo: 1 } };
-  const WEAK = [['🛋️', 'Sofá', '×2'], ['📺', 'Series', '×2'], ['🛵', 'Prisas', '×2'], ['📱', 'Scroll', '×2']];
-  const RES = [['☔', 'Lluvia', '−20'], ['🌙', 'Noche', '−20'], ['🥶', 'Frío', '−20'], ['🔥', 'Calor', '−20']];
   const hash = (s) => { let h = 0; for (const c of String(s)) h = (h * 31 + c.charCodeAt(0)) | 0; return Math.abs(h); };
 
   // Descripción del sitio: IGUAL PARA TODOS (sin datos personales) y SIEMPRE de ese lugar en concreto: el texto de
@@ -68,6 +67,9 @@ PM.tcg = (function () {
   };
   function descText(d) {
     let t = String(d.text || '').replace(/\s*\([^)]*\)/g, '').replace(/\s*\[[^\]]*\]/g, '').replace(/\s+/g, ' ').trim();
+    // (un texto guardado recortado a media frase —«…de Josep Llimona, Antoni…»— se deja en su última frase completa)
+    t = t.replace(/([.!?])s*(…|...)$/, '$1');   // («…Provincial.…»: la frase ya estaba completa)
+    if (/…$/.test(t)) { const k = Math.max(t.lastIndexOf('. '), t.lastIndexOf('! '), t.lastIndexOf('? ')); if (k > 80) t = t.slice(0, k + 1); }
     const lugar = d.barrio && d.city ? `${d.barrio}, ${d.city}` : d.city || d.barrio || '';
     const where = lugar ? T('en {lugar}', { lugar }) : '';
     if (t.length < 90) {
@@ -102,11 +104,11 @@ PM.tcg = (function () {
     return out;
   }
   // tamaño de letra según lo largo del texto: siempre cabe entero en el cuadro
-  const fitClass = (t) => { const n = t.length; return n <= 300 ? 'f1' : n <= 390 ? 'f2' : n <= 470 ? 'f3' : 'f4'; };
+  const fitClass = (t) => { const n = t.length; return n <= 110 ? 'fx' : n <= 160 ? 'f0' : n <= 300 ? 'f1' : n <= 390 ? 'f2' : n <= 470 ? 'f3' : 'f4'; };
   // ya en pantalla: la letra más grande con la que el texto cabe ENTERO (medido de verdad, no por número de letras)
   function autofit(el) {
     if (!el || !el.clientHeight) return;
-    for (const c of ['f1', 'f2', 'f3', 'f4']) { el.className = 'tcg-flavor ' + c; if (el.scrollHeight <= el.clientHeight + 1) return; }
+    for (const c of ['fx', 'f0', 'f1', 'f2', 'f3', 'f4']) { el.className = 'tcg-flavor ' + c; if (el.scrollHeight <= el.clientHeight + 1) return; }
   }
   const code = (d) => ((d.city || 'PM').normalize('NFD').replace(/[^A-Za-z]/g, '').slice(0, 4).toUpperCase() || 'PM') + '·' + String(hash(d.id) % 10000).padStart(4, '0');
 
@@ -237,43 +239,43 @@ PM.tcg = (function () {
 
   // ---------------- HTML de la carta ----------------
   // d = { id, name, kind, emoji, rarity, city, barrio, t, visits, img, own, text, points, number, total, player, credit }
+  // Rediseño v0.9.15 (petición del usuario, 15-nov-2026: «más visuales, estilo dopamina, brillo holográfico supremo»; fuera
+  // la «REGLA», la debilidad/resistencia/retirada y la rejilla de captura, que eran relleno). La foto, a sangre arriba; el nombre
+  // grande encima (nunca cortado); el tipo con su color vivo; y debajo, en un panel de cristal, por qué merece la pena y su historia.
+  // El holograma crece con la rareza: común, solo reflejo; rara, marco holográfico; épica, además la foto con lámina arcoíris y
+  // polvo de estrellas; legendaria, marco de oro que gira con la luz, holograma en toda la carta y estrellas que titilan.
   function html(d, opts = {}) {
     const [tk, T] = typeOf(d.kind);
     const R = RAR[d.rarity] || RAR.comun;
-    const w = WEAK[hash(d.id) % WEAK.length], r = RES[hash(d.id + 'r') % RES.length];
-    const pts = d.points || 100, revisit = Math.round(pts * 0.2);
-    return `<div class="tcg r-${d.rarity || 'comun'} t-${tk} ${opts.mini ? 'mini' : ''} ${d.shiny ? 'shiny' : ''} ${d.must ? 'must' : ''}" style="--orb:${T.orb};--c1:${T.c1};--c2:${T.c2};--holo:${R.holo}" data-id="${esc(d.id)}">
+    const pts = d.points || 100;
+    const sitio = [d.barrio, d.city].filter(Boolean).join(', ');
+    return `<div class="tcg r-${d.rarity || 'comun'} t-${tk} ${opts.mini ? 'mini' : ''} ${d.shiny ? 'shiny' : ''} ${d.must ? 'must' : ''}" style="--orb:${T.orb};--t1:${T.t1};--t2:${T.t2};--c1:${T.c1};--c2:${T.c2};--holo:${R.holo}" data-id="${esc(d.id)}">
       <div class="tcg-rot">
         <div class="tcg-face tcg-front">
           <div class="tcg-inner">
-            <div class="tcg-top">
-              <div class="tcg-stage"><span>${esc(PM.t(T.name))} · ${esc(PM.t(R.name))}</span><span class="tcg-code">${code(d)}</span></div>
-              ${d.shiny || d.must ? `<div class="tcg-shinytag ${d.must ? 'musttag' : ''}">${d.must ? '⭐ IMPRESCINDIBLE' : ''}${d.must && d.shiny ? ' · ' : ''}${d.shiny ? '✨ BRILLANTE' : ''}</div>` : ''}
-              <div class="tcg-title"><b translate="no" style="--k: ${tamTitulo(d.name, 19)}">${esc(d.name)}</b><span class="tcg-hp"><small>PTS</small>${pts}<i class="tcg-orb">${esc(d.emoji || '📍')}</i></span></div>
-            </div>
             <div class="tcg-art">
               <div class="tcg-photo" ${d.img ? `style="background-image:url('${esc(cssUrl(d.img))}')"` : ''}>${d.img ? '' : `<span>${esc(d.emoji || '📍')}</span>`}</div>
-              <div class="tcg-shine"></div><div class="tcg-glitter"></div>
+              <div class="tcg-holo"></div><div class="tcg-stars"></div><div class="tcg-veil"></div>
+              <div class="tcg-head">
+                <span class="tcg-gem" title="${esc(PM.t(R.name))}"><b>${R.sym}</b></span>
+                <span class="tcg-tipo">${T.ic} ${esc(PM.t(T.name))}</span>
+                <span class="tcg-hp"><small>PTS</small>${pts}</span>
+              </div>
+              ${d.shiny || d.must ? `<div class="tcg-shinytag ${d.must ? 'musttag' : ''}">${d.must ? '★ ' + esc(PM.t('IMPRESCINDIBLE')) : ''}${d.must && d.shiny ? ' · ' : ''}${d.shiny ? '✨ ' + esc(PM.t('BRILLANTE')) : ''}</div>` : ''}
+              <div class="tcg-name">
+                <div class="tcg-title"><b translate="no" style="--k: ${tamTitulo(d.name, 19)}">${esc(d.name)}</b></div>
+                <div class="tcg-sub" translate="no"><i class="tcg-orb">${esc(d.emoji || '📍')}</i><span>${esc(PM.t(d.kind || ''))}${sitio ? ' · ' + esc(sitio) : ''}</span></div>
+              </div>
             </div>
-            <div class="tcg-band" translate="no">${esc(PM.t(d.kind || ''))}${d.city ? ' · ' + esc(d.city) : ''}</div>
-            ${d.porque ? `<div class="tcg-why" translate="no">${esc(porque(d.porque))}</div>` : ''}
-            <div class="tcg-stats">
-              <div><i>⏱</i><b>10 s</b><small>captura</small></div>
-              <div><i>📍</i><b>${d.capR || (PM.capRadius ? PM.capRadius(d.kind) : 30)} m</b><small>radio</small></div>
-              <div><i>✨</i><b>×2</b><small>aura 80 m</small></div>
-              <div><i>💎</i><b>${R.sym}</b><small>${esc(PM.t(R.name).toLowerCase())}</small></div>
+            <div class="tcg-panel" data-ic="${T.ic}">
+              ${d.porque ? `<div class="tcg-why" translate="no">✦ ${esc(porque(d.porque))}</div>` : ''}
+              ${(() => { const tx = descText(d); return `<div class="tcg-flavor ${fitClass(tx)}" translate="no">${esc(tx)}</div>`; })()}
+              <div class="tcg-foot"><span class="tcg-num">Nº ${d.number || 1}<small>/${d.total || 1}</small></span>
+                <span class="tcg-credit">${esc(d.own ? PM.t('Foto propia') : (d.credit || 'Foto: Wikimedia Commons'))}</span>
+                <span class="tcg-set">Pinta<b>Mapa</b> <i>${R.sym}</i></span></div>
             </div>
-            ${(() => { const tx = descText(d); return `<div class="tcg-flavor ${fitClass(tx)}" translate="no">${esc(tx)}</div>`; })()}
-            <div class="tcg-rule"><b>REGLA</b> 🔁 Vuelve cada día y suma +${revisit} pts por visita · ✨ las calles que pintes a menos de 80 m valen el doble.</div>
-            <div class="tcg-wrr">
-              <div><small>debilidad</small>${w[0]} ${w[2]}</div>
-              <div><small>resistencia</small>${r[0]} ${r[2]}</div>
-              <div><small>retirada</small>👟👟</div>
-            </div>
-            <div class="tcg-foot"><span>${esc(d.own ? 'Foto: propia del pintor' : (d.credit || 'Foto: Wikimedia Commons'))}</span>
-              <span class="tcg-set">🖌️ PintaMapa <b>${R.sym}</b></span></div>
           </div>
-          <div class="tcg-foil"></div><div class="tcg-glare"></div>
+          <div class="tcg-foil"></div><div class="tcg-glitter"></div><div class="tcg-glare"></div>
         </div>
         ${backHTML(d, R, opts.mini)}
       </div>
@@ -292,6 +294,7 @@ PM.tcg = (function () {
       el.style.setProperty('--mx', cur.x + '%'); el.style.setProperty('--my', cur.y + '%');
       el.style.setProperty('--rx', rx + 'deg'); el.style.setProperty('--ry', (flipped ? 180 : 0) + ry + 'deg');
       el.style.setProperty('--hyp', Math.min(1, Math.hypot(cur.x - 50, cur.y - 50) / 50).toFixed(3));
+      el.style.setProperty('--ang', (cur.x * 3.6 + cur.y * 1.2).toFixed(1) + 'deg');   // (el marco de oro y el arcoíris del marco giran con la luz)
       if (Math.abs(target.x - cur.x) > 0.1 || Math.abs(target.y - cur.y) > 0.1) raf = requestAnimationFrame(apply); else raf = null;
     };
     const go = () => { if (!raf) raf = requestAnimationFrame(apply); };
@@ -442,7 +445,7 @@ PM.tcg = (function () {
 
   // ---------------- Estilos ----------------
   const css = `
-  .tcg { --mx: 50%; --my: 50%; --rx: 0deg; --ry: 0deg; --hyp: 0; --y: #f6d44c; position: relative; width: 100%; aspect-ratio: 63 / 88; perspective: 1200px; font-family: Inter, system-ui, sans-serif; font-size: calc(var(--w, 360px) / 26); user-select: none; cursor: pointer; }
+  .tcg { --mx: 50%; --my: 50%; --rx: 0deg; --ry: 0deg; --hyp: 0; --y: #f6d44c; position: relative; width: 100%; aspect-ratio: 63 / 88; perspective: 1200px; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; font-size: calc(var(--w, 360px) / 26); user-select: none; cursor: pointer; }
   .tcg.mini { font-size: 6.4px; cursor: pointer; }
   .tcg-rot { position: absolute; inset: 0; transform-style: preserve-3d; transform: rotateX(var(--rx)) rotateY(var(--ry)); will-change: transform; }
   .tcg-face { position: absolute; inset: 0; border-radius: 4.5% / 3.3%; overflow: hidden; backface-visibility: hidden; -webkit-backface-visibility: hidden; box-shadow: 0 1.4em 3em rgba(0,0,0,.35), 0 0 0 1px rgba(0,0,0,.15); }
@@ -451,102 +454,126 @@ PM.tcg = (function () {
   .tcg.r-raro { --b1: #d9eeff; --b2: #63b7f6; --b3: #2b86d6; --b4: #d2e9ff; --bl: rgba(99,183,246,.75); --bl2: rgba(99,183,246,.35); }
   .tcg.r-epico { --b1: #f0e0ff; --b2: #b97cf1; --b3: #8a3fd1; --b4: #e8d6ff; --bl: rgba(185,124,241,.75); --bl2: rgba(185,124,241,.35); }
   .tcg.r-legendario { --b1: #fff1a8; --b2: #f6d44c; --b3: #d4a52c; --b4: #fff3b0; --bl: rgba(212,175,106,.75); --bl2: rgba(212,175,106,.35); }
-  .tcg-front { background: linear-gradient(135deg, var(--b1), var(--b2) 30%, var(--b3) 60%, var(--b4)); padding: 3.6%; }
-  .r-legendario .tcg-front { background: linear-gradient(135deg, #fff6cf, #e6c25a 20%, #fffbe8 40%, #d4a52c 60%, #fff2b8 80%, #c99a24); }
-  .tcg-inner { position: relative; height: 100%; border-radius: 2.4% / 1.7%; background: linear-gradient(170deg, var(--c1), var(--c2)); padding: 2.6% 4%; display: flex; flex-direction: column; gap: .35em; box-shadow: inset 0 0 0 .18em rgba(0,0,0,.18); }
-  .tcg-stage { display: flex; justify-content: space-between; font-size: .58em; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; color: rgba(0,0,0,.55); }
-  .tcg-code { font-family: ui-monospace, Consolas, monospace; letter-spacing: .02em; color: rgba(0,0,0,.45); }
-  .tcg-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: .3em; }
-  .tcg-stats div { text-align: center; background: linear-gradient(180deg, rgba(255,255,255,.75), rgba(255,255,255,.35)); border: .08em solid rgba(0,0,0,.12); border-radius: .5em; padding: .15em 0 .2em; line-height: 1.05; }
-  .tcg-stats i { font-style: normal; font-size: .7em; display: block; } .tcg-stats b { display: block; font-size: .78em; font-weight: 900; color: #1b1b1b; }
-  .tcg-stats small { display: block; font-size: .46em; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: rgba(0,0,0,.5); }
-  .tcg-rule { font-size: .52em; line-height: 1.35; color: #3a2500; background: linear-gradient(90deg, #ffe9a8, #f6d36b); border-radius: .45em; padding: .35em .6em; box-shadow: inset 0 0 0 .1em rgba(160,110,10,.45); }
-  .tcg-rule b { background: #b45309; color: #fff; padding: .05em .45em; border-radius: .3em; margin-right: .3em; letter-spacing: .05em; }
-  .tcg-title { display: flex; align-items: center; justify-content: space-between; gap: .5em; }
-  .tcg-title b { font-size: calc(1.3em * var(--k, 1)); font-weight: 900; color: #1b1b1b; line-height: 1.05; letter-spacing: -.01em; min-width: 0; overflow-wrap: break-word; }   /* (nunca cortado: ver tamTitulo) */
-  .tcg-hp { display: flex; align-items: center; gap: .25em; font-weight: 900; font-size: 1.25em; color: #c81e1e; white-space: nowrap; }
-  .tcg-hp small { font-size: .5em; color: #c81e1e; }
-  .tcg-orb { display: grid; place-items: center; width: 1.6em; height: 1.6em; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #fff8, transparent 45%), var(--orb); font-style: normal; font-size: .85em; box-shadow: 0 .1em .25em rgba(0,0,0,.4), inset 0 -.15em .3em rgba(0,0,0,.25); }
-  .tcg-art { position: relative; height: auto; flex: 1 1 33%; min-height: 28%; border-radius: .3em; overflow: hidden; border: .32em solid; border-image: linear-gradient(135deg, #f4f4f4, #9a9a9a, #fafafa, #8a8a8a) 1; box-shadow: 0 .2em .5em rgba(0,0,0,.35); background: #ddd; }
-  .tcg-photo { position: absolute; inset: 0; background: center / cover no-repeat; display: grid; place-items: center; background-color: #e9e2d4; }
-  .tcg-photo span { font-size: 4.5em; filter: drop-shadow(0 .1em .2em rgba(0,0,0,.3)); }
-  .tcg-own { position: absolute; right: .4em; bottom: .4em; background: #ff2e88; color: #fff; font-size: .62em; font-weight: 800; padding: .2em .6em; border-radius: 99px; transform: rotate(-4deg); z-index: 3; }
-  .tcg-why { margin: .15em auto 0; font-size: .55em; font-weight: 800; text-align: center; color: #7a4a00; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; padding: 0 1em; letter-spacing: .01em; }
-  .tcg-band { margin: -.1em auto 0; font-size: .6em; font-style: italic; font-weight: 600; text-align: center; color: #3a2a00; background: linear-gradient(90deg, transparent, rgba(255,255,255,.75), transparent); padding: .2em 1.5em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
-  .tcg-moves { display: flex; flex-direction: column; justify-content: center; gap: .05em; margin-top: .2em; }
-  .tcg-move { display: flex; align-items: center; gap: .45em; } .tcg-move b { flex: 1; font-size: .95em; font-weight: 900; color: #1b1b1b; } .tcg-move span { font-size: 1.05em; font-weight: 900; color: #1b1b1b; }
-  .tcg-moves p { margin: 0 0 .2em 3.2em; font-size: .56em; line-height: 1.3; color: #2c2c2c; }
-  .tcg-moves { gap: .15em !important; }
-  .tcg-en { display: inline-flex; gap: .15em; min-width: 2.6em; } .tcg-en i { width: .95em; height: .95em; border-radius: 50%; box-shadow: inset 0 -.1em .15em rgba(0,0,0,.35), 0 0 0 .08em rgba(255,255,255,.7); }
-  .tcg-wrr { display: flex; justify-content: space-between; border-top: .1em solid rgba(0,0,0,.25); padding-top: .2em; font-size: .7em; font-weight: 700; color: #222; }
-  .tcg-wrr small { display: block; font-size: .7em; font-weight: 600; color: rgba(0,0,0,.55); text-transform: lowercase; }
-  /* cuadro de descripción: alto fijo (ocupa también el hueco de las antiguas filas de conquista/revisita) y la letra
-     se ajusta a lo largo del texto para que quepa ENTERO (f1 corto … f4 largo) */
-  .tcg-flavor { flex: none; height: 7.9em; box-sizing: border-box; font-size: 1em; font-style: italic; line-height: 1.3; border: .12em solid rgba(160,120,20,.55); border-radius: .4em; padding: .35em .55em; background: rgba(255,255,255,.4);
-    overflow: hidden; text-align: left; hyphens: auto; font-weight: 500; color: #1d1d1d; }
-  .tcg-flavor.f1 { font-size: .74em; height: calc(7.9em / .74); } .tcg-flavor.f2 { font-size: .66em; height: calc(7.9em / .66); }
-  .tcg-flavor.f3 { font-size: .59em; height: calc(7.9em / .59); } .tcg-flavor.f4 { font-size: .53em; height: calc(7.9em / .53); }
-  .tcg-foot { display: flex; justify-content: space-between; align-items: center; font-size: .5em; color: rgba(0,0,0,.6); font-weight: 600; }
-  .tcg-set b { color: #111; margin-left: .3em; }
-  /* --- brillo holográfico --- */
-  .tcg-shine, .tcg-glitter, .tcg-glare { position: absolute; inset: 0; pointer-events: none; z-index: 2; }
-  /* franja holográfica suave que barre la carta al moverla */
-  .tcg-shine { opacity: calc(var(--holo) * (.12 + var(--hyp) * .55)); mix-blend-mode: color-dodge;
-    background: linear-gradient(115deg, transparent 18%, rgba(255,0,128,.65) 30%, rgba(255,200,0,.6) 38%, rgba(0,255,160,.55) 46%, rgba(0,190,255,.6) 54%, rgba(170,0,255,.6) 62%, transparent 75%);
-    background-size: 260% 260%; background-position: var(--mx) var(--my); filter: saturate(1.2); }
-  .r-legendario .tcg-inner::after { content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; mix-blend-mode: color-dodge; opacity: calc(.03 + var(--hyp) * .18);
-    background: linear-gradient(115deg, transparent 20%, rgba(255,0,128,.6) 34%, rgba(255,210,0,.55) 44%, rgba(0,200,255,.55) 54%, rgba(170,0,255,.5) 64%, transparent 78%); background-size: 280% 280%; background-position: var(--mx) var(--my); }
-  /* destellos finos y aleatorios (textura de ruido, como el foil real) solo alrededor del punto de luz */
+  /* ===== Anverso (v0.9.15): marco de rareza · foto a sangre con el nombre encima · panel de cristal del color del tipo ===== */
+  .tcg { --ang: 0deg; }
+  .tcg-front { padding: 3.2%; background: linear-gradient(135deg, var(--b1), var(--b2) 30%, var(--b3) 60%, var(--b4)); }
+  /* marco holográfico (rara y épica): arcoíris de metal que cambia de color al mover la carta */
+  .r-raro .tcg-front, .r-epico .tcg-front { background: conic-gradient(from var(--ang) at 50% 50%, var(--b2), #7dd3fc, #c4b5fd, #f9a8d4, #fde68a, #86efac, var(--b2)); }
+  .r-raro .tcg-front { background: conic-gradient(from var(--ang) at 50% 50%, #1e7fd6, #7dd3fc, #e0f2fe, #38bdf8, #a5b4fc, #1e7fd6); }
+  .r-epico .tcg-front { background: conic-gradient(from var(--ang) at 50% 50%, #7c3aed, #f0abfc, #fde68a, #c084fc, #67e8f9, #a855f7, #7c3aed); }
+  /* legendaria: oro de verdad, con una veta de luz que gira con la carta */
+  .r-legendario .tcg-front { background: conic-gradient(from var(--ang) at 50% 50%, #b8860b, #ffe680, #fff8d6, #e6b422, #8a6100, #ffd84d, #fffbe6, #c99a24, #b8860b); }
+  .tcg-inner { position: relative; height: 100%; border-radius: 2.6% / 1.8%; overflow: hidden; display: flex; flex-direction: column; background: linear-gradient(170deg, var(--c1), var(--c2)); box-shadow: inset 0 0 0 .14em rgba(255,255,255,.55), 0 0 0 .1em rgba(0,0,0,.25); }
+  /* --- la foto, a sangre, con el degradado del tipo detrás (si no hay foto, el emoji grande sobre el color) --- */
+  .tcg-art { position: relative; flex: 0 0 60%; overflow: hidden; background: linear-gradient(150deg, var(--t1), var(--t2)); }
+  .tcg-photo { position: absolute; inset: 0; background: center / cover no-repeat; display: grid; place-items: center; }
+  .tcg-photo span { font-size: 6em; filter: drop-shadow(0 .15em .3em rgba(0,0,0,.35)); transform: translateY(-.1em); }
+  .tcg-veil { position: absolute; inset: 0; pointer-events: none; background: linear-gradient(180deg, rgba(0,0,0,.42) 0%, rgba(0,0,0,0) 22%, rgba(0,0,0,0) 48%, rgba(0,0,0,.18) 62%, rgba(0,0,0,.78) 100%); }
+  /* arriba: gema de rareza · tipo · puntos */
+  .tcg-head { position: absolute; z-index: 3; left: 4%; right: 4%; top: 3.2%; display: flex; align-items: center; gap: .4em; }
+  .tcg-gem { display: grid; place-items: center; width: 1.9em; height: 1.9em; flex: none; border-radius: .55em; transform: rotate(45deg); font-size: .78em; font-weight: 900; color: #fff;
+    background: linear-gradient(135deg, var(--b2), var(--b3)); box-shadow: 0 0 0 .12em rgba(255,255,255,.85), 0 .15em .4em rgba(0,0,0,.35), 0 0 1em var(--bl); }
+  .tcg-gem { text-shadow: 0 1px 2px rgba(0,0,0,.4); }
+  .r-legendario .tcg-gem { background: linear-gradient(135deg, #fff1a8, #e6b422 50%, #a8790a); color: #3b2a00; text-shadow: none; }
+  .tcg-gem > * { transform: rotate(-45deg); }
+  .tcg-tipo { padding: .28em .7em; border-radius: 99px; font-size: .62em; font-weight: 900; letter-spacing: .04em; text-transform: uppercase; color: #fff; white-space: nowrap;
+    background: linear-gradient(90deg, var(--t1), var(--t2)); box-shadow: 0 .1em .35em rgba(0,0,0,.3), inset 0 .08em 0 rgba(255,255,255,.4); }
+  .tcg-hp { margin-left: auto; display: flex; align-items: baseline; gap: .2em; padding: .18em .65em .22em; border-radius: 99px; font-size: 1.05em; font-weight: 900; line-height: 1; color: #fff; white-space: nowrap;
+    background: linear-gradient(180deg, #ff5f8f, #e11d48); box-shadow: 0 .12em .4em rgba(225,29,72,.55), inset 0 .1em 0 rgba(255,255,255,.45); text-shadow: 0 1px 1px rgba(0,0,0,.25); }
+  .tcg-hp small { font-size: .5em; letter-spacing: .06em; opacity: .9; }
+  /* abajo de la foto: el nombre, grande y blanco (nunca cortado: ver tamTitulo), y qué es y dónde */
+  .tcg-name { position: absolute; z-index: 3; left: 5%; right: 5%; bottom: 4%; }
+  .tcg-title b { display: block; font-size: calc(1.45em * var(--k, 1)); font-weight: 900; line-height: 1.04; letter-spacing: -.015em; color: #fff; min-width: 0; overflow-wrap: break-word;
+    text-shadow: 0 .06em .02em rgba(0,0,0,.35), 0 .1em .6em rgba(0,0,0,.55); }   /* (nunca cortado: ver tamTitulo) */
+  .tcg-sub { display: flex; align-items: center; gap: .4em; margin-top: .35em; font-size: .62em; font-weight: 700; color: rgba(255,255,255,.92); text-shadow: 0 1px 3px rgba(0,0,0,.6); }
+  .tcg-sub span { min-width: 0; overflow-wrap: anywhere; }
+  .tcg-orb { display: grid; place-items: center; width: 1.9em; height: 1.9em; flex: none; border-radius: 50%; font-style: normal; font-size: 1.05em;
+    background: radial-gradient(circle at 35% 30%, rgba(255,255,255,.75), transparent 45%), linear-gradient(135deg, var(--t1), var(--t2)); box-shadow: 0 0 0 .1em rgba(255,255,255,.8), 0 .1em .3em rgba(0,0,0,.4); }
+  /* --- panel de abajo: cristal del color del tipo --- */
+  .tcg-panel { position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column; gap: .4em; padding: .55em 5% .45em;
+    background: radial-gradient(120% 90% at 0% 0%, rgba(255,255,255,.9), rgba(255,255,255,0) 60%), linear-gradient(160deg, var(--c1), var(--c2)); }
+  .tcg-panel::before { content: ''; position: absolute; left: 0; right: 0; top: 0; height: .22em; background: linear-gradient(90deg, var(--t1), var(--t2)); }
+  .tcg-panel::after { content: attr(data-ic); position: absolute; right: -.08em; bottom: -.25em; font-size: 4.6em; line-height: 1; opacity: .09; pointer-events: none; transform: rotate(-12deg); }
+  .tcg-panel > * { position: relative; z-index: 1; }
+  .tcg-why { font-size: .6em; font-weight: 900; line-height: 1.25; color: var(--t2); letter-spacing: .01em; }
+  /* descripción: alto que queda y letra que se ajusta para que quepa ENTERA (f1 corto … f4 largo; autofit la mide de verdad) */
+  .tcg-flavor { flex: 1; min-height: 0; box-sizing: border-box; font-size: .7em; line-height: 1.32; color: #27272a; overflow: hidden; hyphens: auto; font-weight: 500; }
+  .tcg-flavor.fx { font-size: 1em; line-height: 1.38; } .tcg-flavor.f0 { font-size: .86em; line-height: 1.36; } .tcg-flavor.f1 { font-size: .74em; } .tcg-flavor.f2 { font-size: .63em; } .tcg-flavor.f3 { font-size: .57em; } .tcg-flavor.f4 { font-size: .52em; }
+  .tcg-foot { display: flex; align-items: center; gap: .6em; font-size: .5em; color: rgba(0,0,0,.55); font-weight: 700; }
+  .tcg-num { font-weight: 900; color: #1b1b1b; } .tcg-num small { font-weight: 700; opacity: .55; }
+  .tcg-credit { flex: 1; min-width: 0; overflow-wrap: anywhere; font-weight: 600; opacity: .8; }
+  .tcg-set { font-weight: 900; font-style: italic; color: #1b1b1b; white-space: nowrap; } .tcg-set b { color: var(--t2); } .tcg-set i { font-style: normal; color: var(--b3); margin-left: .15em; }
+  /* --- miniaturas (álbum, mazos): la foto y el nombre mandan; la historia se lee al abrirla --- */
+  .tcg.mini .tcg-art { flex-basis: 87%; } .tcg.mini .tcg-flavor, .tcg.mini .tcg-credit, .tcg.mini .tcg-why { display: none; }
+  .tcg.mini .tcg-panel { justify-content: center; padding-top: .45em; } .tcg.mini .tcg-foot { font-size: .62em; }
+  /* ===== Holograma (por capas; cuanto más rara, más) ===== */
+  .tcg-holo, .tcg-stars, .tcg-foil, .tcg-glitter, .tcg-glare { position: absolute; inset: 0; pointer-events: none; }
+  .tcg-holo, .tcg-stars { z-index: 1; }
+  .tcg-foil, .tcg-glitter { z-index: 5; border-radius: inherit; } .tcg-glare { z-index: 6; border-radius: inherit; }
+  /* 1) lámina arcoíris de la foto (épica y legendaria): bandas finas que se deslizan al mover la carta */
+  .tcg-holo { opacity: 0; mix-blend-mode: color-dodge; background-size: 300% 300%; background-position: var(--mx) var(--my);
+    background-image: repeating-linear-gradient(115deg, transparent 0%, rgba(255,0,140,.55) 2.2%, rgba(255,210,0,.5) 3.6%, rgba(0,255,170,.5) 5%, rgba(0,170,255,.55) 6.4%, rgba(190,0,255,.5) 7.8%, transparent 10%, transparent 16%); }
+  .r-epico .tcg-holo { opacity: calc(.08 + var(--hyp) * .38); }
+  .r-legendario .tcg-holo { opacity: calc(.12 + var(--hyp) * .45); }
+  /* 2) polvo de estrellas (épica y legendaria), que se mueve un poco con la luz */
+  .tcg-stars { opacity: 0; mix-blend-mode: screen; background-position: calc(var(--mx) * .2) calc(var(--my) * .2);
+    background-image: radial-gradient(circle, #fff 0 .06em, transparent .1em), radial-gradient(circle, rgba(255,255,255,.8) 0 .04em, transparent .08em), radial-gradient(circle, rgba(255,240,180,.9) 0 .05em, transparent .09em);
+    background-size: 3.1em 3.7em, 2.3em 2.1em, 4.7em 4.1em; }
+  .r-epico .tcg-stars { opacity: calc(.25 + var(--hyp) * .5); }
+  .r-legendario .tcg-stars { opacity: .55; animation: tcgTitila 2.6s ease-in-out infinite alternate; }
+  @keyframes tcgTitila { to { opacity: .95; } }
+  /* 3) lámina holográfica de TODA la carta: arcoíris + raya de luz; muy suave en común, a tope en legendaria y brillante */
+  .tcg-foil { mix-blend-mode: color-dodge; opacity: calc(var(--holo) * (.04 + var(--hyp) * .32));
+    background-image: linear-gradient(115deg, transparent 22%, rgba(255,90,180,.55) 34%, rgba(255,226,120,.5) 42%, rgba(110,255,210,.5) 50%, rgba(110,190,255,.55) 58%, rgba(200,140,255,.5) 66%, transparent 78%),
+      repeating-linear-gradient(45deg, rgba(255,255,255,0) 0 .6em, rgba(255,255,255,.12) .6em .7em);
+    background-size: 300% 300%, 100% 100%; background-position: var(--mx) var(--my), 0 0; }
+  .r-legendario .tcg-foil { opacity: calc(.14 + var(--hyp) * .5); }
+  /* 4) destellos finos (textura de ruido, como el foil real) alrededor del punto de luz */
   .tcg-glitter { opacity: calc(var(--holo) * var(--hyp)); mix-blend-mode: color-dodge;
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='1.25' numOctaves='1' seed='7' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 16 -12.4'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
     background-size: 11em 11em; background-position: calc(var(--mx) * -.15) calc(var(--my) * -.15);
-    -webkit-mask-image: radial-gradient(circle at var(--mx) var(--my), #000 0%, rgba(0,0,0,.55) 16%, transparent 38%); mask-image: radial-gradient(circle at var(--mx) var(--my), #000 0%, rgba(0,0,0,.55) 16%, transparent 38%); }
-  .tcg-glare { z-index: 4; mix-blend-mode: soft-light; opacity: calc(.25 + var(--hyp) * .6); background: radial-gradient(circle at var(--mx) var(--my), rgba(255,255,255,.95) 0%, rgba(255,255,255,.35) 12%, rgba(255,255,255,0) 32%, rgba(0,0,0,.18) 100%); }
+    -webkit-mask-image: radial-gradient(circle at var(--mx) var(--my), #000 0%, rgba(0,0,0,.55) 18%, transparent 42%); mask-image: radial-gradient(circle at var(--mx) var(--my), #000 0%, rgba(0,0,0,.55) 18%, transparent 42%); }
+  /* 5) reflejo de la luz */
+  .tcg-glare { mix-blend-mode: soft-light; opacity: calc(.2 + var(--hyp) * .65); background: radial-gradient(circle at var(--mx) var(--my), rgba(255,255,255,.95) 0%, rgba(255,255,255,.35) 12%, rgba(255,255,255,0) 32%, rgba(0,0,0,.18) 100%); }
   .tcg:not(.active) .tcg-glare { opacity: .15; }
-  /* lámina holográfica sobre TODA la carta: bandas de arcoíris + reflejo que se deslizan al mover la carta (o el ratón) */
-  /* (sutil, como un cromo de verdad: casi invisible de frente; una franja de color suave aparece al inclinar) */
-  .tcg-foil { position: absolute; inset: 0; pointer-events: none; z-index: 3; border-radius: inherit; mix-blend-mode: overlay;
-    opacity: calc(var(--holo) * (.07 + var(--hyp) * .45));
-    background: linear-gradient(115deg, transparent 28%, rgba(255,140,200,.5) 38%, rgba(255,226,140,.45) 44%, rgba(150,255,215,.45) 50%, rgba(140,195,255,.5) 56%, rgba(200,160,255,.45) 62%, transparent 72%);
-    background-size: 300% 300%; background-position: var(--mx) var(--my); }
-  .tcg-foil::after { content: ''; position: absolute; inset: 0; border-radius: inherit; mix-blend-mode: soft-light;
-    background: linear-gradient(115deg, transparent 44%, rgba(255,255,255,.7) 50%, transparent 56%); background-size: 260% 260%; background-position: var(--mx) var(--my); }
-  .tcg.flat .tcg-foil { opacity: .12; }
-  /* carta BRILLANTE: marco dorado, lámina dorada visible siempre y destellos que recorren la carta */
+  .tcg.flat .tcg-foil { opacity: .18; }
+  /* BRILLANTE: lámina dorada siempre visible que recorre la carta y destellos a tope */
   .tcg.shiny .tcg-rot, .tcg.must .tcg-rot { border-radius: 4.5% / 3.3%; }   /* (el halo va en lo que gira: si no, era un rectángulo quieto detrás de la carta) */
-  .tcg.shiny .tcg-rot { box-shadow: 0 0 0 .18em #f5c542, 0 0 1.4em rgba(250,204,21,.65); }
-  .tcg.shiny .tcg-foil { opacity: calc(.32 + var(--hyp) * .5); mix-blend-mode: color-dodge;
-    background: linear-gradient(115deg, rgba(255,215,0,0) 20%, rgba(255,223,90,.55) 35%, rgba(255,255,255,.65) 45%, rgba(255,190,60,.55) 55%, rgba(255,215,0,0) 72%); background-size: 260% 260%;
+  .tcg.shiny .tcg-rot { box-shadow: 0 0 0 .18em #f5c542, 0 0 1.6em rgba(250,204,21,.7); }
+  .tcg.shiny .tcg-foil { opacity: calc(.3 + var(--hyp) * .5);
+    background-image: linear-gradient(115deg, rgba(255,215,0,0) 20%, rgba(255,223,90,.55) 35%, rgba(255,255,255,.65) 45%, rgba(255,190,60,.55) 55%, rgba(255,215,0,0) 72%); background-size: 260% 260%;
     animation: shinysweep 3.2s linear infinite; }
   @keyframes shinysweep { from { background-position: 120% 0; } to { background-position: -40% 0; } }
   .tcg.shiny .tcg-glitter { opacity: .9 !important; }
-  /* IMPRESCINDIBLE: marco rojo y dorado, estrella y cinta (vale el doble) */
-  .tcg.must .tcg-rot { box-shadow: 0 0 0 .22em #f59e0b, 0 0 0 .42em #b91c1c, 0 0 1.6em rgba(245,158,11,.55); }
-  .tcg.must .tcg-front::after { content: '⭐'; position: absolute; z-index: 7; right: .35em; bottom: .3em; font-size: 1.15em; filter: drop-shadow(0 1px 2px rgba(0,0,0,.4)); }
+  /* IMPRESCINDIBLE: doble aro rojo y oro con resplandor, y su cinta */
+  .tcg.must .tcg-rot { box-shadow: 0 0 0 .22em #f59e0b, 0 0 0 .42em #b91c1c, 0 0 1.8em rgba(245,158,11,.6); }
+  .tcg-shinytag { position: absolute; z-index: 4; left: 50%; top: 15%; transform: translateX(-50%) rotate(-3deg); background: linear-gradient(90deg, #b45309, #facc15, #b45309);
+    color: #1a1200; font-weight: 900; font-size: .58em; letter-spacing: .12em; padding: .22em .9em; border-radius: 99px; box-shadow: 0 .15em .5em rgba(0,0,0,.35); white-space: nowrap; }
   .tcg-shinytag.musttag { background: linear-gradient(90deg, #991b1b, #f59e0b, #991b1b); color: #fff; text-shadow: 0 1px 1px rgba(0,0,0,.35); }
-  .tcg-shinytag { position: absolute; z-index: 6; left: 50%; top: -.55em; transform: translateX(-50%); background: linear-gradient(90deg, #b45309, #facc15, #b45309);
-    color: #1a1200; font-weight: 900; font-size: .62em; letter-spacing: .12em; padding: .18em .8em; border-radius: 99px; box-shadow: 0 2px 6px rgba(0,0,0,.3); white-space: nowrap; }
-  .tcg.mini .tcg-shinytag { font-size: .55em; }
+  .tcg.mini .tcg-shinytag { font-size: .62em; top: 17%; }
+  /* sin animaciones en las miniaturas (en el álbum hay decenas a la vez) ni si el sistema pide reducir el movimiento */
+  .tcg.mini .tcg-stars, .tcg.mini.shiny .tcg-foil { animation: none; }
+  @media (prefers-reduced-motion: reduce) { .tcg-stars, .tcg.shiny .tcg-foil { animation: none !important; } }
   /* holograma del reverso: arcoíris muy suave que se desliza al mover la carta */
   .bk-holo { position: absolute; inset: 0; pointer-events: none; z-index: 3; border-radius: inherit; mix-blend-mode: overlay; opacity: calc(.04 + var(--hyp) * .2);
     background: linear-gradient(120deg, transparent 20%, rgba(255,80,170,.55) 32%, rgba(255,220,90,.5) 40%, rgba(80,255,190,.45) 48%, rgba(90,190,255,.55) 56%, rgba(190,110,255,.5) 64%, transparent 76%);
     background-size: 280% 280%; background-position: var(--mx) var(--my); }
   #tcg-view .tcg { touch-action: none; }   /* (el dedo inclina la carta: no desplaza la pantalla) */
   @media (hover: none) {
-    /* móvil: la carta gira en 3D y ahí Android dibuja mal las mezclas de color (franjas cortadas, bordes que bailan, parpadeos):
-       ninguna mezcla; un velo de color ancho y suave que solo aparece al inclinar */
-    .tcg-glitter, .tcg-shine::after, .tcg-foil::after, .r-legendario .tcg-inner::after { display: none; }
-    .tcg-shine { mix-blend-mode: normal; filter: none; opacity: calc(var(--holo) * var(--hyp) * .24);
-      background: linear-gradient(115deg, transparent 10%, rgba(255,150,210,.55) 32%, rgba(255,235,160,.5) 44%, rgba(160,255,225,.5) 56%, rgba(165,205,255,.55) 68%, transparent 90%);
-      background-size: 220% 220%; background-position: var(--mx) var(--my); }
-    .tcg-foil { mix-blend-mode: normal; opacity: calc(var(--holo) * var(--hyp) * .1); }
-    .tcg.shiny .tcg-foil { mix-blend-mode: normal; animation: none; opacity: calc(.1 + var(--hyp) * .18); }
+    /* móvil: la carta gira en 3D y ahí Android dibuja mal las MEZCLAS de color (franjas cortadas, bordes que bailan, parpadeos).
+       El mismo holograma, sin mezclas: capas de color con transparencia que aparecen al inclinar */
+    .tcg-glitter { display: none; }
+    .tcg-holo { mix-blend-mode: normal; }
+    .r-epico .tcg-holo { opacity: calc(var(--hyp) * .32); } .r-legendario .tcg-holo { opacity: calc(.06 + var(--hyp) * .34); }
+    .tcg-stars { mix-blend-mode: normal; }
+    .tcg-foil { mix-blend-mode: normal; opacity: calc(var(--holo) * var(--hyp) * .22); }
+    .r-legendario .tcg-foil { opacity: calc(.05 + var(--hyp) * .3); }
+    .tcg.shiny .tcg-foil { animation: none; opacity: calc(.12 + var(--hyp) * .25); }
     .tcg.shiny .tcg-glitter { display: none; }
-    .tcg-glare { mix-blend-mode: normal; opacity: calc(var(--hyp) * .2); background: radial-gradient(circle at var(--mx) var(--my), rgba(255,255,255,.75) 0%, rgba(255,255,255,0) 45%); }
+    .tcg-glare { mix-blend-mode: normal; opacity: calc(var(--hyp) * .22); background: radial-gradient(circle at var(--mx) var(--my), rgba(255,255,255,.75) 0%, rgba(255,255,255,0) 45%); }
     .tcg:not(.active) .tcg-glare { opacity: 0; }
     .bk-holo { mix-blend-mode: normal; opacity: calc(var(--hyp) * .1); }
     .tcg-back .tcg-glare { opacity: calc(var(--hyp) * .12) !important; }
-    .tcg-art { border-image: none; border-color: #d3d6db; }   /* (el marco degradado de la foto también bailaba al girar) */
   }
   /* --- reverso: sello de conquista --- */
   .tcg-back { transform: rotateY(180deg); padding: 3.2%; background: linear-gradient(135deg, var(--b1), var(--b3) 30%, var(--b4) 50%, var(--b3) 72%, var(--b1)); }
