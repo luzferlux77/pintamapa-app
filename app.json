@@ -1,10 +1,10 @@
 {
-  "version": "0.9.16",
-  "notes": "Las cartas ya no muestran datos internos del buscador de lugares",
+  "version": "0.9.17",
+  "notes": "Cartas: las etiquetas de imprescindible y brillante, fuera de la foto, justo antes de la descripción",
   "native": 1,
   "nativeApk": 9,
   "apkMin": "0.9.4",
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.9.16/pintamapa-web-0.9.16.zip",
-  "checksum": "545bddc7c8d83a1c08dd4eb1299c6bf7435766e568f6faa8bd1ecc9a44f35bae",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.9.16/PintaMapa-v0.9.16.apk"
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.9.17/pintamapa-web-0.9.17.zip",
+  "checksum": "90e069e15257ed84681b3309dfdbab96a552576cf3e97d3ae1538e04c5f94476",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.9.17/PintaMapa-v0.9.17.apk"
 }
