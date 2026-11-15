@@ -1,10 +1,10 @@
 {
-  "version": "0.9.7",
-  "notes": "El GPS del bolsillo ahora sí recupera todo lo andado con la pantalla apagada, y no quedan dos GPS encendidos a la vez",
+  "version": "0.9.8",
+  "notes": "El resumen de tu semana ahora es exacto (de lunes a domingo, comparado con la anterior) y Mi progreso en el PC es más claro y sin datos repetidos",
   "native": 1,
   "nativeApk": 9,
   "apkMin": "0.9.4",
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.9.7/pintamapa-web-0.9.7.zip",
-  "checksum": "b6d411785e02fd41c0264af6fe7c339227edfd158244236a2e1a834f07cfd8c8",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.9.7/PintaMapa-v0.9.7.apk"
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.9.8/pintamapa-web-0.9.8.zip",
+  "checksum": "9454a7fb2bac91a1ba6d1b6c24f390af6172bf3a1df388b95587747281484acb",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.9.8/PintaMapa-v0.9.8.apk"
 }
