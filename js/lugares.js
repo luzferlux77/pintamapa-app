@@ -117,6 +117,8 @@
     if (t === 'museum') return { kind: 'Museo', emoji: '🖼️', prio: 70 };
     if (t === 'zoo' || t === 'aquarium') return { kind: 'Zoo / Acuario', emoji: t === 'aquarium' ? '🐠' : '🦁', prio: 68 };
     if (t === 'theme_park') return { kind: 'Parque temático', emoji: '🎢', prio: 64 };
+    // (una locomotora expuesta como monumento lleva su tren, no la estatua: la nº 37 de Cornellà, 15-nov-2026)
+    if (h === 'monument' && /^(locomotora|locomotiva|locomotive|lokomotive)\b/i.test(n)) return { kind: 'Monumento', emoji: '🚂', prio: 70 };
     if (h === 'monument') return { kind: 'Monumento', emoji: '🗽', prio: 70 };
     if (h === 'city_gate' || h === 'tower' || tags.man_made === 'tower' || tags.man_made === 'obelisk' || b === 'tower') return { kind: 'Torre / Puerta', emoji: '🗼', prio: 65 };
     // (Wikidata da como «puente» los acueductos y algún ascensor: el de Segovia es un monumento)
