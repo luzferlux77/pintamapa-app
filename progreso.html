@@ -399,7 +399,7 @@
       const v = A.s.landmarks[id];
       const d = cardData(id);
       if ((A.s.cardPhotos || {})[id]) { const img = await ownPhoto(id); if (img) { d.img = img; d.own = true; d.credit = 'Foto: ' + (A.s.player || creds.user); } }
-      PM.tcg.open(d, { actions: [{ label: '📍 Ver en el mapa', on: () => { PM.tcg.close(); if (v.pos) map.flyTo({ center: ll(v.pos), zoom: 18 }); } }] });
+      PM.tcg.open(d, { actions: [{ ico: 'mapa', label: 'Ver en el mapa', on: () => { PM.tcg.close(); if (v.pos) map.flyTo({ center: ll(v.pos), zoom: 18 }); } }] });
     }
 
     // ---------------- álbumes ----------------

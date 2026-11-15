@@ -338,6 +338,11 @@ PM.tcg = (function () {
   // ---------------- Vista grande ----------------
   // ⓘ artículo de Wikipedia del lugar (en el idioma que tenga; si solo hay Wikidata, su página en español)
   const INFO_ICON = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9.5"/><path d="M12 11v6"/><circle cx="12" cy="7.6" r="0.6" fill="currentColor"/></svg>';
+  // iconos de línea blanca, como Info y Compartir (antes «Tu foto» era el emoji 📸, de colores y con destello)
+  const ICONOS = {
+    camara: '<svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 8.5a2 2 0 0 1 2-2h2.2l1.6-2.2h5.4l1.6 2.2h2.2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z"/><circle cx="12" cy="12.8" r="3.6"/></svg>',
+    mapa: '<svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0c0 5.4-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.4"/></svg>',
+  };
   function wikiUrl(d) {
     if (d.wiki) {
       const m = String(d.wiki).match(/^([a-z-]{2,12}):(.+)$/);
@@ -363,7 +368,7 @@ PM.tcg = (function () {
     </div>
     <div class="tcg-actions">
       ${btn('flip', '↻', 'Girar')}
-      ${(opts.actions || []).map((a, i) => { const m = String(a.label).match(/^(\S+)\s+(.*)$/); return btn('', m ? m[1] : '★', m ? m[2] : a.label, a.primary, i); }).join('')}
+      ${(opts.actions || []).map((a, i) => { if (a.ico) return btn('', ICONOS[a.ico] || a.ico, a.label, a.primary, i); const m = String(a.label).match(/^(\S+)\s+(.*)$/); return btn('', m ? m[1] : '★', m ? m[2] : a.label, a.primary, i); }).join('')}
       ${wikiUrl(d) ? btn('wiki', INFO_ICON, 'Info') : ''}
       ${btn('png', SHARE_ICON, 'Compartir')}
       ${btn('close', '✕', 'Cerrar')}

@@ -315,7 +315,7 @@ PM.cards = (function () {
       if (primera) { primera = false; try { await PM.need('js/sobre.js'); return PM.sobre.abrir(d, show); } catch (e) { /* sin el sobre: la carta directamente */ } }
       PM.tcg.open(d, {
         badge: opts.isNew ? `${recOf(id).shiny ? '✨ ¡CARTA BRILLANTE! ✨' : recOf(id).must ? '⭐ ¡IMPRESCINDIBLE! ⭐' : '¡Nueva carta!'} ${opts.pts ? '+' + opts.pts + ' pts' : ''}` : '',
-        actions: [{ label: d.own ? '📸 Cambiar foto' : d.img ? '📸 Tu foto' : '📸 Hazle la foto', primary: !d.img, on: () => editPhoto(id, show) }],
+        actions: [{ ico: 'camara', label: d.own ? PM.t('Cambiar foto') : d.img ? PM.t('Tu foto') : PM.t('Hazle la foto'), primary: !d.img, on: () => editPhoto(id, show) }],
         onText: (t) => { const ci = S().cardInfo[id] || (S().cardInfo[id] = { v: 3, t: Date.now(), lang: LANG() }); ci.text = t; delete ci.none; PM.state.save(); },
       });
     };
