@@ -1,10 +1,10 @@
 {
-  "version": "0.9.18",
-  "notes": "Cartas sin puntitos ni parpadeos en el móvil",
+  "version": "0.9.19",
+  "notes": "Cartas: el botón de tu foto con el mismo estilo que los demás",
   "native": 1,
   "nativeApk": 9,
   "apkMin": "0.9.4",
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.9.18/pintamapa-web-0.9.18.zip",
-  "checksum": "e91877abce260082685dbc91b94e7ade2b9740192e2697fed0ea14832c688483",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.9.18/PintaMapa-v0.9.18.apk"
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.9.19/pintamapa-web-0.9.19.zip",
+  "checksum": "e3f2389379afa2749fc90b7263c9a6d0cab4ad09ca14629ee3c2377eb7b65f0a",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.9.19/PintaMapa-v0.9.19.apk"
 }
