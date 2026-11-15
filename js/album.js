@@ -99,7 +99,7 @@ PM.album = (function () {
       box.dataset.vista = 'carpeta';
       box.innerHTML = '<p class="muted">Abriendo el álbum…</p>';
       const A = await W().albumDe(city), E = enlazar(A, S().landmarks, city);
-      carpeta(city, { A, E, C: carpetasDe(city, A, E) }, 0, 0);
+      carpeta(city, { A, E, C: carpetasDe(city, A, E) }, 0);
     }
 
     // La portada: lo que dice de toda la ciudad, no una lista de lo que ya está en las pestañas de arriba
@@ -120,39 +120,51 @@ PM.album = (function () {
         </div></div>`;
     }
 
-    // El álbum abierto: todas las pestañas arriba, con su progreso (se cambia de carpeta sin volver atrás), y los barrios como
-    // separadores de dentro. s: 0, todo; n, el separador n
-    function carpeta(city, V, i, s) {
-      const { C } = V, k = C[i], L = s ? k.subs[s - 1].L : k.L, [g, n] = cuantos(L);
+    // El álbum abierto, como uno de papel: en la portada, el ÍNDICE con todas las carpetas (una por fila, con su color, su barra y
+    // su cuenta); dentro de una carpeta, solo «‹ anterior · Índice · siguiente ›». Los barrios de un distrito son apartados de la
+    // misma hoja, con su título. (Antes, pestañas en una tira lateral que escondía la mayoría y, después, etiquetas amontonadas en
+    // varias filas: las dos cosas confundían, petición del usuario 15-nov-2026)
+    function carpeta(city, V, i) {
+      const { C } = V, k = C[i];
       box.dataset.vista = 'carpeta';
-      box.innerHTML = `<div class="ab-tiras">${C.map((c, j) => {
-    const [cg, cn] = cuantos(c.L), lleno = cn && cg >= cn;
-    return `<button class="ab-t ${j === i ? 'on' : ''}" data-i="${j}" style="${tinta(c)};--p:${cn ? Math.round(cg / cn * 100) : 0}%" translate="no">${lleno ? '✓ ' : c.ic ? c.ic + ' ' : ''}${esc(c.nombre)}${c.portada || !cn ? '' : ` <small>${cg}/${cn}</small>`}</button>`;
-  }).join('')}</div>
-        <div class="ab-hoja" style="${tinta(k)}">${k.portada ? tapa(city, V) : `
-          <div class="ab-pag"><b translate="no">${esc(s ? k.subs[s - 1].nombre : k.nombre)}</b><span>${g}/${n}</span></div>
-          <i class="ab-bar"><em style="width:${n ? Math.round(g / n * 100) : 0}%"></em></i>
-          ${k.subs.length ? `<div class="ab-subs"><button class="ab-s ${s ? '' : 'on'}" data-s="0">${PM.t('Todo')} <small>${k.L.length}</small></button>${k.subs.map((b, j) => `<button class="ab-s ${s === j + 1 ? 'on' : ''}" data-s="${j + 1}" translate="no">${esc(b.nombre)} <small>${b.L.length}</small></button>`).join('')}</div>` : ''}
-          ${rejilla(L)}`}
+      const pct = (L) => { const [g, n] = cuantos(L); return n ? Math.round(g / n * 100) : 0; };
+      const indice = () => `<div class="ab-indice"><h5>${PM.t('Índice')}</h5>${C.map((c, j) => {
+        if (c.portada) return '';
+        const [cg, cn] = cuantos(c.L), lleno = cn && cg >= cn;
+        return `<button class="ab-fila" data-i="${j}" style="${tinta(c)}" translate="no"><i class="ab-tono"></i><span>${lleno ? '✓ ' : c.ic ? c.ic + ' ' : ''}${esc(c.nombre)}</span><b>${cg}<small>/${cn}</small></b><i class="ab-bar"><em style="width:${pct(c.L)}%"></em></i></button>`;
+      }).join('')}</div>`;
+      // apartados: los barrios del distrito (o la carpeta entera si no tiene); las casillas se numeran seguidas para pegar()
+      const partes = k.subs.length ? k.subs : [{ nombre: null, L: k.L }], todo = [].concat(...partes.map((p) => p.L));
+      let off = 0;
+      const hojas = partes.map((p) => { const h = `${p.nombre ? `<h5 class="ab-sec" translate="no">${esc(p.nombre)} <span>${cuantos(p.L)[0]}/${p.L.length}</span></h5>` : ''}${rejilla(p.L, off)}`; off += p.L.length; return h; }).join('');
+      const [g, n] = cuantos(k.L);
+      box.innerHTML = k.portada ? `<div class="ab-hoja" style="${tinta(k)}">${tapa(city, V)}${indice()}</div>` : `
+        <div class="ab-nav" style="${tinta(k)}"><button class="ab-paso" data-i="${i - 1}" aria-label="${PM.t('Carpeta anterior')}">‹</button>
+          <button class="ab-ir-indice">${PM.t('Índice')}</button><span class="ab-donde">${i} / ${C.length - 1}</span>
+          <button class="ab-paso" data-i="${i + 1}" ${C[i + 1] ? '' : 'disabled'} aria-label="${PM.t('Carpeta siguiente')}">›</button></div>
+        <div class="ab-hoja" style="${tinta(k)}">
+          <div class="ab-pag"><b translate="no">${k.ic ? k.ic + ' ' : ''}${esc(k.nombre)}</b><span>${g}/${n}</span></div>
+          <i class="ab-bar"><em style="width:${pct(k.L)}%"></em></i>
+          ${hojas}
         </div>`;
       box.prepend(volver(PM.t('Álbumes'), inicio));
-      const tiras = box.querySelector('.ab-tiras');
-      tiras.querySelectorAll('.ab-t').forEach((b) => b.addEventListener('click', () => carpeta(city, V, +b.dataset.i, 0)));
-      box.querySelectorAll('.ab-s').forEach((b) => b.addEventListener('click', () => carpeta(city, V, i, +b.dataset.s)));
-      pegar(L);
+      box.querySelectorAll('.ab-fila, .ab-paso').forEach((b) => b.addEventListener('click', () => carpeta(city, V, +b.dataset.i)));
+      const ind = box.querySelector('.ab-ir-indice'); if (ind) ind.addEventListener('click', () => carpeta(city, V, 0));
+      pegar(todo);
       // deslizar la hoja a un lado pasa a la carpeta de al lado, como pasar separadores con el dedo
       const hoja = box.querySelector('.ab-hoja'); let x0 = null, y0 = 0;
-      hoja.addEventListener('touchstart', (e) => { const t = e.touches[0]; x0 = e.target.closest('.ab-subs') ? null : t.clientX; y0 = t.clientY; }, { passive: true });
+      hoja.addEventListener('touchstart', (e) => { const t = e.touches[0]; x0 = t.clientX; y0 = t.clientY; }, { passive: true });
       hoja.addEventListener('touchend', (e) => {
         if (x0 == null) return;
         const t = e.changedTouches[0], dx = t.clientX - x0, j = i + (dx < 0 ? 1 : -1);
-        if (Math.abs(dx) > 70 && Math.abs(t.clientY - y0) < 45 && C[j]) carpeta(city, V, j, 0);
+        if (Math.abs(dx) > 70 && Math.abs(t.clientY - y0) < 45 && C[j]) carpeta(city, V, j);
       }, { passive: true });
       arriba();
     }
 
-    function rejilla(L) {
-      return `<div class="cromos ab-grid">${L.map((e, i) => {
+    function rejilla(L, off = 0) {
+      return `<div class="cromos ab-grid">${L.map((e, k) => {
+    const i = off + k;
     if (e.id) return `<div class="tcg-cell ab-pegado" data-i="${i}" data-lm="${esc(e.id)}"><div class="ab-slot"></div></div>`;
     const R = PM.lugares.RARITY[e.rarity] || {};
     return `<button class="ab-slot vacio ${e.must ? 'must' : ''}" data-i="${i}"><span class="ab-rz" style="color:${R.color || '#9aa4b2'}">${e.must ? '★ ' : ''}${esc(PM.t(R.label || ''))}</span><span class="ab-em">${esc(e.emoji || '📍')}</span><b translate="no">${esc(e.name)}</b><small>${esc(PM.t(e.kind || ''))}</small>${e.n ? `<span class="ab-num">Nº ${e.n}</span>` : ''}</button>`;
@@ -216,18 +228,26 @@ PM.album = (function () {
     .ab-ex { font-size: 12px; font-weight: 800; white-space: nowrap; opacity: .9; }
     .ab-go { position: absolute; right: 12px; top: 6px; font-size: 26px; font-weight: 700; text-shadow: 0 1px 4px rgba(0,0,0,.6); }
     .ab-back { border: 0; background: none; color: var(--accent); font: inherit; font-weight: 700; padding: 4px 0 10px; cursor: pointer; }
-    /* carpetas: TODAS a la vista (en varias líneas si hace falta), cada una con su color y su cuenta. Antes eran pestañas en una
-       tira que se deslizaba de lado y escondía la mayoría sin avisar (petición del usuario, 15-nov-2026) */
-    .ab-tiras { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
-    .ab-t { max-width: 100%; padding: 7px 12px; border: 0; border-radius: 99px; background: var(--b); color: var(--tx); font: inherit; font-size: 13px; font-weight: 800; line-height: 1.2; text-align: left; overflow-wrap: anywhere; cursor: pointer; transition: background-color .15s; }
-    .ab-t small { font-size: 11.5px; font-weight: 700; opacity: .75; font-variant-numeric: tabular-nums; }
-    .ab-t.on { background: var(--c); color: var(--on); box-shadow: 0 2px 6px rgba(15,23,42,.18); }
-    .ab-t:focus-visible, .ab-s:focus-visible, .ab-slot:focus-visible { outline: 2px solid var(--tx); outline-offset: 2px; }
+    /* índice (en la portada): una carpeta por fila, con su color, su cuenta y su barra */
+    .ab-indice { margin-top: 18px; } .ab-indice h5 { margin: 0 0 8px; font-size: 13px; font-weight: 800; color: var(--muted); }
+    .ab-fila { display: grid; grid-template-columns: 6px minmax(0, 1fr) auto; grid-template-rows: auto auto; column-gap: 12px; row-gap: 6px; align-items: center; width: 100%; padding: 10px 12px 10px 0; margin-bottom: 6px; border: 0; border-radius: 12px; background: #fff; color: #1f2937; font: inherit; text-align: left; cursor: pointer; box-shadow: 0 1px 2px rgba(15,23,42,.06); }
+    .ab-fila .ab-tono { grid-row: 1 / 3; align-self: stretch; border-radius: 12px 0 0 12px; background: var(--c); }
+    .ab-fila span { font-size: 14px; font-weight: 800; color: var(--tx); overflow-wrap: anywhere; } .ab-fila b { font-size: 13.5px; font-variant-numeric: tabular-nums; } .ab-fila b small { font-weight: 700; opacity: .6; }
+    .ab-fila .ab-bar { grid-column: 2 / 4; height: 5px; background: var(--b); } .ab-fila .ab-bar em { background: var(--c); }
+    @media (hover: hover) { .ab-fila:hover { box-shadow: 0 0 0 2px var(--c); } }
+    /* dentro de una carpeta: anterior · Índice · siguiente (nada más) */
+    .ab-nav { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+    .ab-paso { width: 40px; height: 40px; flex: none; border: 0; border-radius: 12px; background: var(--b); color: var(--tx); font: inherit; font-size: 22px; font-weight: 800; line-height: 1; cursor: pointer; }
+    .ab-paso:disabled { opacity: .35; cursor: default; }
+    .ab-ir-indice { flex: 1; height: 40px; border: 0; border-radius: 12px; background: var(--c); color: var(--on); font: inherit; font-size: 14px; font-weight: 800; cursor: pointer; }
+    .ab-donde { font-size: 12px; font-weight: 700; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+    /* los barrios de un distrito: apartados de la misma hoja */
+    .ab-sec { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; margin: 18px 0 10px; padding-top: 12px; border-top: 1px solid var(--b); font-size: 15px; font-weight: 800; color: var(--tx); }
+    .ab-sec span { font-size: 12.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+    .ab-hoja .ab-sec:first-of-type { margin-top: 12px; }
+    .ab-fila:focus-visible, .ab-paso:focus-visible, .ab-ir-indice:focus-visible, .ab-slot:focus-visible { outline: 2px solid var(--tx); outline-offset: 2px; }
     .ab-hoja { padding: 14px 12px 18px; border-top: 4px solid var(--c); border-radius: 16px; background: var(--t); }
     .ab-hoja .ab-pag { margin-bottom: 6px; } .ab-hoja .ab-pag b { color: var(--tx); } .ab-hoja > .ab-bar { background: var(--b); margin-bottom: 12px; } .ab-hoja > .ab-bar em { background: var(--c); }
-    .ab-subs { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 14px; }   /* (los barrios del distrito, también todos a la vista) */
-    .ab-s { max-width: 100%; padding: 6px 11px; border: 1.5px solid var(--tx); border-radius: 99px; background: rgba(255,255,255,.7); color: var(--tx); font: inherit; font-size: 12.5px; font-weight: 700; overflow-wrap: anywhere; text-align: left; cursor: pointer; }
-    .ab-s.on { border-color: var(--c); background: var(--c); color: var(--on); } .ab-s small { font-size: 11px; opacity: .75; }
     /* portada: la foto y lo que dice de toda la ciudad */
     .ab-tapa { display: flex; flex-direction: column; gap: 16px; }
     .ab-cover.ab-hero { aspect-ratio: 4 / 3; margin: 0; border-radius: 14px; cursor: default; }
@@ -247,7 +267,7 @@ PM.album = (function () {
     .ab-rz { position: absolute; top: 9px; left: 0; right: 0; font-size: 9.5px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; text-align: center; }
     .ab-num { position: absolute; bottom: 8px; left: 0; right: 0; color: var(--muted); font-size: 10.5px; font-weight: 700; text-align: center; font-variant-numeric: tabular-nums; opacity: .75; }
     .ab-hoja .ab-em { display: grid; place-items: center; width: 52px; height: 52px; margin-bottom: 4px; border-radius: 50%; background: var(--t); font-size: 26px; opacity: 1; } .ab-hoja .ab-em { filter: grayscale(.85); }
-    @media (hover: hover) { .ab-hoja .ab-slot.vacio:hover { transform: translateY(-2px); box-shadow: inset 0 0 0 4px rgba(255,255,255,.9), 0 6px 14px rgba(15,23,42,.1); } .ab-t:not(.on):hover { filter: brightness(.96); } }
+    @media (hover: hover) { .ab-hoja .ab-slot.vacio:hover { transform: translateY(-2px); box-shadow: inset 0 0 0 4px rgba(255,255,255,.9), 0 6px 14px rgba(15,23,42,.1); } }
     .ab-pag { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; margin-bottom: 10px; } .ab-pag b { font-size: 19px; } .ab-pag span { font-weight: 800; color: var(--muted); }
     .ab-slot { width: 100%; aspect-ratio: 63 / 88; box-sizing: border-box; border-radius: 10px; }
     .ab-slot.vacio { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; padding: 8px; border: 2px dashed var(--line); background: rgba(127,127,127,.07); color: inherit; font: inherit; cursor: pointer; }

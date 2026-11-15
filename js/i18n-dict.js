@@ -126,6 +126,10 @@
     'Imprescindibles de': ['Imprescindibles de', 'Must-sees of', 'Incontournables de'],
     'Sobre de conquista': ['Sobre de conquesta', 'Conquest pack', 'Paquet de conquête'],
     'Contiene 1 carta': ['Conté 1 carta', 'Contains 1 card', 'Contient 1 carte'],
+    // ---- álbum: índice ----
+    'Índice': ['Índex', 'Contents', 'Sommaire'],
+    'Carpeta anterior': ['Carpeta anterior', 'Previous folder', 'Dossier précédent'],
+    'Carpeta siguiente': ['Carpeta següent', 'Next folder', 'Dossier suivant'],
     // ---- tu semana (wrapped.js) ----
     'y paseos en otra zona': ['i passejos en una altra zona', 'and walks in another area', 'et des balades dans une autre zone'],
     'y paseos en {n} zonas más': ['i passejos en {n} zones més', 'and walks in {n} more areas', 'et des balades dans {n} autres zones'],
