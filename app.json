@@ -1,10 +1,10 @@
 {
-  "version": "0.9.13",
-  "notes": "Álbumes más ordenados: cada carta en su distrito y barrio, sin carpetas aparte, y el álbum ya no te saca de donde estás",
+  "version": "0.9.14",
+  "notes": "Álbumes más bonitos: tus cartas primero, lo que falta en casillas pequeñas, miniaturas en el índice y efecto de pasar página",
   "native": 1,
   "nativeApk": 9,
   "apkMin": "0.9.4",
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.9.13/pintamapa-web-0.9.13.zip",
-  "checksum": "42cae9114dc4175bc8f51db48b43084462121704587f7f4dcb5d19663db5c69b",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.9.13/PintaMapa-v0.9.13.apk"
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.9.14/pintamapa-web-0.9.14.zip",
+  "checksum": "85616982e1a6da6d3fc1ddd9667c63cb7cc70e5453e72e226ee23aa0e2e17854",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.9.14/PintaMapa-v0.9.14.apk"
 }
