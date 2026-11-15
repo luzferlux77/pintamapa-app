@@ -1,10 +1,10 @@
 {
-  "version": "0.9.19",
-  "notes": "Cartas: el botón de tu foto con el mismo estilo que los demás",
+  "version": "0.9.20",
+  "notes": "Cartas: en el móvil, un brillo limpio de luz en vez del arcoíris",
   "native": 1,
   "nativeApk": 9,
   "apkMin": "0.9.4",
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.9.19/pintamapa-web-0.9.19.zip",
-  "checksum": "e3f2389379afa2749fc90b7263c9a6d0cab4ad09ca14629ee3c2377eb7b65f0a",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.9.19/PintaMapa-v0.9.19.apk"
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.9.20/pintamapa-web-0.9.20.zip",
+  "checksum": "c0a16a960a787286688cdb0200ab4fb74f145eb9c772c1207effc2a03df10a7c",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.9.20/PintaMapa-v0.9.20.apk"
 }
