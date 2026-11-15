@@ -50,6 +50,7 @@ PM.album = (function () {
   // ---------------- Vistas: álbumes → archivador de una ciudad, con sus pestañas ----------------
   function montar(box, opts) {
     estilos();
+    let hojaAntes = 0;   // (la carpeta que se veía: para saber hacia dónde se pasa la página)
 
     async function inicio() {
       const lista = ciudades(), s = S();
@@ -113,7 +114,7 @@ PM.album = (function () {
       box.dataset.vista = 'carpeta';
       box.innerHTML = '<p class="muted">Abriendo el álbum…</p>';
       const A = await W().albumDe(city), E = enlazar(A, S().landmarks, city);
-      carpeta(city, { A, E, C: carpetasDe(city, A, E) }, 0);
+      hojaAntes = 0; carpeta(city, { A, E, C: carpetasDe(city, A, E) }, 0);
     }
 
     // La portada: lo que dice de toda la ciudad, no una lista de lo que ya está en las pestañas de arriba
@@ -143,21 +144,24 @@ PM.album = (function () {
       const { C } = V, k = C[i];
       box.dataset.vista = 'carpeta';
       const pct = (L) => { const [g, n] = cuantos(L); return n ? Math.round(g / n * 100) : 0; };
+      // índice: cada carpeta con su color, su barra, su cuenta y unas miniaturas de tus cartas de ahí (se reconoce de un vistazo)
       const indice = () => `<div class="ab-indice"><h5>${PM.t('Índice')}</h5>${C.map((c, j) => {
         if (c.portada) return '';
-        const [cg, cn] = cuantos(c.L), lleno = cn && cg >= cn;
-        return `<button class="ab-fila" data-i="${j}" style="${tinta(c)}" translate="no"><i class="ab-tono"></i><span>${lleno ? '✓ ' : c.ic ? c.ic + ' ' : ''}${esc(c.nombre)}</span><b>${cg}<small>/${cn}</small></b><i class="ab-bar"><em style="width:${pct(c.L)}%"></em></i></button>`;
+        const [cg, cn] = cuantos(c.L), lleno = cn && cg >= cn, mias = c.L.concat(c.X || []).filter((e) => e.id).slice(0, 4).map((e) => e.id);
+        return `<button class="ab-fila" data-i="${j}" style="${tinta(c)}" translate="no"><i class="ab-tono"></i><span>${lleno ? '✓ ' : c.ic ? c.ic + ' ' : ''}${esc(c.nombre)}</span><b>${cg}<small>/${cn}</small></b><i class="ab-bar"><em style="width:${pct(c.L)}%"></em></i>${mias.length ? `<span class="ab-minis">${mias.map((id) => `<i data-lm="${esc(id)}"></i>`).join('')}</span>` : ''}</button>`;
       }).join('')}</div>`;
-      // apartados: los barrios del distrito (o la carpeta entera si no tiene); las casillas se numeran seguidas para pegar()
-      // en cada barrio: los huecos del álbum y lo que ya tienes de más (✦); los extras que faltan, plegados (no cuentan, y eran
-      // cientos en las ciudades grandes)
+      // apartados: los barrios del distrito (o la carpeta entera si no tiene). En cada uno, primero TUS cartas (las del álbum y
+      // las de más, con ✦) y después lo que te falta en casillas pequeñas, tres por fila: antes cada hueco ocupaba lo que una carta
+      // y pesaba más que lo conseguido. Los extras que faltan, plegados al final (no cuentan). Las casillas se numeran seguidas
+      const anillo = (L) => { const [a, n] = cuantos(L), v = n ? a / n : 0, r = 11, cc = 2 * Math.PI * r; return `<svg class="ab-anillo" viewBox="0 0 28 28" width="28" height="28" aria-hidden="true"><circle cx="14" cy="14" r="${r}" fill="none" stroke="var(--b)" stroke-width="4"/><circle cx="14" cy="14" r="${r}" fill="none" stroke="var(--c)" stroke-width="4" stroke-linecap="${v > 0.03 ? 'round' : 'butt'}" stroke-dasharray="${(cc * v).toFixed(1)} ${cc.toFixed(1)}" transform="rotate(-90 14 14)"/></svg>`; };
       const partes = k.subs.length ? k.subs : [{ nombre: null, L: k.L, X: k.X || [] }], todo = [];
       const hojas = partes.map((p) => {
-        const X = p.X || [], tengo = X.filter((e) => e.id), faltan = X.filter((e) => !e.id);
-        const a = rejilla(p.L.concat(tengo), todo.length); todo.push(...p.L, ...tengo);
-        const b = faltan.length ? `<details class="ab-mas"><summary>＋ ${faltan.length === 1 ? PM.t('1 lugar más') : PM.t('{n} lugares más', { n: PM.fmtNum(faltan.length) })} <small>${PM.t('no cuentan para el álbum')}</small></summary>${rejilla(faltan, todo.length)}</details>` : '';
-        todo.push(...faltan);
-        return `${p.nombre ? `<h5 class="ab-sec" translate="no">${esc(p.nombre)} <span>${p.L.length ? `${cuantos(p.L)[0]}/${p.L.length}` : ''}${tengo.length ? ` ✦${tengo.length}` : ''}</span></h5>` : ''}${a}${b}`;
+        const X = p.X || [], tengo = p.L.filter((e) => e.id).concat(X.filter((e) => e.id)), falta = p.L.filter((e) => !e.id), extras = X.filter((e) => !e.id);
+        const a = tengo.length ? rejilla(tengo, todo.length) : ''; todo.push(...tengo);
+        const b = falta.length ? `<p class="ab-falta">${falta.length === 1 ? PM.t('Te falta 1') : PM.t('Te faltan {n}', { n: PM.fmtNum(falta.length) })}</p>${huecos(falta, todo.length)}` : ''; todo.push(...falta);
+        const c = extras.length ? `<details class="ab-mas"><summary>＋ ${extras.length === 1 ? PM.t('1 lugar más') : PM.t('{n} lugares más', { n: PM.fmtNum(extras.length) })} <small>${PM.t('no cuentan para el álbum')}</small></summary>${huecos(extras, todo.length)}</details>` : ''; todo.push(...extras);
+        const de = X.filter((e) => e.id).length;
+        return `${p.nombre ? `<h5 class="ab-sec" translate="no">${p.L.length ? anillo(p.L) : ''}<b>${esc(p.nombre)}</b><span>${p.L.length ? `${cuantos(p.L)[0]}/${p.L.length}` : ''}${de ? ` · ✦${de}` : ''}</span></h5>` : ''}${a}${b}${c}`;
       }).join('');
       const [g, n] = cuantos(k.L);
       // barra de arriba que no se va al bajar: siempre se ve cómo volver (antes solo había la ✕, que cierra el álbum entero)
@@ -165,8 +169,10 @@ PM.album = (function () {
         : `<div class="ab-barra" style="${tinta(k)}"><button class="ab-atras" data-a="indice">‹ ${PM.t('Índice')}</button>
           <span class="ab-pasos"><button class="ab-paso" data-i="${i - 1}" aria-label="${PM.t('Carpeta anterior')}">‹</button><span class="ab-donde">${i}/${C.length - 1}</span>
           <button class="ab-paso" data-i="${i + 1}" ${C[i + 1] ? '' : 'disabled'} aria-label="${PM.t('Carpeta siguiente')}">›</button></span></div>`;
-      box.innerHTML = barra + (k.portada ? `<div class="ab-hoja" style="${tinta(k)}">${tapa(city, V)}${indice()}</div>` : `
-        <div class="ab-hoja" style="${tinta(k)}">
+      // pasar página: la hoja entra por la derecha si avanzas y por la izquierda si vuelves (como un álbum de verdad)
+      const giro = i > hojaAntes ? 'ab-der' : i < hojaAntes ? 'ab-izq' : ''; hojaAntes = i;
+      box.innerHTML = barra + (k.portada ? `<div class="ab-hoja ${giro}" style="${tinta(k)}">${tapa(city, V)}${indice()}</div>` : `
+        <div class="ab-hoja ${giro}" style="${tinta(k)}">
           <div class="ab-pag"><b translate="no">${k.ic ? k.ic + ' ' : ''}${esc(k.nombre)}</b><span>${g}/${n}</span></div>
           <i class="ab-bar"><em style="width:${pct(k.L)}%"></em></i>
           ${hojas}
@@ -174,6 +180,12 @@ PM.album = (function () {
       box.querySelectorAll('.ab-fila, .ab-paso').forEach((b) => b.addEventListener('click', () => carpeta(city, V, +b.dataset.i)));
       box.querySelector('.ab-atras').addEventListener('click', (e) => { if (e.currentTarget.dataset.a === 'indice') carpeta(city, V, 0); else { inicio(); arriba(); } });
       pegar(todo);
+      // miniaturas del índice: la foto de cada carta (o su emoji si no tiene)
+      box.querySelectorAll('.ab-minis i[data-lm]').forEach(async (el) => {
+        const d = await opts.datos(el.dataset.lm);
+        if (!el.isConnected || !d) return;
+        if (d.img) el.style.backgroundImage = `url('${String(d.img).replace(/'/g, '%27')}')`; else el.textContent = d.emoji || '📍';
+      });
       // deslizar la hoja a un lado pasa a la carpeta de al lado, como pasar separadores con el dedo
       const hoja = box.querySelector('.ab-hoja'); let x0 = null, y0 = 0;
       hoja.addEventListener('touchstart', (e) => { const t = e.touches[0]; x0 = t.clientX; y0 = t.clientY; }, { passive: true });
@@ -193,6 +205,13 @@ PM.album = (function () {
     return `<button class="ab-slot vacio ${e.must ? 'must' : ''}" data-i="${i}"><span class="ab-rz" style="color:${R.color || '#9aa4b2'}">${e.must ? '★ ' : ''}${esc(PM.t(R.label || ''))}</span><span class="ab-em">${esc(e.emoji || '📍')}</span><b translate="no">${esc(e.name)}</b><small>${esc(PM.t(e.kind || ''))}</small>${e.n ? `<span class="ab-num">Nº ${e.n}</span>` : ''}</button>`;
   }).join('')}</div>`;
     }
+    // lo que te falta: casillas pequeñas (tres por fila en el móvil), con su número, su emoji y el nombre ENTERO (nunca cortado)
+    function huecos(L, off) {
+      return `<div class="ab-huecos">${L.map((e, k) => {
+        const R = PM.lugares.RARITY[e.rarity] || {};
+        return `<button class="ab-hueco ${e.must ? 'must' : ''}" data-i="${off + k}" style="--rz:${R.color || '#9aa4b2'}" title="${esc(PM.t(R.label || ''))}${e.kind ? ' · ' + esc(PM.t(e.kind)) : ''}">${e.n ? `<span class="ab-hn">${e.must ? '★ ' : ''}${e.n}</span>` : ''}<span class="ab-he">${esc(e.emoji || '📍')}</span><b translate="no">${esc(e.name)}</b></button>`;
+      }).join('')}</div>`;
+    }
     function pegar(L) {
       box.querySelectorAll('.ab-pegado').forEach(async (el) => {
         const id = el.dataset.lm;
@@ -200,7 +219,7 @@ PM.album = (function () {
         const d = await opts.datos(id);
         if (el.isConnected) { el.innerHTML = PM.tcg.html(d, { mini: true }); if (opts.pegada) opts.pegada(el, id); }
       });
-      box.querySelectorAll('.ab-slot.vacio').forEach((b) => b.addEventListener('click', () => { const e = L[+b.dataset.i]; opts.irA({ pos: e.pos, name: e.name }); }));
+      box.querySelectorAll('.ab-slot.vacio, .ab-hueco').forEach((b) => b.addEventListener('click', () => { const e = L[+b.dataset.i]; opts.irA({ pos: e.pos, name: e.name }); }));
     }
     // Arriba del álbum al cambiar de carpeta. Antes se desplazaba el contenedor de al lado, que no se mueve: en el móvil la carpeta
     // se abría a media altura (donde estabas en el índice) y no se veía ni su título ni cómo volver (15-nov-2026). Se busca lo que
@@ -279,6 +298,11 @@ PM.album = (function () {
     .ab-fila .ab-tono { grid-row: 1 / 3; align-self: stretch; border-radius: 12px 0 0 12px; background: var(--c); }
     .ab-fila span { font-size: 14px; font-weight: 800; color: var(--tx); overflow-wrap: anywhere; } .ab-fila b { font-size: 13.5px; font-variant-numeric: tabular-nums; } .ab-fila b small { font-weight: 700; opacity: .6; }
     .ab-fila .ab-bar { grid-column: 2 / 4; height: 5px; background: var(--b); } .ab-fila .ab-bar em { background: var(--c); }
+    /* miniaturas de tus cartas de esa carpeta, superpuestas como fotos en la mano */
+    .ab-fila:has(.ab-minis) .ab-bar { grid-column: 2 / 3; }
+    .ab-minis { grid-column: 3; grid-row: 2; display: flex; justify-self: end; }
+    .ab-minis i { display: grid; place-items: center; width: 26px; height: 26px; margin-left: -8px; border-radius: 50%; border: 2px solid #fff; background: var(--b) center / cover no-repeat; font-size: 13px; font-style: normal; box-shadow: 0 1px 3px rgba(15,23,42,.2); }
+    .ab-minis i:first-child { margin-left: 0; }
     @media (hover: hover) { .ab-fila:hover { box-shadow: 0 0 0 2px var(--c); } }
     /* barra de arriba, siempre a la vista al bajar: volver (‹ Álbumes / ‹ Índice) y, en una carpeta, ‹ nº/total › */
     .ab-barra { position: sticky; top: var(--ab-tope, 0px); z-index: 4; display: flex; align-items: center; gap: 8px; margin: 0 0 10px; padding: 8px 0; background: var(--ab-fondo, var(--sheet, #fff)); }
@@ -288,16 +312,33 @@ PM.album = (function () {
     .ab-paso:disabled { opacity: .35; cursor: default; }
     .ab-donde { font-size: 12px; font-weight: 700; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
     /* los barrios de un distrito: apartados de la misma hoja */
-    .ab-sec { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; margin: 18px 0 10px; padding-top: 12px; border-top: 1px solid var(--b); font-size: 15px; font-weight: 800; color: var(--tx); }
-    .ab-sec span { font-size: 12.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
-    .ab-hoja .ab-sec:first-of-type { margin-top: 12px; }
+    /* cabecera de cada barrio: franja de su color, anillo de progreso, nombre y cuenta */
+    .ab-sec { display: flex; align-items: center; gap: 10px; margin: 22px -12px 12px; padding: 9px 12px; border-left: 5px solid var(--c); background: rgba(255,255,255,.6); font-size: 15.5px; font-weight: 800; color: var(--tx); }
+    .ab-sec b { flex: 1; min-width: 0; overflow-wrap: anywhere; } .ab-anillo { flex: none; }
+    .ab-sec span { font-size: 12.5px; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .ab-hoja .ab-sec:first-of-type { margin-top: 14px; }
+    /* lo que te falta: casillas pequeñas y ligeras (lo que destaca son tus cartas) */
+    .ab-falta { margin: 14px 0 8px; font-size: 12.5px; font-weight: 800; color: var(--muted); }
+    .ab-huecos { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 8px; }
+    .ab-hueco { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: 4px; min-height: 92px; padding: 20px 6px 9px; border: 1.5px dashed var(--b); border-radius: 10px; background: rgba(255,255,255,.72); box-shadow: inset 0 3px 0 var(--rz); color: #1f2937; font: inherit; text-align: center; cursor: pointer; }
+    .ab-hueco.must { border-color: #eab308; }
+    .ab-hn { position: absolute; top: 5px; left: 7px; font-size: 10.5px; font-weight: 800; color: var(--muted); font-variant-numeric: tabular-nums; }
+    .ab-he { font-size: 20px; filter: grayscale(.85); opacity: .75; }
+    .ab-hueco b { font-size: 11.5px; line-height: 1.2; font-weight: 700; overflow-wrap: anywhere; hyphens: auto; }   /* (el nombre, entero: nunca se corta) */
+    @media (hover: hover) { .ab-hueco:hover { background: #fff; border-style: solid; } }
+    /* pasar página: la hoja entra girando un poco desde el lado hacia el que vas */
+    .ab-hoja.ab-der { animation: abPagDer .32s cubic-bezier(.2,.8,.3,1); transform-origin: left center; }
+    .ab-hoja.ab-izq { animation: abPagIzq .32s cubic-bezier(.2,.8,.3,1); transform-origin: right center; }
+    @keyframes abPagDer { from { opacity: 0; transform: perspective(1200px) translateX(36px) rotateY(-10deg); } }
+    @keyframes abPagIzq { from { opacity: 0; transform: perspective(1200px) translateX(-36px) rotateY(10deg); } }
+    @media (prefers-reduced-motion: reduce) { .ab-hoja.ab-der, .ab-hoja.ab-izq { animation: none; } }
     /* tus cartas de más (fuera de la lista o extras): en su barrio, con una ✦ en la esquina */
     .ab-de-mas { position: relative; } .ab-de-mas::after { content: '✦'; position: absolute; top: -7px; right: -7px; z-index: 2; display: grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; background: var(--c); color: var(--on); font-size: 12px; box-shadow: 0 1px 4px rgba(15,23,42,.3); }
     /* los extras que faltan, plegados al final del barrio */
     .ab-mas { margin-top: 10px; } .ab-mas summary { list-style: none; cursor: pointer; padding: 10px 12px; border-radius: 12px; background: rgba(255,255,255,.7); color: var(--tx); font-size: 13.5px; font-weight: 800; }
     .ab-mas summary::-webkit-details-marker { display: none; } .ab-mas summary small { font-weight: 600; color: var(--muted); margin-left: 4px; }
-    .ab-mas[open] summary { margin-bottom: 10px; } .ab-mas .ab-slot.vacio { opacity: .8; }
-    .ab-fila:focus-visible, .ab-paso:focus-visible, .ab-atras:focus-visible, .ab-slot:focus-visible { outline: 2px solid var(--tx); outline-offset: 2px; }
+    .ab-mas[open] summary { margin-bottom: 10px; } .ab-mas .ab-hueco { opacity: .85; }
+    .ab-fila:focus-visible, .ab-paso:focus-visible, .ab-atras:focus-visible, .ab-hueco:focus-visible, .ab-slot:focus-visible { outline: 2px solid var(--tx); outline-offset: 2px; }
     .ab-hoja { padding: 14px 12px 18px; border-top: 4px solid var(--c); border-radius: 16px; background: var(--t); }
     .ab-hoja .ab-pag { margin-bottom: 6px; } .ab-hoja .ab-pag b { color: var(--tx); } .ab-hoja > .ab-bar { background: var(--b); margin-bottom: 12px; } .ab-hoja > .ab-bar em { background: var(--c); }
     /* portada: la foto y lo que dice de toda la ciudad */

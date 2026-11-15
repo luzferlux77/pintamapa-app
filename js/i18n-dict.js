@@ -129,6 +129,8 @@
     'barrio': ['barri', 'neighbourhood', 'quartier'],
     'lugar': ['lloc', 'place', 'lieu'],
     // ---- álbum: índice ----
+    'Te falta 1': ['Et falta 1', '1 to go', 'Il t’en manque 1'],
+    'Te faltan {n}': ['Et falten {n}', '{n} to go', 'Il t’en manque {n}'],
     '1 lugar más': ['1 lloc més', '1 more place', '1 lieu de plus'],
     '{n} lugares más': ['{n} llocs més', '{n} more places', '{n} lieux de plus'],
     'no cuentan para el álbum': ['no compten per a l’àlbum', 'they don’t count for the album', 'ils ne comptent pas pour l’album'],
