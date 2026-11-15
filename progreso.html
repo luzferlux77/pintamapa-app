@@ -124,7 +124,7 @@
     .ach div span { display: grid; place-items: center; width: 44px; height: 44px; margin: 0 auto 4px; border-radius: 12px; background: var(--soft-bg); font-size: 22px; }
     .ach div.off span { filter: grayscale(1); opacity: .35; }
     .logros summary { list-style: none; cursor: pointer; } .logros summary::-webkit-details-marker { display: none; } .logros:not([open]) h3 { margin: 0; } .logros[open] summary span::after { content: " ▴"; }
-    #album-box { --panel: var(--card); --accent: var(--accent); }
+    #album-box { --panel: var(--card); --ab-tope: 34px; scroll-margin-top: 44px; }   /* (la barra del álbum, justo debajo de las pestañas fijas) */
     #album-box .cromos { display: grid; grid-template-columns: repeat(auto-fill, minmax(146px, 1fr)); gap: 10px; }
     #album-box .cromos .tcg-cell { --w: 146px; } #album-box .cromos .tcg.mini { font-size: calc(var(--w) / 26); }
     /* álbumes a pantalla completa: portadas en rejilla, la ciudad a dos columnas y las cartas más grandes */
@@ -133,7 +133,7 @@
     .af-top { display: flex; align-items: center; gap: 14px; padding: 10px 24px; background: var(--card); border-bottom: 1px solid var(--line); }
     .af-top b { flex: 1; font-size: 18px; }
     #af-body { flex: 1; min-height: 0; overflow: auto; padding: 24px; }
-    #alb-full #album-box { max-width: 1500px; margin: 0 auto; }
+    #alb-full #album-box { max-width: 1500px; margin: 0 auto; --ab-tope: 0px; scroll-margin-top: 0; }
     #alb-full [data-vista="inicio"] { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 360px), 1fr)); gap: 18px; align-items: start; }
     #alb-full [data-vista="inicio"] h4 { grid-column: 1 / -1; margin: 0; }
     #alb-full [data-vista="inicio"] .ab-cover { margin: 0; }
