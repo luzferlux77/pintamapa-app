@@ -1439,8 +1439,14 @@
   const artCtx = () => ({ S, W, paintedAll, barrioShapes: () => bgeo });
   const openWeek = () => PM.need('lib/mp4-muxer.js', 'js/replay.js', 'js/wrapped.js').then(() => PM.wrapped.open(artCtx())).catch(() => toast('Sin conexión para abrir el vídeo', 'warn'));
   setTimeout(() => {
-    const d = new Date(), wk = d.getFullYear() + '-' + Math.floor((d - new Date(d.getFullYear(), 0, 1)) / 604800000);
-    if ((d.getDay() === 0 || d.getDay() === 1) && S().wrappedWeek !== wk && (S().walks || []).some((w) => w.start > Date.now() - 7 * 86400000)) {
+    // la última semana TERMINADA (lunes a domingo), la primera vez que se abre la app después: antes salía el domingo por la
+    // mañana con «los últimos 7 días» (con un día de la semana anterior y sin el domingo) y ya no volvía a salir
+    const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+    const hasta = d.getTime(); d.setDate(d.getDate() - 7);
+    const desde = d.getTime(), wk = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    // (con la clave vieja, «año-nº de semana desde el 1 de enero», esa semana ya se avisó: no se vuelve a avisar de una anterior)
+    const vieja = /^(\d{4})-(\d{1,2})$/.exec(S().wrappedWeek || ''), yaAvisada = !!vieja && hasta <= new Date(+vieja[1], 0, 1 + 7 * +vieja[2]).getTime();
+    if (S().wrappedWeek !== wk && !yaAvisada && (S().walks || []).some((w) => w.start >= desde && w.start < hasta)) {
       S().wrappedWeek = wk; PM.state.save();
       const el = toast('📽️ <b>¡Tu semana pintando está lista!</b> Toca para verla', 'gold', 8000);
       el.style.pointerEvents = 'auto'; el.style.cursor = 'pointer'; el.addEventListener('click', openWeek);
@@ -3190,7 +3196,7 @@
         ${tile('🖌️', PM.fmtDist(st.paintedM), 'pintados')}${tile('🚶', PM.fmtDist(st.walkedM), 'caminados')}${tile('🗓️', D.walks.length, 'paseos', 'walks')}
         ${tile('⏱️', dur(D.movAll), 'en movimiento')}${tile('🏛️', D.lms.length, 'lugares', 'album')}${tile('🚩', Object.keys(s.conqueredB || {}).length, 'barrios', 'cit')}</div>`);
       html += `<button class="pf-week sobrio" id="pf-ach"><span>🏆</span><div><b>Logros</b><small>${D.nAch} de ${Object.keys(G.ACHIEVEMENTS).length} conseguidos</small></div><em>›</em></button>`;
-      html += `<button class="pf-week" id="pf-week"><span>📽️</span><div><b>Tu semana en vídeo</b><small>Resumen animado de los últimos 7 días para compartir</small></div><em>▶</em></button>`;
+      html += `<button class="pf-week" id="pf-week"><span>📽️</span><div><b>Tu semana en vídeo</b><small>La semana pasada, de lunes a domingo, animada para compartir</small></div><em>▶</em></button>`;
       html += card('🎨 Color de tu pintura', `<div class="colors">` + G.COLORS.map((c) => {
         const locked = lp.level < c.lvl;
         return `<button class="color ${s.color === c.c ? 'sel' : ''}" ${locked ? 'disabled' : ''} data-c="${c.c}" style="background:${c.c}" title="${c.name}" aria-label="${c.name}${locked ? ' (nivel ' + c.lvl + ')' : ''}">${locked ? '🔒' + c.lvl : ''}</button>`;

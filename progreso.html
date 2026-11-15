@@ -4,123 +4,127 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Mi progreso · PintaMapa</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="lib/maplibre/maplibre-gl.css">
   <style>
+    /* Mismo aspecto que la app: interfaz sobria en azul (--accent) y TU color de pintura (--paint) solo para lo pintado.
+       Letra del sistema, como el juego (antes se bajaba Inter de Google y todo era otro azul). */
     :root {
-      --bg: #f5f6fa; --card: #ffffff; --line: #eceef3; --text: #111827; --muted: #6b7280; --soft: #9ca3af;
-      --paint: #2563eb; --cyan: #06b6d4; --violet: #8b5cf6; --amber: #f59e0b; --green: #10b981;
+      --bg: #f4f5f7; --card: #ffffff; --line: #e7e9ee; --soft-bg: #f3f4f7; --text: #1a1d29; --muted: #4b5563; --soft: #8a91a0;
+      --accent: #1f5fbf; --paint: #ff2e88; --up: #059669; --down: #dc2626;
       --r: 16px; --shadow: 0 1px 2px rgba(16,24,40,.04), 0 1px 3px rgba(16,24,40,.06);
     }
     * { box-sizing: border-box; }
-    html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); font-family: Inter, system-ui, -apple-system, "Segoe UI", sans-serif; -webkit-font-smoothing: antialiased; }
+    html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; -webkit-font-smoothing: antialiased; }
     button { font: inherit; cursor: pointer; }
     .muted { color: var(--muted); }
-    /* ----- login ----- */
+    .logo { font-weight: 800; letter-spacing: -1px; font-size: 30px; } .logo .p { color: var(--text); } .logo .m { color: var(--accent); }   /* (la misma marca que en la app) */
+    /* ----- acceso ----- */
     #login { min-height: 100%; display: grid; place-items: center; padding: 24px; }
     .login-card { width: min(400px, 100%); background: var(--card); border-radius: 22px; padding: 32px 28px; box-shadow: 0 10px 40px rgba(16,24,40,.08); text-align: center; }
-    .logo { font-weight: 800; letter-spacing: -1px; font-size: 30px; }
-    .logo .p { color: var(--text); } .logo .m { color: #2563eb; }   /* (la misma marca que en la app) */
     .login-card h1 { font-size: 20px; margin: 18px 0 6px; } .login-card p { font-size: 14px; line-height: 1.5; margin: 0 0 18px; }
     .login-card input { width: 100%; padding: 13px 14px; border-radius: 12px; border: 1px solid var(--line); background: #fafbfc; font: inherit; margin-bottom: 10px; outline: none; }
-    .login-card input:focus { border-color: var(--paint); background: #fff; }
-    .btn-main { width: 100%; padding: 13px; border: 0; border-radius: 12px; background: var(--paint); color: #fff; font-weight: 700; font-size: 15px; }
-    .err { color: #dc2626; font-size: 13px; min-height: 18px; margin-top: 10px; }
-    .howto { text-align: left; background: #f8f9fc; border-radius: 12px; padding: 12px 14px; font-size: 13px; line-height: 1.55; margin-top: 12px; }
+    .login-card input:focus { border-color: var(--accent); background: #fff; }
+    .btn-main { width: 100%; padding: 13px; border: 0; border-radius: 12px; background: var(--accent); color: #fff; font-weight: 700; font-size: 15px; }
+    .err { color: var(--down); font-size: 13px; min-height: 18px; margin-top: 10px; }
+    .howto { text-align: left; background: var(--soft-bg); border-radius: 12px; padding: 12px 14px; font-size: 13px; line-height: 1.55; margin-top: 12px; }
     .howto ol { padding-left: 18px; margin: 6px 0; }
-    /* ----- app ----- */
+    /* ----- app: mapa a la izquierda, panel a la derecha ----- */
     #app { display: none; height: 100vh; grid-template-columns: minmax(0, 1fr) 460px; grid-template-rows: 64px minmax(0, 1fr); }
     #app.show { display: grid; }
-    header { grid-column: 1 / -1; display: flex; align-items: center; gap: 16px; padding: 0 20px; background: var(--card); border-bottom: 1px solid var(--line); }
-    .who { display: flex; align-items: center; gap: 12px; margin-left: 8px; }
-    .ring { --p: 0; width: 42px; height: 42px; border-radius: 50%; display: grid; place-items: center; font-weight: 800; font-size: 15px;
-      background: conic-gradient(var(--paint) calc(var(--p) * 1%), #f0f1f5 0); position: relative; }
+    header { grid-column: 1 / -1; display: flex; align-items: center; gap: 14px; padding: 0 20px; background: var(--card); border-bottom: 1px solid var(--line); }
+    .who { display: flex; align-items: center; gap: 12px; margin-left: 8px; min-width: 0; }
+    .ring { --p: 0; width: 42px; height: 42px; border-radius: 50%; display: grid; place-items: center; font-weight: 800; font-size: 15px; flex: none;
+      background: conic-gradient(var(--accent) calc(var(--p) * 1%), #eceef3 0); position: relative; }
     .ring::before { content: ''; position: absolute; inset: 4px; border-radius: 50%; background: #fff; }
     .ring b { position: relative; }
     #avatar { width: 40px; height: 40px; border-radius: 50%; background: center / cover; box-shadow: 0 0 0 2px #fff, 0 0 0 3px var(--line); flex: none; }
-    .who-txt b { display: block; font-size: 15px; } .who-txt small { color: var(--muted); font-size: 12px; }
+    .who-txt { min-width: 0; } .who-txt b { display: block; font-size: 15px; } .who-txt small { color: var(--muted); font-size: 12px; }
     .grow { flex: 1; }
+    #synced { font-size: 12px; color: var(--muted); white-space: nowrap; }
     .hbtn { border: 1px solid var(--line); background: #fff; border-radius: 10px; padding: 8px 12px; font-size: 13px; font-weight: 600; color: var(--text); text-decoration: none; }
     .hbtn:hover { border-color: #d6d9e0; }
-    /* mapa */
     .mapwrap { position: relative; min-height: 0; }
     #bigmap { position: absolute; inset: 0; background: #e9ebf0; }
-    .gray-tiles { filter: grayscale(1) contrast(.92) brightness(1.06); }
-    .layers { position: absolute; z-index: 500; top: 14px; left: 14px; display: flex; flex-wrap: wrap; gap: 6px; max-width: calc(100% - 28px); }
+    .layers { position: absolute; z-index: 500; top: 14px; left: 14px; display: flex; flex-wrap: wrap; gap: 6px; max-width: calc(100% - 120px); }
     .chip { border: 1px solid var(--line); background: rgba(255,255,255,.97); border-radius: 99px; padding: 7px 12px; font-size: 12.5px; font-weight: 600; color: var(--muted); box-shadow: var(--shadow); }
     .chip.on { color: var(--text); border-color: var(--text); }
     .chip i { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; vertical-align: 0; }
-    .mapstats { position: absolute; z-index: 500; left: 14px; bottom: 14px; display: flex; gap: 8px; flex-wrap: wrap; }
-    .mapstat { background: rgba(255,255,255,.97); border-radius: 12px; padding: 8px 12px; box-shadow: var(--shadow); }
-    .mapstat b { display: block; font-size: 16px; } .mapstat small { color: var(--muted); font-size: 11px; }
     .fitbtn { position: absolute; z-index: 500; right: 14px; top: 14px; }
     .lmk { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; font-size: 17px; background: #fff; border: 3px solid var(--c, #9aa4b2); box-shadow: 0 2px 6px rgba(0,0,0,.2); }
-    .pop img { width: 220px; height: 130px; object-fit: cover; border-radius: 10px; display: block; margin-bottom: 8px; }
-    .pop b { font-size: 14px; } .pop small { color: var(--muted); display: block; margin-top: 2px; }
-    /* panel */
+    /* ----- panel ----- */
     aside { overflow-y: auto; border-left: 1px solid var(--line); background: var(--bg); padding: 16px; display: flex; flex-direction: column; gap: 14px; }
-    .tabs { display: flex; gap: 4px; background: #eceef3; padding: 4px; border-radius: 12px; position: sticky; top: -16px; z-index: 5; }
-    .tabs button { flex: 1; border: 0; background: transparent; padding: 8px 6px; border-radius: 9px; font-size: 13px; font-weight: 600; color: var(--muted); }
+    .tabs { display: flex; gap: 4px; background: #e9ebf0; padding: 4px; border-radius: 12px; position: sticky; top: -16px; z-index: 5; }
+    .tabs button { flex: 1; border: 0; background: transparent; padding: 9px 6px; border-radius: 9px; font-size: 13.5px; font-weight: 600; color: var(--muted); }
     .tabs button.on { background: #fff; color: var(--text); box-shadow: var(--shadow); }
+    #panel { display: flex; flex-direction: column; gap: 14px; }
     .card { background: var(--card); border-radius: var(--r); padding: 16px; box-shadow: var(--shadow); }
-    .card h3 { margin: 0 0 12px; font-size: 13px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .6px; display: flex; justify-content: space-between; align-items: baseline; }
-    .card h3 span { text-transform: none; letter-spacing: 0; font-weight: 500; color: var(--soft); }
+    .card h3 { margin: 0 0 12px; font-size: 15px; font-weight: 700; display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+    .card h3 span { font-size: 12px; font-weight: 500; color: var(--soft); }
+    .empty { color: var(--muted); font-size: 13.5px; text-align: center; padding: 18px 8px; }
+    .dl { font-size: 11px; font-weight: 700; } .dl.up { color: var(--up); } .dl.down { color: var(--down); }
+    .legend { display: flex; flex-wrap: wrap; gap: 12px; font-size: 11.5px; color: var(--muted); margin-top: 8px; }
+    .legend i { display: inline-block; width: 9px; height: 9px; border-radius: 3px; margin-right: 5px; }
+    .row { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--line); font-size: 13.5px; }
+    .row:last-child { border-bottom: 0; } .row span { color: var(--muted); } .row b { font-variant-numeric: tabular-nums; white-space: nowrap; }
+    /* resumen: los totales, una sola vez */
+    .totales { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+    .totales div { background: var(--card); border-radius: 14px; padding: 12px 8px; text-align: center; box-shadow: var(--shadow); }
+    .totales b { display: block; font-size: 21px; font-weight: 800; letter-spacing: -.3px; font-variant-numeric: tabular-nums; }
+    .totales small { color: var(--muted); font-size: 11.5px; } .totales .pintado b { color: var(--paint); }
+    .desde { margin: -4px 2px 0; font-size: 12.5px; color: var(--muted); }
+    .wk3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 12px; }
+    .wk3 b { display: block; font-size: 18px; font-weight: 800; font-variant-numeric: tabular-nums; } .wk3 small { display: block; color: var(--muted); font-size: 11.5px; }
+    .wkbars { display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; height: 104px; align-items: end; }
+    .wkbars div { display: flex; flex-direction: column; align-items: center; gap: 4px; height: 100%; }
+    .wkbars span { position: relative; flex: 1; width: 100%; max-width: 34px; background: var(--soft-bg); border-radius: 8px; overflow: hidden; }
+    .wkbars span i, .wkbars span em { position: absolute; left: 0; right: 0; bottom: 0; border-radius: 8px; } .wkbars span i { background: #cfd5e0; } .wkbars span em { background: var(--paint); }
+    .wkbars small { font-size: 11px; color: var(--muted); font-weight: 600; } .wkbars .today small { color: var(--text); font-weight: 800; } .wkbars .fut span { opacity: .45; }
+    .terr { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; text-align: center; } .terr b { display: block; font-size: 13px; margin-top: 6px; overflow-wrap: anywhere; } .terr small { color: var(--muted); font-size: 11px; }
+    .more { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; } .more span { background: var(--soft-bg); border-radius: 99px; padding: 4px 10px; font-size: 12px; color: var(--muted); }
+    .proy { margin: 12px 0 0; font-size: 13px; line-height: 1.45; color: var(--muted); }
+    .goal { display: flex; gap: 10px; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--line); } .goal:last-child { border-bottom: 0; }
+    .goal > span { font-size: 22px; width: 30px; text-align: center; } .goal > div { flex: 1; min-width: 0; } .goal b { font-size: 13.5px; } .goal small { display: block; color: var(--muted); font-size: 11.5px; }
+    .goal em { font-style: normal; font-weight: 800; font-size: 13px; color: var(--accent); width: 40px; text-align: right; }
+    .pbar { height: 7px; border-radius: 99px; background: var(--soft-bg); overflow: hidden; margin: 6px 0 2px; } .pbar i { display: block; height: 100%; border-radius: 99px; background: var(--accent); }
+    .recs { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; } .rec { display: flex; gap: 10px; align-items: center; padding: 10px; border-radius: 12px; background: var(--soft-bg); }
+    .rec[data-wi] { cursor: pointer; } .rec[data-wi]:hover { background: #eaecf1; }
+    .rec span { font-size: 20px; } .rec div { flex: 1; min-width: 0; } .rec small { display: block; color: var(--muted); font-size: 11.5px; } .rec b { font-size: 15px; } .rec em { font-style: normal; font-size: 11px; color: var(--muted); }
+    /* paseos */
+    .seg { display: flex; gap: 4px; background: #e9ebf0; padding: 4px; border-radius: 12px; }
+    .seg button { flex: 1; border: 0; background: transparent; padding: 7px 4px; border-radius: 9px; font-size: 12.5px; font-weight: 600; color: var(--muted); }
+    .seg button.on { background: #fff; color: var(--text); box-shadow: 0 1px 3px rgba(0,0,0,.08); }
     .kpis { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
     .kpi { background: var(--card); border-radius: 14px; padding: 12px; box-shadow: var(--shadow); }
-    .kpi b { display: block; font-size: 20px; font-weight: 800; letter-spacing: -.3px; font-variant-numeric: tabular-nums; }
-    .kpi small { color: var(--muted); font-size: 11.5px; }
-    .kpi em { font-style: normal; font-size: 11px; font-weight: 600; color: var(--green); }
-    .kpi.hl b { color: var(--paint); }
-    .row { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--line); font-size: 13.5px; }
-    .row:last-child { border-bottom: 0; } .row span { color: var(--muted); } .row b { font-variant-numeric: tabular-nums; }
-    .pbar { height: 8px; border-radius: 99px; background: #f0f1f5; overflow: hidden; position: relative; margin: 6px 0 4px; }
-    .pbar i { display: block; height: 100%; border-radius: 99px; background: linear-gradient(90deg, var(--paint), #ff6fb0); }
-    .pbar em { position: absolute; left: 70%; top: -2px; bottom: -2px; width: 2px; background: var(--text); opacity: .5; }
-    .insight { display: flex; gap: 10px; align-items: flex-start; padding: 10px 0; border-bottom: 1px solid var(--line); font-size: 13.5px; line-height: 1.45; }
-    .insight:last-child { border-bottom: 0; } .insight .ic { font-size: 18px; width: 26px; text-align: center; flex: none; }
-    .act-seg { display: flex; gap: 4px; background: #eef0f4; padding: 4px; border-radius: 12px; margin-bottom: 12px; }
-    .act-seg button { flex: 1; border: 0; background: transparent; padding: 7px 4px; border-radius: 9px; font: 600 12.5px Inter, sans-serif; color: var(--muted); cursor: pointer; }
-    .act-seg button.on { background: #fff; color: var(--text); box-shadow: 0 1px 3px rgba(0,0,0,.08); }
-    .dl { font-size: 11px; font-weight: 700; } .dl.up { color: #059669; } .dl.down { color: #dc2626; }
-    .streak { display: flex; gap: 18px; align-items: center; flex-wrap: wrap; } .streak b { font-size: 22px; display: block; } .streak small { color: var(--muted); font-size: 12px; }
-    .streak .dots { display: flex; gap: 4px; align-items: center; flex-wrap: wrap; } .streak .dots i { width: 14px; height: 14px; border-radius: 4px; background: #eef0f4; }
-    .streak .dots i.on { background: var(--paint); } .streak .dots small { width: 100%; }
-    .recs { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; } .rec { display: flex; gap: 10px; align-items: center; padding: 10px; border-radius: 12px; background: #f8f9fc; cursor: pointer; }
-    .rec span { font-size: 20px; } .rec div { flex: 1; min-width: 0; } .rec small { display: block; color: var(--muted); font-size: 11.5px; } .rec b { font-size: 15px; } .rec em { font-style: normal; font-size: 11px; color: var(--muted); }
-    .rec:hover { background: #f1f3f8; }
-    .hbars div { display: grid; grid-template-columns: 34px 1fr 52px; align-items: center; gap: 8px; margin: 5px 0; font-size: 12.5px; }
-    .hbars i { height: 10px; background: #eef0f4; border-radius: 6px; overflow: hidden; } .hbars em { display: block; height: 100%; background: var(--cyan); border-radius: 6px; }
-    .hbars .hi em { background: var(--paint); } .hbars .hi span, .hbars .hi b { font-weight: 800; } .hbars b { text-align: right; font-weight: 600; color: var(--muted); }
+    .kpi b { display: block; font-size: 19px; font-weight: 800; letter-spacing: -.3px; font-variant-numeric: tabular-nums; } .kpi small { color: var(--muted); font-size: 11.5px; }
     .calhead { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; } .calhead b { font-size: 16px; } .calhead b::first-letter { text-transform: uppercase; }
-    .calnav { border: 1px solid var(--line); background: #fff; width: 34px; height: 34px; border-radius: 10px; font-size: 18px; cursor: pointer; }
+    .calnav { border: 1px solid var(--line); background: #fff; width: 34px; height: 34px; border-radius: 10px; font-size: 18px; }
     .calgrid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; text-align: center; }
     .calgrid small { color: var(--muted); font-size: 11.5px; font-weight: 600; padding-bottom: 2px; }
-    .cd { position: relative; aspect-ratio: 1; border: 0; border-radius: 10px; background: #f3f4f7; color: var(--muted); font: 600 13px Inter, sans-serif; }
-    .cd.on { background: color-mix(in srgb, var(--paint) calc(var(--a) * 100%), #fff); color: #fff; cursor: pointer; text-shadow: 0 1px 2px rgba(0,0,0,.25); }
-    .cd.on:hover { transform: scale(1.06); } .cd.sel { outline: 3px solid var(--text); outline-offset: 1px; } .cd.today { box-shadow: inset 0 0 0 2px var(--paint); }
-    .cd i { position: absolute; top: 2px; right: 4px; font-style: normal; font-size: 9.5px; }
+    .cd { position: relative; aspect-ratio: 1; border: 0; border-radius: 10px; background: var(--soft-bg); color: var(--muted); font-size: 13px; font-weight: 600; }
+    .cd.on { background: color-mix(in srgb, var(--paint) calc(var(--a) * 100%), #fff); color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,.25); }
+    .cd.on:hover { transform: scale(1.06); } .cd.sel { outline: 3px solid var(--text); outline-offset: 1px; } .cd.today { box-shadow: inset 0 0 0 2px var(--accent); }
+    .cd:disabled { cursor: default; } .cd i { position: absolute; top: 2px; right: 4px; font-style: normal; font-size: 9.5px; }
     .calsum { margin: 10px 0 0; font-size: 13px; color: var(--muted); }
     .walk { display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; padding: 11px 12px; border-radius: 12px; cursor: pointer; border: 1px solid transparent; }
-    .walk:hover { background: #f8f9fc; } .walk.sel { border-color: var(--paint); background: #fff5fa; }
-    .walk b { font-size: 13.5px; } .walk .pts { color: var(--paint); font-weight: 700; font-size: 13px; text-align: right; }
+    .walk:hover { background: var(--soft-bg); } .walk.sel { border-color: var(--accent); background: #f2f6fd; }
+    .walk b { font-size: 13.5px; } .walk b::first-letter { text-transform: uppercase; } .walk .pts { color: var(--accent); font-weight: 700; font-size: 13px; text-align: right; }
     .walk small { color: var(--muted); font-size: 12px; grid-column: 1 / -1; }
-    .cal { display: grid; grid-auto-flow: column; grid-template-rows: repeat(7, 11px); gap: 3px; overflow-x: auto; padding-bottom: 4px; }
-    .cal i { width: 11px; height: 11px; border-radius: 3px; background: #eef0f4; }
-    .legend { display: flex; gap: 12px; font-size: 11.5px; color: var(--muted); margin-top: 8px; }
-    .legend i { display: inline-block; width: 9px; height: 9px; border-radius: 3px; margin-right: 5px; }
+    .wdet { margin-top: 8px; justify-self: start; border: 1px solid var(--line); background: #fff; color: inherit; border-radius: 9px; padding: 7px 12px; font-size: 13px; font-weight: 600; }
     .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .hbars div { display: grid; grid-template-columns: 30px 1fr 50px; align-items: center; gap: 8px; margin: 5px 0; font-size: 12.5px; }
+    .hbars i { height: 10px; background: var(--soft-bg); border-radius: 6px; overflow: hidden; } .hbars em { display: block; height: 100%; background: #b9c4d8; border-radius: 6px; }
+    .hbars .hi em { background: var(--accent); } .hbars .hi span, .hbars .hi b { font-weight: 800; } .hbars b { text-align: right; font-weight: 600; color: var(--muted); }
+    svg text { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
+    /* colección */
+    .coltop { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; text-align: center; }
+    .coltop b { display: block; font-size: 21px; font-weight: 800; } .coltop small { color: var(--muted); font-size: 11.5px; }
+    .stackbar { display: flex; height: 10px; border-radius: 99px; overflow: hidden; margin-top: 14px; gap: 2px; }
     .ach { display: grid; grid-template-columns: repeat(auto-fill, minmax(64px, 1fr)); gap: 8px; }
     .ach div { text-align: center; font-size: 10.5px; color: var(--muted); }
-    .ach div span { display: grid; place-items: center; width: 44px; height: 44px; margin: 0 auto 4px; border-radius: 12px; background: #f3f4f7; font-size: 22px; }
+    .ach div span { display: grid; place-items: center; width: 44px; height: 44px; margin: 0 auto 4px; border-radius: 12px; background: var(--soft-bg); font-size: 22px; }
     .ach div.off span { filter: grayscale(1); opacity: .35; }
-    .tcggrid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
-    .city-h { margin: 14px 0 8px; font-size: 14px; font-weight: 700; } .city-h span { color: var(--muted, #888); font-weight: 500; margin-left: 4px; }
-    .wdet { margin-top: 8px; border: 1px solid rgba(127,127,127,.35); background: transparent; color: inherit; border-radius: 9px; padding: 7px 12px; font: 600 13px system-ui, sans-serif; cursor: pointer; }
-    .tcggrid .tcg-cell { --w: 128px; } .tcggrid .tcg.mini { font-size: calc(var(--w) / 26); }
-    .verbar { text-align: right; font-size: 12px; line-height: 1.35; color: var(--muted); white-space: nowrap; }
-    .verbar b { display: block; font-weight: 700; color: var(--text); } .verbar small { font-size: inherit; }
-    #album-box { --panel: var(--card); --accent: var(--paint); }
+    .logros summary { list-style: none; cursor: pointer; } .logros summary::-webkit-details-marker { display: none; } .logros:not([open]) h3 { margin: 0; } .logros[open] summary span::after { content: " ▴"; }
+    #album-box { --panel: var(--card); --accent: var(--accent); }
     #album-box .cromos { display: grid; grid-template-columns: repeat(auto-fill, minmax(146px, 1fr)); gap: 10px; }
     #album-box .cromos .tcg-cell { --w: 146px; } #album-box .cromos .tcg.mini { font-size: calc(var(--w) / 26); }
     /* álbumes a pantalla completa: portadas en rejilla, la ciudad a dos columnas y las cartas más grandes */
@@ -143,65 +147,18 @@
       #alb-full .ab-cover.ab-hero { aspect-ratio: 16 / 10; } #alb-full .ab-hero .ab-tit b { font-size: 54px; } #alb-full .ab-hero .ab-tit b.largo { font-size: 40px; }
       #alb-full .ab-cifra b { font-size: 60px; } #alb-full .ab-rar { padding: 12px 14px; font-size: 14px; }
     }
-    .lmlist { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 10px; }
-    .lmc { border-radius: 12px; overflow: hidden; background: #f3f4f7; cursor: pointer; border: 2px solid var(--c, #e5e7eb); }
-    .lmc .ph { height: 80px; background: #e9ebf0 center / cover; display: grid; place-items: center; font-size: 30px; }
-    .lmc div.t { padding: 6px 8px; font-size: 12px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; background: #fff; }
-    svg text { font-family: Inter, sans-serif; }
-    /* resumen */
-    .hero { border-radius: var(--r); padding: 18px; color: #fff; box-shadow: var(--shadow);
-      background: radial-gradient(120% 140% at 0% 0%, color-mix(in srgb, var(--paint) 88%, #fff) 0%, var(--paint) 45%, color-mix(in srgb, var(--paint) 55%, #111827) 100%); }
-    .hero-top { display: flex; gap: 16px; align-items: center; }
-    .hero .ring2 circle:first-child { stroke: rgba(255,255,255,.25); } .hero .ring2 circle + circle { stroke: #fff; } .hero .ring2 text { fill: #fff; }
-    .hero-txt { flex: 1; min-width: 0; } .hero-txt > small { display: block; opacity: .85; font-size: 12px; } .hero-txt > b { display: block; font-size: 22px; font-weight: 800; letter-spacing: -.3px; margin: 1px 0 6px; }
-    .hero-bar { height: 7px; border-radius: 99px; background: rgba(255,255,255,.25); overflow: hidden; margin-bottom: 6px; } .hero-bar i { display: block; height: 100%; background: #fff; border-radius: 99px; }
-    .hero-nums { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 16px; }
-    .hero-nums div { background: rgba(255,255,255,.14); border-radius: 12px; padding: 10px 8px; text-align: center; }
-    .hero-nums b { display: block; font-size: 19px; font-weight: 800; font-variant-numeric: tabular-nums; } .hero-nums small { font-size: 11px; opacity: .9; }
-    .hero-since { display: block; margin-top: 12px; font-size: 12px; opacity: .85; }
-    .wk3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 12px; }
-    .wk3 b { display: block; font-size: 18px; font-weight: 800; font-variant-numeric: tabular-nums; } .wk3 small { display: block; color: var(--muted); font-size: 11.5px; }
-    .wkbars { display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; height: 110px; align-items: end; }
-    .wkbars div { display: flex; flex-direction: column; align-items: center; gap: 4px; height: 100%; }
-    .wkbars span { position: relative; flex: 1; width: 100%; max-width: 34px; background: #f3f4f7; border-radius: 8px; overflow: hidden; }
-    .wkbars span i, .wkbars span em { position: absolute; left: 0; right: 0; bottom: 0; border-radius: 8px; } .wkbars span i { background: #c7d2fe; } .wkbars span em { background: var(--paint); }
-    .wkbars small { font-size: 11px; color: var(--muted); font-weight: 600; } .wkbars .today small { color: var(--text); font-weight: 800; } .wkbars .fut span { opacity: .45; }
-    .kpi .ki { float: right; font-size: 16px; opacity: .9; }
-    .lastw { cursor: pointer; } .lastw:hover { box-shadow: 0 0 0 2px var(--paint), var(--shadow); }
-    .lw { display: flex; gap: 14px; align-items: center; } .lw-map { flex: none; border-radius: 12px; background: #f6f7fa; }
-    div.lw-map { width: 132px; height: 100px; display: grid; place-items: center; font-size: 28px; }
-    .lw-txt { flex: 1; min-width: 0; } .lw-txt > b { display: block; font-size: 14.5px; } .lw-txt > b::first-letter { text-transform: uppercase; } .lw-txt > small { color: var(--muted); font-size: 12px; }
-    .lw-g { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 10px; margin-top: 8px; } .lw-g b { display: block; font-size: 14px; font-variant-numeric: tabular-nums; } .lw-g small { color: var(--muted); font-size: 11px; }
-    .terr { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; text-align: center; } .terr b { display: block; font-size: 13px; margin-top: 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .terr small { color: var(--muted); font-size: 11px; }
-    .more { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; } .more span { background: #f3f4f7; border-radius: 99px; padding: 4px 10px; font-size: 12px; color: var(--muted); }
-    .coll { display: flex; gap: 16px; align-items: center; }
-    .stackbar { display: flex; height: 12px; border-radius: 99px; overflow: hidden; margin-top: 14px; gap: 2px; }
-    .legend { flex-wrap: wrap; }
-    .goal { display: flex; gap: 10px; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--line); } .goal:last-child { border-bottom: 0; }
-    .goal > span { font-size: 22px; width: 30px; text-align: center; } .goal > div { flex: 1; min-width: 0; } .goal b { font-size: 13.5px; } .goal small { display: block; color: var(--muted); font-size: 11.5px; }
-    .goal em { font-style: normal; font-weight: 800; font-size: 13px; color: var(--paint); width: 40px; text-align: right; }
-    .eq { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; } .eq div { background: #f8f9fc; border-radius: 12px; padding: 10px 12px; }
-    .eq span { font-size: 20px; } .eq b { display: block; font-size: 18px; font-weight: 800; } .eq small { color: var(--muted); font-size: 11.5px; }
-    .empty { color: var(--muted); font-size: 13.5px; text-align: center; padding: 18px 8px; }
+    /* ventana estrecha (o el móvil): todo en una columna, el mapa arriba */
     @media (max-width: 980px) {
       #app { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto 55vh auto; height: auto; }
-      header { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto auto; row-gap: 4px; padding-top: 8px !important; padding-bottom: 6px !important; }
-      header .grow { display: none; } .who { min-width: 0; margin-left: 0; }
-      .tabs button { flex: 1 1 auto; padding: 8px 2px; font-size: 11.5px; min-width: 0; }
-      .verbar { grid-row: 2; grid-column: 1 / -1; display: flex; justify-content: space-between; gap: 10px; text-align: left; font-size: 11px; }
+      header { flex-wrap: wrap; gap: 8px; padding: 8px 10px 6px; } header .grow { display: none; } header .logo { margin-right: auto; }
+      .who { order: 5; width: 100%; margin-left: 0; }   /* (tu nombre, en su propia fila: los botones lo tapaban) */
+      header .logo { font-size: 19px !important; } .who-txt small { display: none; } header .ring { width: 38px; height: 38px; }
+      #synced { order: 9; width: 100%; font-size: 11px; }
+      #reload, header a.hbtn { font-size: 0 !important; } #reload::before { content: '↻'; font-size: 17px; } header a.hbtn::before { content: '🕹️'; font-size: 16px; }
       aside { border-left: 0; overflow: visible; min-width: 0; padding: 12px; }
       aside > *, .card { min-width: 0; max-width: 100%; }
       html, body { overflow-x: hidden; }
-      .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-      .hero-nums { grid-template-columns: repeat(2, 1fr); } .wk3 b { font-size: 15px; } .lw-map { width: 104px; height: 80px; }
-      .grid2, .recs { grid-template-columns: minmax(0, 1fr) !important; }
-      header { gap: 8px; padding-left: 10px; padding-right: 10px; } header .logo { font-size: 19px !important; } .who-txt small { display: none; }
-      .hbtn { padding: 6px 9px !important; font-size: 12.5px !important; white-space: nowrap; }
-      header .ring { width: 38px !important; height: 38px !important; }
-      #reload, header a.hbtn { font-size: 0 !important; } #reload::before { content: '↻'; font-size: 17px; } header a.hbtn::before { content: '🕹️'; font-size: 16px; }
-      .who-txt b { max-width: 90px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block; }
-      .layers { right: 90px; flex-wrap: nowrap; overflow-x: auto; }
-      .who-txt small { display: none; }
+      .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } .totales { grid-template-columns: repeat(2, 1fr); } .grid2 { grid-template-columns: 1fr; }
     }
   </style>
 </head>
@@ -224,7 +181,7 @@
       <div class="logo" translate="no" style="font-size:24px"><span class="p">Pinta</span><span class="m">Mapa</span></div>
       <div class="who"><div class="ring" id="ring"><b id="lvl">1</b></div><div class="who-txt"><b id="name"></b><small id="lvltext"></small></div></div>
       <div class="grow"></div>
-      <div class="verbar"><b id="appver" translate="no"></b><small id="synced"></small></div>
+      <small id="synced"></small>
       <button class="hbtn" id="reload">↻ Actualizar</button>
       <a class="hbtn" href="index.html">🕹️ Jugar</a>
       <button class="hbtn" id="logout">Salir</button>
@@ -233,17 +190,14 @@
       <div id="bigmap"></div>
       <div class="layers" id="layers"></div>
       <button class="chip fitbtn" id="fit">⤢ Ver todo</button>
-      <div class="mapstats" id="mapstats"></div>
     </div>
     <aside>
       <div class="tabs" id="tabs">
         <button data-t="res" class="on">Resumen</button>
-        <button data-t="act">Actividad</button>
         <button data-t="pas">Paseos</button>
-        <button data-t="con">Conquistas</button>
-        <button data-t="alb">Álbumes</button>
+        <button data-t="col">Colección</button>
       </div>
-      <div id="panel" style="display:flex;flex-direction:column;gap:14px"></div>
+      <div id="panel"></div>
     </aside>
   </div>
 
@@ -274,7 +228,7 @@
     const KEY = 'pintamapa_dash';
     const MIN_WALK = 120000;   // los paseos de menos de 2 minutos no cuentan
     let creds = {}; try { creds = JSON.parse(localStorage.getItem(KEY) || '{}'); } catch (e) {}
-    let data, map, layers = {}, selLayer = null, tab = 'res', fitBounds = null, stackGroups = [], calMonth = null, calDay = null, actPeriod = 'd30';
+    let data, map, tab = 'res', fitBounds = null, calMonth = null, calDay = null, actPeriod = 'd30';
     const esc = (t) => String(t == null ? '' : t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
     const km = (m) => PM.dec(m / 1000, m >= 10000 ? 1 : 2);
     const dist = (m) => PM.fmtDist(m || 0);
@@ -314,61 +268,50 @@
     $('#reload').addEventListener('click', load);
     if (creds.user && creds.pass) { $('#user').value = creds.user; load(); }
 
-    // ---------------- análisis ----------------
+    // ---------------- análisis (una sola vez al cargar; las pestañas solo lo enseñan) ----------------
     let A = {};
-    const xpFor = (l) => Math.round(400 * Math.pow(l - 1, 1.6));
     function analyze() {
       const s = data.save, st = s.stats || {};
-      const walks = (s.walks || []).filter((w) => (w.elapsed || 0) >= MIN_WALK).sort((a, b) => b.start - a.start);
-      const totMs = walks.reduce((a, w) => a + w.elapsed, 0);
-      const movMs = walks.reduce((a, w) => a + PM.movingMs(w), 0);   // en movimiento (para ritmo y velocidad, como Strava)
-      const wWalked = walks.reduce((a, w) => a + (w.st.walked || 0), 0);
-      const wPainted = walks.reduce((a, w) => a + (w.st.painted || 0), 0);
+      const walks = (s.walks || []).filter((w) => (w.elapsed || 0) >= MIN_WALK).sort((a, b) => b.start - a.start);   // (más reciente primero)
       const days = {};
-      walks.forEach((w) => { const k = dayKey(w.start); const d = days[k] || (days[k] = { walked: 0, painted: 0, pts: 0, ms: 0, n: 0 }); d.walked += w.st.walked || 0; d.painted += w.st.painted || 0; d.pts += w.st.pts || 0; d.ms += w.elapsed; d.n++; });
-      // rachas
-      const dk = Object.keys(days).sort();
+      walks.forEach((w) => { const d = days[dayKey(w.start)] || (days[dayKey(w.start)] = { walked: 0, painted: 0 }); d.walked += w.st.walked || 0; d.painted += w.st.painted || 0; });
+      // racha más larga (días seguidos con paseo)
       let maxStreak = 0, cur = 0, prev = null;
-      for (const k of dk) { const t = new Date(k).getTime(); cur = prev != null && Math.round((t - prev) / 86400000) === 1 ? cur + 1 : 1; maxStreak = Math.max(maxStreak, cur); prev = t; }
+      for (const k of Object.keys(days).sort()) { const t = new Date(k + 'T12:00').getTime(); cur = prev != null && Math.round((t - prev) / 86400000) === 1 ? cur + 1 : 1; maxStreak = Math.max(maxStreak, cur); prev = t; }
+      // a qué hora y qué días sales (km)
       const hours = new Array(24).fill(0), wdays = new Array(7).fill(0);
       walks.forEach((w) => { const d = new Date(w.start); hours[d.getHours()] += (w.st.walked || 0) / 1000; wdays[(d.getDay() + 6) % 7] += (w.st.walked || 0) / 1000; });
-      const rec = (f) => walks.slice().sort((a, b) => f(b) - f(a))[0];
-      const fastest = walks.filter((w) => (w.st.walked || 0) > 300).sort((a, b) => (mov(a) / a.st.walked) - (mov(b) / b.st.walked))[0];
+      // récords (el ritmo, solo de paseos de más de 500 m con hora en cada punto: los demás no lo saben medir)
+      const mejor = (ws, f) => ws.slice().sort((a, b) => f(b) - f(a))[0];
+      const conHora = walks.filter((w) => (w.st.walked || 0) > 500 && (w.track || []).some((q) => q && q[2] != null));
+      const recs = { largo: mejor(walks, (w) => w.st.walked || 0), nuevas: mejor(walks, (w) => w.st.painted || 0), rapido: mejor(conHora, (w) => -(mov(w) / w.st.walked)) };
       const bestDay = Object.entries(days).sort((a, b) => b[1].painted - a[1].painted)[0];
-      // ciudades
+      // ciudades: lo pintado en cada una y su total
       const byCity = {};
       for (const [k, v] of Object.entries(s.tileNames || {})) if (v.city) byCity[v.city] = (byCity[v.city] || 0) + ((s.paintedByTile || {})[k] || 0);
       const cities = Object.entries(byCity).filter(([, m]) => m > 0).map(([c, m]) => {
         const tot = s.cities && s.cities[c] && s.cities[c].total;
         return { c, m, tot, pct: tot ? m / tot : 0, won: !!(s.citiesWon || {})[c] };
       }).sort((a, b) => b.m - a.m);
-      // ritmo de pintura reciente (últimos 30 días) → proyección
-      const since = Date.now() - 30 * 86400000;
-      const rec30 = walks.filter((w) => w.start >= since);
-      const activeDays30 = new Set(rec30.map((w) => dayKey(w.start))).size;
-      const painted30 = rec30.reduce((a, w) => a + (w.st.painted || 0), 0);
-      const perDay = painted30 / 30;
+      // calles nuevas al día en los últimos 30 días (para calcular cuándo conquistarás la siguiente ciudad)
+      const desde30 = Date.now() - 30 * 86400000;
+      const perDay = walks.filter((w) => w.start >= desde30).reduce((a, w) => a + (w.st.painted || 0), 0) / 30;
       const lms = Object.entries(s.landmarks || {}).map(([id, v]) => Object.assign({ id }, v));
-      const LI = PM.levelInfo(s.xp), lvl = LI.level;
-      A = { s, st, walks, totMs, movMs, wWalked, wPainted, days, maxStreak, hours, wdays, cities, perDay, activeDays30, painted30, lms, lvl, LI,
-        longest: rec((w) => w.st.walked || 0), topPts: rec((w) => w.st.pts || 0), fastest, bestDay,
-        eff: (st.walkedM || 0) > 0 ? Math.min(1, (st.paintedM || 0) / st.walkedM) : 0 };   // pintar ambas aceras de una avenida puede dar más de lo andado
+      A = { s, st, walks, days, maxStreak, hours, wdays, recs, bestDay, cities, perDay, lms, LI: PM.levelInfo(s.xp) };
     }
 
+    // cabecera: tu nombre, tu nivel (el único sitio donde sale) y cuándo llegaron los últimos datos
     function header() {
       const { s, LI } = A;
-      const p = LI.pct * 100;
-      $('#ring').style.setProperty('--p', p.toFixed(1)); $('#lvl').textContent = LI.short; $('#lvl').style.color = LI.tier ? LI.tier.color : '';
+      $('#ring').style.setProperty('--p', (LI.pct * 100).toFixed(1)); $('#lvl').textContent = LI.short; $('#lvl').style.color = LI.tier ? LI.tier.color : '';
       $('#name').textContent = s.player || creds.user;
       let av = document.getElementById('avatar');   // tu foto de perfil (de la app)
       if (s.avatar) { if (!av) { av = document.createElement('div'); av.id = 'avatar'; $('.who').insertBefore(av, $('.who-txt')); } av.style.backgroundImage = `url('${s.avatar}')`; }
       else if (av) av.remove();
-      $('#lvltext').textContent = `Nivel ${LI.label}${LI.tier ? ' ' + LI.tier.icon : ''} · ${PM.fmtNum(s.xp || 0)} pts · ` + (LI.max ? '¡nivel máximo!' : `faltan ${PM.fmtNum(LI.need - LI.cur)} para el ${LI.nextLabel}`);
-      // arriba, la versión de la app y la última vez que llegaron datos (la subida o, si el móvil aún no la anota, el último paseo)
-      const V = PM.VERSION, ult = Math.max(s.syncedAt || 0, ...(s.walks || []).map((w) => (w.start || 0) + (w.elapsed || 0)));
-      $('#appver').textContent = `PintaMapa v${V.app} · ${new Date(V.date + 'T12:00').toLocaleDateString(PM.LOCALE, { day: 'numeric', month: 'short', year: 'numeric' })}`;
-      $('#synced').textContent = ult ? 'Actualizado ' + new Date(ult).toLocaleString(PM.LOCALE, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
-      document.documentElement.style.setProperty('--paint', s.color || '#2563eb');
+      $('#lvltext').textContent = `Nivel ${LI.label}${LI.tier ? ' ' + LI.tier.icon : ''} · ${PM.fmtNum(s.xp || 0)} puntos · ` + (LI.max ? '¡nivel máximo!' : `faltan ${PM.fmtNum(LI.need - LI.cur)} para el ${LI.nextLabel}`);
+      const ult = Math.max(s.syncedAt || 0, ...(s.walks || []).map((w) => (w.start || 0) + (w.elapsed || 0)));
+      $('#synced').textContent = ult ? 'Datos del ' + new Date(ult).toLocaleString(PM.LOCALE, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
+      document.documentElement.style.setProperty('--paint', s.color || '#ff2e88');
     }
 
     // ---------------- mapa (MapLibre: mapa vectorial de OpenFreeMap, como en la app) ----------------
@@ -384,7 +327,7 @@
     }
     async function drawMap() {
       const { s, walks, lms } = A;
-      const color = s.color || '#2563eb';
+      const color = s.color || '#ff2e88';
       if (!map) {
         map = new maplibregl.Map({ container: 'bigmap', style: PM.mapStyle.URL.light, center: [2.07386, 41.35763], zoom: 14,
           attributionControl: false, dragRotate: false, pitchWithRotate: false, touchPitch: false, maxPitch: 0 });   // siempre en 2D desde arriba
@@ -418,9 +361,9 @@
       add({ id: 'pv-barrios', type: 'line', source: 'pv-barrios', paint: { 'line-color': '#8b5cf6', 'line-width': 3, 'line-opacity': 0.55 } });
       add({ id: 'pv-glow', type: 'line', source: 'pv-painted', layout: round, paint: { 'line-color': color, 'line-width': ['interpolate', ['linear'], ['zoom'], 12, 4, 17, 14], 'line-opacity': 0.18, 'line-blur': 4 } });
       add({ id: 'pv-paint', type: 'line', source: 'pv-painted', layout: round, paint: { 'line-color': color, 'line-width': ['interpolate', ['linear'], ['zoom'], 12, 1.5, 17, 4.5] } });
-      add({ id: 'pv-walks', type: 'line', source: 'pv-walks', paint: { 'line-color': '#2563eb', 'line-width': 2, 'line-opacity': ['get', 'o'], 'line-dasharray': [2, 3] } });
+      add({ id: 'pv-walks', type: 'line', source: 'pv-walks', paint: { 'line-color': '#1a1d29', 'line-width': 2, 'line-opacity': ['get', 'o'], 'line-dasharray': [2, 3] } });
       add({ id: 'pv-sel-casing', type: 'line', source: 'pv-sel', layout: round, paint: { 'line-color': '#fff', 'line-width': 9, 'line-opacity': 0.9 } });
-      add({ id: 'pv-sel', type: 'line', source: 'pv-sel', layout: round, paint: { 'line-color': '#2563eb', 'line-width': 5 } });
+      add({ id: 'pv-sel', type: 'line', source: 'pv-sel', layout: round, paint: { 'line-color': '#1f5fbf', 'line-width': 5 } });
       lmMarkers.forEach((m) => m.remove()); lmMarkers = [];
       lms.filter((v) => v.pos).forEach((v) => {
         const el = document.createElement('div');
@@ -429,7 +372,7 @@
         lmMarkers.push(new maplibregl.Marker({ element: el }).setLngLat(ll(v.pos)).addTo(map));
         bounds.extend(ll(v.pos));
       });
-      const layers = { calles: { name: 'Calles pintadas', dot: color }, rutas: { name: 'Recorridos', dot: '#2563eb' }, monumentos: { name: 'Monumentos', dot: '#ffb700' }, barrios: { name: 'Barrios 🚩', dot: '#8b5cf6' } };
+      const layers = { calles: { name: 'Calles pintadas', dot: color }, rutas: { name: 'Recorridos', dot: '#1a1d29' }, monumentos: { name: 'Monumentos', dot: '#ffb700' }, barrios: { name: 'Barrios 🚩', dot: '#8b5cf6' } };
       $('#layers').innerHTML = Object.entries(layers).map(([k, l]) => `<button class="chip on" data-l="${k}"><i style="background:${l.dot}"></i>${l.name}</button>`).join('');
       document.querySelectorAll('[data-l]').forEach((el) => el.addEventListener('click', () => {
         const on = !el.classList.contains('on'); el.classList.toggle('on', on);
@@ -439,9 +382,6 @@
       fitBounds = bounds.isEmpty() ? null : bounds;
       fit();
       setTimeout(() => map.resize(), 60);
-      const st = A.st;
-      $('#mapstats').innerHTML = [[dist(st.paintedM), 'pintados'], [lms.length, 'lugares'], [Object.keys(s.conqueredB || {}).length, 'barrios 🚩']]
-        .map(([b, t]) => `<div class="mapstat"><b>${b}</b><small>${t}</small></div>`).join('');
     }
     // ---------------- carta coleccionable (estilo TCG) ----------------
     function cardData(id) {
@@ -516,68 +456,14 @@
     }
 
     // ---------------- gráficos (SVG) ----------------
-    function bars(values, labels, opts = {}) {
-      const W = 400, H = opts.h || 120, pad = 18, n = values.length, max = Math.max(1e-9, ...values.map((v) => (Array.isArray(v) ? Math.max(...v) : v)));
-      const bw = (W - pad) / n;
-      let svg = `<svg viewBox="0 0 ${W} ${H + 18}" width="100%" style="display:block">`;
-      for (let i = 0; i < n; i++) {
-        const vs = Array.isArray(values[i]) ? values[i] : [values[i]];
-        vs.forEach((v, j) => {
-          const h = Math.max(v > 0 ? 2 : 0, (v / max) * (H - 6));
-          const w = (bw - 3) / vs.length;
-          svg += `<rect x="${(pad / 2 + i * bw + j * w).toFixed(1)}" y="${(H - h).toFixed(1)}" width="${Math.max(1, w - 1).toFixed(1)}" height="${h.toFixed(1)}" rx="2" fill="${(opts.colors || ['var(--paint)'])[j]}"><title>${labels[i]}: ${opts.fmt ? opts.fmt(v) : v}</title></rect>`;
-        });
-        if (labels[i] && (!opts.every || i % opts.every === 0)) svg += `<text x="${(pad / 2 + i * bw + bw / 2).toFixed(1)}" y="${H + 14}" font-size="10" fill="#9ca3af" text-anchor="middle">${labels[i]}</text>`;
-      }
-      return svg + '</svg>';
-    }
     // anillo de progreso (0..1) con texto en medio
     function ring(p, size, sw, color, label) {
       const r = (size - sw) / 2, c = 2 * Math.PI * r, v = Math.max(0, Math.min(1, p || 0));
-      return `<svg class="ring2" viewBox="0 0 ${size} ${size}" width="${size}" height="${size}"><circle cx="${size / 2}" cy="${size / 2}" r="${r}" fill="none" stroke="#eef0f4" stroke-width="${sw}"/>
+      return `<svg viewBox="0 0 ${size} ${size}" width="${size}" height="${size}"><circle cx="${size / 2}" cy="${size / 2}" r="${r}" fill="none" stroke="#eceef3" stroke-width="${sw}"/>
         <circle cx="${size / 2}" cy="${size / 2}" r="${r}" fill="none" stroke="${color}" stroke-width="${sw}" stroke-linecap="${v > 0.02 ? 'round' : 'butt'}" stroke-dasharray="${(c * v).toFixed(1)} ${c.toFixed(1)}" transform="rotate(-90 ${size / 2} ${size / 2})"/>
-        <text x="50%" y="50%" dominant-baseline="central" text-anchor="middle" fill="#111827">${label}</text></svg>`;
+        <text x="50%" y="50%" dominant-baseline="central" text-anchor="middle" fill="#1a1d29">${label}</text></svg>`;
     }
-    // miniatura del recorrido de un paseo
-    function thumb(w) {
-      const segs = splitTrack(w.track), W = 132, H = 100, pad = 8;
-      if (!segs.length) return `<div class="lw-map empty">🗺️</div>`;
-      let a = 90, b = -90, c = 180, d = -180;
-      segs.forEach((sg) => sg.forEach((q) => { a = Math.min(a, q[0]); b = Math.max(b, q[0]); c = Math.min(c, q[1]); d = Math.max(d, q[1]); }));
-      const k = Math.cos((a + b) / 2 * Math.PI / 180), sx = (d - c) * k || 1e-6, sy = (b - a) || 1e-6, sc = Math.min((W - pad * 2) / sx, (H - pad * 2) / sy);
-      const ox = (W - sx * sc) / 2, oy = (H - sy * sc) / 2;
-      const P = (q) => (ox + (q[1] - c) * k * sc).toFixed(1) + ',' + (oy + (b - q[0]) * sc).toFixed(1);
-      const first = segs[0][0], lastS = segs[segs.length - 1], last = lastS[lastS.length - 1];
-      return `<svg class="lw-map" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}">${segs.map((sg) => `<polyline points="${sg.map(P).join(' ')}" fill="none" stroke="var(--paint)" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>`).join('')}
-        <circle cx="${P(first).split(',')[0]}" cy="${P(first).split(',')[1]}" r="4" fill="#10b981" stroke="#fff" stroke-width="1.5"/><circle cx="${P(last).split(',')[0]}" cy="${P(last).split(',')[1]}" r="4" fill="#111827" stroke="#fff" stroke-width="1.5"/></svg>`;
-    }
-    function donut(parts) {
-      const tot = parts.reduce((a, p) => a + p.v, 0) || 1;
-      let a0 = -Math.PI / 2, svg = '<svg viewBox="0 0 120 120" width="120" height="120">';
-      parts.forEach((p) => {
-        if (!p.v) return;
-        const a1 = a0 + (p.v / tot) * Math.PI * 2, large = a1 - a0 > Math.PI ? 1 : 0;
-        const P = (a, r) => [60 + r * Math.cos(a), 60 + r * Math.sin(a)];
-        const [x0, y0] = P(a0, 52), [x1, y1] = P(a1, 52), [x2, y2] = P(a1, 34), [x3, y3] = P(a0, 34);
-        svg += p.v === tot ? `<circle cx="60" cy="60" r="43" fill="none" stroke="${p.c}" stroke-width="18"/>`
-          : `<path d="M${x0},${y0} A52,52 0 ${large} 1 ${x1},${y1} L${x2},${y2} A34,34 0 ${large} 0 ${x3},${y3} Z" fill="${p.c}"/>`;
-        a0 = a1;
-      });
-      return svg + `<text x="60" y="64" text-anchor="middle" font-size="18" font-weight="800" fill="#111827">${tot === 1 && !parts.some((p) => p.v) ? 0 : tot}</text></svg>`;
-    }
-    function calendar() {
-      const days = A.days, max = Math.max(1, ...Object.values(days).map((d) => d.painted));
-      const end = new Date(); end.setHours(0, 0, 0, 0);
-      const start = new Date(end.getTime() - 25 * 7 * 86400000); start.setDate(start.getDate() - ((start.getDay() + 6) % 7));
-      let html = '<div class="cal">';
-      for (let t = start.getTime(); t <= end.getTime(); t += 86400000) {
-        const d = days[dayKey(t)], v = d ? d.painted / max : 0;
-        html += `<i title="${new Date(t).toLocaleDateString(PM.LOCALE)}${d ? ': ' + dist(d.painted) + ' pintados' : ''}" ${d ? `style="background:var(--paint);opacity:${(0.25 + v * 0.75).toFixed(2)}"` : ''}></i>`;   // (tu color, no uno fijo)
-      }
-      return html + '</div>';
-    }
-
-    // gráfico de área doble (andado / pintado)
+    // gráfico de área doble: andado (gris) y calles nuevas (tu color)
     function area(bk) {
       const W = 400, H = 140, pl = 4, pb = 18, n = bk.length, max = Math.max(0.1, ...bk.map((b) => Math.max(b.w, b.p)));
       const X = (i) => pl + (n === 1 ? (W - pl * 2) / 2 : i * (W - pl * 2) / (n - 1)), Y = (v) => H - pb - v / max * (H - pb - 8);
@@ -585,61 +471,26 @@
       const fill = (k) => path(k) + `L${X(n - 1).toFixed(1)},${H - pb}L${X(0).toFixed(1)},${H - pb}Z`;
       const every = Math.max(1, Math.ceil(n / 6));
       let svg = `<svg viewBox="0 0 ${W} ${H}" width="100%" style="display:block"><defs>
-        <linearGradient id="gw" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#93c5fd" stop-opacity=".55"/><stop offset="1" stop-color="#93c5fd" stop-opacity="0"/></linearGradient>
+        <linearGradient id="gw" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#9aa3b5" stop-opacity=".45"/><stop offset="1" stop-color="#9aa3b5" stop-opacity="0"/></linearGradient>
         <linearGradient id="gp" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="var(--paint)" stop-opacity=".45"/><stop offset="1" stop-color="var(--paint)" stop-opacity="0"/></linearGradient></defs>`;
-      for (let g = 1; g <= 3; g++) svg += `<line x1="0" x2="${W}" y1="${Y(max * g / 3).toFixed(1)}" y2="${Y(max * g / 3).toFixed(1)}" stroke="#eef0f4"/>`;
-      svg += `<path d="${fill('w')}" fill="url(#gw)"/><path d="${path('w')}" fill="none" stroke="#60a5fa" stroke-width="2"/>`;
+      for (let g = 1; g <= 3; g++) svg += `<line x1="0" x2="${W}" y1="${Y(max * g / 3).toFixed(1)}" y2="${Y(max * g / 3).toFixed(1)}" stroke="#eceef3"/>`;
+      svg += `<path d="${fill('w')}" fill="url(#gw)"/><path d="${path('w')}" fill="none" stroke="#9aa3b5" stroke-width="2"/>`;
       svg += `<path d="${fill('p')}" fill="url(#gp)"/><path d="${path('p')}" fill="none" stroke="var(--paint)" stroke-width="2.4"/>`;
       bk.forEach((b, i) => { svg += `<circle cx="${X(i).toFixed(1)}" cy="${Y(b.p).toFixed(1)}" r="${b.p ? 2.6 : 0}" fill="var(--paint)"><title>${b.lab}: ${b.w.toFixed(2)} km andados · ${b.p.toFixed(2)} km nuevos</title></circle>`;
-        if (i % every === 0 || i === n - 1) svg += `<text x="${X(i).toFixed(1)}" y="${H - 4}" font-size="10" fill="#9ca3af" text-anchor="middle">${b.lab}</text>`; });
-      svg += `<text x="${W - 2}" y="${Y(max) - 2}" font-size="10" fill="#9ca3af" text-anchor="end">${max.toFixed(1)} km</text>`;
-      return svg + '</svg>';
-    }
-    // acumulado con hitos (5, 10, 25, 50, 100… km)
-    function cumulative(c) {
-      if (c.length < 2) return '<div class="empty">Necesitas al menos 2 paseos.</div>';
-      const W = 400, H = 120, pb = 16, t0 = c[0].t, t1 = c[c.length - 1].t, max = c[c.length - 1].v || 1;
-      const X = (t) => 4 + (t - t0) / Math.max(1, t1 - t0) * (W - 8), Y = (v) => H - pb - v / max * (H - pb - 10);
-      const d = c.map((q, i) => (i ? 'L' : 'M') + X(q.t).toFixed(1) + ',' + Y(q.v).toFixed(1)).join('');
-      let svg = `<svg viewBox="0 0 ${W} ${H}" width="100%" style="display:block"><path d="${d}L${X(t1).toFixed(1)},${H - pb}L${X(t0)},${H - pb}Z" fill="var(--paint)" fill-opacity=".12"/><path d="${d}" fill="none" stroke="var(--paint)" stroke-width="2.5"/>`;
-      for (const m of [1, 5, 10, 25, 50, 100, 250, 500, 1000]) {
-        if (m > max) break;
-        const hit = c.find((q) => q.v >= m);
-        svg += `<g><circle cx="${X(hit.t).toFixed(1)}" cy="${Y(m).toFixed(1)}" r="4" fill="#fff" stroke="var(--paint)" stroke-width="2"/><text x="${Math.min(W - 18, Math.max(18, X(hit.t))).toFixed(1)}" y="${(Y(m) - 8).toFixed(1)}" font-size="10" font-weight="700" fill="#374151" text-anchor="middle">${m} km</text><title>${m} km el ${new Date(hit.t).toLocaleDateString(PM.LOCALE)}</title></g>`;
-      }
-      svg += `<text x="4" y="${H - 2}" font-size="10" fill="#9ca3af">${new Date(t0).toLocaleDateString(PM.LOCALE, { day: 'numeric', month: 'short' })}</text><text x="${W - 4}" y="${H - 2}" font-size="10" fill="#9ca3af" text-anchor="end">hoy</text>`;
-      return svg + '</svg>';
-    }
-    // mapa de calor estilo GitHub, con meses y leyenda
-    function heatmap() {
-      const days = A.days, max = Math.max(1, ...Object.values(days).map((d) => d.painted));
-      const end = new Date(); end.setHours(0, 0, 0, 0);
-      const start = new Date(end.getTime() - 25 * 7 * 86400000); start.setDate(start.getDate() - ((start.getDay() + 6) % 7));
-      const cs = 13, gap = 3, weeks = Math.ceil((end - start) / 86400000 / 7) + 1, W = 24 + weeks * (cs + gap), H = 18 + 7 * (cs + gap);
-      let svg = `<svg viewBox="0 0 ${W} ${H + 18}" width="100%" style="display:block">`, lastM = -1;
-      ['L', '', 'X', '', 'V', '', 'D'].forEach((l, i) => { if (l) svg += `<text x="0" y="${18 + i * (cs + gap) + 10}" font-size="9" fill="#9ca3af">${l}</text>`; });
-      for (let t = start.getTime(), i = 0; t <= end.getTime(); t += 86400000, i++) {
-        const wk = Math.floor(i / 7), wd = i % 7, dt = new Date(t), d = days[dayKey(t)];
-        if (wd === 0 && dt.getMonth() !== lastM) { lastM = dt.getMonth(); svg += `<text x="${24 + wk * (cs + gap)}" y="10" font-size="9.5" fill="#6b7280">${dt.toLocaleDateString(PM.LOCALE, { month: 'short' })}</text>`; }
-        const lv = d ? 0.25 + 0.75 * d.painted / max : 0;
-        svg += `<rect x="${24 + wk * (cs + gap)}" y="${18 + wd * (cs + gap)}" width="${cs}" height="${cs}" rx="3" fill="${d ? 'var(--paint)' : '#eef0f4'}" fill-opacity="${d ? lv.toFixed(2) : 1}"><title>${dt.toLocaleDateString(PM.LOCALE)}${d ? ' · ' + dist(d.painted) + ' pintados · ' + dist(d.walked) + ' andados' : ''}</title></rect>`;
-      }
-      const lx = W - 5 * (cs + gap) - 34;
-      svg += `<text x="${lx - 4}" y="${H + 12}" font-size="9" fill="#9ca3af" text-anchor="end">menos</text>`;
-      [0, 0.3, 0.55, 0.8, 1].forEach((v, i) => { svg += `<rect x="${lx + i * (cs + gap)}" y="${H + 3}" width="${cs}" height="${cs}" rx="3" fill="${v ? 'var(--paint)' : '#eef0f4'}" fill-opacity="${v || 1}"/>`; });
-      svg += `<text x="${lx + 5 * (cs + gap) + 2}" y="${H + 12}" font-size="9" fill="#9ca3af">más</text>`;
+        if (i % every === 0 || i === n - 1) svg += `<text x="${X(i).toFixed(1)}" y="${H - 4}" font-size="10" fill="#8a91a0" text-anchor="middle">${b.lab}</text>`; });
+      svg += `<text x="${W - 2}" y="${Y(max) - 2}" font-size="10" fill="#8a91a0" text-anchor="end">${max.toFixed(1)} km</text>`;
       return svg + '</svg>';
     }
     // reloj de 24 h (barras radiales)
     function clock24(hours) {
       const max = Math.max(1e-6, ...hours), cx = 90, cy = 90, r0 = 34, r1 = 82;
-      let svg = `<svg viewBox="0 0 180 180" width="100%" style="display:block;max-width:220px;margin:auto"><circle cx="${cx}" cy="${cy}" r="${r0 - 4}" fill="#f8f9fc"/>`;
+      let svg = `<svg viewBox="0 0 180 180" width="100%" style="display:block;max-width:200px;margin:auto"><circle cx="${cx}" cy="${cy}" r="${r0 - 4}" fill="#f3f4f7"/>`;
       hours.forEach((v, hh) => {
         const a0 = (hh / 24) * 2 * Math.PI - Math.PI / 2 + 0.02, a1 = ((hh + 1) / 24) * 2 * Math.PI - Math.PI / 2 - 0.02, r = r0 + (r1 - r0) * (v / max);
         const P = (a, rr) => (cx + rr * Math.cos(a)).toFixed(1) + ',' + (cy + rr * Math.sin(a)).toFixed(1);
-        svg += `<path d="M${P(a0, r0)}L${P(a0, Math.max(r0 + 2, r))}A${r},${r} 0 0 1 ${P(a1, Math.max(r0 + 2, r))}L${P(a1, r0)}A${r0},${r0} 0 0 0 ${P(a0, r0)}Z" fill="${v ? 'var(--paint)' : '#eef0f4'}" fill-opacity="${v ? (0.35 + 0.65 * v / max).toFixed(2) : 1}"><title>${hh}:00 · ${v.toFixed(2)} km</title></path>`;
+        svg += `<path d="M${P(a0, r0)}L${P(a0, Math.max(r0 + 2, r))}A${r},${r} 0 0 1 ${P(a1, Math.max(r0 + 2, r))}L${P(a1, r0)}A${r0},${r0} 0 0 0 ${P(a0, r0)}Z" fill="${v ? 'var(--accent)' : '#eceef3'}" fill-opacity="${v ? (0.3 + 0.7 * v / max).toFixed(2) : 1}"><title>${hh}:00 · ${v.toFixed(2)} km</title></path>`;
       });
-      [[0, '0h'], [6, '6h'], [12, '12h'], [18, '18h']].forEach(([hh, l]) => { const a = hh / 24 * 2 * Math.PI - Math.PI / 2; svg += `<text x="${(cx + (r0 - 14) * Math.cos(a)).toFixed(1)}" y="${(cy + (r0 - 14) * Math.sin(a) + 3).toFixed(1)}" font-size="8" fill="#9ca3af" text-anchor="middle">${l}</text>`; });
+      [[0, '0h'], [6, '6h'], [12, '12h'], [18, '18h']].forEach(([hh, l]) => { const a = hh / 24 * 2 * Math.PI - Math.PI / 2; svg += `<text x="${(cx + (r0 - 14) * Math.cos(a)).toFixed(1)}" y="${(cy + (r0 - 14) * Math.sin(a) + 3).toFixed(1)}" font-size="8" fill="#8a91a0" text-anchor="middle">${l}</text>`; });
       return svg + '</svg>';
     }
     // barras horizontales con valor
@@ -647,267 +498,163 @@
       const max = Math.max(1e-6, ...vals);
       return '<div class="hbars">' + labels.map((l, i) => `<div class="${i === hi ? 'hi' : ''}"><span>${l}</span><i><em style="width:${(vals[i] / max * 100).toFixed(1)}%"></em></i><b>${vals[i].toFixed(1)} km</b></div>`).join('') + '</div>';
     }
-    // ritmo por paseo (min/km), con media
-    function paceLine(ws) {
-      const W = 400, H = 110, pb = 16, vals = ws.map((w) => PM.movingMs(w) / 60000 / (w.st.walked / 1000));
-      const mn = Math.min(...vals) * 0.9, mx = Math.max(...vals) * 1.05, X = (i) => 10 + i * (W - 20) / (ws.length - 1), Y = (v) => 8 + (mx - v) / (mx - mn || 1) * (H - pb - 14);   // lento arriba, rápido abajo
-      const avg = vals.reduce((a, v) => a + v, 0) / vals.length;
-      let svg = `<svg viewBox="0 0 ${W} ${H}" width="100%" style="display:block"><line x1="0" x2="${W}" y1="${Y(avg).toFixed(1)}" y2="${Y(avg).toFixed(1)}" stroke="#d1d5db" stroke-dasharray="4 4"/>
-        <text x="${W - 2}" y="${(Y(avg) - 3).toFixed(1)}" font-size="9" fill="#9ca3af" text-anchor="end">media ${Math.floor(avg)}:${String(Math.round(avg % 1 * 60)).padStart(2, '0')}</text>
-        <path d="${vals.map((v, i) => (i ? 'L' : 'M') + X(i).toFixed(1) + ',' + Y(v).toFixed(1)).join('')}" fill="none" stroke="var(--cyan)" stroke-width="2.4"/>`;
-      vals.forEach((v, i) => { svg += `<circle cx="${X(i).toFixed(1)}" cy="${Y(v).toFixed(1)}" r="3.2" fill="#fff" stroke="var(--cyan)" stroke-width="2"><title>${new Date(ws[i].start).toLocaleDateString(PM.LOCALE)} · ${Math.floor(v)}:${String(Math.round(v % 1 * 60)).padStart(2, '0')} /km</title></circle>`; });
-      return svg + '</svg>';
-    }
 
-    // ---------------- panel ----------------
+    // ---------------- piezas comunes (antes, copiadas dos y tres veces) ----------------
+    const plural = (n, uno, varios) => PM.fmtNum(n) + ' ' + (n === 1 ? uno : varios);
+    const dia = (t) => new Date(t).toLocaleDateString(PM.LOCALE, { day: 'numeric', month: 'short' });
+    const delta = (a, b) => { if (!b) return ''; const d = (a - b) / b * 100; return `<span class="dl ${d >= 0 ? 'up' : 'down'}">${d >= 0 ? '▲' : '▼'} ${Math.abs(d).toFixed(0)} %</span>`; };
+    const kpi = (v, l, d) => `<div class="kpi"><b>${v}</b><small>${l}</small>${d ? `<div>${d}</div>` : ''}</div>`;
+    const rec = (ic, l, v, w, fecha) => `<div class="rec" ${w ? `data-wi="${A.walks.indexOf(w)}"` : ''}><span>${ic}</span><div><small>${l}</small><b>${v}</b></div><em>${w ? dia(w.start) : fecha || ''}</em></div>`;
+    const sum = (ws, f) => ws.reduce((a, w) => a + (f(w) || 0), 0);
+    // tu foto de cromo (de la nube), en la carta en cuanto llega
+    async function pegarFoto(el, id) {
+      if (!(A.s.cardPhotos || {})[id]) return;
+      const img = await ownPhoto(id), ph = img && el.querySelector('.tcg-photo');
+      if (ph) { ph.style.backgroundImage = `url('${img}')`; ph.innerHTML = ''; }
+    }
+    const rangoCiudad = (c) => PM.RANKS[Math.max(0, PM.rankFor('city', c.pct))];
+
+    // ---------------- panel: Resumen · Paseos · Colección ----------------
     document.querySelectorAll('#tabs button').forEach((b) => b.addEventListener('click', () => {
       tab = b.dataset.t; document.querySelectorAll('#tabs button').forEach((x) => x.classList.toggle('on', x === b)); drawPanel();
     }));
-    function kpi(v, l, extra, hl) { return `<div class="kpi ${hl ? 'hl' : ''}"><b>${v}</b><small>${l}</small>${extra ? `<div><em>${extra}</em></div>` : ''}</div>`; }
+
+    // RESUMEN: lo esencial, cada dato una sola vez (el nivel va arriba, junto a tu nombre)
+    function panelResumen() {
+      const { s, st, walks, days, cities, lms } = A, DAY = 86400000;
+      const nB = Object.keys(s.conqueredB || {}).length, nC = Object.keys(s.citiesWon || {}).length;
+      let h = `<div class="totales">
+        <div class="pintado"><b>${km(st.paintedM || 0)}</b><small>km pintados</small></div>
+        <div><b>${PM.fmtNum(lms.length)}</b><small>${lms.length === 1 ? 'lugar' : 'lugares'}</small></div>
+        <div><b>${nB}</b><small>${nB === 1 ? 'barrio' : 'barrios'} 🚩</small></div>
+        <div><b>${nC}</b><small>${nC === 1 ? 'ciudad' : 'ciudades'} 👑</small></div></div>`;
+      if (walks.length) h += `<p class="desde">Desde el ${new Date(walks[walks.length - 1].start).toLocaleDateString(PM.LOCALE, { day: 'numeric', month: 'long', year: 'numeric' })} · ${plural(walks.length, 'paseo', 'paseos')} · ${plural(Object.keys(days).length, 'día', 'días')} en la calle · ${km(st.walkedM || 0)} km andados</p>`;
+
+      // esta semana (de lunes a hoy) frente a la anterior
+      const hoy0 = new Date(); hoy0.setHours(0, 0, 0, 0);
+      const lunes = new Date(hoy0); lunes.setDate(lunes.getDate() - ((lunes.getDay() + 6) % 7));
+      const lunesAnt = new Date(lunes); lunesAnt.setDate(lunesAnt.getDate() - 7);
+      const semana = (a, b) => { const ws = walks.filter((w) => w.start >= a && w.start < b); return { n: ws.length, walked: sum(ws, (w) => w.st.walked), painted: sum(ws, (w) => w.st.painted), ms: sum(ws, mov) }; };
+      const W0 = semana(lunes.getTime(), Infinity), W1 = semana(lunesAnt.getTime(), lunes.getTime());
+      const wd = ['L', 'M', 'X', 'J', 'V', 'S', 'D'].map((l, i) => { const t = new Date(lunes); t.setDate(t.getDate() + i); const d = days[dayKey(t)]; return { l, w: d ? d.walked / 1000 : 0, p: d ? d.painted / 1000 : 0, today: t.getTime() === hoy0.getTime(), fut: t > hoy0 }; });
+      const wmax = Math.max(0.5, ...wd.map((x) => x.w));
+      h += `<div class="card"><h3>Esta semana <span>frente a la anterior</span></h3>
+        <div class="wk3"><div><b>${dist(W0.walked)}</b><small>andados</small>${delta(W0.walked, W1.walked)}</div>
+          <div><b>${dist(W0.painted)}</b><small>calles nuevas</small>${delta(W0.painted, W1.painted)}</div>
+          <div><b>${dur(W0.ms)}</b><small>${plural(W0.n, 'paseo', 'paseos')}</small>${delta(W0.ms, W1.ms)}</div></div>
+        <div class="wkbars">${wd.map((x) => `<div class="${x.today ? 'today' : ''} ${x.fut ? 'fut' : ''}" title="${x.w.toFixed(2)} km andados · ${x.p.toFixed(2)} km nuevos">
+          <span><i style="height:${(x.w / wmax * 100).toFixed(0)}%"></i><em style="height:${(Math.min(x.p, x.w || x.p) / wmax * 100).toFixed(0)}%"></em></span><small>${x.l}</small></div>`).join('')}</div>
+        <div class="legend"><span><i style="background:#cfd5e0"></i>andado</span><span><i style="background:var(--paint)"></i>calles nuevas</span></div></div>`;
+
+      // territorio: ciudades en anillos y, para la siguiente por conquistar, cuánto falta a tu ritmo
+      const top = cities.slice(0, 3), sig = cities.find((c) => c.tot && !c.won);
+      h += `<div class="card"><h3>Tu territorio <span>conquista al 70 % · 🥈 80 · 🥇 90</span></h3>${top.length ? `<div class="terr">${top.map((c) => `<div>
+          ${ring(c.tot ? Math.min(1, c.pct / PM.CONQ.city) : 0, 86, 8, c.won ? rangoCiudad(c).color : 'var(--paint)', `<tspan font-size="14" font-weight="800">${c.tot ? (c.pct * 100).toFixed(c.pct < 0.1 ? 1 : 0) + '%' : '?'}</tspan>`)}
+          <b>${c.won ? rangoCiudad(c).ic + ' ' : ''}${esc(c.c)}</b><small>${dist(c.m)}${c.tot ? ' de ' + dist(c.tot) : ''}</small></div>`).join('')}</div>` : '<div class="empty">Aún sin ciudades.</div>'}
+        ${cities.length > 3 ? `<div class="more">${cities.slice(3).map((c) => `<span>${c.won ? rangoCiudad(c).ic + ' ' : ''}${esc(c.c)} · ${c.tot ? (c.pct * 100).toFixed(2) + ' %' : dist(c.m)}</span>`).join('')}</div>` : ''}
+        ${sig ? (() => { const falta = Math.max(0, sig.tot * PM.CONQ.city - sig.m); return `<p class="proy">🎯 Para conquistar <b>${esc(sig.c)}</b> te faltan <b>${dist(falta)}</b>${A.perDay > 0 ? `: a tu ritmo de los últimos 30 días (${dist(A.perDay)} al día), unos <b>${plural(Math.ceil(falta / A.perDay), 'día', 'días')}</b>` : ''}.</p>`; })() : ''}</div>`;
+
+      // próximos objetivos: los logros más a punto (el siguiente nivel ya se ve arriba)
+      const ach = PM.game.ACHIEVEMENTS, gotA = s.achievements || {};
+      const next = Object.entries(ach).filter(([id, a]) => !gotA[id] && a.prog).map(([id, a]) => ({ a, p: a.prog(s) })).filter((x) => x.p > 0 && x.p < 1)
+        .sort((x, y) => y.p - x.p).filter((x, i, arr) => arr.findIndex((z) => z.a.icon === x.a.icon && z.a.name.split(' ')[0] === x.a.name.split(' ')[0]) === i).slice(0, 4);
+      if (next.length) h += `<div class="card"><h3>Próximos objetivos</h3>${next.map((x) => `<div class="goal"><span>${x.a.icon}</span><div><b>${esc(x.a.name)}</b><small>${esc(x.a.desc)}</small><div class="pbar"><i style="width:${(x.p * 100).toFixed(1)}%"></i></div></div><em>${Math.floor(x.p * 100)} %</em></div>`).join('')}</div>`;
+
+      // récords: un solo juego de récords (antes había dos distintos, en Resumen y en Actividad)
+      const R = A.recs;
+      h += `<div class="card"><h3>Récords <span>toca uno para verlo en el mapa</span></h3><div class="recs">
+        ${R.largo ? rec('🥾', 'Paseo más largo', dist(R.largo.st.walked), R.largo) : ''}
+        ${R.nuevas ? rec('🖌️', 'Más calles nuevas', dist(R.nuevas.st.painted), R.nuevas) : ''}
+        ${R.rapido ? rec('⚡', 'Ritmo más rápido', pace(mov(R.rapido), R.rapido.st.walked), R.rapido) : ''}
+        ${A.bestDay && !(R.nuevas && dayKey(R.nuevas.start) === A.bestDay[0] && Math.abs(R.nuevas.st.painted - A.bestDay[1].painted) < 1) ? rec('📅', 'Mejor día', dist(A.bestDay[1].painted) + ' nuevos', null, dia(A.bestDay[0] + 'T12:00')) : ''}
+        ${rec('🔥', 'Racha más larga', plural(A.maxStreak, 'día', 'días'), null, (st.streak || 0) > 1 ? 'ahora ' + st.streak : '')}
+        ${rec('✖️', 'Mejor combo', 'x' + (st.bestCombo || 0))}</div></div>`;
+      return h;
+    }
+
+    // PASEOS: el periodo que elijas (con el anterior para comparar), el calendario con los paseos de cada día y tus costumbres
+    function panelPaseos() {
+      const { walks, days } = A, DAY = 86400000, hoy0 = new Date(); hoy0.setHours(0, 0, 0, 0);
+      const PER = { d7: { n: 7, unit: 'd', name: '7 días' }, d30: { n: 30, unit: 'd', name: '30 días' }, w12: { n: 12, unit: 'w', name: '12 semanas' }, all: { n: 0, unit: 'm', name: 'Todo' } };
+      const per = PER[actPeriod] || PER.d30;
+      const firstWalk = walks.length ? walks[walks.length - 1].start : Date.now();
+      const spanMs = per.unit === 'd' ? per.n * DAY : per.unit === 'w' ? per.n * 7 * DAY : Math.max(DAY, Date.now() - firstWalk + DAY);
+      const from = Date.now() - spanMs, prevFrom = from - spanMs;
+      const agg = (ws) => ({ walked: sum(ws, (w) => w.st.walked), painted: sum(ws, (w) => w.st.painted), ms: sum(ws, mov), n: ws.length, days: new Set(ws.map((w) => dayKey(w.start))).size });
+      const cur = agg(walks.filter((w) => w.start >= from)), prv = agg(walks.filter((w) => w.start >= prevFrom && w.start < from));
+      const d = (a, b) => (actPeriod === 'all' ? '' : delta(a, b));
+      let h = `<div class="seg">${Object.entries(PER).map(([k, v]) => `<button class="${k === actPeriod ? 'on' : ''}" data-per="${k}">${v.name}</button>`).join('')}</div>`;
+      h += `<div class="kpis">${kpi(dist(cur.walked), 'andados', d(cur.walked, prv.walked))}${kpi(dist(cur.painted), 'calles nuevas', d(cur.painted, prv.painted))}${kpi(dur(cur.ms), 'en movimiento', d(cur.ms, prv.ms))}
+        ${kpi(cur.n, cur.n === 1 ? 'paseo' : 'paseos', d(cur.n, prv.n))}${kpi(cur.days, cur.days === 1 ? 'día activo' : 'días activos', d(cur.days, prv.days))}${kpi(pace(cur.ms, cur.walked), 'ritmo medio')}</div>`;
+      // andado y pintado por día / semana / mes
+      const buckets = [];
+      if (per.unit === 'd') for (let i = per.n - 1; i >= 0; i--) { const t0 = new Date(hoy0); t0.setDate(t0.getDate() - i); const t1 = new Date(t0); t1.setDate(t1.getDate() + 1); buckets.push({ t0: t0.getTime(), t1: t1.getTime(), lab: t0.getDate() + '/' + (t0.getMonth() + 1) }); }
+      else if (per.unit === 'w') for (let i = per.n - 1; i >= 0; i--) { const t0 = new Date(hoy0); t0.setDate(t0.getDate() - ((t0.getDay() + 6) % 7) - 7 * i); const t1 = new Date(t0); t1.setDate(t1.getDate() + 7); buckets.push({ t0: t0.getTime(), t1: t1.getTime(), lab: t0.getDate() + '/' + (t0.getMonth() + 1) }); }
+      else { const d0 = new Date(firstWalk); for (let y = d0.getFullYear(), m = d0.getMonth(); new Date(y, m, 1) <= new Date(); m++) buckets.push({ t0: new Date(y, m, 1).getTime(), t1: new Date(y, m + 1, 1).getTime(), lab: new Date(y, m, 1).toLocaleDateString(PM.LOCALE, { month: 'short' }) }); }
+      buckets.forEach((bk) => { const ws = walks.filter((w) => w.start >= bk.t0 && w.start < bk.t1); bk.w = sum(ws, (w) => w.st.walked) / 1000; bk.p = sum(ws, (w) => w.st.painted) / 1000; });
+      h += `<div class="card"><h3>Andado y pintado <span>km por ${per.unit === 'd' ? 'día' : per.unit === 'w' ? 'semana' : 'mes'}</span></h3>${area(buckets)}
+        <div class="legend"><span><i style="background:#9aa3b5"></i>andado</span><span><i style="background:var(--paint)"></i>calles nuevas</span></div></div>`;
+      // calendario del mes (más intenso cuanto más pintaste) y, al tocar un día, sus paseos
+      const byDay = {}; walks.forEach((w, i) => (byDay[dayKey(w.start)] = byDay[dayKey(w.start)] || []).push(i));
+      if (!calMonth) { const last = walks.length ? new Date(walks[0].start) : new Date(); calMonth = new Date(last.getFullYear(), last.getMonth(), 1); calDay = walks.length ? dayKey(last) : null; }
+      const y = calMonth.getFullYear(), mo = calMonth.getMonth(), first = (new Date(y, mo, 1).getDay() + 6) % 7, nd = new Date(y, mo + 1, 0).getDate();
+      const kmDay = (k) => sum(byDay[k] || [], (i) => walks[i].st.painted);
+      const maxKm = Math.max(1, ...Object.keys(byDay).map(kmDay));
+      let cells = '';
+      for (let i = 0; i < first; i++) cells += '<span></span>';
+      for (let dd = 1; dd <= nd; dd++) {
+        const k = y + '-' + String(mo + 1).padStart(2, '0') + '-' + String(dd).padStart(2, '0'), n = (byDay[k] || []).length;
+        cells += `<button class="cd ${n ? 'on' : ''} ${k === calDay ? 'sel' : ''} ${k === dayKey(Date.now()) ? 'today' : ''}" data-day="${k}" ${n ? `style="--a:${(0.25 + 0.75 * Math.min(1, kmDay(k) / maxKm)).toFixed(2)}"` : 'disabled'}>${dd}${n > 1 ? `<i>${n}</i>` : ''}</button>`;
+      }
+      const inMonth = walks.filter((w) => new Date(w.start).getFullYear() === y && new Date(w.start).getMonth() === mo);
+      const dayList = calDay && byDay[calDay] ? byDay[calDay] : [];
+      h += `<div class="card"><div class="calhead"><button class="calnav" data-m="-1" aria-label="Mes anterior">‹</button><b>${calMonth.toLocaleDateString(PM.LOCALE, { month: 'long', year: 'numeric' })}</b><button class="calnav" data-m="1" aria-label="Mes siguiente">›</button></div>
+        <div class="calgrid"><small>L</small><small>M</small><small>X</small><small>J</small><small>V</small><small>S</small><small>D</small>${cells}</div>
+        <p class="calsum">${inMonth.length ? `${plural(new Set(inMonth.map((w) => dayKey(w.start))).size, 'día', 'días')} · ${plural(inMonth.length, 'paseo', 'paseos')} · ${dist(sum(inMonth, (w) => w.st.walked))} andados · ${dist(sum(inMonth, (w) => w.st.painted))} nuevos` : 'Sin paseos este mes'}</p>
+        ${dayList.length ? dayList.map((i) => { const w = walks[i]; return `
+          <div class="walk" data-i="${i}"><b>${new Date(w.start).toLocaleDateString(PM.LOCALE, { weekday: 'long', day: 'numeric', month: 'short' })} · ${new Date(w.start).toLocaleTimeString(PM.LOCALE, { hour: '2-digit', minute: '2-digit' })}</b>
+          <div class="pts">+${PM.fmtNum(w.st.pts || 0)}</div>
+          <small>⏱ ${dur(mov(w))}${mov(w) < w.elapsed - 60000 ? ' (total ' + dur(w.elapsed) + ')' : ''} · 🚶 ${dist(w.st.walked)} · 🖌️ ${dist(w.st.painted)} nuevos · ⚡ ${pace(mov(w), w.st.walked)}${w.st.captures ? ' · 📸 ' + w.st.captures : ''}${w.st.conquests ? ' · 🚩 ' + w.st.conquests : ''}${w.imported ? ' · ⌚' : ''}</small>
+          <button class="wdet" data-w="${i}">📊 Estadísticas, vídeo y exportar</button></div>`; }).join('') : ''}</div>`;
+      // tus costumbres: a qué hora y qué días sales
+      if (walks.length) {
+        const WD = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
+        const peakH = A.hours.indexOf(Math.max(...A.hours)), peakD = A.wdays.indexOf(Math.max(...A.wdays));
+        h += `<div class="grid2"><div class="card"><h3>¿A qué hora sales? <span>sobre las ${peakH}:00</span></h3>${clock24(A.hours)}</div>
+          <div class="card"><h3>Qué días <span>sobre todo el ${WD[peakD].toLowerCase()}</span></h3>${hbars(WD.map((x) => x.slice(0, 3)), A.wdays, peakD)}</div></div>`;
+      }
+      return h;
+    }
+
+    // COLECCIÓN: tus cartas (en el álbum, como en la app), los barrios y los logros
+    function panelColeccion() {
+      const { s, lms } = A;
+      const byR = ['legendario', 'epico', 'raro', 'comun'].map((r) => ({ r, v: lms.filter((l) => l.rarity === r).length, c: RAR_C[r] }));
+      const ach = PM.game.ACHIEVEMENTS, got = s.achievements || {}, nA = Object.keys(ach).length, gA = Object.keys(got).filter((k) => ach[k]).length;
+      const bc = Object.entries(s.barrioCards || {}).map(([id, v]) => Object.assign({ id }, v)).sort((a, b) => b.t - a.t);
+      let h = `<div class="card"><div class="coltop"><div><b>${PM.fmtNum(lms.length)}</b><small>cartas</small></div><div><b>${Object.keys(s.cardPhotos || {}).length}</b><small>con tu foto</small></div><div><b>${gA} / ${nA}</b><small>logros</small></div></div>
+        ${lms.length ? `<div class="stackbar">${byR.filter((x) => x.v).map((x) => `<i style="flex:${x.v};background:${x.c}" title="${RAR[x.r].label}: ${x.v}"></i>`).join('')}</div>
+        <div class="legend">${byR.map((x) => `<span><i style="background:${x.c}"></i>${RAR[x.r].label} ${x.v}</span>`).join('')}</div>` : ''}</div>`;
+      h += `<div class="card"><h3>Mis álbumes <button class="hbtn" id="alb-fs">⛶ Pantalla completa</button></h3><div id="alb-home"><div id="album-box"></div></div></div>`;
+      h += `<div class="card"><h3>Barrios conquistados <span>${bc.length}</span></h3>${bc.length ? bc.map((b) => { const rk = (s.barrioRank || {})[b.id] != null ? s.barrioRank[b.id] : ((s.perfectB || {})[b.id] ? 2 : 0); return `<div class="row"><span>${PM.RANKS[rk].ic} ${esc(b.name)} <small class="muted">· ${PM.RANKS[rk].name}</small></span><b>${new Date(b.t).toLocaleDateString(PM.LOCALE)}</b></div>`; }).join('') : '<div class="empty">Pinta el 60 % de un barrio para conquistarlo (80 % plata, 90 % oro).</div>'}</div>`;
+      h += `<details class="card logros"><summary><h3>Logros <span>${gA} de ${nA} · ver todos</span></h3></summary><div class="ach">${Object.entries(ach).map(([id, a]) => `<div class="${got[id] ? '' : 'off'}" title="${esc(a.desc)}"><span>${a.icon}</span>${esc(a.name)}</div>`).join('')}</div></details>`;
+      return h;
+    }
 
     function drawPanel() {
-      const P = $('#panel');
-      const { s, st, walks, totMs, movMs, wWalked, days, cities, lms } = A;
-      let h = '';
-      if (tab === 'res') {
-        const DAY = 86400000, now0 = new Date(); now0.setHours(0, 0, 0, 0);
-        const LI = A.LI, tierC = LI.tier ? LI.tier.color : 'var(--paint)';
-        const nB = Object.keys(s.conqueredB || {}).length, nC = Object.keys(s.citiesWon || {}).length;
-        const firstT = walks.length ? Math.min(...walks.map((w) => w.start)) : null;
-        // ---- cabecera: nivel, puntos y lo más importante de un vistazo ----
-        h += `<div class="hero" style="--tc:${tierC}">
-          <div class="hero-top">${ring(LI.pct, 92, 9, tierC, `<tspan font-size="${LI.short.length > 4 ? 15 : 24}" font-weight="900">${esc(LI.short)}</tspan>`)}
-            <div class="hero-txt"><small>${LI.tier ? LI.tier.icon + ' ' : ''}Nivel</small><b>${esc(LI.label)}</b>
-              <div class="hero-bar"><i style="width:${(LI.pct * 100).toFixed(1)}%"></i></div>
-              <small>${LI.max ? '¡Nivel máximo!' : `${PM.fmtNum(LI.cur)} / ${PM.fmtNum(LI.need)} pts · faltan <b>${PM.fmtNum(LI.need - LI.cur)}</b> para el ${esc(LI.nextLabel)}`}</small></div></div>
-          <div class="hero-nums">
-            <div><b>${km(st.paintedM || 0)}</b><small>km pintados</small></div>
-            <div><b>${lms.length}</b><small>lugares</small></div>
-            <div><b>${nB}</b><small>barrios 🚩</small></div>
-            <div><b>${PM.fmtNum(s.xp || 0)}</b><small>puntos</small></div></div>
-          ${firstT ? `<small class="hero-since">Pintando desde el ${new Date(firstT).toLocaleDateString(PM.LOCALE, { day: 'numeric', month: 'long', year: 'numeric' })} · ${Object.keys(days).length} día${Object.keys(days).length === 1 ? '' : 's'} en la calle${nC ? ` · 👑 ${nC} ciudad${nC > 1 ? 'es' : ''}` : ''}</small>` : ''}</div>`;
-
-        // ---- esta semana (lunes a domingo) frente a la anterior ----
-        const mon = now0.getTime() - ((now0.getDay() + 6) % 7) * DAY;
-        const wk = (t0) => { const ws = walks.filter((w) => w.start >= t0 && w.start < t0 + 7 * DAY);
-          return { ws, walked: ws.reduce((a, w) => a + (w.st.walked || 0), 0), painted: ws.reduce((a, w) => a + (w.st.painted || 0), 0), ms: ws.reduce((a, w) => a + mov(w), 0) }; };
-        const W0 = wk(mon), W1 = wk(mon - 7 * DAY);
-        const dd = (x, y) => !y ? (x ? '<span class="dl up">nuevo</span>' : '') : (() => { const d = (x - y) / y * 100; return `<span class="dl ${d >= 0 ? 'up' : 'down'}">${d >= 0 ? '▲' : '▼'} ${Math.abs(d).toFixed(0)} %</span>`; })();
-        const wd = ['L', 'M', 'X', 'J', 'V', 'S', 'D'].map((l, i) => { const k = dayKey(mon + i * DAY), d = days[k]; return { l, w: d ? d.walked / 1000 : 0, p: d ? d.painted / 1000 : 0, today: mon + i * DAY === now0.getTime(), fut: mon + i * DAY > now0.getTime() }; });
-        const wmax = Math.max(0.5, ...wd.map((x) => x.w));
-        h += `<div class="card"><h3>Esta semana <span>vs. la anterior</span></h3>
-          <div class="wk3"><div><b>${dist(W0.walked)}</b><small>andados</small>${dd(W0.walked, W1.walked)}</div>
-            <div><b>${dist(W0.painted)}</b><small>calles nuevas</small>${dd(W0.painted, W1.painted)}</div>
-            <div><b>${dur(W0.ms)}</b><small>${W0.ws.length} paseo${W0.ws.length === 1 ? '' : 's'}</small>${dd(W0.ms, W1.ms)}</div></div>
-          <div class="wkbars">${wd.map((x) => `<div class="${x.today ? 'today' : ''} ${x.fut ? 'fut' : ''}" title="${x.w.toFixed(2)} km andados · ${x.p.toFixed(2)} km nuevos">
-            <span><i style="height:${(x.w / wmax * 100).toFixed(0)}%"></i><em style="height:${(Math.min(x.p, x.w || x.p) / wmax * 100).toFixed(0)}%"></em></span><small>${x.l}</small></div>`).join('')}</div>
-          <div class="legend"><span><i style="background:#c7d2fe"></i>andado</span><span><i style="background:var(--paint)"></i>calles nuevas</span></div></div>`;
-
-        // ---- cifras clave con icono ----
-        const eff = Math.min(1, A.eff);
-        const tile = (ic, v, l, extra, hl) => `<div class="kpi ${hl ? 'hl' : ''}"><span class="ki">${ic}</span><b>${v}</b><small>${l}</small>${extra ? `<div><em>${extra}</em></div>` : ''}</div>`;
-        h += `<div class="kpis">
-          ${tile('🖌️', km(st.paintedM || 0) + ' km', 'calles pintadas', '', true)}
-          ${tile('🚶', km(st.walkedM || 0) + ' km', 'caminados')}
-          ${tile('🧭', Math.round(eff * 100) + ' %', 'de lo andado, nuevo', eff >= 0.7 ? 'explorador' : '')}
-          ${tile('🗓️', walks.length, 'paseos (≥ 2 min)')}
-          ${tile('⏱️', dur(movMs), 'en movimiento', 'total ' + dur(totMs))}
-          ${tile('⚡', pace(movMs, wWalked), 'ritmo medio', movMs ? ((wWalked / 1000) / (movMs / 3600000)).toFixed(1) + ' km/h' : '')}
-          ${tile('🔥', st.streak || 0, 'racha actual', 'máx. ' + A.maxStreak + ' días')}
-          ${tile('✖️', 'x' + (st.bestCombo || 0), 'mejor combo')}
-          ${tile('⭐', st.walkedM ? PM.fmtNum(Math.round((s.xp || 0) / (st.walkedM / 1000))) : 0, 'puntos por km')}
-        </div>`;
-
-        // ---- último paseo con su recorrido ----
-        const lw = walks[0];
-        if (lw) h += `<div class="card lastw" data-wi="0"><h3>Último paseo <span>toca para verlo en el mapa</span></h3>
-          <div class="lw">${thumb(lw)}<div class="lw-txt"><b>${new Date(lw.start).toLocaleDateString(PM.LOCALE, { weekday: 'long', day: 'numeric', month: 'long' })}</b>
-            <small>${new Date(lw.start).toLocaleTimeString(PM.LOCALE, { hour: '2-digit', minute: '2-digit' })} · ${dur(mov(lw))} en movimiento${mov(lw) < lw.elapsed - 60000 ? ' (total ' + dur(lw.elapsed) + ')' : ''}</small>
-            <div class="lw-g"><div><b>${dist(lw.st.walked)}</b><small>andados</small></div><div><b>${dist(lw.st.painted)}</b><small>nuevos</small></div>
-              <div><b>${pace(mov(lw), lw.st.walked)}</b><small>ritmo</small></div><div><b>+${PM.fmtNum(lw.st.pts || 0)}</b><small>puntos</small></div></div></div></div></div>`;
-
-        // ---- territorio: ciudades en anillos ----
-        const top = cities.slice(0, 3);
-        h += `<div class="card"><h3>Tu territorio <span>conquista 70 % · 🥈 80 · 🥇 90</span></h3>${top.length ? `<div class="terr">${top.map((c) => `<div>
-            ${ring(c.tot ? Math.min(1, c.pct / PM.CONQ.city) : 0, 86, 8, c.won ? PM.RANKS[Math.max(0, PM.rankFor('city', c.pct))].color : 'var(--paint)', `<tspan font-size="14" font-weight="800">${c.tot ? (c.pct * 100).toFixed(c.pct < 0.1 ? 1 : 0) + '%' : '?'}</tspan>`)}
-            <b>${c.won ? PM.RANKS[Math.max(0, PM.rankFor('city', c.pct))].ic + ' ' : ''}${esc(c.c)}</b><small>${dist(c.m)}${c.tot ? ' de ' + dist(c.tot) : ''}</small></div>`).join('')}</div>` : '<div class="empty">Aún sin ciudades.</div>'}
-          ${cities.length > 3 ? `<div class="more">${cities.slice(3).map((c) => `<span>${c.won ? PM.RANKS[Math.max(0, PM.rankFor('city', c.pct))].ic + ' ' : ''}${esc(c.c)} · ${c.tot ? (c.pct * 100).toFixed(2) + ' %' : dist(c.m)}</span>`).join('')}</div>` : ''}
-          <div class="row" style="margin-top:8px"><span>🚩 Barrios conquistados</span><b>${nB}</b></div></div>`;
-
-        // ---- colección: monumentos por rareza y logros ----
-        const byR = ['legendario', 'epico', 'raro', 'comun'].map((r) => ({ r, v: lms.filter((l) => l.rarity === r).length, c: RAR_C[r] }));
-        const ach = PM.game.ACHIEVEMENTS, gotA = s.achievements || {}, nA = Object.keys(ach).length, gA = Object.keys(gotA).filter((k) => ach[k]).length;
-        const photos = Object.keys(s.cardPhotos || {}).length;
-        h += `<div class="card"><h3>Colección</h3>
-          <div class="coll">${ring(nA ? gA / nA : 0, 86, 8, '#10b981', `<tspan font-size="15" font-weight="800">${gA}</tspan>`)}<div style="flex:1;min-width:0">
-            <div class="row" style="padding-top:0"><span>🏆 Logros</span><b>${gA} / ${nA}</b></div>
-            <div class="row"><span>🃏 Cartas</span><b>${lms.length}</b></div>
-            <div class="row"><span>📸 Con tu foto</span><b>${photos}</b></div></div></div>
-          ${lms.length ? `<div class="stackbar">${byR.filter((x) => x.v).map((x) => `<i style="flex:${x.v};background:${x.c}" title="${RAR[x.r].label}: ${x.v}"></i>`).join('')}</div>
-          <div class="legend">${byR.map((x) => `<span><i style="background:${x.c}"></i>${RAR[x.r].label} ${x.v}</span>`).join('')}</div>` : ''}</div>`;
-
-        // ---- próximos objetivos ----
-        const next = Object.entries(ach).filter(([id, a]) => !gotA[id] && a.prog).map(([id, a]) => ({ a, p: a.prog(s) })).filter((x) => x.p > 0 && x.p < 1)
-          .sort((x, y) => y.p - x.p).filter((x, i, arr) => arr.findIndex((z) => z.a.icon === x.a.icon && z.a.name.split(' ')[0] === x.a.name.split(' ')[0]) === i).slice(0, 4);
-        const goalRow = (ic, t, sub, pct) => `<div class="goal"><span>${ic}</span><div><b>${t}</b><small>${sub}</small><div class="pbar"><i style="width:${(pct * 100).toFixed(1)}%"></i></div></div><em>${Math.floor(pct * 100)}%</em></div>`;
-        h += `<div class="card"><h3>Próximos objetivos</h3>
-          ${LI.max ? '' : goalRow('⬆️', 'Nivel ' + esc(LI.nextLabel), `faltan ${PM.fmtNum(LI.need - LI.cur)} pts`, LI.pct)}
-          ${next.map((x) => goalRow(x.a.icon, esc(x.a.name), esc(x.a.desc), x.p)).join('')}</div>`;
-
-        // ---- análisis ----
-        h += `<div class="card"><h3>Análisis <span>últimos 30 días</span></h3>${insights()}</div>`;
-
-        // ---- equivalencias ----
-        const wk_ = (st.walkedM || 0) / 1000;
-        if (wk_ > 0) h += `<div class="card"><h3>En otras palabras</h3><div class="eq">
-          <div><span>🏃</span><b>${(wk_ / 42.195).toFixed(wk_ < 42 ? 2 : 1)}</b><small>maratones</small></div>
-          <div><span>🏟️</span><b>${PM.fmtNum(Math.round(wk_ * 1000 / 400))}</b><small>vueltas a una pista de atletismo</small></div>
-          <div><span>👣</span><b>${PM.fmtNum(Math.round(wk_ * 1000 / 0.75))}</b><small>pasos</small></div>
-          <div><span>🍫</span><b>${PM.fmtNum(Math.round(wk_ * 55 / 230))}</b><small>tabletas de chocolate quemadas</small></div></div></div>`;
-
-        // ---- récords ----
-        const when = (w) => w ? new Date(w.start).toLocaleDateString(PM.LOCALE, { day: 'numeric', month: 'short' }) : '';
-        const recRow = (ic, l, v, w) => `<div class="rec" ${w ? `data-wi="${walks.indexOf(w)}"` : ''}><span>${ic}</span><div><small>${l}</small><b>${v}</b></div><em>${when(w)}</em></div>`;
-        h += `<div class="card"><h3>Récords <span>toca uno para verlo</span></h3><div class="recs">
-          ${A.longest ? recRow('🥾', 'Paseo más largo', dist(A.longest.st.walked), A.longest) : ''}
-          ${A.fastest ? recRow('⚡', 'Paseo más rápido', pace(mov(A.fastest), A.fastest.st.walked), A.fastest) : ''}
-          ${A.topPts ? recRow('⭐', 'Más puntos', '+' + PM.fmtNum(A.topPts.st.pts || 0), A.topPts) : ''}
-          ${A.bestDay ? `<div class="rec"><span>📅</span><div><small>Mejor día</small><b>${dist(A.bestDay[1].painted)}</b></div><em>${new Date(A.bestDay[0] + 'T12:00').toLocaleDateString(PM.LOCALE, { day: 'numeric', month: 'short' })}</em></div>` : ''}
-          <div class="rec"><span>🔥</span><div><small>Racha más larga</small><b>${A.maxStreak} días</b></div></div>
-          <div class="rec"><span>✖️</span><div><small>Mejor combo</small><b>x${st.bestCombo || 0}</b></div></div></div></div>`;
-      }
-      if (tab === 'act') {
-        // ---- periodo elegido y el anterior (para comparar) ----
-        const DAY = 86400000, today0 = new Date(); today0.setHours(0, 0, 0, 0);
-        const PER = { d7: { n: 7, unit: 'd', name: '7 días' }, d30: { n: 30, unit: 'd', name: '30 días' }, w12: { n: 12, unit: 'w', name: '12 semanas' }, all: { n: 0, unit: 'm', name: 'Todo' } };
-        const per = PER[actPeriod] || PER.d30;
-        const firstWalk = walks.length ? Math.min(...walks.map((w) => w.start)) : Date.now();
-        const spanMs = per.unit === 'd' ? per.n * DAY : per.unit === 'w' ? per.n * 7 * DAY : Math.max(DAY, Date.now() - firstWalk + DAY);
-        const from = Date.now() - spanMs, prevFrom = from - spanMs;
-        const inP = walks.filter((w) => w.start >= from), inPrev = walks.filter((w) => w.start >= prevFrom && w.start < from);
-        const sum = (ws, f) => ws.reduce((a, w) => a + (f(w) || 0), 0);
-        const agg = (ws) => ({ walked: sum(ws, (w) => w.st.walked), painted: sum(ws, (w) => w.st.painted), ms: sum(ws, (w) => mov(w)), pts: sum(ws, (w) => w.st.pts), n: ws.length, days: new Set(ws.map((w) => dayKey(w.start))).size });
-        const cur = agg(inP), prv = agg(inPrev);
-        const delta = (a, b) => actPeriod === 'all' || !b ? '' : (() => { const d = (a - b) / b * 100; return `<span class="dl ${d >= 0 ? 'up' : 'down'}">${d >= 0 ? '▲' : '▼'} ${Math.abs(d).toFixed(0)} %</span>`; })();
-        const tile = (v, l, d) => `<div class="kpi"><b>${v}</b><small>${l}</small>${d ? `<div>${d}</div>` : ''}</div>`;
-        h += `<div class="seg act-seg">${Object.entries(PER).map(([k, v]) => `<button class="${k === actPeriod ? 'on' : ''}" data-per="${k}">${v.name}</button>`).join('')}</div>`;
-        h += `<div class="kpis">${tile(dist(cur.walked), 'andados', delta(cur.walked, prv.walked))}${tile(dist(cur.painted), 'calles nuevas', delta(cur.painted, prv.painted))}
-          ${tile(dur(cur.ms), 'en movimiento', delta(cur.ms, prv.ms))}${tile(cur.days, 'días activos', delta(cur.days, prv.days))}
-          ${tile(cur.n, 'paseos', delta(cur.n, prv.n))}${tile(PM.fmtNum(Math.round(cur.pts)), 'puntos', delta(cur.pts, prv.pts))}</div>`;
-        // ---- gráfico de área: andado y pintado por día / semana / mes ----
-        const buckets = [];
-        if (per.unit === 'd') for (let i = per.n - 1; i >= 0; i--) { const t0 = today0.getTime() - i * DAY; buckets.push({ t0, t1: t0 + DAY, lab: new Date(t0).getDate() + '/' + (new Date(t0).getMonth() + 1) }); }
-        else if (per.unit === 'w') for (let i = per.n - 1; i >= 0; i--) { const mon = today0.getTime() - ((today0.getDay() + 6) % 7) * DAY - i * 7 * DAY; buckets.push({ t0: mon, t1: mon + 7 * DAY, lab: 'sem ' + new Date(mon).getDate() + '/' + (new Date(mon).getMonth() + 1) }); }
-        else { const d0 = new Date(firstWalk); for (let y = d0.getFullYear(), m = d0.getMonth(); new Date(y, m, 1) <= new Date(); m++) { const t0 = new Date(y, m, 1).getTime(), t1 = new Date(y, m + 1, 1).getTime(); buckets.push({ t0, t1, lab: new Date(t0).toLocaleDateString(PM.LOCALE, { month: 'short' }) }); } }
-        buckets.forEach((bk) => { const ws = walks.filter((w) => w.start >= bk.t0 && w.start < bk.t1); bk.w = sum(ws, (w) => w.st.walked) / 1000; bk.p = sum(ws, (w) => w.st.painted) / 1000; });
-        h += `<div class="card"><h3>Andado y pintado <span>km por ${per.unit === 'd' ? 'día' : per.unit === 'w' ? 'semana' : 'mes'}</span></h3>${area(buckets)}
-          <div class="legend"><span><i style="background:#93c5fd"></i>andado</span><span><i style="background:var(--paint)"></i>calles nuevas</span></div></div>`;
-        // ---- acumulado de calles pintadas con hitos ----
-        const asc = walks.slice().sort((x, y) => x.start - y.start);
-        let accP = 0; const cum = asc.map((w) => { accP += (w.st.painted || 0) / 1000; return { t: w.start, v: accP }; });
-        h += `<div class="card"><h3>Calles pintadas en total <span>${dist(accP * 1000)}</span></h3>${cumulative(cum)}</div>`;
-        // ---- mapa de calor de 6 meses ----
-        h += `<div class="card"><h3>Constancia <span>últimos 6 meses</span></h3>${heatmap()}</div>`;
-        // ---- reloj 24 h + días de la semana ----
-        const peakH = A.hours.indexOf(Math.max(...A.hours)), WD = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
-        const peakD = A.wdays.indexOf(Math.max(...A.wdays));
-        h += `<div class="grid2"><div class="card"><h3>¿A qué hora sales? <span>${walks.length ? 'sobre las ' + peakH + ':00' : ''}</span></h3>${clock24(A.hours)}</div>
-          <div class="card"><h3>Días de la semana <span>${walks.length ? 'mejor: ' + WD[peakD].toLowerCase() : ''}</span></h3>${hbars(WD.map((d) => d.slice(0, 3)), A.wdays, peakD)}</div></div>`;
-        // ---- rachas ----
-        const last14 = []; for (let i = 13; i >= 0; i--) { const k = dayKey(today0.getTime() - i * DAY); last14.push(!!days[k]); }
-        let streak = 0; for (let i = 0; ; i++) { const k = dayKey(today0.getTime() - i * DAY); if (days[k]) streak++; else if (i > 0 || streak) break; else continue; if (i > 400) break; }
-        h += `<div class="card"><h3>Rachas</h3><div class="streak"><div><b>🔥 ${streak}</b><small>días seguidos ahora</small></div><div><b>🏆 ${A.maxStreak}</b><small>tu mejor racha</small></div>
-          <div class="dots">${last14.map((on, i) => `<i class="${on ? 'on' : ''}" title="${new Date(today0.getTime() - (13 - i) * DAY).toLocaleDateString(PM.LOCALE)}"></i>`).join('')}<small>últimos 14 días</small></div></div></div>`;
-        // ---- récords ----
-        const timed = walks.filter((w) => (w.st.walked || 0) > 500 && (w.track || []).some((q) => q && q[2] != null));
-        const best = (f, ws = walks) => ws.slice().sort((x, y) => f(y) - f(x))[0];
-        const rLong = best((w) => w.st.walked || 0), rPaint = best((w) => w.st.painted || 0), rTime = best((w) => w.elapsed || 0), rPts = best((w) => w.st.pts || 0);
-        const rFast = timed.slice().sort((x, y) => mov(x) / x.st.walked - mov(y) / y.st.walked)[0];
-        const when = (w) => w ? new Date(w.start).toLocaleDateString(PM.LOCALE, { day: 'numeric', month: 'short' }) : '';
-        const recRow = (ic, l, v, w) => `<div class="rec" ${w ? `data-wi="${walks.indexOf(w)}"` : ''}><span>${ic}</span><div><small>${l}</small><b>${v}</b></div><em>${when(w)}</em></div>`;
-        h += `<div class="card"><h3>Récords <span>toca uno para verlo</span></h3><div class="recs">
-          ${rLong ? recRow('🥾', 'Paseo más largo', dist(rLong.st.walked), rLong) : ''}${rPaint ? recRow('🖌️', 'Más calles nuevas', dist(rPaint.st.painted), rPaint) : ''}
-          ${rTime ? recRow('⏱️', 'Más tiempo', dur(rTime.elapsed), rTime) : ''}${rPts ? recRow('⭐', 'Más puntos', '+' + PM.fmtNum(rPts.st.pts || 0), rPts) : ''}
-          ${rFast ? recRow('⚡', 'Ritmo más rápido', pace(mov(rFast), rFast.st.walked), rFast) : ''}
-          ${A.bestDay ? `<div class="rec"><span>📅</span><div><small>Mejor día</small><b>${dist(A.bestDay[1].painted)} pintados</b></div><em>${new Date(A.bestDay[0] + 'T12:00').toLocaleDateString(PM.LOCALE, { day: 'numeric', month: 'short' })}</em></div>` : ''}
-          </div></div>`;
-        // ---- ritmo por paseo (solo paseos con hora en cada punto) ----
-        const tl = timed.slice().sort((x, y) => x.start - y.start).slice(-20);
-        if (tl.length >= 2) h += `<div class="card"><h3>Ritmo por paseo <span>min/km · más abajo = más rápido</span></h3>${paceLine(tl)}</div>`;
-      }
-      if (tab === 'pas') {
-        // calendario del mes: días con paseo pintados (más intensos cuanto más pintaste); al tocar un día, sus paseos
-        const byDay = {}; walks.forEach((w, i) => (byDay[dayKey(w.start)] = byDay[dayKey(w.start)] || []).push(i));
-        if (!calMonth) { const last = walks.length ? new Date(Math.max(...walks.map((w) => w.start))) : new Date(); calMonth = new Date(last.getFullYear(), last.getMonth(), 1); calDay = walks.length ? dayKey(last) : null; }
-        const y = calMonth.getFullYear(), mo = calMonth.getMonth(), first = (new Date(y, mo, 1).getDay() + 6) % 7, nd = new Date(y, mo + 1, 0).getDate();
-        const kmDay = (k) => (byDay[k] || []).reduce((a, i) => a + (walks[i].st.painted || 0), 0);
-        const maxKm = Math.max(1, ...Object.keys(byDay).map(kmDay));
-        let cells = '';
-        for (let i = 0; i < first; i++) cells += '<span></span>';
-        for (let d = 1; d <= nd; d++) {
-          const k = y + '-' + String(mo + 1).padStart(2, '0') + '-' + String(d).padStart(2, '0'), n = (byDay[k] || []).length;
-          const a = n ? 0.25 + 0.75 * Math.min(1, kmDay(k) / maxKm) : 0;
-          cells += `<button class="cd ${n ? 'on' : ''} ${k === calDay ? 'sel' : ''} ${k === dayKey(Date.now()) ? 'today' : ''}" data-day="${k}" ${n ? `style="--a:${a.toFixed(2)}"` : 'disabled'}>${d}${n > 1 ? `<i>${n}</i>` : ''}</button>`;
-        }
-        const monthName = calMonth.toLocaleDateString(PM.LOCALE, { month: 'long', year: 'numeric' });
-        const inMonth = walks.filter((w) => new Date(w.start).getFullYear() === y && new Date(w.start).getMonth() === mo);
-        h += `<div class="card"><div class="calhead"><button class="calnav" data-m="-1">‹</button><b>${monthName}</b><button class="calnav" data-m="1">›</button></div>
-          <div class="calgrid"><small>L</small><small>M</small><small>X</small><small>J</small><small>V</small><small>S</small><small>D</small>${cells}</div>
-          <p class="calsum">${inMonth.length ? `${new Set(inMonth.map((w) => dayKey(w.start))).size} días · ${inMonth.length} paseos · ${dist(inMonth.reduce((a, w) => a + (w.st.walked || 0), 0))} andados · ${dist(inMonth.reduce((a, w) => a + (w.st.painted || 0), 0))} pintados` : 'Sin paseos este mes'}</p></div>`;
-        const dayList = calDay && byDay[calDay] ? byDay[calDay] : [];
-        h += `<div class="card" style="padding:8px"><h3 style="padding:8px 8px 0">${calDay ? new Date(calDay + 'T12:00').toLocaleDateString(PM.LOCALE, { weekday: 'long', day: 'numeric', month: 'long' }) : 'Paseos'} <span>${dayList.length ? dayList.length + ' paseo' + (dayList.length > 1 ? 's' : '') + ' · toca uno para verlo en el mapa' : ''}</span></h3>` + (dayList.length ? dayList.map((i) => walks[i]).map((w) => [w, walks.indexOf(w)]).map(([w, i]) => `
-          <div class="walk" data-i="${i}"><b>${new Date(w.start).toLocaleDateString(PM.LOCALE, { weekday: 'short', day: 'numeric', month: 'short' })} · ${new Date(w.start).toLocaleTimeString(PM.LOCALE, { hour: '2-digit', minute: '2-digit' })}</b>
-          <div class="pts">+${PM.fmtNum(w.st.pts || 0)}</div>
-          <small>⏱ ${dur(mov(w))}${mov(w) < w.elapsed - 60000 ? ' (total ' + dur(w.elapsed) + ')' : ''} · 🚶 ${dist(w.st.walked)} · 🖌️ ${dist(w.st.painted)} nuevos · ⚡ ${pace(mov(w), w.st.walked)} · 📸 ${w.st.captures || 0}${w.st.conquests ? ' · 🚩 ' + w.st.conquests : ''}${w.imported ? ' · ⌚' : ''}</small>
-          <button class="wdet" data-w="${i}">📊 Estadísticas, vídeo y exportar</button></div>`).join('')
-          : `<div class="empty">${walks.length ? 'Toca un día pintado del calendario para ver sus paseos.' : 'Aún no hay paseos de más de 2 minutos.'}</div>`) + '</div>';
-      }
-      if (tab === 'con') {
-        const byR = ['legendario', 'epico', 'raro', 'comun'].map((r) => ({ r, v: lms.filter((l) => l.rarity === r).length, c: RAR_C[r] }));
-        const byK = {}; lms.forEach((l) => { byK[l.kind] = (byK[l.kind] || 0) + 1; });
-        PM.fillLandmarkCities(s); lms.forEach((l) => { if (!l.city && s.landmarks[l.id]) l.city = s.landmarks[l.id].city; });
-        const byCity = {}; lms.forEach((l) => { (byCity[l.city || 'Otros lugares'] = byCity[l.city || 'Otros lugares'] || []).push(l); });
-        h += `<div class="card"><h3>Cartas <span>por ciudad · toca un mazo para abrirlo</span></h3>${lms.length ? '<div id="city-stacks"></div>' : '<div class="empty">Sin cartas aún.</div>'}</div>`;
-        stackGroups = PM.tcg.byCountry(Object.entries(byCity).map(([city, list]) => ({ city, ids: list.map((l) => l.id), pos: list[0].pos })), s.countries);
-        h += `<div class="card"><h3>Monumentos <span>${lms.length} conquistados · ${Object.keys(s.cardPhotos || {}).length} con foto propia</span></h3>
-          <div style="display:flex;gap:16px;align-items:center">${donut(byR.map((x) => ({ v: x.v, c: x.c })))}
-          <div style="flex:1">${byR.map((x) => `<div class="row"><span><i style="display:inline-block;width:9px;height:9px;border-radius:3px;background:${x.c};margin-right:6px"></i>${RAR[x.r].label}</span><b>${x.v}</b></div>`).join('')}</div></div></div>`;
-        h += `<div class="card"><h3>Por tipo</h3>${Object.keys(byK).length ? Object.entries(byK).sort((a, b) => b[1] - a[1]).map(([k, v]) => `<div class="row"><span>${esc(k)}</span><b>${v}</b></div>`).join('') : '<div class="empty">Quédate 10 s junto a un monumento para conquistarlo.</div>'}</div>`;
-        const ach = PM.game.ACHIEVEMENTS, got = s.achievements || {};
-        h += `<div class="card"><h3>Logros <span>${Object.keys(got).filter((k) => ach[k]).length}/${Object.keys(ach).length}</span></h3><div class="ach">${Object.entries(ach).map(([id, a]) =>
-          `<div class="${got[id] ? '' : 'off'}" title="${esc(a.desc)}"><span>${a.icon}</span>${esc(a.name)}</div>`).join('')}</div></div>`;
-        const bc = Object.entries(s.barrioCards || {}).map(([id, v]) => Object.assign({ id }, v));
-        h += `<div class="card"><h3>Barrios conquistados <span>${bc.length}</span></h3>${bc.length ? bc.map((b) => { const rk = (s.barrioRank || {})[b.id] != null ? s.barrioRank[b.id] : ((s.perfectB || {})[b.id] ? 2 : 0); return `<div class="row"><span>${PM.RANKS[rk].ic} ${esc(b.name)} <small class="muted">· ${PM.RANKS[rk].name}</small></span><b>${new Date(b.t).toLocaleDateString(PM.LOCALE)}</b></div>`; }).join('') : '<div class="empty">Pinta el 60 % de un barrio para conquistarlo (80 % plata, 90 % oro).</div>'}</div>`;
-      }
-      if (tab === 'alb') h += '<div class="card"><h3>Mis álbumes <button class="hbtn" id="alb-fs">⛶ Pantalla completa</button></h3><div id="alb-home"><div id="album-box"></div></div></div>';
-      P.innerHTML = h;
-      if (tab === 'alb') {
+      const P = $('#panel'), { walks } = A;
+      P.innerHTML = tab === 'pas' ? panelPaseos() : tab === 'col' ? panelColeccion() : panelResumen();
+      if (tab === 'col') {
         PM.fillLandmarkCities(A.s);
         PM.world.usarCiudades(A.s.ciudadId || (A.s.ciudadId = {}));   // (las ciudades con el mismo nombre se distinguen como en el móvil)
         PM.album.usar({ save: () => A.s, albumDe: albumWeb });
         $('#alb-fs').addEventListener('click', () => pantallaAlbum(true));
         const irA = (e) => { pantallaAlbum(false); $('#bigmap').scrollIntoView({ behavior: 'smooth', block: 'nearest' }); map.flyTo({ center: ll(e.pos), zoom: 17 }); };
-        PM.album.montar($('#album-box'), { datos: cardData, abrir: openCard, irA, pegada: async (el, id) => {
-          if (!(A.s.cardPhotos || {})[id]) return;
-          const img = await ownPhoto(id), ph = img && el.querySelector('.tcg-photo');
-          if (ph) { ph.style.backgroundImage = `url('${img}')`; ph.innerHTML = ''; }
-        } });
-        if (window.innerWidth <= 980) pantallaAlbum(true, true);   // (en el móvil el mapa ocupa media pantalla: el álbum se abre directamente entero)
+        PM.album.montar($('#album-box'), { datos: cardData, abrir: openCard, irA, pegada: pegarFoto });
       }
-      if (tab === 'con' && P.querySelector('#city-stacks') && !A.countriesAsked) {   // países que falten: se averiguan y se redibuja
-        A.countriesAsked = true;
-        const cp = {}; stackGroups.forEach((g) => (cp[g.city] = g.pos));
-        PM.ensureCountries(A.s, cp).then((ch) => { if (ch && tab === 'con') drawPanel(); });
-      }
-      if (tab === 'con' && P.querySelector('#city-stacks')) PM.tcg.stacks(P.querySelector('#city-stacks'), stackGroups, cardData, async (el, id) => {
-        el.addEventListener('click', () => openCard(id));
-        if (!(A.s.cardPhotos || {})[id]) return;   // tu foto (de la nube) en cuanto llega
-        const img = await ownPhoto(id), ph = img && el.querySelector('.tcg-photo');
-        if (ph) { ph.style.backgroundImage = `url('${img}')`; ph.innerHTML = ''; }
-      }, 'tcggrid');
       P.querySelectorAll('.walk').forEach((el) => el.addEventListener('click', () => showWalk(walks[+el.dataset.i], el)));
       P.querySelectorAll('[data-per]').forEach((b) => b.addEventListener('click', () => { actPeriod = b.dataset.per; drawPanel(); }));
-      P.querySelectorAll('.rec[data-wi], .lastw[data-wi]').forEach((r) => r.addEventListener('click', () => showWalk(walks[+r.dataset.wi])));
+      P.querySelectorAll('.rec[data-wi]').forEach((r) => r.addEventListener('click', () => showWalk(walks[+r.dataset.wi])));
       P.querySelectorAll('.calnav').forEach((b) => b.addEventListener('click', () => { calMonth = new Date(calMonth.getFullYear(), calMonth.getMonth() + +b.dataset.m, 1); drawPanel(); }));
       P.querySelectorAll('.cd.on').forEach((b) => b.addEventListener('click', () => {
         calDay = b.dataset.day; drawPanel();
@@ -915,35 +662,6 @@
         if (ws.length === 1) showWalk(ws[0]);
       }));
       P.querySelectorAll('.wdet').forEach((b) => b.addEventListener('click', (e) => { e.stopPropagation(); PM.replay.open(walks[+b.dataset.w], { geo: data.geo, color: A.s.color, player: A.s.player || creds.user }); }));
-      // tus fotos de cromo (de la nube): se ponen en las cartas en cuanto llegan
-      P.querySelectorAll('.tcg-cell[data-lm]').forEach(async (el) => {
-        const id = el.dataset.lm;
-        if (!(A.s.cardPhotos || {})[id]) return;
-        const img = await ownPhoto(id);
-        const ph = img && el.querySelector('.tcg-photo');
-        if (ph) { ph.style.backgroundImage = `url('${img}')`; ph.innerHTML = ''; }
-      });
-      P.querySelectorAll('[data-lm]').forEach((el) => el.addEventListener('click', () => openCard(el.dataset.lm)));
-    }
-
-    function insights() {
-      const { st, walks, cities, perDay, activeDays30, painted30, eff, hours, wdays } = A;
-      const out = [];
-      if (!walks.length) return '<div class="empty">Sal a dar tu primer paseo y aquí verás tu análisis.</div>';
-      out.push(['📆', `Has salido <b>${activeDays30} de los últimos 30 días</b> y has pintado <b>${dist(painted30)}</b> de calles nuevas.`]);
-      const city = cities.find((c) => c.tot && !c.won);
-      if (city) {
-        const left = Math.max(0, city.tot * PM.CONQ.city - city.m);
-        out.push(['🎯', perDay > 0 ? `A tu ritmo (${dist(perDay)} al día), conquistarás <b>${esc(city.c)}</b> en unos <b>${Math.ceil(left / perDay)} días</b>.`
-          : `Te faltan <b>${dist(left)}</b> para conquistar <b>${esc(city.c)}</b>.`]);
-      }
-      out.push(['🧭', eff >= 0.7 ? `El <b>${Math.round(eff * 100)} %</b> de lo que andas es calle nueva: ¡explorador nato!` :
-        `Solo el <b>${Math.round(eff * 100)} %</b> de lo que andas es calle nueva. Prueba rutas distintas para pintar más rápido.`]);
-      const hBest = hours.indexOf(Math.max(...hours)), dBest = wdays.indexOf(Math.max(...wdays));
-      out.push(['⏰', `Sueles salir sobre las <b>${hBest}:00</b>, y tu mejor día es el <b>${['lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado', 'domingo'][dBest]}</b>.`]);
-      const kcal = Math.round((st.walkedM || 0) / 1000 * 55);
-      out.push(['❤️', `Unos <b>${PM.fmtNum(Math.round((st.walkedM || 0) / 0.75))} pasos</b> y <b>${PM.fmtNum(kcal)} kcal</b> estimadas desde que juegas.`]);
-      return out.map(([i, t]) => `<div class="insight"><div class="ic">${i}</div><div>${t}</div></div>`).join('');
     }
   })();
   </script>

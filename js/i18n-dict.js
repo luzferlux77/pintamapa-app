@@ -126,6 +126,12 @@
     'Imprescindibles de': ['Imprescindibles de', 'Must-sees of', 'Incontournables de'],
     'Sobre de conquista': ['Sobre de conquesta', 'Conquest pack', 'Paquet de conquête'],
     'Contiene 1 carta': ['Conté 1 carta', 'Contains 1 card', 'Contient 1 carte'],
+    // ---- tu semana (wrapped.js) ----
+    'y paseos en otra zona': ['i passejos en una altra zona', 'and walks in another area', 'et des balades dans une autre zone'],
+    'y paseos en {n} zonas más': ['i passejos en {n} zones més', 'and walks in {n} more areas', 'et des balades dans {n} autres zones'],
+    '{n} de 7 días en la calle': ['{n} de 7 dies al carrer', '{n} of 7 days out', '{n} jours sur 7 dehors'],
+    'frente a la semana anterior': ['respecte a la setmana anterior', 'compared with the week before', 'par rapport à la semaine précédente'],
+    'La semana pasada, de lunes a domingo, animada para compartir': ['La setmana passada, de dilluns a diumenge, animada per compartir', 'Last week, Monday to Sunday, animated to share', 'La semaine dernière, du lundi au dimanche, animée à partager'],
     // ---- versión caducada (caducada.js) ----
     'Esta versión de PintaMapa ya no funciona': ['Aquesta versió de PintaMapa ja no funciona', 'This version of PintaMapa no longer works', 'Cette version de PintaMapa ne fonctionne plus'],
     'Para seguir jugando, instala la versión nueva. Tu partida, tus calles y tus cartas se quedan como están.': ['Per continuar jugant, instal·la la versió nova. La teva partida, els teus carrers i les teves cartes es queden com estan.', 'To keep playing, install the new version. Your game, your streets and your cards stay as they are.', 'Pour continuer à jouer, installe la nouvelle version. Ta partie, tes rues et tes cartes restent telles quelles.'],
@@ -995,7 +1001,6 @@
     // ---- tu semana (vídeo resumen) ----
     '¡Tu semana pintando está lista!': ['La teva setmana pintant està llesta!', 'Your painting week is ready!', 'Ta semaine de peinture est prête !'],
     'Tu semana en vídeo': ['La teva setmana en vídeo', 'Your week in video', 'Ta semaine en vidéo'],
-    'Resumen animado de los últimos 7 días para compartir': ['Resum animat dels últims 7 dies per compartir', 'Animated summary of the last 7 days to share', 'Résumé animé des 7 derniers jours à partager'],
     'Mi semana': ['La meva setmana', 'My week', 'Ma semaine'],
     'Mi semana pintando': ['La meva setmana pintant', 'My painting week', 'Ma semaine de peinture'],
     'TU SEMANA': ['LA TEVA SETMANA', 'YOUR WEEK', 'TA SEMAINE'],
