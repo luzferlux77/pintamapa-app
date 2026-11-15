@@ -1,10 +1,10 @@
 {
-  "version": "0.9.15",
-  "notes": "Cartas rediseñadas: foto a sangre, colores vivos y un holograma que crece con la rareza",
+  "version": "0.9.16",
+  "notes": "Las cartas ya no muestran datos internos del buscador de lugares",
   "native": 1,
   "nativeApk": 9,
   "apkMin": "0.9.4",
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.9.15/pintamapa-web-0.9.15.zip",
-  "checksum": "bcd7411be156149caf63ac08e298e447ba6f376516b14e4c0bec8eb50fedd656",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.9.15/PintaMapa-v0.9.15.apk"
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.9.16/pintamapa-web-0.9.16.zip",
+  "checksum": "545bddc7c8d83a1c08dd4eb1299c6bf7435766e568f6faa8bd1ecc9a44f35bae",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.9.16/PintaMapa-v0.9.16.apk"
 }
