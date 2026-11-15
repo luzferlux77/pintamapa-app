@@ -1,10 +1,10 @@
 {
-  "version": "0.9.14",
-  "notes": "Álbumes más bonitos: tus cartas primero, lo que falta en casillas pequeñas, miniaturas en el índice y efecto de pasar página",
+  "version": "0.9.15",
+  "notes": "Cartas rediseñadas: foto a sangre, colores vivos y un holograma que crece con la rareza",
   "native": 1,
   "nativeApk": 9,
   "apkMin": "0.9.4",
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.9.14/pintamapa-web-0.9.14.zip",
-  "checksum": "85616982e1a6da6d3fc1ddd9667c63cb7cc70e5453e72e226ee23aa0e2e17854",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.9.14/PintaMapa-v0.9.14.apk"
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.9.15/pintamapa-web-0.9.15.zip",
+  "checksum": "bcd7411be156149caf63ac08e298e447ba6f376516b14e4c0bec8eb50fedd656",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.9.15/PintaMapa-v0.9.15.apk"
 }
