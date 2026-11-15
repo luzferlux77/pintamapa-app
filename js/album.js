@@ -71,25 +71,40 @@ PM.album = (function () {
 
     // El álbum es un archivador: la portada, y luego una carpeta de color por distrito. El orden y el color son fijos (por tamaño,
     // nunca por progreso): como en una carpeta de verdad, se recuerda dónde está cada cosa y qué color tiene
+    // TODO va en su distrito y su barrio (petición del usuario, 15-nov-2026: antes había dos carpetas aparte, «Otros lugares» con tus
+    // cartas fuera de la lista y «Extras» con los lugares para completistas, todos revueltos). En cada barrio: L, los huecos del
+    // álbum (lo único que cuenta para completarlo); X, lo de más: tus cartas fuera de la lista y los extras, que no cuentan
     function carpetasDe(city, A, E) {
-      const cuenta = (x, y) => y.L.length - x.L.length || (x.nombre < y.nombre ? -1 : 1), C = [{ nombre: PM.t('Portada'), portada: true, L: [], subs: [], tinta: TAPA }];
+      const cuenta = (x, y) => y.L.length - x.L.length || (x.nombre < y.nombre ? -1 : 1), C = [{ nombre: PM.t('Portada'), portada: true, L: [], X: [], subs: [], tinta: TAPA }];
       E.principal.concat(E.extras).forEach((e, i) => { e.n = i + 1; });   // (el número del cromo, como en los álbumes de papel)
-      const cuadernos = A.b.map((n, i) => ({ nombre: n, d: (A.d || [])[i] || '', L: E.principal.filter((e) => e.bi === i) })).filter((x) => x.L.length);
-      const sinNombre = cuadernos.length === 1 ? city : PM.t('Otros rincones'), porD = new Map();
-      for (const x of cuadernos) { if (!porD.has(x.d)) porD.set(x.d, []); porD.get(x.d).push(x); }
+      // sin lista (pueblos sin datos): tus cartas son el álbum
+      if (!E.principal.length && !E.extras.length) { if (E.otras.length) C.push({ nombre: city, L: E.otras.map((id) => ({ id })), X: [], subs: [], tinta: { c: TINTAS[0], on: '#fff' } }); return C; }
+      // tus cartas fuera de la lista: al barrio que dice la carta o, si no, al del lugar de la lista más cercano
+      const norm = (t) => String(t || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/^(el|la|els|les|l'|los|las)\s*/, '').trim();
+      const porNombre = new Map(A.b.map((n, i) => [norm(n), i]));
+      const con = A.l.filter((e) => e.pos && e.bi != null), d2 = (p, q) => (p[0] - q[0]) ** 2 + ((p[1] - q[1]) * Math.cos(p[0] * Math.PI / 180)) ** 2;
+      const barrioDe = (id) => {
+        const r = S().landmarks[id] || {};
+        if (r.barrio && porNombre.has(norm(r.barrio))) return porNombre.get(norm(r.barrio));
+        if (!r.pos || !con.length) return -1;
+        let mejor = con[0]; for (const e of con) if (d2(e.pos, r.pos) < d2(mejor.pos, r.pos)) mejor = e;
+        return mejor.bi;
+      };
+      const sueltas = E.otras.map((id) => ({ id, suelta: true, bi: barrioDe(id) }));
+      const cuadernos = A.b.map((n, i) => ({ nombre: n, d: (A.d || [])[i] || '', L: E.principal.filter((e) => e.bi === i), X: sueltas.filter((e) => e.bi === i).concat(E.extras.filter((e) => e.bi === i)) }));
+      const sinSitio = sueltas.filter((e) => e.bi < 0 || e.bi >= A.b.length);
+      if (sinSitio.length) cuadernos.push({ nombre: PM.t('Otros rincones'), d: '', L: [], X: sinSitio });
+      const llenos = cuadernos.filter((x) => x.L.length || x.X.length);
+      const sinNombre = llenos.length === 1 ? city : PM.t('Otros rincones'), porD = new Map();
+      for (const x of llenos) { if (!porD.has(x.d)) porD.set(x.d, []); porD.get(x.d).push(x); }
       // (sin distritos, los barrios son las carpetas; un distrito de un solo barrio no necesita separadores)
+      const junta = (l, f) => [].concat(...l.map(f));
       const carpetas = porD.size > 1
-        ? [...porD].map(([d, l]) => ({ nombre: d || PM.t('Otros rincones'), L: [].concat(...l.map((x) => x.L)), subs: l.length > 1 ? l.map((x) => ({ nombre: x.nombre || d, L: x.L })).sort(cuenta) : [] }))
-        : cuadernos.map((x) => ({ nombre: x.nombre || sinNombre, L: x.L, subs: [] }));
+        ? [...porD].map(([d, l]) => ({ nombre: d || PM.t('Otros rincones'), L: junta(l, (x) => x.L), X: junta(l, (x) => x.X), subs: l.length > 1 ? l.map((x) => ({ nombre: x.nombre || d, L: x.L, X: x.X })).sort(cuenta) : [] }))
+        : llenos.map((x) => ({ nombre: x.nombre || sinNombre, L: x.L, X: x.X, subs: [] }));
       const must = E.principal.filter((e) => e.must);
-      if (must.length) C.push({ nombre: PM.t('Imprescindibles'), ic: '★', L: must, subs: [], tinta: ORO });
+      if (must.length) C.push({ nombre: PM.t('Imprescindibles'), ic: '★', L: must, X: [], subs: [], tinta: ORO });
       carpetas.sort(cuenta).forEach((k, i) => { k.tinta = { c: TINTAS[i % TINTAS.length], on: '#fff' }; C.push(k); });
-      if (E.otras.length) C.push({ nombre: PM.t('Otros lugares'), L: E.otras.map((id) => ({ id })), subs: [], tinta: PIZARRA });
-      if (E.extras.length) {
-        const por = new Map();
-        for (const e of E.extras) { const n = (A.d || [])[e.bi] || A.b[e.bi] || PM.t('Otros rincones'); if (!por.has(n)) por.set(n, []); por.get(n).push(e); }
-        C.push({ nombre: PM.t('Extras'), ic: '✦', L: E.extras, subs: por.size > 1 ? [...por].map(([nombre, L]) => ({ nombre, L })).sort(cuenta) : [], tinta: PIZARRA });
-      }
       return C;
     }
     const cuantos = (L) => [L.filter((e) => e.id).length, L.length];
@@ -106,8 +121,9 @@ PM.album = (function () {
       const pct = E.total ? Math.min(100, Math.floor(E.got / E.total * 100)) : 0, [mg, mn] = cuantos(E.principal.filter((e) => e.must));
       const rar = ['legendario', 'epico', 'raro', 'comun'].map((r) => { const [g, n] = cuantos(E.principal.filter((e) => e.rarity === r)); return { r, g, n }; }).filter((x) => x.n);
       const extra = [];
-      if (E.otras.length) extra.push(PM.t('Y {n} cartas más de esta ciudad, fuera de la lista.', { n: PM.fmtNum(E.otras.length) }));
-      if (E.extras.length) extra.push(PM.t('{n} lugares más para completistas: no cuentan para completar el álbum.', { n: PM.fmtNum(E.extras.length) }));
+      // (lo de más ya no va aparte: está en su barrio, marcado con ✦)
+      const mias = E.otras.length + E.extras.filter((e) => e.id).length;
+      if (mias) extra.push(PM.t('✦ {n} cartas tuyas de más, cada una en su barrio.', { n: PM.fmtNum(mias) }));
       if (A.parcial) extra.push(PM.t('Este álbum crece al explorar: aparecen más lugares según recorres la ciudad.'));
       return `<div class="ab-tapa"><div class="ab-cover ab-hero">${portada(city, A, E, true, true)}</div>
         <div class="ab-res">
@@ -133,9 +149,16 @@ PM.album = (function () {
         return `<button class="ab-fila" data-i="${j}" style="${tinta(c)}" translate="no"><i class="ab-tono"></i><span>${lleno ? '✓ ' : c.ic ? c.ic + ' ' : ''}${esc(c.nombre)}</span><b>${cg}<small>/${cn}</small></b><i class="ab-bar"><em style="width:${pct(c.L)}%"></em></i></button>`;
       }).join('')}</div>`;
       // apartados: los barrios del distrito (o la carpeta entera si no tiene); las casillas se numeran seguidas para pegar()
-      const partes = k.subs.length ? k.subs : [{ nombre: null, L: k.L }], todo = [].concat(...partes.map((p) => p.L));
-      let off = 0;
-      const hojas = partes.map((p) => { const h = `${p.nombre ? `<h5 class="ab-sec" translate="no">${esc(p.nombre)} <span>${cuantos(p.L)[0]}/${p.L.length}</span></h5>` : ''}${rejilla(p.L, off)}`; off += p.L.length; return h; }).join('');
+      // en cada barrio: los huecos del álbum y lo que ya tienes de más (✦); los extras que faltan, plegados (no cuentan, y eran
+      // cientos en las ciudades grandes)
+      const partes = k.subs.length ? k.subs : [{ nombre: null, L: k.L, X: k.X || [] }], todo = [];
+      const hojas = partes.map((p) => {
+        const X = p.X || [], tengo = X.filter((e) => e.id), faltan = X.filter((e) => !e.id);
+        const a = rejilla(p.L.concat(tengo), todo.length); todo.push(...p.L, ...tengo);
+        const b = faltan.length ? `<details class="ab-mas"><summary>＋ ${faltan.length === 1 ? PM.t('1 lugar más') : PM.t('{n} lugares más', { n: PM.fmtNum(faltan.length) })} <small>${PM.t('no cuentan para el álbum')}</small></summary>${rejilla(faltan, todo.length)}</details>` : '';
+        todo.push(...faltan);
+        return `${p.nombre ? `<h5 class="ab-sec" translate="no">${esc(p.nombre)} <span>${p.L.length ? `${cuantos(p.L)[0]}/${p.L.length}` : ''}${tengo.length ? ` ✦${tengo.length}` : ''}</span></h5>` : ''}${a}${b}`;
+      }).join('');
       const [g, n] = cuantos(k.L);
       // barra de arriba que no se va al bajar: siempre se ve cómo volver (antes solo había la ✕, que cierra el álbum entero)
       const barra = k.portada ? `<div class="ab-barra"><button class="ab-atras" data-a="albumes">‹ ${PM.t('Álbumes')}</button></div>`
@@ -165,7 +188,7 @@ PM.album = (function () {
     function rejilla(L, off = 0) {
       return `<div class="cromos ab-grid">${L.map((e, k) => {
     const i = off + k;
-    if (e.id) return `<div class="tcg-cell ab-pegado" data-i="${i}" data-lm="${esc(e.id)}"><div class="ab-slot"></div></div>`;
+    if (e.id) return `<div class="tcg-cell ab-pegado ${e.suelta || e.extra ? 'ab-de-mas' : ''}" data-i="${i}" data-lm="${esc(e.id)}"><div class="ab-slot"></div></div>`;
     const R = PM.lugares.RARITY[e.rarity] || {};
     return `<button class="ab-slot vacio ${e.must ? 'must' : ''}" data-i="${i}"><span class="ab-rz" style="color:${R.color || '#9aa4b2'}">${e.must ? '★ ' : ''}${esc(PM.t(R.label || ''))}</span><span class="ab-em">${esc(e.emoji || '📍')}</span><b translate="no">${esc(e.name)}</b><small>${esc(PM.t(e.kind || ''))}</small>${e.n ? `<span class="ab-num">Nº ${e.n}</span>` : ''}</button>`;
   }).join('')}</div>`;
@@ -195,8 +218,16 @@ PM.album = (function () {
       const y = box.getBoundingClientRect().top + window.scrollY - margen;
       if (window.scrollY > y) window.scrollTo(0, Math.max(0, y));
     };
+    // cuando llega información nueva de las cartas (fotos, textos), se rehacen SOLO las cartas que se ven, sin moverte de donde
+    // estás (antes se volvía a montar el álbum entero y te sacaba de la carpeta que mirabas)
+    function refrescar() {
+      box.querySelectorAll('.ab-pegado').forEach(async (el) => {
+        const id = el.dataset.lm, d = await opts.datos(id);
+        if (el.isConnected) { el.innerHTML = PM.tcg.html(d, { mini: true }); if (opts.pegada) opts.pegada(el, id); }
+      });
+    }
     inicio();
-    return { ciudad };
+    return { ciudad, refrescar };
   }
 
   // ---------------- La primera vez que pisas una ciudad ----------------
@@ -260,6 +291,12 @@ PM.album = (function () {
     .ab-sec { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; margin: 18px 0 10px; padding-top: 12px; border-top: 1px solid var(--b); font-size: 15px; font-weight: 800; color: var(--tx); }
     .ab-sec span { font-size: 12.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
     .ab-hoja .ab-sec:first-of-type { margin-top: 12px; }
+    /* tus cartas de más (fuera de la lista o extras): en su barrio, con una ✦ en la esquina */
+    .ab-de-mas { position: relative; } .ab-de-mas::after { content: '✦'; position: absolute; top: -7px; right: -7px; z-index: 2; display: grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; background: var(--c); color: var(--on); font-size: 12px; box-shadow: 0 1px 4px rgba(15,23,42,.3); }
+    /* los extras que faltan, plegados al final del barrio */
+    .ab-mas { margin-top: 10px; } .ab-mas summary { list-style: none; cursor: pointer; padding: 10px 12px; border-radius: 12px; background: rgba(255,255,255,.7); color: var(--tx); font-size: 13.5px; font-weight: 800; }
+    .ab-mas summary::-webkit-details-marker { display: none; } .ab-mas summary small { font-weight: 600; color: var(--muted); margin-left: 4px; }
+    .ab-mas[open] summary { margin-bottom: 10px; } .ab-mas .ab-slot.vacio { opacity: .8; }
     .ab-fila:focus-visible, .ab-paso:focus-visible, .ab-atras:focus-visible, .ab-slot:focus-visible { outline: 2px solid var(--tx); outline-offset: 2px; }
     .ab-hoja { padding: 14px 12px 18px; border-top: 4px solid var(--c); border-radius: 16px; background: var(--t); }
     .ab-hoja .ab-pag { margin-bottom: 6px; } .ab-hoja .ab-pag b { color: var(--tx); } .ab-hoja > .ab-bar { background: var(--b); margin-bottom: 12px; } .ab-hoja > .ab-bar em { background: var(--c); }

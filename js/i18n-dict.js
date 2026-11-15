@@ -129,6 +129,10 @@
     'barrio': ['barri', 'neighbourhood', 'quartier'],
     'lugar': ['lloc', 'place', 'lieu'],
     // ---- álbum: índice ----
+    '1 lugar más': ['1 lloc més', '1 more place', '1 lieu de plus'],
+    '{n} lugares más': ['{n} llocs més', '{n} more places', '{n} lieux de plus'],
+    'no cuentan para el álbum': ['no compten per a l’àlbum', 'they don’t count for the album', 'ils ne comptent pas pour l’album'],
+    '✦ {n} cartas tuyas de más, cada una en su barrio.': ['✦ {n} cartes teves de més, cadascuna al seu barri.', '✦ {n} extra cards of yours, each in its neighbourhood.', '✦ {n} cartes en plus, chacune dans son quartier.'],
     'Índice': ['Índex', 'Contents', 'Sommaire'],
     'Carpeta anterior': ['Carpeta anterior', 'Previous folder', 'Dossier précédent'],
     'Carpeta siguiente': ['Carpeta següent', 'Next folder', 'Dossier suivant'],

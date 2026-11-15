@@ -388,7 +388,7 @@ PM.cards = (function () {
   function album(container, opts = {}) {
     const s = S();
     const ids = Object.keys(s.landmarks).sort((a, b) => s.landmarks[b].t - s.landmarks[a].t);
-    let tab = 'cromos';
+    let tab = 'cromos', vista = null;
     const draw = async () => {
       let html = `<div class="seg tabs"><button class="btn ${tab === 'cromos' ? 'on' : ''}" data-t="cromos">Álbumes</button>
         <button class="btn ${tab === 'col' ? 'on' : ''}" data-t="col">Colecciones</button>
@@ -418,7 +418,7 @@ PM.cards = (function () {
         // mazos por ciudad (la que más cartas tiene, primero): se despliegan al tocar
         // (las cartas sin ciudad conocida van en su mazo, como antes)
         const sueltas = ids.filter((id) => !s.landmarks[id].city || PM.album.NO_ES_CIUDAD.test(s.landmarks[id].city));
-        const vista = PM.album.montar(container.querySelector('#city-stacks'), { datos: dataFor, abrir: open, irA: opts.goTo });
+        vista = PM.album.montar(container.querySelector('#city-stacks'), { datos: dataFor, abrir: open, irA: opts.goTo });
         if (opts.ciudad) vista.ciudad(opts.ciudad);
         if (sueltas.length) { const box = document.createElement('div'); container.appendChild(box); PM.tcg.stacks(box, [{ city: 'Otros lugares', ids: sueltas }], dataFor, (el, id) => el.addEventListener('click', () => open(id)), 'cromos'); }
       }
@@ -428,7 +428,7 @@ PM.cards = (function () {
     };
     draw();
     // completar info de los cromos que aún no la tienen (poco a poco)
-    (async () => { for (const id of ids) if (caduca(S().cardInfo[id])) { const r = S().landmarks[id]; if (r) await fetchInfo(id, PM.world.landmarks[id] || Object.assign({ id, pos: r.pos }, r)); } if (tab === 'cromos') draw(); })();
+    (async () => { for (const id of ids) if (caduca(S().cardInfo[id])) { const r = S().landmarks[id]; if (r) await fetchInfo(id, PM.world.landmarks[id] || Object.assign({ id, pos: r.pos }, r)); } if (tab === 'cromos' && vista && container.isConnected) vista.refrescar(); })();   // (sin sacarte de la carpeta que miras)
   }
 
   function barrioCardHTML(b) {
