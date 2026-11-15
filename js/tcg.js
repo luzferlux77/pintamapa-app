@@ -251,7 +251,7 @@ PM.tcg = (function () {
           <div class="tcg-inner">
             <div class="tcg-art">
               <div class="tcg-photo" ${d.img ? `style="background-image:url('${esc(cssUrl(d.img))}')"` : ''}>${d.img ? '' : `<span>${esc(d.emoji || '📍')}</span>`}</div>
-              <div class="tcg-holo"></div><div class="tcg-stars"></div><div class="tcg-veil"></div>
+              <div class="tcg-holo"></div><div class="tcg-veil"></div>
               <div class="tcg-head">
                 <span class="tcg-gem" title="${esc(PM.t(R.name))}"><b>${R.sym}</b></span>
                 <span class="tcg-tipo">${T.ic} ${esc(PM.t(T.name))}</span>
@@ -278,6 +278,7 @@ PM.tcg = (function () {
   }
 
   // ---------------- Interacción: inclinación 3D + brillo que sigue al puntero; tocar = voltear ----------------
+  const CON_RATON = !!(window.matchMedia && matchMedia("(hover: hover)").matches);   // (en el móvil el marco no gira: parpadeaba)
   function interactive(el) {
     const rot = el.querySelector('.tcg-rot');
     let flipped = false, raf = null, target = { x: 50, y: 50 }, cur = { x: 50, y: 50 }, active = false, dedo = null, movido = false;
@@ -289,7 +290,7 @@ PM.tcg = (function () {
       el.style.setProperty('--mx', cur.x + '%'); el.style.setProperty('--my', cur.y + '%');
       el.style.setProperty('--rx', rx + 'deg'); el.style.setProperty('--ry', (flipped ? 180 : 0) + ry + 'deg');
       el.style.setProperty('--hyp', Math.min(1, Math.hypot(cur.x - 50, cur.y - 50) / 50).toFixed(3));
-      el.style.setProperty('--ang', (cur.x * 3.6 + cur.y * 1.2).toFixed(1) + 'deg');   // (el marco de oro y el arcoíris del marco giran con la luz)
+      if (CON_RATON) el.style.setProperty('--ang', (cur.x * 3.6 + cur.y * 1.2).toFixed(1) + 'deg');   // (el marco de oro y el arcoíris del marco giran con la luz)
       if (Math.abs(target.x - cur.x) > 0.1 || Math.abs(target.y - cur.y) > 0.1) raf = requestAnimationFrame(apply); else raf = null;
     };
     const go = () => { if (!raf) raf = requestAnimationFrame(apply); };
@@ -501,21 +502,14 @@ PM.tcg = (function () {
   .tcg.mini .tcg-art { flex-basis: 87%; } .tcg.mini .tcg-flavor, .tcg.mini .tcg-credit { display: none; }
   .tcg.mini .tcg-panel { justify-content: center; padding-top: .45em; } .tcg.mini .tcg-foot { font-size: .62em; }
   /* ===== Holograma (por capas; cuanto más rara, más) ===== */
-  .tcg-holo, .tcg-stars, .tcg-foil, .tcg-glitter, .tcg-glare { position: absolute; inset: 0; pointer-events: none; }
-  .tcg-holo, .tcg-stars { z-index: 1; }
+  .tcg-holo, .tcg-foil, .tcg-glitter, .tcg-glare { position: absolute; inset: 0; pointer-events: none; }
+  .tcg-holo { z-index: 1; }
   .tcg-foil, .tcg-glitter { z-index: 5; border-radius: inherit; } .tcg-glare { z-index: 6; border-radius: inherit; }
   /* 1) lámina arcoíris de la foto (épica y legendaria): bandas finas que se deslizan al mover la carta */
   .tcg-holo { opacity: 0; mix-blend-mode: color-dodge; background-size: 300% 300%; background-position: var(--mx) var(--my);
     background-image: repeating-linear-gradient(115deg, transparent 0%, rgba(255,0,140,.55) 2.2%, rgba(255,210,0,.5) 3.6%, rgba(0,255,170,.5) 5%, rgba(0,170,255,.55) 6.4%, rgba(190,0,255,.5) 7.8%, transparent 10%, transparent 16%); }
   .r-epico .tcg-holo { opacity: calc(.08 + var(--hyp) * .38); }
   .r-legendario .tcg-holo { opacity: calc(.12 + var(--hyp) * .45); }
-  /* 2) polvo de estrellas (épica y legendaria), que se mueve un poco con la luz */
-  .tcg-stars { opacity: 0; mix-blend-mode: screen; background-position: calc(var(--mx) * .2) calc(var(--my) * .2);
-    background-image: radial-gradient(circle, #fff 0 .06em, transparent .1em), radial-gradient(circle, rgba(255,255,255,.8) 0 .04em, transparent .08em), radial-gradient(circle, rgba(255,240,180,.9) 0 .05em, transparent .09em);
-    background-size: 3.1em 3.7em, 2.3em 2.1em, 4.7em 4.1em; }
-  .r-epico .tcg-stars { opacity: calc(.25 + var(--hyp) * .5); }
-  .r-legendario .tcg-stars { opacity: .55; animation: tcgTitila 2.6s ease-in-out infinite alternate; }
-  @keyframes tcgTitila { to { opacity: .95; } }
   /* 3) lámina holográfica de TODA la carta: arcoíris + raya de luz; muy suave en común, a tope en legendaria y brillante */
   .tcg-foil { mix-blend-mode: color-dodge; opacity: calc(var(--holo) * (.04 + var(--hyp) * .32));
     background-image: linear-gradient(115deg, transparent 22%, rgba(255,90,180,.55) 34%, rgba(255,226,120,.5) 42%, rgba(110,255,210,.5) 50%, rgba(110,190,255,.55) 58%, rgba(200,140,255,.5) 66%, transparent 78%),
@@ -547,8 +541,8 @@ PM.tcg = (function () {
   .tcg-shinytag.musttag { background: linear-gradient(90deg, #991b1b, #f59e0b, #991b1b); color: #fff; text-shadow: 0 1px 1px rgba(0,0,0,.35); }
   .tcg.mini .tcg-shinytag { font-size: .66em; }
   /* sin animaciones en las miniaturas (en el álbum hay decenas a la vez) ni si el sistema pide reducir el movimiento */
-  .tcg.mini .tcg-stars, .tcg.mini.shiny .tcg-foil { animation: none; }
-  @media (prefers-reduced-motion: reduce) { .tcg-stars, .tcg.shiny .tcg-foil { animation: none !important; } }
+  .tcg.mini.shiny .tcg-foil { animation: none; }
+  @media (prefers-reduced-motion: reduce) { .tcg.shiny .tcg-foil { animation: none !important; } }
   /* holograma del reverso: arcoíris muy suave que se desliza al mover la carta */
   .bk-holo { position: absolute; inset: 0; pointer-events: none; z-index: 3; border-radius: inherit; mix-blend-mode: overlay; opacity: calc(.04 + var(--hyp) * .2);
     background: linear-gradient(120deg, transparent 20%, rgba(255,80,170,.55) 32%, rgba(255,220,90,.5) 40%, rgba(80,255,190,.45) 48%, rgba(90,190,255,.55) 56%, rgba(190,110,255,.5) 64%, transparent 76%);
@@ -560,7 +554,6 @@ PM.tcg = (function () {
     .tcg-glitter { display: none; }
     .tcg-holo { mix-blend-mode: normal; }
     .r-epico .tcg-holo { opacity: calc(var(--hyp) * .32); } .r-legendario .tcg-holo { opacity: calc(.06 + var(--hyp) * .34); }
-    .tcg-stars { mix-blend-mode: normal; }
     .tcg-foil { mix-blend-mode: normal; opacity: calc(var(--holo) * var(--hyp) * .22); }
     .r-legendario .tcg-foil { opacity: calc(.05 + var(--hyp) * .3); }
     .tcg.shiny .tcg-foil { animation: none; opacity: calc(.12 + var(--hyp) * .25); }
