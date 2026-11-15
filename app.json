@@ -1,10 +1,10 @@
 {
-  "version": "0.9.17",
-  "notes": "Cartas: las etiquetas de imprescindible y brillante, fuera de la foto, justo antes de la descripción",
+  "version": "0.9.18",
+  "notes": "Cartas sin puntitos ni parpadeos en el móvil",
   "native": 1,
   "nativeApk": 9,
   "apkMin": "0.9.4",
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.9.17/pintamapa-web-0.9.17.zip",
-  "checksum": "90e069e15257ed84681b3309dfdbab96a552576cf3e97d3ae1538e04c5f94476",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.9.17/PintaMapa-v0.9.17.apk"
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.9.18/pintamapa-web-0.9.18.zip",
+  "checksum": "e91877abce260082685dbc91b94e7ade2b9740192e2697fed0ea14832c688483",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.9.18/PintaMapa-v0.9.18.apk"
 }
