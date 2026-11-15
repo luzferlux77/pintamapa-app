@@ -48,7 +48,7 @@ PM.tcg = (function () {
   const T = (s, v) => (PM.t ? PM.t(s, v) : s);   // (todo en el idioma elegido)
   const num = (x, dec) => x.toLocaleString(PM.LOCALE || 'es-ES', { maximumFractionDigits: dec || 0 });
   function datos(d) {
-    const out = [], her = +d.her || 0, y = +d.anio || 0, vis = +d.vis || 0, wp = +d.wp || 0;
+    const out = [], her = +d.her || 0, y = +d.anio || 0, vis = +d.vis || 0;   // (lo que se sabe del SITIO; lo del motor de lugares, como en cuántas Wikipedias está, no va en la carta)
     if (her === 3) out.push(T('Es Patrimonio de la Humanidad por la UNESCO.'));
     else if (her === 2) out.push(T('Está protegido como patrimonio nacional.'));
     else if (her === 1) out.push(T('Está catalogado como patrimonio protegido.'));
@@ -56,7 +56,6 @@ PM.tcg = (function () {
     else if (y >= 1800) out.push(T('Es de {y}.', { y }));
     if (vis >= 1e6) out.push(T('Recibe unos {n} millones de visitantes al año.', { n: num(vis / 1e6, 1) }));
     else if (vis >= 20000) out.push(T('Recibe unos {n} mil visitantes al año.', { n: num(Math.round(vis / 1000)) }));
-    if (wp >= 10) out.push(T('Tiene artículo en la Wikipedia de {n} idiomas.', { n: wp }));
     return out;
   }
   // para no repetir lo que el texto ya dice (en cualquiera de los cuatro idiomas)
@@ -87,7 +86,6 @@ PM.tcg = (function () {
         if (YA.her.test(f) && ya(YA.her)) continue;
         if (YA.vis.test(f) && ya(YA.vis)) continue;
         if ((YA.any.test(f) || /\d{4}\.$/.test(f)) && ya(YA.any)) continue;
-        if (/Wikip[eè]dia/.test(f)) continue;   // (con su propio artículo, el número de idiomas no aporta)
         t += ' ' + f;
       }
     }
@@ -234,8 +232,6 @@ PM.tcg = (function () {
     </div>`;
   }
 
-  // «por qué merece la pena» (se guarda en castellano: se traduce cada trozo al enseñarlo)
-  const porque = (p) => String(p).split(' · ').map((x) => T(x)).join(' · ');
 
   // ---------------- HTML de la carta ----------------
   // d = { id, name, kind, emoji, rarity, city, barrio, t, visits, img, own, text, points, number, total, player, credit }
@@ -268,7 +264,6 @@ PM.tcg = (function () {
               </div>
             </div>
             <div class="tcg-panel" data-ic="${T.ic}">
-              ${d.porque ? `<div class="tcg-why" translate="no">✦ ${esc(porque(d.porque))}</div>` : ''}
               ${(() => { const tx = descText(d); return `<div class="tcg-flavor ${fitClass(tx)}" translate="no">${esc(tx)}</div>`; })()}
               <div class="tcg-foot"><span class="tcg-num">Nº ${d.number || 1}<small>/${d.total || 1}</small></span>
                 <span class="tcg-credit">${esc(d.own ? PM.t('Foto propia') : (d.credit || 'Foto: Wikimedia Commons'))}</span>
@@ -495,7 +490,6 @@ PM.tcg = (function () {
   .tcg-panel::before { content: ''; position: absolute; left: 0; right: 0; top: 0; height: .22em; background: linear-gradient(90deg, var(--t1), var(--t2)); }
   .tcg-panel::after { content: attr(data-ic); position: absolute; right: -.08em; bottom: -.25em; font-size: 4.6em; line-height: 1; opacity: .09; pointer-events: none; transform: rotate(-12deg); }
   .tcg-panel > * { position: relative; z-index: 1; }
-  .tcg-why { font-size: .6em; font-weight: 900; line-height: 1.25; color: var(--t2); letter-spacing: .01em; }
   /* descripción: alto que queda y letra que se ajusta para que quepa ENTERA (f1 corto … f4 largo; autofit la mide de verdad) */
   .tcg-flavor { flex: 1; min-height: 0; box-sizing: border-box; font-size: .7em; line-height: 1.32; color: #27272a; overflow: hidden; hyphens: auto; font-weight: 500; }
   .tcg-flavor.fx { font-size: 1em; line-height: 1.38; } .tcg-flavor.f0 { font-size: .86em; line-height: 1.36; } .tcg-flavor.f1 { font-size: .74em; } .tcg-flavor.f2 { font-size: .63em; } .tcg-flavor.f3 { font-size: .57em; } .tcg-flavor.f4 { font-size: .52em; }
@@ -504,7 +498,7 @@ PM.tcg = (function () {
   .tcg-credit { flex: 1; min-width: 0; overflow-wrap: anywhere; font-weight: 600; opacity: .8; }
   .tcg-set { font-weight: 900; font-style: italic; color: #1b1b1b; white-space: nowrap; } .tcg-set b { color: var(--t2); } .tcg-set i { font-style: normal; color: var(--b3); margin-left: .15em; }
   /* --- miniaturas (álbum, mazos): la foto y el nombre mandan; la historia se lee al abrirla --- */
-  .tcg.mini .tcg-art { flex-basis: 87%; } .tcg.mini .tcg-flavor, .tcg.mini .tcg-credit, .tcg.mini .tcg-why { display: none; }
+  .tcg.mini .tcg-art { flex-basis: 87%; } .tcg.mini .tcg-flavor, .tcg.mini .tcg-credit { display: none; }
   .tcg.mini .tcg-panel { justify-content: center; padding-top: .45em; } .tcg.mini .tcg-foot { font-size: .62em; }
   /* ===== Holograma (por capas; cuanto más rara, más) ===== */
   .tcg-holo, .tcg-stars, .tcg-foil, .tcg-glitter, .tcg-glare { position: absolute; inset: 0; pointer-events: none; }
