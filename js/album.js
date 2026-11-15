@@ -127,7 +127,7 @@ PM.album = (function () {
       box.dataset.vista = 'carpeta';
       box.innerHTML = `<div class="ab-tiras">${C.map((c, j) => {
     const [cg, cn] = cuantos(c.L), lleno = cn && cg >= cn;
-    return `<button class="ab-t ${j === i ? 'on' : ''}" data-i="${j}" style="${tinta(c)};--p:${cn ? Math.round(cg / cn * 100) : 0}%" translate="no">${lleno ? '✓ ' : c.ic ? c.ic + ' ' : ''}${esc(c.nombre)}</button>`;
+    return `<button class="ab-t ${j === i ? 'on' : ''}" data-i="${j}" style="${tinta(c)};--p:${cn ? Math.round(cg / cn * 100) : 0}%" translate="no">${lleno ? '✓ ' : c.ic ? c.ic + ' ' : ''}${esc(c.nombre)}${c.portada || !cn ? '' : ` <small>${cg}/${cn}</small>`}</button>`;
   }).join('')}</div>
         <div class="ab-hoja" style="${tinta(k)}">${k.portada ? tapa(city, V) : `
           <div class="ab-pag"><b translate="no">${esc(s ? k.subs[s - 1].nombre : k.nombre)}</b><span>${g}/${n}</span></div>
@@ -136,10 +136,7 @@ PM.album = (function () {
           ${rejilla(L)}`}
         </div>`;
       box.prepend(volver(PM.t('Álbumes'), inicio));
-      const tiras = box.querySelector('.ab-tiras'), activa = tiras.querySelector('.on');
-      if (activa) tiras.scrollLeft = activa.offsetLeft - (tiras.clientWidth - activa.offsetWidth) / 2;
-      const sep = box.querySelector('.ab-s.on');
-      if (sep) sep.parentElement.scrollLeft = sep.offsetLeft - 40;
+      const tiras = box.querySelector('.ab-tiras');
       tiras.querySelectorAll('.ab-t').forEach((b) => b.addEventListener('click', () => carpeta(city, V, +b.dataset.i, 0)));
       box.querySelectorAll('.ab-s').forEach((b) => b.addEventListener('click', () => carpeta(city, V, i, +b.dataset.s)));
       pegar(L);
@@ -219,17 +216,17 @@ PM.album = (function () {
     .ab-ex { font-size: 12px; font-weight: 800; white-space: nowrap; opacity: .9; }
     .ab-go { position: absolute; right: 12px; top: 6px; font-size: 26px; font-weight: 700; text-shadow: 0 1px 4px rgba(0,0,0,.6); }
     .ab-back { border: 0; background: none; color: var(--accent); font: inherit; font-weight: 700; padding: 4px 0 10px; cursor: pointer; }
-    /* pestañas: una por carpeta, con una línea de progreso abajo; la activa se une a su hoja */
-    .ab-tiras { position: sticky; top: 0; z-index: 3; display: flex; align-items: flex-end; gap: 3px; overflow-x: auto; padding-top: 6px; background: var(--ab-fondo, var(--panel, #fff)); scrollbar-width: none; }
-    .ab-tiras::-webkit-scrollbar, .ab-subs::-webkit-scrollbar { display: none; }
-    .ab-t { position: relative; flex: none; max-width: 68%; padding: 8px 13px 8px; overflow: hidden; border: 0; border-radius: 10px 10px 0 0; background: var(--b); color: var(--tx); font: inherit; font-size: 13px; font-weight: 800; white-space: nowrap; text-overflow: ellipsis; cursor: pointer; transition: background-color .15s; }
-    .ab-t::after { content: ''; position: absolute; left: 0; bottom: 0; width: var(--p); height: 3px; background: var(--c); }
-    .ab-t.on { padding-top: 11px; background: var(--c); color: var(--on); } .ab-t.on::after { display: none; }
+    /* carpetas: TODAS a la vista (en varias líneas si hace falta), cada una con su color y su cuenta. Antes eran pestañas en una
+       tira que se deslizaba de lado y escondía la mayoría sin avisar (petición del usuario, 15-nov-2026) */
+    .ab-tiras { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+    .ab-t { max-width: 100%; padding: 7px 12px; border: 0; border-radius: 99px; background: var(--b); color: var(--tx); font: inherit; font-size: 13px; font-weight: 800; line-height: 1.2; text-align: left; overflow-wrap: anywhere; cursor: pointer; transition: background-color .15s; }
+    .ab-t small { font-size: 11.5px; font-weight: 700; opacity: .75; font-variant-numeric: tabular-nums; }
+    .ab-t.on { background: var(--c); color: var(--on); box-shadow: 0 2px 6px rgba(15,23,42,.18); }
     .ab-t:focus-visible, .ab-s:focus-visible, .ab-slot:focus-visible { outline: 2px solid var(--tx); outline-offset: 2px; }
-    .ab-hoja { padding: 14px 12px 18px; border-top: 4px solid var(--c); border-radius: 0 0 16px 16px; background: var(--t); }
+    .ab-hoja { padding: 14px 12px 18px; border-top: 4px solid var(--c); border-radius: 16px; background: var(--t); }
     .ab-hoja .ab-pag { margin-bottom: 6px; } .ab-hoja .ab-pag b { color: var(--tx); } .ab-hoja > .ab-bar { background: var(--b); margin-bottom: 12px; } .ab-hoja > .ab-bar em { background: var(--c); }
-    .ab-subs { display: flex; gap: 6px; overflow-x: auto; margin: 0 -12px 14px; padding: 0 12px 2px; scrollbar-width: none; }
-    .ab-s { flex: none; padding: 6px 11px; border: 1.5px solid var(--tx); border-radius: 99px; background: rgba(255,255,255,.7); color: var(--tx); font: inherit; font-size: 12.5px; font-weight: 700; white-space: nowrap; cursor: pointer; }
+    .ab-subs { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 14px; }   /* (los barrios del distrito, también todos a la vista) */
+    .ab-s { max-width: 100%; padding: 6px 11px; border: 1.5px solid var(--tx); border-radius: 99px; background: rgba(255,255,255,.7); color: var(--tx); font: inherit; font-size: 12.5px; font-weight: 700; overflow-wrap: anywhere; text-align: left; cursor: pointer; }
     .ab-s.on { border-color: var(--c); background: var(--c); color: var(--on); } .ab-s small { font-size: 11px; opacity: .75; }
     /* portada: la foto y lo que dice de toda la ciudad */
     .ab-tapa { display: flex; flex-direction: column; gap: 16px; }
