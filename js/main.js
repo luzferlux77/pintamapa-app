@@ -1176,6 +1176,7 @@
     if (mode === 'sim') target = null;
   });
   window.addEventListener('keyup', (e) => { keys[e.key.toLowerCase()] = false; });
+  window.addEventListener('blur', () => { for (const k in keys) keys[k] = false; });   // (la ventana pierde el foco con una tecla pulsada: no se queda andando)
 
   map.on('click', (e) => {
     if (mapReady && map.getLayer('pm-lms') && map.queryRenderedFeatures(e.point, { layers: ['pm-lms'] }).length) return;   // tocó un lugar
@@ -1283,6 +1284,7 @@
     base.addEventListener('touchstart', (e) => { e.preventDefault(); startJ(e.touches[0].clientX, e.touches[0].clientY); }, { passive: false });
     base.addEventListener('touchmove', (e) => { e.preventDefault(); moveJ(e.touches[0].clientX, e.touches[0].clientY); }, { passive: false });
     base.addEventListener('touchend', endJ);
+    base.addEventListener('touchcancel', endJ);   // (un aviso del sistema o un gesto cancela el toque: el muñeco se para)
     base.addEventListener('mousedown', (e) => { startJ(e.clientX, e.clientY); });
     window.addEventListener('mousemove', (e) => moveJ(e.clientX, e.clientY));
     window.addEventListener('mouseup', endJ);
@@ -1674,7 +1676,7 @@
         avisoDiario('vig:movido ' + Math.round(d) + 'm');
         PM.errores && PM.errores.add('aviso', 'GPS dormido durante el paseo (te habías movido): se reinicia');
         startGPS();
-        onFix({ latitude: q.p[0], longitude: q.p[1], accuracy: acc }, Date.now());   // (el tramo sin lecturas se rellena por las calles)
+        onFix({ latitude: q.p[0], longitude: q.p[1], accuracy: acc }, q.t || Date.now());   // (el tramo sin lecturas se rellena por las calles; con la hora del GPS, como las demás)
         return 'movido';
       }
       avisoDiario((acc <= 50 ? 'vig:quieto ' : 'vig:incierto ') + Math.round(acc) + 'm');
@@ -1885,9 +1887,12 @@
   // pausa (antes, si habían pasado más de 20 min, se pausaba y lo que anduvieras después no se pintaba hasta pulsar ▶).
   // Si fue hace poco, el hueco desde tu última posición se rellena por las calles; si fue hace más de 20 min no se adivina
   // por dónde fuiste: empieza un tramo nuevo y ese rato sin la app no cuenta como tiempo de paseo
-  let autoResumed = false, vueltaLarga = false, cerradaMin = 0;
+  // vistaAntes: la hora en que la app dejó de ver el paseo, guardada YA. Durante el arranque se puede pintar (teleport) y el
+  // aviso de puntos renueva session.lastSeen; antes se usaba esa hora renovada como «última lectura», y la recuperación del
+  // diario GPS pedía desde AHORA: se perdía todo lo apuntado con la app cerrada (informe de Gemini, 20-nov-2026)
+  let autoResumed = false, vueltaLarga = false, cerradaMin = 0, vistaAntes = 0;
   if (session && !session.paused) {
-    autoResumed = true;
+    autoResumed = true; vistaAntes = session.lastSeen || 0;
     cerradaMin = Math.round((Date.now() - (session.lastSeen || Date.now())) / 60000);   // (se mide ya: luego lastSeen se renueva)
     if (Date.now() - (session.lastSeen || 0) >= 20 * 60000) {
       vueltaLarga = true;
@@ -2176,7 +2181,7 @@
     }
     if (rp.m > 0) session.st.repaso = Math.round(rp.m);
     if (repaso[0]) session.st.unidos = repaso[0];
-    if (rp.n || repaso[0]) flushPaint();
+    if (rp.n || rp.m > 0 || repaso[0]) flushPaint();   // (también si el repaso solo pintó gemelas: rp.m)
     if (!session.paused) session.elapsed += Date.now() - session.resumedAt;
     const s = session; session = null;
     if (s.elapsed >= 120000) {   // los paseos de menos de 2 minutos no se guardan en el historial (lo pintado sí cuenta)
@@ -2279,7 +2284,7 @@
     for (const id in S().painted) { const pc = W.pieces[id]; if (pc) geo[id] = pc.pts; else if (pgeo.has(id)) geo[id] = pgeo.get(id).p; }   // (también lo de zonas no cargadas)
     await PM.need('lib/mp4-muxer.js', 'js/replay.js');
     // lugares conquistados (o vueltos a visitar) durante ESTE paseo: salen en el vídeo con su círculo y confeti
-    const fin = w.start + Math.max(w.elapsed || 0, ...(w.track || []).filter(Boolean).map((q) => (q[2] || 0) * 1000)) + 60000;
+    const fin = w.start + (w.track || []).reduce((m, q) => (q ? Math.max(m, (q[2] || 0) * 1000) : m), w.elapsed || 0) + 60000;   // (sin «...»: con muchísimos puntos rebosaba la pila)
     const caps = Object.values(S().landmarks).filter((r) => r && r.pos && ((r.t >= w.start && r.t <= fin) || (r.last >= w.start && r.last <= fin)))
       .map((r) => ({ pos: r.pos, name: r.name, emoji: r.emoji || '📍', nuevo: r.t >= w.start, must: !!r.must }));
     PM.replay.open(w, { geo, color: paintColor(), player: PM.player && PM.player.name, caps });
@@ -2317,8 +2322,11 @@
   // Importar un recorrido de reloj: lee los puntos (con hora y altitud), carga sus calles y las pinta siguiendo el trazado
   async function importTrack(file) {
     const msg = (t) => { const el = $('#imp-msg'); if (el) el.textContent = t; };
+    // con un paseo en marcha (o en pausa) no: lo pintado se sumaba a ESE paseo (metros, tramos, puntos) —informe de Gemini—
+    if (session) { msg('⏸ ' + PM.t('Termina el paseo antes de importar un recorrido.')); return; }
     try {
       const xml = new DOMParser().parseFromString(await file.text(), 'application/xml');
+      if (xml.getElementsByTagName('parsererror').length) { msg('❌ ' + PM.t('El archivo está dañado o no es un GPX/TCX.')); return; }
       const segs = PM.tramosGPX(xml);
       const pts = [].concat(...segs);
       if (pts.length < 2) { msg('❌ No encuentro puntos de recorrido en el archivo.'); return; }
@@ -2336,14 +2344,33 @@
       const st = { walked: 0, painted: 0, pts: 0, pieces: 0, captures: 0, bestCombo: 0, conquests: 0, repassed: 0 };
       const before = { m: S().stats.paintedM, xp: S().xp };
       const track = [];
-      // cada tramo del archivo por separado: entre uno y otro no se pinta ni se suma nada, y el recorrido guarda el corte
-      segs.forEach((seg, si) => {
-        if (si && track.length) track.push(null);
-        let last = null;
+      // cada tramo del archivo por separado: entre uno y otro no se pinta ni se suma nada, y el recorrido guarda el corte.
+      // Con las mismas reglas que al andar (informe de Gemini, 20-nov-2026): lo hecho a más de 20 km/h (coche, tren, bici
+      // rápida) no pinta ni suma, y queda como corte; la velocidad se mide en ventanas de 20 s, como mínimo, para que el
+      // temblor del GPS de una lectura a otra no cuente como ir rápido. Y en calma: sin salpicaduras ni combo
+      let enVehiculo = 0;
+      enRepaso = true;
+      try { G.enCalma(() => segs.forEach((seg, si) => {
+        if (si && track.length && track[track.length - 1] !== null) track.push(null);
+        let last = null, j = 0;
+        const cum = [0];
+        for (let i = 1; i < seg.length; i++) cum.push(cum[i - 1] + PM.geo.dist([seg[i - 1].lat, seg[i - 1].lon], [seg[i].lat, seg[i].lon]));
         for (let i = 0; i < seg.length; i++) {
           const q = [seg[i].lat, seg[i].lon];
+          let rapido = false;
+          if (i && isFinite(seg[i].t)) {
+            while (j < i - 1 && isFinite(seg[j + 1].t) && seg[i].t - seg[j + 1].t >= 20000) j++;
+            const dt = isFinite(seg[j].t) ? (seg[i].t - seg[j].t) / 1000 : 0;
+            if (dt >= 10) rapido = (cum[i] - cum[j]) / dt > MAX_SPEED;
+            else rapido = cum[i] - cum[j] > 60;   // (en los primeros segundos: solo un salto claro, más de 60 m)
+            // y el propio tramo, si sus dos lecturas están separadas lo bastante para que el temblor no cuente: al subir al coche, la
+            // media de 20 s aún incluye lo andado y se pintaban los primeros cientos de metros
+            const dti = isFinite(seg[i - 1].t) ? (seg[i].t - seg[i - 1].t) / 1000 : 0;
+            if (dti >= 3 && (cum[i] - cum[i - 1]) / dti > MAX_SPEED * 1.5) rapido = true;
+          }
           if (i) {
             const a = [seg[i - 1].lat, seg[i - 1].lon], d = PM.geo.dist(a, q);
+            if (rapido) { enVehiculo += d; if (track.length && track[track.length - 1] !== null) track.push(null); last = null; continue; }
             if (d < 400) { const n = Math.ceil(d / 4), hd = [q[0] - a[0], (q[1] - a[1]) * Math.cos(q[0] * Math.PI / 180)]; for (let k = 1; k <= n; k++) paintAround(PM.geo.lerp(a, q, k / n), hd); st.walked += d; }
           }
           if (!last || PM.geo.dist(last, q) >= 8 || i === seg.length - 1) {
@@ -2352,13 +2379,15 @@
             track.push(p); last = q;
           }
         }
-      });
+      })); } finally { enRepaso = false; }
+      if (track.length && track[track.length - 1] === null) track.pop();
       st.painted = S().stats.paintedM - before.m; st.pts = S().xp - before.xp;
       G.addWalk(st.walked);
       S().walks.push({ id: 'gpx' + t0, start: t0, elapsed: t1 - t0, st, track, imported: true });
       S().walks.sort((x, y) => x.start - y.start);
       PM.state.save(); flushPaint();
-      msg(`✅ Importado: ${PM.fmtDist(st.walked)} recorridos · ${PM.fmtDist(st.painted)} de calles nuevas pintadas.`);
+      msg(`✅ Importado: ${PM.fmtDist(st.walked)} recorridos · ${PM.fmtDist(st.painted)} de calles nuevas pintadas.` +
+        (enVehiculo > 100 ? ' ' + PM.t('{d} a más de 20 km/h (en vehículo): no se pintan.', { d: PM.fmtDist(enVehiculo) }) : ''));
       PM.sync.auto();
     } catch (e) { msg('❌ No se pudo leer el archivo: ' + (e.message || e)); }
   }
@@ -2369,7 +2398,11 @@
       showAt(pos, false);
       flushPaint(); updateSessionInfo(); wakeLoop();
       if (mode === 'gps') {
-        if (gpsWanted()) { if (!gpsWatch || Date.now() - lastFixT > 20000) startGPS(); }   // el servicio pudo morir en el bolsillo
+        // el servicio pudo morir en el bolsillo. Con diario GPS no se reinicia aquí a ciegas: el otro aviso de «vuelve a verse»
+        // recupera primero lo apuntado y SOLO si sigue sin haber lecturas recientes pregunta la posición (gpsDespierto). Antes
+        // este reinicio llegaba primero: el GPS sano se reiniciaba cada vez que sacabas el móvil y gpsDespierto no llegaba nunca
+        // a mirar (informe de Gemini, 20-nov-2026)
+        if (gpsWanted()) { if (!gpsWatch || (Date.now() - lastFixT > 20000 && !(session && !session.paused && hayDiarioGps()))) startGPS(); }
         else locateOnce();                                                               // sin paseo: una lectura para recolocarte
       }
       // (la zona de donde estás, no null: quieto no llega otra lectura y el rótulo se quedaba en «Cargando calles…»)
@@ -2716,7 +2749,7 @@
   function showLandmarkInfo(lm) {
     const got = S().landmarks[lm.id];
     if (got) { PM.cards.open(lm.id); return; }   // conquistado: se abre su carta directamente
-    const r = W.RARITY[lm.rarity];
+    const r = W.RARITY[lm.rarity] || W.RARITY.comun;   // (un lugar con una rareza rara o sin ella no rompe la ficha)
     const d = PM.geo.dist(pos, lm.pos);
     openSheet(lm.emoji + ' ' + (got ? lm.name : '???'), `
       ${lm.must ? `<p class="must-pill">⭐ <b>Imprescindible</b> de ${PM.esc(W.cityAt(lm.pos) || 'esta ciudad')} · vale el doble</p>` : ''}
@@ -2883,7 +2916,8 @@
     const pr = B && W.barrioComplete(id) ? G.barrioProgress(id) : null;
     let paintedM = 0, totalM = B ? B.total : 0;
     if (B) for (const pc of B.pieces) if (!pc.trail && s.painted[pc.id]) paintedM += pc.len;
-    const places = Object.entries(s.landmarks || {}).filter(([, v]) => v.barrio === name).map(([lid, v]) => Object.assign({ id: lid }, v)).sort((a, b) => a.t - b.t);
+    // (por su posición si se sabe: por el nombre se juntaban los de barrios homónimos de otras ciudades —«Centro»—)
+    const places = Object.entries(s.landmarks || {}).filter(([, v]) => (v.pos && box ? inBarrio(v.pos) : v.barrio === name)).map(([lid, v]) => Object.assign({ id: lid }, v)).sort((a, b) => a.t - b.t);
     const totalPlaces = Object.values(W.landmarks).filter((l) => { const bb = B && W.barrioAt(l.pos); return bb && bb.id === id; }).length;
     return { id, name, B, card, box, walks, best, first, conq, rk, rt, pr, paintedM, totalM, places, totalPlaces, perfect: (s.perfectB || {})[id] };
   }
@@ -3338,7 +3372,9 @@
       $('#cl-msg').textContent = '⏳ Guardando en la nube…';
       try {
         const r = await PM.cloud.now(true);
-        $('#cl-msg').textContent = r === 'ocupado' ? '⏳ Ya se está guardando: inténtalo en un momento.' : '✅ ¡Guardado! Ya lo puedes ver en «Mi progreso» con tu pintor y contraseña.';
+        $('#cl-msg').textContent = r === 'ocupado' ? '⏳ Ya se está guardando: inténtalo en un momento.'
+          : r === 'fotos pendientes' ? '✅ ' + PM.t('Guardado, pero alguna foto no se pudo subir: se reintentará en la próxima copia.')
+          : '✅ ¡Guardado! Ya lo puedes ver en «Mi progreso» con tu pintor y contraseña.';
         recolorAll();
       }
       catch (e) { $('#cl-msg').textContent = '❌ ' + PM.t(e.message || String(e)); }
@@ -3576,7 +3612,7 @@
     // la app se cerró a mitad de paseo (Android, en el bolsillo): el hueco desde tu última posición se rellena
     // por las calles con la primera lectura buena (como si el GPS hubiera tardado en contestar)
     if (autoResumed && session && !session.paused) avisoDiario('reabierta ' + cerradaMin + 'min');
-    if (autoResumed && !vueltaLarga && session && !session.paused && session.lastSeen && S().lastPos) lastT = session.lastSeen;
+    if (autoResumed && !vueltaLarga && session && !session.paused && vistaAntes && S().lastPos) { lastT = vistaAntes; session.recDesde = vistaAntes; }
     else if (vueltaLarga) { lastP = null; cortarUnion(); }   // (hace mucho: tramo nuevo, sin rellenar)
     setMode(mode);
     setOrient(orient);
@@ -3604,7 +3640,7 @@
         const el = document.createElement('div');
         el.id = 'cloud-banner';
         el.innerHTML = `<span>☁️ <b>Conecta tu nube</b> para guardar tu progreso y verlo en el PC</span><button class="btn on">Conectar ahora</button><button class="x">✕</button>`;
-        el.querySelector('.btn').addEventListener('click', () => { el.remove(); panelProfile(); setTimeout(() => { const t = $('#cl-pass'); if (t) { t.scrollIntoView({ block: 'center' }); t.focus(); } }, 350); });
+        el.querySelector('.btn').addEventListener('click', () => { el.remove(); profTab = 'aj'; panelProfile(); setTimeout(() => { const t = $('#cl-pass'); if (t) { t.scrollIntoView({ block: 'center' }); t.focus(); } }, 350); });
         el.querySelector('.x').addEventListener('click', () => el.remove());
         document.body.appendChild(el);
       }, 2500);

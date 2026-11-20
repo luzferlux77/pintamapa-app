@@ -317,7 +317,7 @@
     const ll = (q) => [q[1], q[0]];
     const FC = (features) => ({ type: 'FeatureCollection', features });
     const lineF = (pts, props) => ({ type: 'Feature', properties: props || {}, geometry: { type: 'LineString', coordinates: pts.map(ll) } });
-    let lmMarkers = [], mapLoaded = null;
+    let lmMarkers = [], mapLoaded = null, monumentosOff = false;
     // grupos de capas que se encienden/apagan con los botones de encima del mapa
     const GROUPS = { calles: ['pv-glow', 'pv-paint'], rutas: ['pv-walks'], monumentos: [], barrios: ['pv-barrios'] };
     function setData(id, fc) {
@@ -355,7 +355,8 @@
       // recorrido seleccionado
       setData('pv-sel', FC([]));
       const first = (map.getStyle().layers || []).find((l) => l.type === 'symbol');
-      const add = (l) => { if (!map.getLayer(l.id)) map.addLayer(l, first && first.id); };
+      // (al «Actualizar», las capas ya están: se les pone el color de ahora; antes se quedaban con el de la primera vez)
+      const add = (l) => { if (!map.getLayer(l.id)) map.addLayer(l, first && first.id); else if (l.paint && l.paint['line-color'] && typeof l.paint['line-color'] === 'string') map.setPaintProperty(l.id, 'line-color', l.paint['line-color']); };
       const round = { 'line-cap': 'round', 'line-join': 'round' };
       add({ id: 'pv-barrios', type: 'line', source: 'pv-barrios', paint: { 'line-color': '#8b5cf6', 'line-width': 3, 'line-opacity': 0.55 } });
       add({ id: 'pv-glow', type: 'line', source: 'pv-painted', layout: round, paint: { 'line-color': color, 'line-width': ['interpolate', ['linear'], ['zoom'], 12, 4, 17, 14], 'line-opacity': 0.18, 'line-blur': 4 } });
@@ -372,11 +373,14 @@
         bounds.extend(ll(v.pos));
       });
       const layers = { calles: { name: 'Calles pintadas', dot: color }, rutas: { name: 'Recorridos', dot: '#1a1d29' }, monumentos: { name: 'Monumentos', dot: '#ffb700' }, barrios: { name: 'Barrios 🚩', dot: '#8b5cf6' } };
-      $('#layers').innerHTML = Object.entries(layers).map(([k, l]) => `<button class="chip on" data-l="${k}"><i style="background:${l.dot}"></i>${l.name}</button>`).join('');
+      // (al «Actualizar», cada botón sale como estaba: antes volvían todos a encendidos aunque la capa siguiera oculta)
+      const encendida = (k) => (k === 'monumentos' ? !monumentosOff : GROUPS[k].every((id) => !map.getLayer(id) || map.getLayoutProperty(id, 'visibility') !== 'none'));
+      if (monumentosOff) lmMarkers.forEach((m) => (m.getElement().style.display = 'none'));
+      $('#layers').innerHTML = Object.entries(layers).map(([k, l]) => `<button class="chip${encendida(k) ? ' on' : ''}" data-l="${k}"><i style="background:${l.dot}"></i>${l.name}</button>`).join('');
       document.querySelectorAll('[data-l]').forEach((el) => el.addEventListener('click', () => {
         const on = !el.classList.contains('on'); el.classList.toggle('on', on);
         GROUPS[el.dataset.l].forEach((id) => map.getLayer(id) && map.setLayoutProperty(id, 'visibility', on ? 'visible' : 'none'));
-        if (el.dataset.l === 'monumentos') lmMarkers.forEach((m) => (m.getElement().style.display = on ? '' : 'none'));
+        if (el.dataset.l === 'monumentos') { monumentosOff = !on; lmMarkers.forEach((m) => (m.getElement().style.display = on ? '' : 'none')); }
       }));
       fitBounds = bounds.isEmpty() ? null : bounds;
       fit();
@@ -418,7 +422,7 @@
         if (PM.world.conForma(city) || !p) return;
         await PM.world.formaDe(p[0], p[1]);
         await new Promise((r) => setTimeout(r, 1100));
-      });
+      }).catch(() => {});   // (si una ciudad no se puede pedir, las demás siguen: antes la cola quedaba rota y ya no se abría ningún álbum)
       return colaForma.then(() => PM.world.albumDe(city));
     }
 

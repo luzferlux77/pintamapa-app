@@ -1137,6 +1137,11 @@
     'Sin conexión y sin copia de': ['Sense connexió i sense còpia de', 'Offline and no copy of', 'Hors ligne et sans copie de'],
     'No se pudo cargar': ['No s’ha pogut carregar', 'Couldn’t load', 'Impossible de charger'],
     'sin cambios': ['sense canvis', 'no changes', 'aucun changement'],
+    'No hay memoria suficiente para crear el póster en alta resolución.': ['No hi ha prou memòria per crear el pòster en alta resolució.', 'Not enough memory to create the high-resolution poster.', 'Pas assez de mémoire pour créer l’affiche en haute résolution.'],
+    'Termina el paseo antes de importar un recorrido.': ['Acaba el passeig abans d’importar un recorregut.', 'Finish your walk before importing a track.', 'Termine ta balade avant d’importer un parcours.'],
+    'El archivo está dañado o no es un GPX/TCX.': ['El fitxer està malmès o no és un GPX/TCX.', 'The file is damaged or isn’t a GPX/TCX.', 'Le fichier est endommagé ou n’est pas un GPX/TCX.'],
+    '{d} a más de 20 km/h (en vehículo): no se pintan.': ['{d} a més de 20 km/h (en vehicle): no es pinten.', '{d} faster than 20 km/h (in a vehicle): not painted.', '{d} à plus de 20 km/h (en véhicule) : non peints.'],
+    'Guardado, pero alguna foto no se pudo subir: se reintentará en la próxima copia.': ['Desat, però alguna foto no s’ha pogut pujar: es tornarà a provar a la propera còpia.', 'Saved, but some photos couldn’t be uploaded: they’ll be retried in the next backup.', 'Enregistré, mais certaines photos n’ont pas pu être envoyées : nouvel essai à la prochaine copie.'],
     // ---- mapa sin conexión ----
     '⬇️ Descargando calles del juego…': ['⬇️ Descarregant carrers del joc…', '⬇️ Downloading game streets…', '⬇️ Téléchargement des rues du jeu…'],
     '⬇️ Descargando mapa… {p} % ({a}/{b})': ['⬇️ Descarregant mapa… {p} % ({a}/{b})', '⬇️ Downloading map… {p} % ({a}/{b})', '⬇️ Téléchargement de la carte… {p} % ({a}/{b})'],

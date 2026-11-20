@@ -67,8 +67,10 @@ PM.tcg = (function () {
   function descText(d) {
     let t = String(d.text || '').replace(/\s*\([^)]*\)/g, '').replace(/\s*\[[^\]]*\]/g, '').replace(/\s+/g, ' ').trim();
     // (un texto guardado recortado a media frase —«…de Josep Llimona, Antoni…»— se deja en su última frase completa)
-    t = t.replace(/([.!?])s*(…|...)$/, '$1');   // («…Provincial.…»: la frase ya estaba completa)
-    if (/…$/.test(t)) { const k = Math.max(t.lastIndexOf('. '), t.lastIndexOf('! '), t.lastIndexOf('? ')); if (k > 80) t = t.slice(0, k + 1); }
+    // (con sus barras: sin ellas, «s*» y «...» casaban con cualquier cosa y se comían las 3 últimas letras de textos como
+    // «…del siglo I a. C.» —informe de Gemini, 20-nov-2026—)
+    t = t.replace(/([.!?])\s*(…|\.\.\.)$/, '$1');   // («…Provincial.…»: la frase ya estaba completa)
+    if (/(…|\.\.\.)$/.test(t)) { const k = Math.max(t.lastIndexOf('. '), t.lastIndexOf('! '), t.lastIndexOf('? ')); if (k > 80) t = t.slice(0, k + 1); }
     const lugar = d.barrio && d.city ? `${d.barrio}, ${d.city}` : d.city || d.barrio || '';
     const where = lugar ? T('en {lugar}', { lugar }) : '';
     if (t.length < 90) {
@@ -315,8 +317,11 @@ PM.tcg = (function () {
     // La postura con la que la miras es el "centro" y se recalibra despacio si cambias de postura.
     let base = null;
     const clamp = (v) => Math.max(-48, Math.min(48, v));
+    // (cerrar la carta solo la oculta: su vista sigue en la página. Antes el sensor seguía activo con la carta cerrada y,
+    // andando, movía y repintaba una carta que nadie veía —gasto de batería, informe de Gemini, 20-nov-2026—)
+    const vista = () => document.body.contains(el) && !el.closest('#tcg-view:not(.show)');
     const tilt = (e) => {
-      if (!document.body.contains(el)) { window.removeEventListener('deviceorientation', tilt); return; }
+      if (!vista()) { window.removeEventListener('deviceorientation', tilt); return; }
       if (active || e.beta == null || e.gamma == null) return;
       if (!base) base = { g: e.gamma, b: e.beta };
       base.g += (e.gamma - base.g) * 0.004; base.b += (e.beta - base.b) * 0.004;
@@ -328,9 +333,10 @@ PM.tcg = (function () {
       el.classList.add('active'); go();
     };
     window.addEventListener('deviceorientation', tilt);
+    el._soltar = () => window.removeEventListener('deviceorientation', tilt);
     // vaivén suave al aparecer (para que se vea el brillo sin tocar)
     let t0 = performance.now();
-    const idle = (now) => { if (active || !document.body.contains(el)) return; const k = (now - t0) / 1000; if (k > 3.2) return; target = { x: 50 + Math.sin(k * 2.2) * 30, y: 50 + Math.cos(k * 1.7) * 18 }; el.classList.add('active'); go(); requestAnimationFrame(idle); };
+    const idle = (now) => { if (active || !vista()) return; const k = (now - t0) / 1000; if (k > 3.2) return; target = { x: 50 + Math.sin(k * 2.2) * 30, y: 50 + Math.cos(k * 1.7) * 18 }; el.classList.add('active'); go(); requestAnimationFrame(idle); };
     requestAnimationFrame(idle);
     return { flip: () => el.click() };
   }
@@ -409,7 +415,11 @@ PM.tcg = (function () {
     return `<button ${a ? `data-a="${a}"` : `data-x="${x}"`} class="${pri ? 'pri' : ''}"><i>${ico}</i><span>${txt}</span></button>`;
   }
   function esc1(e) { if (e.key === 'Escape') close(); }
-  function close() { const ov = document.getElementById('tcg-view'); if (ov) ov.classList.remove('show'); document.removeEventListener('keydown', esc1); }
+  function close() {
+    const ov = document.getElementById('tcg-view'); if (ov) ov.classList.remove('show'); document.removeEventListener('keydown', esc1);
+    // (el sensor de inclinación se suelta en el acto, sin esperar a que el móvil se mueva otra vez)
+    if (ov) ov.querySelectorAll('.tcg').forEach((c) => c._soltar && c._soltar());
+  }
 
   // ---------------- Exportar como imagen (para compartir) ----------------
   async function toPng(d) {

@@ -67,7 +67,8 @@ PM.album = (function () {
         if (el.isConnected) el.innerHTML = portada(city, A, enlazar(A, S().landmarks, city));
       });
       const pos = {}; for (const r of Object.values(s.landmarks)) if (r.city && r.pos && !pos[r.city]) pos[r.city] = r.pos;
-      PM.ensureCountries(s, pos).then((ch) => { if (ch) { PM.state.save(); if (box.isConnected && box.querySelector('.ab-cover')) inicio(); } });
+      PM.ensureCountries(s, pos).then((ch) => { if (ch) { if (!fuente && PM.state) PM.state.save();   // (en «Mi progreso» la partida es la de la nube: no se guarda encima de la de este PC)
+         if (box.isConnected && box.querySelector('.ab-cover')) inicio(); } });
     }
 
     // El álbum es un archivador: la portada, y luego una carpeta de color por distrito. El orden y el color son fijos (por tamaño,

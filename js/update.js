@@ -66,7 +66,11 @@ PM.update = (function () {
     const mine = PM.VERSION.app;
     if (!newer(remote.version, mine)) { setStatus(`Al día: tienes la última versión (${mine})`); return; }
     if (!U()) { setStatus(`Hay una versión nueva (${remote.version})`); return; }
-    if ((remote.native || 0) > PM.VERSION.native || !remote.bundle) {
+    // app.json lleva "native": 1 para que las APK viejas se bajen el código que las bloquea (caducada.js); la parte nativa
+    // que de verdad necesita la versión nueva va en nativeApk. Antes aquí solo se miraba native y el aviso de «instala la APK
+    // nueva» ya no salía nunca: se bajaba un código que luego dejaba el juego bloqueado (informe de Gemini, 20-nov-2026)
+    const nativoNuevo = remote.nativeApk != null ? +remote.nativeApk : +remote.native || 0;
+    if (nativoNuevo > PM.VERSION.native || !remote.bundle) {
       setStatus(`La ${remote.version} necesita instalar la APK nueva`);
       showApkBanner(remote);
       return;
@@ -126,7 +130,7 @@ PM.update = (function () {
     if (document.getElementById('apk-banner')) return;
     const el = document.createElement('div');
     el.id = 'apk-banner';
-    el.innerHTML = `<span>🆕 <b>PintaMapa ${remote.version}</b> lista${remote.notes ? '<br><small>' + PM.esc(remote.notes) + '</small>' : ''}</span>
+    el.innerHTML = `<span>🆕 <b>PintaMapa ${PM.esc(String(remote.version))}</b> lista${remote.notes ? '<br><small>' + PM.esc(remote.notes) + '</small>' : ''}</span>
       <button class="btn on">Actualizar ahora</button><button class="x">✕</button>`;
     el.querySelector('.btn').addEventListener('click', async () => {
       if (PM.walking && PM.walking()) { el.querySelector('span').innerHTML = 'Termina el paseo y la aplico 😉'; return; }
@@ -141,7 +145,7 @@ PM.update = (function () {
     if (!remote.apk || document.getElementById('apk-banner')) return;
     const el = document.createElement('div');
     el.id = 'apk-banner';
-    el.innerHTML = `<span>🆕 PintaMapa ${remote.version}: instala la versión nueva</span><button class="btn on">Instalar</button><button class="x">✕</button>`;
+    el.innerHTML = `<span>🆕 PintaMapa ${PM.esc(String(remote.version))}: instala la versión nueva</span><button class="btn on">Instalar</button><button class="x">✕</button>`;
     el.querySelector('.btn').addEventListener('click', () => { location.href = remote.apk; });   // Android abre el navegador y descarga la APK
     el.querySelector('.x').addEventListener('click', () => el.remove());
     document.body.appendChild(el);

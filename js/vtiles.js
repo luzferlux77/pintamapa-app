@@ -62,6 +62,13 @@ PM.vtiles = (function () {
     }
     return layers;
   }
+  // clave de un barrio sin identificador de OSM: su nombre en letras latinas, como siempre (así no cambia la de los barrios ya
+  // conquistados); si el nombre no tiene casi letras latinas (japonés, árabe, chino…) salía vacía y TODOS esos barrios eran
+  // el mismo «pl»: entonces, con sus propias letras (informe de Gemini, 20-nov-2026)
+  function plClave(name) {
+    const n = String(name).toLowerCase(), lat = n.replace(/[^a-z0-9]+/g, '');
+    return lat.length >= 2 ? lat : n.replace(/[^\p{L}\p{N}]+/gu, '');
+  }
   function props(L, F) { const o = {}; for (let i = 0; i < F.tags.length; i += 2) o[L.keys[F.tags[i]]] = L.values[F.tags[i + 1]]; return o; }
   // geometría → listas de puntos en coordenadas de la tesela (0..extent)
   function lines(F) {
@@ -71,7 +78,7 @@ PM.vtiles = (function () {
       if (cmd === 7) { if (cur && cur.length) cur.push(cur[0]); continue; }
       for (let k = 0; k < n; k++) {
         x += zz(F.geom[i++]); y += zz(F.geom[i++]);
-        if (cmd === 1) { cur = [[x, y]]; out.push(cur); } else cur.push([x, y]);
+        if (cmd === 1) { cur = [[x, y]]; out.push(cur); } else if (cur) cur.push([x, y]);   // (tesela mal formada: una línea sin su punto de inicio se salta)
       }
     }
     return out;
@@ -176,7 +183,7 @@ PM.vtiles = (function () {
       if (!p.name || !/^(suburb|quarter|neighbourhood)$/.test(kind)) return;
       const g = lines(F)[0];
       // mismo id que en OpenStreetMap si se puede (OpenFreeMap: id × 10 + 1): así tus barrios conquistados se reconocen
-      const osmId = schema === 'omt' && F.id != null && F.id % 10 === 1 ? Math.floor(F.id / 10) : 'pl' + p.name.toLowerCase().replace(/[^a-z0-9]+/g, '');
+      const osmId = schema === 'omt' && F.id != null && F.id % 10 === 1 ? Math.floor(F.id / 10) : 'pl' + plClave(p.name);
       if (g && g.length) { const pt = toLL(g[0][0], g[0][1], X, Y, PL.extent); els.push({ type: 'node', id: osmId, lat: pt.lat, lon: pt.lon, tags: { place: kind, name: p.name }, src: 'vt' }); }
     });
     return els;

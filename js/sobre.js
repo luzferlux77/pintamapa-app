@@ -193,9 +193,13 @@ PM.sobre = (function () {
     let p = 0, x0 = null, ultimoTick = 0, toques = 0;
     const T = (ms) => (reduce ? Math.min(ms, 60) : ms);
     const pon = (v) => { p = Math.max(0, Math.min(1, v)); ov.style.setProperty('--p', p.toFixed(3)); };
+    // (los pasos del sobre, con su temporizador apuntado: «Saltar» los cancela todos. Antes seguían sonando, vibrando y
+    // lanzando chispas sobre un sobre ya quitado —informe de Gemini, 20-nov-2026—)
+    const timers = [];
+    const tras = (f, ms) => { timers.push(setTimeout(() => { if (!terminado) f(); }, ms)); };
     const fin = () => {   // (Saltar: fuera el sobre y la carta directamente)
       if (terminado) return; terminado = true;
-      clearTimeout(autoGiro); paradas.forEach((f) => f());
+      clearTimeout(autoGiro); timers.forEach(clearTimeout); paradas.forEach((f) => f());
       ov.classList.add('out'); setTimeout(() => ov.remove(), 300);
       alFinal();
     };
@@ -209,13 +213,13 @@ PM.sobre = (function () {
       pon(1); ov.classList.remove('rasgando'); ov.classList.add('abierto');
       pack.style.removeProperty('--rx'); pack.style.removeProperty('--ry');
       ruido(0.35, 0.5, 2600, 700); PM.vibrate([30, 30, 60]);
-      setTimeout(() => { ov.classList.add('carga'); sonidoCarga(); PM.vibrate([12, 60, 14, 50, 18, 40, 24]); }, T(420));
-      setTimeout(() => {   // estalla
+      tras(() => { ov.classList.add('carga'); sonidoCarga(); PM.vibrate([12, 60, 14, 50, 18, 40, 24]); }, T(420));
+      tras(() => {   // estalla
         ov.classList.add('estalla');
         sonidoEstallido(); PM.vibrate([90]);
         paradas.push(chispas(cvA, ['#ffffff', '#fff3c4', '#f6e3a1', '#d4af5a'], 70, 9, 46));
       }, T(1200));
-      setTimeout(() => {   // la carta, boca abajo, con el aura de su rareza (un instante de suspense) y se gira sola
+      tras(() => {   // la carta, boca abajo, con el aura de su rareza (un instante de suspense) y se gira sola
         ov.classList.add('carta'); fase = 2;
         if (k >= 1) ruido(0.9, 0.08 + k * 0.04, 400, 1200 + k * 600);
         if (k >= 3) PM.sound && PM.sound.enabled && PM.sound.tone(55, 1.2, 'sine', 0.12, 0, 70);   // (la legendaria retumba)
@@ -223,7 +227,7 @@ PM.sobre = (function () {
       }, T(1500));
     }
     function girar() {
-      if (fase !== 2) return; fase = 3; clearTimeout(autoGiro);
+      if (terminado || fase !== 2) return; fase = 3; clearTimeout(autoGiro);
       ov.classList.add('gira');
       sonidoCarta(r, d.shiny);
       PM.vibrate(k >= 3 ? [80, 40, 80, 40, 260] : k >= 2 ? [60, 40, 140] : [50]);

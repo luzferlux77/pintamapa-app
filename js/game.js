@@ -155,6 +155,9 @@ PM.state = (function () {
       console.warn('No se pudo guardar', e);
       // sin sitio: tu partida va antes que lo que se puede volver a pedir (contornos de ciudades) y que el detalle de paseos antiguos
       if (!sitioHecho) { sitioHecho = true; try { localStorage.removeItem('pintamapa_cityinfo'); } catch (e2) {} aligerar(); return write(); }
+      // (y si no bastó, se siguen simplificando paseos antiguos de 20 en 20 mientras quede alguno: antes solo se intentaba
+      // una vez por sesión y, si no cabía, ya no se guardaba nada hasta reabrir la app —informe de Gemini, 20-nov-2026—)
+      if (aligerar()) return write();
       dirty = true;
       if (!failing || Date.now() - failT > 60000) { failT = Date.now(); aviso('pm-save-error', String(e && e.name || e)); }
       failing = true;
@@ -224,6 +227,10 @@ PM.game = (function () {
 
   // ---------------- Combo y potenciadores ----------------
   let combo = 0, lastPaintT = 0;
+  // en calma: lo que se pinta de golpe sin andarlo en ese momento (un recorrido importado) no hace combo ni bate el récord de
+  // combo: cientos de calles seguidas daban ×3 y un récord imposible (informe de Gemini, 20-nov-2026)
+  let calma = false;
+  function enCalma(fn) { const antes = calma; calma = true; try { return fn(); } finally { calma = antes; } }
   function comboMult() { return Math.min(3, 1 + Math.floor(combo / 10) * 0.25); }
   function tickCombo(now) {
     if (combo && now - lastPaintT > 12000) { combo = 0; emit('combo', { combo }); }
@@ -241,9 +248,8 @@ PM.game = (function () {
     if (!piece.trail) s.paintedByTile[piece.tile] = (s.paintedByTile[piece.tile] || 0) + piece.len;   // senderos: no cuentan para el %
     s.stats.paintedM += piece.len;
     const now = Date.now();
-    combo++; lastPaintT = now;
-    if (combo > s.stats.bestCombo) s.stats.bestCombo = combo;
-    let pts = 10 * comboMult();
+    if (!calma) { combo++; lastPaintT = now; if (combo > s.stats.bestCombo) s.stats.bestCombo = combo; }
+    let pts = 10 * (calma ? 1 : comboMult());
     if (nearLandmark) pts *= 2;           // aura de monumento
     addXP(pts, 'paint');
     progressMission('paint', piece.len);
@@ -270,6 +276,9 @@ PM.game = (function () {
     emit('painted', { piece, pts: 0, combo, mult: comboMult(), aura: false, gemela: true });
     checkTile(piece.tile);
     if (piece.barrio) checkBarrio(piece.barrio);
+    // (se guarda y cuenta para los logros de km como cualquier calle pintada: al completar zonas que acaban de cargar no
+    // hay otra cosa que lo guarde —informe de Gemini, 20-nov-2026—)
+    PM.state.save(); checkPaintAchievements();
     return true;
   }
 
@@ -585,7 +594,8 @@ PM.game = (function () {
   serie('imprescindible_ciudad', '🗺️', [1, 3, 5, 10], 'Turista experto', (t) => `Consigue todos los imprescindibles de ${t} ciudad${t > 1 ? 'es' : ''}`, (s) => {
     const by = {}; lmList(s).forEach((v) => { if (v.must && v.city) by[v.city] = (by[v.city] || 0) + 1; });
     const need = {}; try { for (const [c, L] of Object.entries(PM.world.mustLists())) need[c] = L.length; } catch (e) {}
-    return Object.entries(by).filter(([c, n]) => n >= (need[c] || 10)).length; });
+    // (solo ciudades cuya lista de imprescindibles se conoce: antes, sin ella, bastaban 10 —en una ciudad de 30— para el logro)
+    return Object.entries(by).filter(([c, n]) => need[c] > 0 && n >= need[c]).length; });
   const rankN = (s, r) => Object.values(s.barrioRank || {}).filter((v) => v >= r).length;
   serie('plata', '🥈', [1, 3, 5, 10, 25], 'Barrio de plata', (t) => `${t} barrio${t > 1 ? 's' : ''} en rango Plata (80 %)`, (s) => rankN(s, 1));
   serie('oro', '🥇', [1, 3, 5, 10], 'Barrio de oro', (t) => `${t} barrio${t > 1 ? 's' : ''} en rango Oro (90 %)`, (s) => rankN(s, 2));
@@ -632,7 +642,7 @@ PM.game = (function () {
   return {
     on: (fn) => listeners.push(fn),
     level, levelProgress, COLORS, ACHIEVEMENTS, checkAchievements: checkAll, REVISIT_MS, addXP,
-    paintPiece, pintarGemela, repass, tileProgress, cityProgress, barrioProgress, checkBarrio, checkSets, photoTaken, visitLandmark, ensureDaily, addWalk, tickCombo,
+    paintPiece, pintarGemela, enCalma, repass, tileProgress, cityProgress, barrioProgress, checkBarrio, checkSets, photoTaken, visitLandmark, ensureDaily, addWalk, tickCombo,
     get combo() { return combo; },
     comboMult,
   };

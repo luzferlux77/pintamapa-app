@@ -105,9 +105,9 @@
   // preferencia entre clases (menor = más específica): catedral > basílica > castillo > palacio > ruinas > museo > …
   // (lo que el edificio ES va antes que el museo que tenga dentro: un monasterio, una torre o un jardín botánico)
   const PREF = ['cathedral', 'basilica', 'castle', 'fort', 'palace', 'ruins', 'monastery', 'place_of_worship', 'city_gate', 'tower', 'bridge', 'skyscraper',
-    'lighthouse', 'windmill', 'garden', 'museum', 'zoo', 'aquarium', 'theme_park', 'stadium', 'theatre', 'monument', 'station', 'townhall',
+    'lighthouse', 'windmill', 'garden', 'museum', 'zoo', 'aquarium', 'theme_park', 'stadium', 'theatre', 'monument', 'station', 'aerodrome', 'townhall',
     'marketplace', 'library', 'university', 'studio', 'park', 'square', 'fountain', 'viewpoint', 'attraction', 'shop', 'cafe', 'bar', 'restaurant', 'pharmacy', 'yes'];
-  const rango = (tg) => { const v = tg.building === 'yes' ? 'yes' : tg.building || (tg.amenity === 'place_of_worship' ? 'place_of_worship' : '') || tg.historic || tg.tourism || tg.man_made || tg.leisure || tg.railway || tg.place || tg.amenity || (tg.shop ? 'shop' : ''); const i = PREF.indexOf(v); return i < 0 ? PREF.length - 1 : i; };
+  const rango = (tg) => { const v = tg.building === 'yes' ? 'yes' : tg.building || (tg.amenity === 'place_of_worship' ? 'place_of_worship' : '') || tg.historic || tg.tourism || tg.man_made || tg.leisure || tg.railway || tg.aeroway || tg.place || tg.amenity || (tg.shop ? 'shop' : ''); const i = PREF.indexOf(v); return i < 0 ? PREF.length - 1 : i; };
   // estrechos, ríos, lagos, bahías, calles, avenidas, líneas de tren y aeropuertos: no son un sitio que visitar (aunque
   // estén protegidos: el Bósforo, el ferrocarril Transiraní, el aeropuerto de Congonhas). Solo si no tienen además una
   // clase reconocible (el Puente de Carlos también es «calle», y es un puente)
@@ -171,13 +171,14 @@
   function parse(json) {
     const out = [];
     for (const b of (json && json.results && json.results.bindings) || []) {
+      if (!b || !b.item || !b.coord) continue;   // (una fila incompleta se salta: no tira la zona entera)
       const q = b.item.value.split('/').pop(), label = b.itemLabel && (PM.limpio ? PM.limpio(b.itemLabel.value) : b.itemLabel.value);
       if (!label || label === q) continue;
       const name = capital(label);
       const m = /Point\(([-\d.]+) ([-\d.]+)\)/.exec(b.coord.value);
       if (!m) continue;
       const hers = (b.her && b.her.value || '').split(',').filter(Boolean), her = hers.length > 0, cls = (b.cls && b.cls.value || '').split(',').filter(Boolean);
-      const wp = +b.wp.value;
+      const wp = +(b.wp && b.wp.value) || 0;
       // metro, tranvía, barrios, cuadros, cascos antiguos (una plaza que Wikidata da también como barrio —Times Square— sí)
       // (y una estación subterránea que también es de ferrocarril —Sants— la deciden las reglas de estación; el metro, nunca)
       const tren = cls.some((c) => TREN.has(c));

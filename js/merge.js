@@ -48,7 +48,14 @@
     ['painted', 'tileNames', 'barrioNames', 'cardInfo', 'barrioCards', 'cityCards'].forEach(union);
     // fotos propias: por cada carta gana la foto MÁS RECIENTE (antes, siempre la del segundo: una copia vieja tapaba una nueva)
     out.cardPhotos = Object.assign({}, a.cardPhotos || {});
-    for (const [id, v] of Object.entries(b.cardPhotos || {})) { const o = out.cardPhotos[id]; if (!o || !v || (v.t || 0) >= (o.t || 0)) out.cardPhotos[id] = v; }
+    // (una entrada vacía no borra una foto; y con la MISMA versión en las dos, se conserva la marca de «ya subida» de la que la
+    // tenga: antes ganaba la segunda y, si era la local sin marca, la foto se volvía a subir o la nube perdía la marca —Gemini—)
+    for (const [id, v] of Object.entries(b.cardPhotos || {})) {
+      if (!v || typeof v !== 'object') continue;
+      const o = out.cardPhotos[id];
+      if (!o || typeof o !== 'object' || (v.t || 0) > (o.t || 0)) out.cardPhotos[id] = v;
+      else if ((v.t || 0) === (o.t || 0)) { const up = Math.max(o.up || 0, v.up || 0); out.cardPhotos[id] = up ? Object.assign({}, v, { up }) : v; }
+    }
     // país de cada ciudad: se juntan (antes se perdían los de una de las dos partidas)
     out.countries = Object.assign({}, a.countries || {});
     for (const [k, v] of Object.entries(b.countries || {})) { const o = out.countries[k]; if (!o || (v && v.cc && !o.cc)) out.countries[k] = v; }
@@ -109,7 +116,14 @@
     if (a.stats && b.stats && (a.stats.lastDay || '') !== (b.stats.lastDay || '')) out.stats.streak = ((a.stats.lastDay || '') > (b.stats.lastDay || '') ? a : b).stats.streak || 0;
     const walks = {};
     // el mismo paseo en dos versiones: la más completa (más tiempo; a igualdad, la más reciente)
-    [...(a.walks || []), ...(b.walks || [])].forEach((w) => { const o = walks[w.id]; if (!o || (w.elapsed || 0) >= (o.elapsed || 0)) walks[w.id] = w; });
+    // (con el mismo tiempo: el de recorrido detallado antes que el simplificado, y repasado si lo está en cualquiera —Gemini—)
+    const detalle = (w) => (w.slim ? 0 : 1e9) + ((w.track && w.track.length) || 0);
+    [...(a.walks || []), ...(b.walks || [])].forEach((w) => {
+      if (!w || typeof w !== 'object' || w.id == null) return;
+      const o = walks[w.id], ew = w.elapsed || 0, eo = o ? o.elapsed || 0 : -1;
+      if (!o || ew > eo) walks[w.id] = w;
+      else if (ew === eo) { const g = detalle(w) >= detalle(o) ? w : o; walks[w.id] = (o.rev || w.rev) && !g.rev ? Object.assign({}, g, { rev: 1 }) : g; }
+    });
     out.walks = Object.values(walks).filter((w) => (w.elapsed || 0) >= 120000).sort((x, y) => x.start - y.start);   // < 2 min: no cuentan
     if (a.daily && (!b.daily || a.daily.date > b.daily.date)) out.daily = a.daily;   // (una partida sin misiones aún no borra las de la otra: se cobrarían dos veces)
     else if (a.daily && b.daily && a.daily.date === b.daily.date) {
@@ -130,7 +144,7 @@
     out.barrioRankT = Object.assign({}, a.barrioRankT || {}); for (const [k, v] of Object.entries(b.barrioRankT || {})) out.barrioRankT[k] = Object.assign({}, out.barrioRankT[k] || {}, v);
     out.avoidRemoved = Object.assign({}, a.avoidRemoved || {}, b.avoidRemoved || {});
     const av = {};
-    [...(a.avoid || []), ...(b.avoid || [])].forEach((z) => { if (!out.avoidRemoved[z.id]) av[z.id] = z; });
+    [...(a.avoid || []), ...(b.avoid || [])].forEach((z) => { if (z && z.id != null && !out.avoidRemoved[z.id]) av[z.id] = z; });
     out.avoid = Object.values(av);
     return out;
   }

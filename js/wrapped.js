@@ -35,7 +35,7 @@ PM.wrapped = (function () {
     const antes = cifras((s.walks || []).filter((w) => enRango(w.start, masDias(desde, -7), desde)));
     const lms = Object.entries(s.landmarks || {}).filter(([, v]) => enRango(v.t, desde, hasta)).map(([id, v]) => Object.assign({ id }, v));
     const rank = { legendario: 4, epico: 3, raro: 2, comun: 1 };
-    lms.sort((a, b) => (b.shiny ? 10 : 0) + rank[b.rarity] - ((a.shiny ? 10 : 0) + rank[a.rarity]));
+    lms.sort((a, b) => (b.shiny ? 10 : 0) + (rank[b.rarity] || 0) - ((a.shiny ? 10 : 0) + (rank[a.rarity] || 0)));
     // El mapa se centra en la zona donde más anduviste: con paseos en dos sitios lejanos (casa y otra ciudad) el recuadro los
     // abarcaba a los dos y todo salía en garabatos diminutos. Las zonas (tramos a menos de 3 km entre sí) se cuentan aparte
     const zonas = [];
@@ -74,7 +74,7 @@ PM.wrapped = (function () {
     c.fillStyle = opts.c || '#fff'; c.textAlign = opts.a || 'center'; c.textBaseline = 'middle';
     c.globalAlpha = opts.o == null ? 1 : opts.o; c.fillText(s, x, y); c.globalAlpha = 1;
   }
-  const tr = (s, v) => (PM.t ? PM.t(s, v) : String(s).replace(/{(w+)}/g, (m, k) => (v && v[k] != null ? v[k] : m)));
+  const tr = (s, v) => (PM.t ? PM.t(s, v) : String(s).replace(/\{(\w+)\}/g, (m, k) => (v && v[k] != null ? v[k] : m)));
   const km = (m) => PM.dec(m / 1000, m >= 10000 ? 1 : 2) + ' km';
   const dmy = (t) => new Date(t).toLocaleDateString(PM.LOCALE, { day: 'numeric', month: 'short' });
   function confettiBits(c, t, D, n = 40) {
@@ -152,7 +152,7 @@ PM.wrapped = (function () {
   }
   // un texto que NUNCA se corta: se parte por palabras en hasta 3 líneas y la letra baja lo que haga falta
   function textoEntero(c, s, x, y, ancho, size, opts = {}) {
-    if (PM.t) s = PM.t(s);
+    if (PM.t && !opts.sinT) s = PM.t(s);   // (un nombre propio no se traduce: sinT)
     const palabras = String(s).split(/\s+/).filter(Boolean);
     for (let tam = size; tam >= 18; tam -= 2) {
       c.font = `${opts.w || 800} ${tam}px system-ui, -apple-system, "Segoe UI", Roboto, sans-serif`;
@@ -174,13 +174,13 @@ PM.wrapped = (function () {
     if (!D.best) { text(c, D.barrios ? `🚩 ${D.barrios} barrio${D.barrios > 1 ? 's' : ''} conquistado${D.barrios > 1 ? 's' : ''}` : '🃏 Sin cartas nuevas', W / 2, H / 2, 46); text(c, 'Captura lugares quedándote 10 s junto a ellos', W / 2, H / 2 + 70, 28, { w: 500, o: 0.8 }); return; }
     const L = D.best, e = ease(t / 0.9), cw = 460, ch = 640, x = W / 2 - cw / 2, y = 260;
     c.save(); c.translate(W / 2, y + ch / 2); c.rotate((1 - e) * -0.5); c.scale(0.6 + 0.4 * e, 0.6 + 0.4 * e); c.translate(-W / 2, -(y + ch / 2));
-    c.shadowColor = L.shiny ? '#facc15' : RC[L.rarity]; c.shadowBlur = 50;
-    c.fillStyle = L.shiny ? '#facc15' : RC[L.rarity]; c.beginPath(); c.roundRect ? c.roundRect(x - 10, y - 10, cw + 20, ch + 20, 34) : c.rect(x - 10, y - 10, cw + 20, ch + 20); c.fill();
+    c.shadowColor = L.shiny ? '#facc15' : (RC[L.rarity] || RC.comun); c.shadowBlur = 50;
+    c.fillStyle = L.shiny ? '#facc15' : (RC[L.rarity] || RC.comun); c.beginPath(); c.roundRect ? c.roundRect(x - 10, y - 10, cw + 20, ch + 20, 34) : c.rect(x - 10, y - 10, cw + 20, ch + 20); c.fill();
     c.shadowBlur = 0; c.fillStyle = '#fff'; c.beginPath(); c.roundRect ? c.roundRect(x, y, cw, ch, 26) : c.rect(x, y, cw, ch); c.fill();
     text(c, L.emoji || '📍', W / 2, y + 230, 180);
-    textoEntero(c, L.name || '', W / 2, y + 410, cw - 50, 38, { c: '#111827' });   // (antes se cortaba con «…»)
+    textoEntero(c, L.name || '', W / 2, y + 410, cw - 50, 38, { c: '#111827', sinT: true });   // (antes se cortaba con «…»)
     text(c, L.kind || '', W / 2, y + 505, 28, { c: '#6b7280', w: 600 });
-    text(c, (L.shiny ? '✨ BRILLANTE · ' : '') + RN[L.rarity], W / 2, y + 560, 30, { c: L.shiny ? '#b45309' : RC[L.rarity] });
+    text(c, (L.shiny ? '✨ BRILLANTE · ' : '') + (RN[L.rarity] || RN.comun), W / 2, y + 560, 30, { c: L.shiny ? '#b45309' : (RC[L.rarity] || RC.comun) });
     if (L.shiny) { const sx = x + ((t * 400) % (cw + 200)) - 100; const g = c.createLinearGradient(sx - 80, 0, sx + 80, 0); g.addColorStop(0, 'rgba(255,255,255,0)'); g.addColorStop(0.5, 'rgba(255,240,180,.6)'); g.addColorStop(1, 'rgba(255,255,255,0)'); c.fillStyle = g; c.fillRect(x, y, cw, ch); }
     c.restore();
     if (D.nCards > 1) text(c, `y ${D.nCards - 1} carta${D.nCards > 2 ? 's' : ''} más esta semana`, W / 2, 1060, 32, { w: 600, o: ease((t - 1) / 1) });

@@ -646,7 +646,7 @@ PM.world = (function () {
           if (failed >= urls.length) { done = true; clearTimeout(timer); reject(lastErr); } else { clearTimeout(timer); launch(); schedule(); }
         });
       };
-      const schedule = () => { timer = setTimeout(() => { launch(); schedule(); }, HEDGE_MS); };
+      const schedule = () => { if (!done && started < urls.length) timer = setTimeout(() => { launch(); schedule(); }, HEDGE_MS); };   // (lanzados todos, no hace falta seguir)
       launch(); schedule();
     });
   }
@@ -1457,7 +1457,8 @@ PM.world = (function () {
   // Cada vez que se regeneran los álbumes cambia su tanda (data/albumes.json, lo escribe albumes.mjs): sin eso, un móvil o un
   // navegador que ya tuviera el álbum se quedaba con su copia vieja aunque hubiera otra publicada
   let albTanda = null;
-  const tandaAlbumes = () => (albTanda = albTanda || fetch('data/albumes.json', plazo(8000)).then((r) => (r.ok ? r.json() : {})).then((j) => j.t || 0).catch(() => 0));
+  // (si falla, no se queda «sin tanda» toda la sesión: se vuelve a pedir la próxima vez —informe de Gemini—)
+  const tandaAlbumes = () => (albTanda = albTanda || fetch('data/albumes.json', plazo(8000)).then((r) => (r.ok ? r.json() : Promise.reject(new Error(r.status)))).then((j) => j.t || 0).catch(() => { albTanda = null; return 0; }));
   async function albumArchivo(q, t) {
     const tanda = await tandaAlbumes();
     let d = await cache.get('alb:' + q);
@@ -1656,6 +1657,7 @@ PM.world = (function () {
     // ya medida (con Overpass), midiéndose o medida a ojo con los mapas vectoriales y ya reintentada en esta sesión
     if ((cs[city] && cs[city].total && (cs[city].src !== 'vt' || cityRetried.has(city))) || cityPending.has(city)) return;
     cityPending.add(city); cityRetried.add(city);
+    try {   // (pase lo que pase, la ciudad deja de estar «midiéndose»: si no, no se volvía a medir en toda la sesión —Gemini—)
     // consulta pesada (todo el municipio): espera a que terminen de cargarse las calles para no frenarlas
     while (loading.size || around) await new Promise((r) => setTimeout(r, 3000));
     const q = `[out:json][timeout:90];
@@ -1688,7 +1690,7 @@ PM.world = (function () {
         emit('city', { city });
       }
     }
-    cityPending.delete(city);
+    } finally { cityPending.delete(city); }
   }
   // Longitud de calles de un municipio con los mapas vectoriales: cada tesela z14 que toca su contorno, y de cada
   // calle solo los trozos cuyo centro cae dentro de la tesela (sin repetir el margen) y dentro del municipio.

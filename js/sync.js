@@ -96,7 +96,12 @@ PM.cloud = (function () {
     if (!meta) return null;
     let text;
     if (meta.content && meta.encoding === 'base64') text = dec.decode(fromB64(meta.content.replace(/\n/g, '')));
-    else text = await (await fetch(meta.download_url + '?t=' + Date.now(), { cache: 'no-store', signal: limite(TIMEOUT * 2) })).text();
+    else {   // (archivo de más de 1 MB: GitHub no lo manda dentro y hay que bajarlo aparte)
+      const u = meta.download_url + (meta.download_url.includes('?') ? '&' : '?') + 't=' + Date.now();
+      const r = await fetch(u, { cache: 'no-store', signal: limite(TIMEOUT * 2) });
+      if (!r.ok) { const e = new Error('GitHub respondió ' + r.status); e.status = r.status; throw e; }
+      text = await r.text();
+    }
     return { data: JSON.parse(text), sha: meta.sha };
   }
   function write(path, data, sha, msg, token) {
@@ -130,15 +135,38 @@ PM.cloud = (function () {
       const key = await deriveKey(slug, pass);
       const base = await folderOf(slug, pass);
       PM.state.flush();
-      const hk = 'h_' + slug, photosPend = Object.values(PM.state.data.cardPhotos || {}).some((v) => !(v.up && v.up >= (v.t || 0)));
+      const hk = 'h_' + slug;
       // De qué versión es la imagen que hay en ESTE móvil (fr_: id → t). Las fotos de antes se apuntan con la versión que
       // dice la partida AHORA, antes de juntarla con la de la nube: si la nube trae otra más nueva, se nota y se baja
       const fr = cfg['fr_' + slug] || (cfg['fr_' + slug] = {}), fi = cfg['fi_' + slug] || (cfg['fi_' + slug] = {});
       for (const [id, v] of Object.entries(PM.state.data.cardPhotos || {})) if (v && fr[id] == null && PM.cards) { try { if (await PM.cards.getPhoto(id, true)) fr[id] = v.t || 0; } catch (e) { /* almacén ilegible: se mira otro día */ } }
       saveCfg();
       const bajarPend = () => Object.entries(PM.state.data.cardPhotos || {}).some(([id, v]) => v && v.up && v.up >= (v.t || 0) && fr[id] !== (v.t || 0));
+      // Fotos propias de los cromos (cifradas igual), ANTES que la partida: así la marca de «subida» (up) viaja en esta misma
+      // copia. Antes se subían después y la nube no se enteraba hasta la copia siguiente: un móvil nuevo no bajaba esas fotos.
+      // Y cada foto por su cuenta: una que falla se reintenta en la próxima copia sin tumbar el resto (informe de Gemini, 20-nov-2026)
+      let fotosMal = 0;
+      for (const [id, v] of Object.entries(PM.state.data.cardPhotos || {})) {
+        if (!v || (v.up && v.up >= (v.t || 0))) continue;
+        // (la versión que se sube es la de ahora: si mientras se sube cambias la foto, la nueva queda pendiente. Antes se
+        // apuntaba «subida» con la hora del final y la foto nueva no llegaba nunca a la nube)
+        const tSube = v.t || 0;
+        try {
+          const img = PM.cards && await PM.cards.getPhoto(id);
+          if (!img) continue;
+          const small = await shrink(img, 800);
+          const path = base + 'fotos/' + (await photoName(id, pass)) + '.json';
+          const cur = await readRaw(path, token);
+          await write(path, await encrypt(key, { id, img: small }), cur && cur.sha, 'foto', token);
+          const ahora = (PM.state.data.cardPhotos || {})[id] || v;
+          ahora.up = Math.max(tSube, 1); fr[id] = tSube; saveCfg(); PM.state.save();
+        } catch (e) {
+          if (e && (e.status === 401 || e.status === 403)) throw e;   // (la clave no vale: eso sí para la copia)
+          fotosMal++;
+        }
+      }
       const sinCambios = !force && cfg[hk] && cfg[hk] === await huella();
-      if (sinCambios && !Object.keys(PM.state.data.pendingGeo || {}).length && !photosPend && !bajarPend()) return 'sin cambios';
+      if (sinCambios && !Object.keys(PM.state.data.pendingGeo || {}).length && !bajarPend()) return fotosMal ? 'fotos pendientes' : 'sin cambios';
       let subida = sinCambios;
       for (let attempt = 0; attempt < 3 && !subida; attempt++) {
         // foto de la partida que se sube (copia profunda: lo que se pinte mientras tanto no la cambia)
@@ -179,22 +207,6 @@ PM.cloud = (function () {
         PM.state.data.pendingGeo = left;
         PM.state.save();
       }
-      // fotos propias de los cromos (cifradas igual): así «Mi progreso» también enseña TU foto
-      const photos = PM.state.data.cardPhotos || {};
-      for (const [id, v] of Object.entries(photos)) {
-        if (v.up && v.up >= (v.t || 0)) continue;
-        // (la versión que se sube es la de ahora: si mientras se sube cambias la foto, la nueva queda pendiente. Antes se
-        // apuntaba «subida» con la hora del final y la foto nueva no llegaba nunca a la nube)
-        const tSube = v.t || 0;
-        const img = PM.cards && await PM.cards.getPhoto(id);
-        if (!img) continue;
-        const small = await shrink(img, 800);
-        const path = base + 'fotos/' + (await photoName(id, pass)) + '.json';
-        const cur = await readRaw(path, token).catch(() => null);
-        await write(path, await encrypt(key, { id, img: small }), cur && cur.sha, 'foto', token);
-        const ahora = (PM.state.data.cardPhotos || {})[id] || v;
-        ahora.up = Math.max(tSube, 1); fr[id] = tSube; saveCfg(); PM.state.save();
-      }
       // y al revés: tus fotos que están en la nube pero no en este móvil (móvil nuevo, partida recuperada de la nube). Solo
       // si la de la nube es la versión apuntada (up ≥ t); unas pocas en cada copia, y una que no se pueda bajar se reintenta en la siguiente
       // Cola: las pendientes (sin imagen aquí, o con una versión que no es la de la nube), empezando por las que llevan más
@@ -217,7 +229,7 @@ PM.cloud = (function () {
         } catch (e) { /* se reintenta en otra copia, cuando le vuelva el turno */ }
       }
       saveCfg();
-      return true;
+      return fotosMal ? 'fotos pendientes' : true;   // (alguna foto no se pudo subir: se reintenta en la próxima copia)
     } finally { busy = false; }
   }
 

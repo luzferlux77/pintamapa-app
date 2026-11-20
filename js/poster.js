@@ -154,6 +154,8 @@ PM.poster = (function () {
       try {
         const big = document.createElement('canvas'); render(big, D, theme, 1);
         const blob = await new Promise((r) => big.toBlob(r, 'image/png'));
+        big.width = big.height = 0;   // (suelta los ~35 MB del lienzo grande)
+        if (!blob) throw new Error(PM.t('No hay memoria suficiente para crear el póster en alta resolución.'));
         const name = `PintaMapa-${D.title.replace(/[^\wÀ-ÿ]+/g, '-')}-${theme}.png`;
         await PM.replay.save(blob, name, 'Mi mapa pintado');
         msg.textContent = `✅ Póster listo (${(blob.size / 1048576).toFixed(1)} MB).`;

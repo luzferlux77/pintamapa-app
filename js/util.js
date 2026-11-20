@@ -175,10 +175,16 @@ PM.limpiarPartida = function (d) {
   if (d.lastPos != null && !PM.puntoOk(d.lastPos)) d.lastPos = null;
   if (d.session != null && !(obj(d.session) && isFinite(d.session.start) && obj(d.session.st))) d.session = null;
   if (d.session && Array.isArray(d.session.track)) d.session.track = d.session.track.filter((q) => q === null || PM.puntoOk(q));
+  // (tiempos rotos del paseo en marcha: el reloj salía «NaN:NaN» y al terminar el paseo no se guardaba —informe de Gemini—)
+  if (d.session) {
+    if (!(Number.isFinite(d.session.elapsed) && d.session.elapsed >= 0)) d.session.elapsed = 0;
+    if (!Number.isFinite(d.session.resumedAt)) d.session.resumedAt = d.session.start;
+  }
   if (Array.isArray(d.avoid)) d.avoid = d.avoid.filter((a) => a.type !== 'circle' || (PM.puntoOk(a.c) && isFinite(a.r) && a.r > 0));
   // (el color y la foto de perfil van dentro de un style="…": solo un color y una imagen de verdad)
   if (d.color != null && !/^#[0-9a-f]{3,8}$/i.test(String(d.color))) d.color = '#2563eb';
-  if (d.avatar != null && !/^data:image\/[a-z+]+;base64,[A-Za-z0-9+/=]+$/.test(String(d.avatar))) delete d.avatar;
+  // (solo fotos: jpeg, png, webp o gif; un SVG puede llevar código dentro —informe de Gemini, 20-nov-2026—)
+  if (d.avatar != null && !/^data:image\/(jpeg|jpg|png|webp|gif);base64,[A-Za-z0-9+/=]+$/.test(String(d.avatar))) delete d.avatar;
   return d;
 };
 PM.fmtNum = function (n) { return Math.round(n).toLocaleString(PM.LOCALE || 'es-ES'); };

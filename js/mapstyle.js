@@ -92,7 +92,10 @@ PM.mapStyle = (function () {
     maplibregl.addProtocol('pmc', async (params) => {
       const url = params.url.slice(P.length);
       const buf = await cachedFetch(url, isTile(url) || /fonts|sprite/.test(url));
-      if (params.type === 'json') return { data: rewrite(JSON.parse(new TextDecoder().decode(buf))) };
+      if (params.type === 'json') {
+        if (!buf.byteLength) throw new Error('Sin datos de ' + url);   // (respuesta vacía: un error claro, no «Unexpected end of JSON»)
+        return { data: rewrite(JSON.parse(new TextDecoder().decode(buf))) };
+      }
       return { data: buf };
     });
     protoOn = true;
@@ -136,7 +139,10 @@ PM.mapStyle = (function () {
     let last = 0; try { last = +localStorage.getItem('pintamapa_poda') || 0; } catch (e) {}
     if (Date.now() - last < 7 * 86400000) return 0;
     try { localStorage.setItem('pintamapa_poda', String(Date.now())); } catch (e) {}
-    const c = await caches.open(CACHE), keys = await c.keys(), sobran = keys.slice(0, Math.max(0, keys.length - max));
+    // (solo teselas: el estilo, las letras y los iconos son lo primero que se guardó y eran lo primero que se borraba; sin
+    // ellos el mapa sin conexión no se dibuja —informe de Gemini, 20-nov-2026—)
+    const fijo = (u) => /fonts|glyphs|sprite|\.json(\?|$)/.test(u);
+    const c = await caches.open(CACHE), keys = (await c.keys()).filter((k) => !fijo(k.url)), sobran = keys.slice(0, Math.max(0, keys.length - max));
     for (const k of sobran) await c.delete(k);
     return sobran.length;
   }

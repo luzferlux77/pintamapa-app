@@ -180,7 +180,7 @@ PM.replay = (function () {
 
   // ---------------- Gráficas (SVG) ----------------
   function chart(pts, val, { color, unit, fmt, invert }) {
-    const data = pts.map((q) => [q.d, val(q)]).filter((x) => x[1] != null && isFinite(x[1]));
+    const data = pts.map((q, i) => [q.d, val(q, i)]).filter((x) => x[1] != null && isFinite(x[1]));   // (con su posición: buscarla con indexOf era lentísimo en paseos largos)
     if (data.length < 2) return '<div class="rp-empty">Sin datos</div>';
     const w = 640, h = 150, pad = 26;
     const x0 = data[0][0], x1 = data[data.length - 1][0] || 1;
@@ -461,13 +461,13 @@ ${segs.map((s) => `<LineString><tessellate>1</tessellate><altitudeMode>clampToGr
         ${tile('Mejor combo', 'x' + (st.bestCombo || 0), st.conquests ? st.conquests + ' barrio(s) conquistado(s)' : '')}
       </div>
       <h3>Perfil de altitud</h3>${A.hasEle ? chart(P.pts, (q) => q.e, { color: '#16a34a', unit: 'm', fmt: (v) => Math.round(v) }) : '<div class="rp-empty">Sin datos de altitud (sin conexión)</div>'}
-      <h3>Ritmo</h3>${P.timed ? chart(P.pts, ((s) => (q) => s[P.pts.indexOf(q)])(paceSeries(P.pts)), { color: '#2563eb', unit: 'min/km', fmt: (v) => PM.dec(v, 1), invert: true })
+      <h3>Ritmo</h3>${P.timed ? chart(P.pts, ((s) => (q, i) => s[i])(paceSeries(P.pts)), { color: '#2563eb', unit: 'min/km', fmt: (v) => PM.dec(v, 1), invert: true })
         : '<div class="rp-empty">Este paseo es anterior a la versión que guarda la hora de cada punto: aquí verás el ritmo de tus próximos paseos.</div>'}
       <h3>Parciales por kilómetro</h3>
       ${A.splits.length ? (P.timed ? '' : '<p class="rp-note">Este paseo no guardaba la hora de cada punto: el ritmo de cada kilómetro no se puede saber (solo la media). El desnivel sí es real.</p>') +
         `<table class="rp-splits"><tr><th>Km</th><th>Ritmo</th><th>Desnivel</th><th></th></tr>${A.splits.map((x) => {
         const pace = x.sec / (x.partial ? (x.km % 1 || 1) : 1);
-        const w = best ? Math.max(8, Math.min(100, best.sec / pace * 100)) : 50;
+        const w = best && pace > 0 && best.sec > 0 ? Math.max(8, Math.min(100, best.sec / pace * 100)) : 50;   // (sin ritmo: nada de «NaN %»)
         const isBest = P.timed && best && x === best;
         return `<tr class="${isBest ? 'best' : ''}"><td>${x.partial ? PM.dec(x.km, 2) : x.km}</td><td>${P.timed ? fmtPace(pace) : '—'}</td><td>${x.de != null ? (x.de >= 0 ? '+' : '') + Math.round(x.de) + ' m' : '—'}</td><td>${P.timed ? `<i style="width:${w}%"></i>` : ''}</td></tr>`;
       }).join('')}</table>` : '<div class="rp-empty">Menos de 1 km.</div>'}
@@ -508,8 +508,10 @@ ${segs.map((s) => `<LineString><tessellate>1</tessellate><altitudeMode>clampToGr
       }
       // 2) Respaldo: grabación en tiempo real (puede salir en WebM)
       if (!cv.captureStream || !window.MediaRecorder) { msg.textContent = 'Este navegador no puede grabar vídeo.'; return; }
-      const type = ['video/mp4;codecs=avc1', 'video/mp4', 'video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm'].find((x) => MediaRecorder.isTypeSupported(x));
-      const rec = new MediaRecorder(cv.captureStream(FPS), { mimeType: type, videoBitsPerSecond: 5e6 });
+      // (si no admite ninguno de la lista, el formato que elija el navegador: antes se rompía al poner el nombre del archivo)
+      const elegido = ['video/mp4;codecs=avc1', 'video/mp4', 'video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm'].find((x) => MediaRecorder.isTypeSupported(x));
+      const rec = new MediaRecorder(cv.captureStream(FPS), elegido ? { mimeType: elegido, videoBitsPerSecond: 5e6 } : { videoBitsPerSecond: 5e6 });
+      const type = elegido || rec.mimeType || 'video/webm';
       const chunks = [];
       rec.ondataavailable = (e) => e.data.size && chunks.push(e.data);
       recording = true; msg.textContent = '⏺ Grabando… (' + Math.round(DRAW_S + HOLD_S) + ' s)';

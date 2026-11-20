@@ -263,8 +263,10 @@ PM.cards = (function () {
       for (let i = 0; i < a.length; i += 4) { a[i] = Math.round(a[i] / q) * q; a[i + 1] = Math.round(a[i + 1] / q) * q; a[i + 2] = Math.round(a[i + 2] / q) * q; }
       ctx.putImageData(d, 0, 0);
       ctx.globalCompositeOperation = 'multiply';
+      // (la luz de cada punto, de los píxeles que ya están en memoria: antes se leía el lienzo punto a punto —7.500 lecturas que
+      // congelaban el móvil unos segundos—. Da lo mismo: los puntos de la trama no se tocan entre sí —informe de Gemini—)
       for (let y = 0; y < H; y += 12) for (let x = (y / 12) % 2 ? 6 : 0; x < W; x += 12) {
-        const p = ctx.getImageData(x, y, 1, 1).data, l = (p[0] + p[1] + p[2]) / 765;
+        const k = (y * W + x) * 4, l = (a[k] + a[k + 1] + a[k + 2]) / 765;
         ctx.fillStyle = 'rgba(20,10,40,0.55)'; ctx.beginPath(); ctx.arc(x, y, (1 - l) * 4.5, 0, 6.29); ctx.fill();
       }
       ctx.globalCompositeOperation = 'source-over';
