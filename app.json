@@ -1,10 +1,10 @@
 {
-  "version": "0.9.22",
-  "notes": "Al ir por una acera se pinta la calle entera: también la otra calzada y la acera de enfrente",
+  "version": "0.9.23",
+  "notes": "Correcciones del informe de Codex: botón de versión caducada, contornos de ciudades lejanas, gemelas por nombre, pausas durante la recuperación GPS, fotos de la nube, copia de seguridad, cartas trasladadas y calles cercanas a cualquier latitud",
   "native": 1,
   "nativeApk": 9,
   "apkMin": "0.9.4",
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.9.22/pintamapa-web-0.9.22.zip",
-  "checksum": "604745dde970cb30fecbc19065b7bad34ccd726f0565d3313e3853acc6d19d80",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.9.22/PintaMapa-v0.9.22.apk"
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.9.23/pintamapa-web-0.9.23.zip",
+  "checksum": "bd3d7e1773d981ffd0d177c73188ce274045d44a4c8afa0829bec6262ef66048",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.9.23/PintaMapa-v0.9.23.apk"
 }
