@@ -37,7 +37,10 @@ PM.cards = (function () {
     return { lang: site ? L : null, title: site ? sl[site].title : null, img: p18 ? commonsFile(p18) : null, desc,
       otro: otro ? [otro.replace('wiki', ''), sl[otro].title] : null };
   }
-  const words = (t) => String(t).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').split(/[^a-z0-9]+/).filter((w) => w.length > 3);
+  // (con las letras de cualquier alfabeto: un nombre en japonés o árabe se quedaba sin palabras y nunca encontraba su foto ni
+  // su artículo —informe de Gemini (2)—; en chino, japonés o coreano, 2 signos ya son una palabra)
+  const CJK = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/u;
+  const words = (t) => String(t).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').split(/[^\p{L}\p{N}]+/u).filter((w) => w.length > 3 || (w.length >= 2 && CJK.test(w)));
   // palabras que no identifican un sitio (tipos de lugar, ciudades, países…): no bastan para decir que una foto o un
   // artículo de los alrededores es de ESTE lugar (con «catedral», el «Hotel Catalonia Catedral» cogía la foto del mural
   // del beso y podía coger el artículo de la catedral)

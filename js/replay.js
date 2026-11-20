@@ -11,7 +11,7 @@ PM.replay = (function () {
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const fmtKm = (m) => (m >= 1000 ? PM.dec(m / 1000, 2) + ' km' : Math.round(m) + ' m');
   const fmtT = (s) => { s = Math.round(s); const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), x = s % 60; return h ? `${h} h ${String(m).padStart(2, '0')} min` : `${m}:${String(x).padStart(2, '0')}`; };
-  const fmtPace = (secPerKm) => !isFinite(secPerKm) || secPerKm <= 0 ? '—' : `${Math.floor(secPerKm / 60)}:${String(Math.round(secPerKm % 60)).padStart(2, '0')} /km`;
+  const fmtPace = (secPerKm) => !isFinite(secPerKm) || secPerKm <= 0 ? '—' : ((s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')} /km`)(Math.round(secPerKm));   // (redondeado antes: nunca «5:60»)
   const dist = (a, b) => { const dy = (b[0] - a[0]) * 110540, dx = (b[1] - a[1]) * 111320 * Math.cos(a[0] * Math.PI / 180); return Math.hypot(dx, dy); };
 
   function segsOf(track) {
@@ -118,12 +118,16 @@ PM.replay = (function () {
       for (let k = 0; k < idx.length; k += 100) {
         const part = idx.slice(k, k + 100);
         const url = 'https://api.open-meteo.com/v1/elevation?latitude=' + part.map((i) => pts[i].lat.toFixed(5)).join(',') + '&longitude=' + part.map((i) => pts[i].lon.toFixed(5)).join(',');
-        const j = await (await fetch(url)).json();
-        (j.elevation || []).forEach((e, n) => { pts[part[n]].e = e; });
+        // (con tiempo máximo y solo números de verdad: un hueco en la respuesta dejaba «Altitud: NaN–NaN m» —Gemini (2)—)
+        const r = await fetch(url, AbortSignal.timeout ? { signal: AbortSignal.timeout(15000) } : {});
+        if (!r.ok) throw new Error('altitud ' + r.status);
+        const j = await r.json();
+        (j.elevation || []).forEach((e, n) => { if (part[n] != null && Number.isFinite(e)) pts[part[n]].e = e; });
       }
-      // los puntos intermedios: interpolados
+      // los puntos intermedios: interpolados (solo entre dos alturas conocidas)
       for (let n = 0; n < idx.length - 1; n++) {
         const a = idx[n], b = idx[n + 1];
+        if (!Number.isFinite(pts[a].e) || !Number.isFinite(pts[b].e)) continue;
         for (let i = a + 1; i < b; i++) pts[i].e = pts[a].e + (pts[b].e - pts[a].e) * (i - a) / (b - a);
       }
       return true;
@@ -161,7 +165,7 @@ PM.replay = (function () {
     const rest = total - (km - 1) * 1000;
     if (rest > 50 && pts.length) { const b = pts[pts.length - 1]; splits.push({ km: km - 1 + rest / 1000, sec: b.t - lastT, de: b.e != null && lastE != null ? b.e - lastE : null, partial: true }); }
     // altitud: suavizada y con umbral (el desnivel no se infla con el ruido)
-    const el = pts.map((q) => q.e).filter((e) => e != null);
+    const el = pts.map((q) => q.e).filter((e) => Number.isFinite(e));
     let up = 0, down = 0, minE = null, maxE = null;
     if (el.length > 1) {
       const sm = el.map((_, i) => { const a = Math.max(0, i - 3), b = Math.min(el.length, i + 4); let s = 0; for (let k = a; k < b; k++) s += el[k]; return s / (b - a); });

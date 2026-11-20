@@ -75,7 +75,10 @@
     // una plaza es una plaza aunque Wikidata la tenga además como sede olímpica (la Concordia de París 2024)
     // (también con mercado: la plaza de Yamaa el Fna; no una plaza de abastos, ni un centro comercial o una torre que se llaman Plaza,
     // ni un «square» de París, que es un jardín)
+    // (ni una estación, una tienda, un aeropuerto o un museo que se llaman «Plaza…»: la estación Plaza de España, «Plaza Modas»
+    // —informe de Gemini (2), 20-nov-2026—)
     if ((!a || (a === 'marketplace' && !/abastos|mercado|mercat|market/i.test(n))) && !tags._uso && b !== 'skyscraper' && !(l && /^square\s/i.test(n))
+      && !tags.railway && !tags.station && !tags.public_transport && !tags.shop && !tags.aeroway && !(t && t !== 'attraction' && t !== 'viewpoint')
       && /^(plaza|place|piazza|square|pra[çc]a|platz|pla[çc]a|largo|rynek|n[aá]m[eě]st[ií])(\s|$)/i.test(n) && !/toros|bullring|arena|stadium|estadio/i.test(n)) return { kind: 'Plaza', emoji: '🏙️', prio: 55 };
     // por el nombre, solo templos y edificios (no la «Piazza del Duomo»); «Dom» solo como en alemán (Kölner Dom, Dom St. Peter):
     // antes «Sant Domènec» o «Justo Domínguez» salían como catedrales (la tilde cortaba la palabra)
@@ -111,7 +114,9 @@
     if (l === 'stadium' || b === 'stadium') return { kind: 'Estadio', emoji: '🏟️', prio: 85 };
     if (b === 'basilica' || (!otroUso && (temple || h === 'building') && /bas[ií]lica|co-?catedral|concatedral/i.test(n))) return { kind: 'Basílica', emoji: '⛪', prio: 80 };
     // ermitas y monasterios (siempre visibles si son patrimonio o tienen Wikipedia)
-    if (a === 'place_of_worship' && /christian/.test(tags.religion || 'christian') && (b === 'chapel' || /ermita|eremitori|santuari|monasteri|monestir|convent|abad[ií]a|cartuja|cartoixa|hermitage|monastery|abbey/i.test(n)))
+    // (también el que Wikidata da como edificio-monasterio, y los nombres en otras lenguas: Kloster, abbaye, abdij, priorato,
+    // certosa, mosteiro… —informe de Gemini (2)—)
+    if (a === 'place_of_worship' && /christian/.test(tags.religion || 'christian') && (b === 'chapel' || b === 'monastery' || /ermita|eremitori|santuari|monasteri|monestir|convent|couvent|abad[ií]a|abbaye|abdij|kloster|prieur|priorat|priory|certosa|mosteiro|cartuja|cartoixa|hermitage|monastery|abbey/i.test(n)))
       return { kind: 'Ermita / Monasterio', emoji: '⛪', prio: 74 };
     if (a === 'place_of_worship') return { kind: /christian/.test(tags.religion || 'christian') ? 'Iglesia' : 'Templo', emoji: '⛪', prio: 75 };
     if (t === 'museum') return { kind: 'Museo', emoji: '🖼️', prio: 70 };
@@ -332,6 +337,7 @@
     const lm = { id: el.type[0] + el.id, name: tags.name, kind: c.kind, emoji: c.emoji, rarity, pos, prio, fromWd: !!tags._wp, wp, her, wiki: tags.wikipedia, wd: tags.wikidata,
       texto: tags._txt || null, fuente: tags._fte || null, vis: +tags._vis || 0, anio: +tags.start_date || 0, guia: guiaN(tags), pv: +tags._pv || 0, osm: tags._osm ? String(tags._osm).split(',') : null,
       desglose: { tipo, fama: fame, proteccion: prot, ajuste, uso, antiguedad: edad, visitantes: vis, atraccion: atr, trampa, guia, lecturas: lect },
+      oblig: !!tags._oblig,   // (añadido a mano, scripts/pois/obligatorios.json: sale siempre)
       townhall: c.kind === 'Ayuntamiento', church: /^(Iglesia|Basílica|Catedral)$/.test(c.kind), points: 100 * RARITY[rarity].mult,
       // icónicos: SIEMPRE visibles, sin separación mínima ni cupo de zona: ayuntamiento, catedral, basílica, castillo,
       // estación histórica, Patrimonio de la Humanidad o nacional, lo famoso de verdad (12+ idiomas) y los palacios,
@@ -362,10 +368,13 @@
 
   // ---------------- Nombres parecidos («Palau Güell» / «Palacio Güell» no; «Catedral del Salvador» / «… de Albarracín» sí) ----------------
   const ES = { museu: 'museo', poble: 'pueblo', espanyol: 'espanol' };   // (el mapa da el nombre local y Wikidata en español: «Museu Fran Daurel» / «Museo Fran Daurel»)
+  const LAT = { 'ł': 'l', 'ø': 'o', 'ß': 'ss', 'æ': 'ae', 'œ': 'oe', 'ı': 'i', 'đ': 'd', 'þ': 'th' };
   const normMemo = new Map();   // (cada nombre se normaliza una sola vez: la selección compara miles)
   const norm = (s) => {
     s = String(s || ''); let r = normMemo.get(s);
-    if (r === undefined) { r = s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\b(de|del|la|el|les|los|las|dels|of|the|le|du|di|della)\b/g, ' ').replace(/[^a-z0-9]+/g, ' ').replace(/\b(museu|poble|espanyol)\b/g, (w) => ES[w]).trim(); if (normMemo.size > 20000) normMemo.clear(); normMemo.set(s, r); }
+    // (las letras de cualquier alfabeto se quedan: antes solo a-z, y «清水寺» o «Храм…» quedaban vacíos —dos templos distintos
+    // parecían el mismo—; y las latinas que no se descomponen se igualan: ł→l, ø→o, ß→ss… —informe de Gemini (2)—)
+    if (r === undefined) { r = s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[łøßæœıđþ]/g, (c) => LAT[c]).replace(/\b(de|del|la|el|les|los|las|dels|of|the|le|du|di|della)\b/g, ' ').replace(/[^\p{L}\p{N}]+/gu, ' ').replace(/\b(museu|poble|espanyol)\b/g, (w) => ES[w]).trim(); if (normMemo.size > 20000) normMemo.clear(); normMemo.set(s, r); }
     return r;
   };
   // ¿este nombre es otra ciudad que la que ya conocíamos? (Córdoba, Valencia, San Fernando: hay varias en el mundo)
@@ -427,10 +436,13 @@
     const all = cands.slice().sort((x, y) => (cap.get(y) - cap.get(x)) || (y.principal - x.principal) || (y.prio - x.prio) || byId(x, y));
     const G = C.GRID, ck = (i, j) => i * 1e6 + j;
     const gridAdd = (M, lm) => { const k = ck(Math.floor(lm.pos[0] / G), Math.floor(lm.pos[1] / G)); const L0 = M.get(k); if (L0) L0.push(lm); else M.set(k, [lm]); };
-    // recorre los vecinos (±r celdas) hasta que fn devuelva algo
-    const near = (M, q, r, fn) => {
+    // recorre los vecinos a menos de maxM metros hasta que fn devuelva algo. (Las celdas encogen de este a oeste con la
+    // latitud: antes se miraba un número fijo de celdas y en Barcelona se escapaban duplicados a 269 m de los 300 que se
+    // miran, y en Oslo la separación de 100 m del ayuntamiento —informe de Gemini (2), 20-nov-2026—)
+    const near = (M, q, maxM, fn) => {
       const ci = Math.floor(q.pos[0] / G), cj = Math.floor(q.pos[1] / G);
-      for (let i = -r; i <= r; i++) for (let j = -r; j <= r; j++) { const L0 = M.get(ck(ci + i, cj + j)); if (L0) for (const o of L0) { const v = fn(o); if (v) return v; } }
+      const ri = Math.ceil(maxM / (G * 111320)), rj = Math.ceil(maxM / (G * 111320 * Math.max(0.05, Math.cos(q.pos[0] * Math.PI / 180))));
+      for (let i = -ri; i <= ri; i++) for (let j = -rj; j <= rj; j++) { const L0 = M.get(ck(ci + i, cj + j)); if (L0) for (const o of L0) { const v = fn(o); if (v) return v; } }
       return null;
     };
     // 1) lo de Wikidata que es el MISMO sitio que algo del mapa (mismo Q, mismo tipo cerca o nombre parecido; no
@@ -442,7 +454,7 @@
     for (const lm of all) {
       if (!lm.fromWd) continue;
       const same = (lm.osm || []).map((id) => mapaId.get(id)).filter(Boolean), close = [];
-      near(osmGrid, lm, 2, (o) => {
+      near(osmGrid, lm, 300, (o) => {
         if (o.wd) { if (o.wd === lm.wd && !same.includes(o)) same.push(o); return; }   // (enlazado a otro lugar: es otra cosa, aunque esté al lado)
         const dd = d2(o, lm); if ((tipoBase(o) === tipoBase(lm) && dd < 3600) || (dd < 90000 && sameN(o, lm))) close.push(o);
       });
@@ -462,7 +474,9 @@
       // si ya conquistaste la versión del mapa, se queda esa (antes salían las dos: «Ajuntament» y «casa consistorial»)
       const capO = close.find((o) => cap.get(o));
       if (capO && !cap.get(lm)) { drop.set(lm.id, 'duplicado de ' + capO.name + ' (ya conquistado)'); continue; }
-      if (close.every((o) => !o.wd && !o.wiki) && lm.prio >= Math.max(...close.map((o) => o.prio))) {
+      // (un lugar añadido a mano gana siempre a sus copias del mapa: antes, si la del mapa tenía Wikipedia, se perdía el
+      // obligatorio con su texto y su fuente —«Cornellà canta a Estopa», informe de Gemini (2)—)
+      if (lm.oblig || (close.every((o) => !o.wd && !o.wiki) && lm.prio >= Math.max(...close.map((o) => o.prio)))) {
         close.forEach((o) => { if (!cap.get(o)) { drop.set(o.id, 'duplicado de ' + lm.name + ' (Wikidata sabe más)'); dup.set(o.id, lm.id); } });
         // Wikidata solo sabe que es «patrimonio» y el mapa dice qué es (el Alcázar de Toledo, un castillo): ese tipo
         const spec = close.filter((o) => o.kind !== 'Patrimonio' && o._n && o._n === lm._n).sort((x, y) => y.prio - x.prio || (x.id < y.id ? -1 : 1))[0];
@@ -477,7 +491,7 @@
       if (drop.has(lm.id)) { why.set(lm.id, drop.get(lm.id)); continue; }
       const zk = zona(lm.pos), kk = zk + '|' + lm.kind.replace(' principal', ''), isC = cap.get(lm);
       // (pasado el tope, compite como los demás; lo famoso en todo el mundo, 15+ idiomas, entra siempre: el Arco de Tito)
-      const icon = lm.principal && (((iconN[zk] || 0) < C.ICON_MAX && (iconKindN[kk] || 0) < C.ICON_KIND_MAX) || lm.wp >= C.WORLD_FAMOUS);
+      const icon = lm.oblig || (lm.principal && (((iconN[zk] || 0) < C.ICON_MAX && (iconKindN[kk] || 0) < C.ICON_KIND_MAX) || lm.wp >= C.WORLD_FAMOUS));   // (lo añadido a mano, sin cupos)
       const shop = lm.kind === 'Comercio emblemático';
       // lo importante aparece siempre: desde 110 puntos, sin cupos ni separación (como los icónicos, pero contando cupo)
       const imp = icon || lm.prio >= C.IMPORTANTE;
@@ -488,15 +502,15 @@
         // lo flojo solo rellena zonas con poco (en el Gòtic no hace falta; en un barrio sin monumentos, sí)
         if (!imp && !shop && lm.prio < C.RELLENO && (allN[zk] || 0) >= C.RELLENO_HASTA) { why.set(lm.id, 'poco interés para una zona que ya tiene ' + (allN[zk] || 0) + ' lugares'); continue; }
         // varios edificios del mismo sitio (TV3…): uno
-        if (near(kept, lm, 2, (o) => (o.name === lm.name || (o.kind === lm.kind && sameN(o, lm))) && d2(o, lm) < (o.kind === lm.kind ? 90000 : 6400))) { why.set(lm.id, 'mismo nombre que otro ya elegido'); continue; }
+        if (near(kept, lm, 300, (o) => (o.name === lm.name || (o.kind === lm.kind && sameN(o, lm))) && d2(o, lm) < (o.kind === lm.kind ? 90000 : 6400))) { why.set(lm.id, 'mismo nombre que otro ya elegido'); continue; }
         if (lm.kind === 'Estación' && !lm.wiki && !lm.wd) {
           const parque = (o) => o.kind === 'Parque' && d2(o, lm) < 250000 && sameN(o, lm);
-          if (near(osmGrid, lm, 3, parque) || near(kept, lm, 3, parque)) { why.set(lm.id, 'estación que se llama como el parque'); continue; }
+          if (near(osmGrid, lm, 500, parque) || near(kept, lm, 500, parque)) { why.set(lm.id, 'estación que se llama como el parque'); continue; }
         }
         // separación (60 m) solo para el relleno: lo que tiene interés de guía (75+) sale aunque tenga otro al lado
         if (!imp && lm.prio < C.SIN_SEPARACION) {
           const gap2 = sq(lm.wp >= 8 ? C.FAMOUS_GAP : C.MIN_GAP);
-          const vecino = near(kept, lm, 1, (o) => (d2(o, lm) < (o.townhall && lm.wp < 8 ? th2 : shop || o.kind === 'Comercio emblemático' ? sh2 : gap2)) && o);
+          const vecino = near(kept, lm, C.TOWNHALL_GAP, (o) => (d2(o, lm) < (o.townhall && lm.wp < 8 ? th2 : shop || o.kind === 'Comercio emblemático' ? sh2 : gap2)) && o);
           if (vecino) { why.set(lm.id, 'demasiado cerca de ' + vecino.name + ' (' + Math.round(Math.sqrt(d2(vecino, lm))) + ' m)'); continue; }
         }
       }
@@ -550,7 +564,10 @@
   const GEN = new Set(('iglesia esglesia església parroquia parròquia parroquial capilla capella ermita santuario santuari convento convent monasterio monestir ' +
     'catedral basilica basílica templo temple church chapel cathedral saint sant santa santo san nuestra senora señora mare deu museo museu museum ' +
     'plaza plaça place parque parc park fuente font palacio palau castillo castell torre').split(' '));
-  const palabras = (t) => norm(t).split(' ').filter((w) => w.length > 3 && !GEN.has(w));
+  // (en chino, japonés o coreano una palabra de 2-3 signos ya es un nombre propio: 清水寺)
+  const CJK = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/u;
+  const palabras = (t) => norm(t).split(' ').filter((w) => (w.length > 3 || (w.length >= 2 && CJK.test(w))) && !GEN.has(w));
+  const sinLatin = (t) => { const x = norm(t); return !!x && !/[a-z]/.test(x); };
   function mismoSitio(a, b) {
     if (!a || !b || !a.pos || !b.pos) return false;
     const d = geo().dist(a.pos, b.pos);
@@ -569,7 +586,10 @@
     if (a.wd && b.wd) return a.wd === b.wd;
     if (sameName(a.name, b.name)) return true;
     const pa = palabras(a.name), pb = new Set(palabras(b.name));
-    return !pa.length || !pb.size || pa.some((w) => pb.has(w));
+    // (sin palabras propias en uno de los dos —«Iglesia»—, como siempre: la misma. Pero si alguno está en otro alfabeto, sus
+    // nombres distintos dicen que son dos sitios distintos: antes se juntaban dos templos de Kioto a 38 m)
+    if (!pa.length || !pb.size) return !(sinLatin(a.name) || sinLatin(b.name));
+    return pa.some((w) => pb.has(w));
   }
 
   // ¿Esta carta (id y registro) es este imprescindible de la lista? Los lugares de Wikidata tienen id «nQ123». Si la que

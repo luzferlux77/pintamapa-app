@@ -232,7 +232,7 @@
     const km = (m) => PM.dec(m / 1000, m >= 10000 ? 1 : 2);
     const dist = (m) => PM.fmtDist(m || 0);
     const dur = (ms) => { const m = Math.round(ms / 60000); return m >= 60 ? Math.floor(m / 60) + ' h ' + (m % 60) + ' min' : m + ' min'; };
-    const pace = (ms, m) => { if (!m || m < 50) return '—'; const s = ms / 1000 / (m / 1000); return Math.floor(s / 60) + ':' + String(Math.round(s % 60)).padStart(2, '0') + ' /km'; };
+    const pace = (ms, m) => { if (!m || m < 50) return '—'; const s = Math.round(ms / 1000 / (m / 1000)); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0') + ' /km'; };
     const dayKey = (t) => { const d = new Date(t); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
     const RAR = PM.world.RARITY;
     const mov = (w) => PM.movingMs(w);

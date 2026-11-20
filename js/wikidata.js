@@ -210,7 +210,10 @@
       if (DULL.test(name) && wp < 2) continue;
       const t = Object.assign({ historic: 'building' }, tags && tags.building !== 'yes' ? tags : {}, { name, wikidata: q, _wp: wp });
       delete t._tren;
-      for (const c of cls) if (USO[c]) { t._uso = USO[c]; break; }
+      // (un estadio no se resta puntos por ser instalación deportiva —Q1076486 está en las dos tablas—; y si hay varios usos,
+      // siempre el mismo, no el que llegue primero de Wikidata —informe de Gemini (2)—)
+      const usos = cls.map((c) => USO[c]).filter((u) => u && !(u === 'deporte' && t.leisure === 'stadium')).sort();
+      if (usos.length) t._uso = usos[0];
       if (b.visit && +b.visit.value) t._vis = Math.round(+b.visit.value);   // visitantes al año (museos, monumentos…)
       if (cls.includes('Q570116')) t._atr = 1;                            // catalogado como atracción turística
       if (tags && tags.building === 'yes') t.building = 'yes';

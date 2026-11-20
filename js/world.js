@@ -319,7 +319,11 @@ PM.world = (function () {
     const r = s.landmarks[oldId];
     if (!r || oldId === newId) return;
     s.landmarks[newId] = Object.assign({}, r, lm ? { name: lm.name, kind: lm.kind, emoji: lm.emoji, rarity: lm.rarity,
-      pos: [+lm.pos[0].toFixed(6), +lm.pos[1].toFixed(6)], wiki: lm.wiki || r.wiki || null, wd: lm.wd || r.wd || null } : {});
+      pos: [+lm.pos[0].toFixed(6), +lm.pos[1].toFixed(6)], wiki: lm.wiki || r.wiki || null, wd: lm.wd || r.wd || null,
+      // (y lo que se sabe del sitio: patrimonio, año, visitantes, idiomas y el texto propio de un lugar añadido a mano. Antes
+      // se quedaban atrás y la carta trasladada seguía «dudosa» y sin su descripción —informe de Gemini (2)—)
+      her: lm.her != null ? lm.her : r.her, anio: lm.anio || r.anio || 0, vis: lm.vis || r.vis || 0, wp: lm.wp || r.wp || 0 } : {},
+    lm && lm.texto ? { texto: lm.texto, fuente: lm.fuente } : {});
     delete s.landmarks[oldId];
     for (const k of ['cardInfo', 'cardPhotos']) if (s[k] && s[k][oldId]) { if (!s[k][newId]) s[k][newId] = s[k][oldId]; delete s[k][oldId]; }
     // (en la nube la foto se guarda con el identificador del lugar: con el nuevo hay que volver a subirla)
@@ -1822,7 +1826,9 @@ PM.world = (function () {
           // si los datos de su zona están completos y ya no aparece, ya no existe; si no, se espera
           const lm = pool[id];
           if (lm) { r.her = lm.her || 0; r.wp = lm.wp || r.wp || 0; r.anio = lm.anio || r.anio || 0; if (r.kind !== lm.kind) { r.kind = lm.kind; r.emoji = lm.emoji; r.rarity = lm.rarity; } n++; v = null; }
-          else v = zonaCompleta(r.pos, id) || (zonaVista && r.pos && tileKeyOf(r.pos[0], r.pos[1]) === zonaVista) ? 'quitar' : null;
+          // (una carta de Wikidata solo se quita si la respuesta de Wikidata de su zona llegó entera —zonaCompleta—, nunca solo
+          // porque la zona se revisara: si Wikidata falló o tardó, se quitaban cartas buenas —informe de Gemini (2)—)
+          else v = zonaCompleta(r.pos, id) || (zonaVista && !/^n?Q\d+$/.test(id) && r.pos && tileKeyOf(r.pos[0], r.pos[1]) === zonaVista) ? 'quitar' : null;
         }
         if (v === 'quitar') {
           delete s.landmarks[id];
@@ -1871,7 +1877,9 @@ PM.world = (function () {
         const ci = c && cityInfo[c];
         if (!ci || !ci.must) continue;
         const lm = landmarks[id];
-        const m = lm ? !!lm.must : ci.must.some((e) => L.esMust(e, id, r));
+        // (si el lugar acaba de entrar y aún no se ha decidido si es imprescindible —must sin poner—, se mira la lista: antes
+        // contaba como «no» y se le quitaba la marca a la carta —informe de Gemini (2)—)
+        const m = lm && lm.must !== undefined ? !!lm.must : ci.must.some((e) => L.esMust(e, id, r));
         if (!!r.must !== m) { r.must = m ? 1 : 0; n++; }
       }
       for (const b of Object.values(s.barrioCards || {})) {

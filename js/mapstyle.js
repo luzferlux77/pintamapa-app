@@ -141,7 +141,8 @@ PM.mapStyle = (function () {
     try { localStorage.setItem('pintamapa_poda', String(Date.now())); } catch (e) {}
     // (solo teselas: el estilo, las letras y los iconos son lo primero que se guardó y eran lo primero que se borraba; sin
     // ellos el mapa sin conexión no se dibuja —informe de Gemini, 20-nov-2026—)
-    const fijo = (u) => /fonts|glyphs|sprite|\.json(\?|$)/.test(u);
+    // (el estilo de OpenFreeMap es «…/styles/liberty» y la descripción de teselas «…/planet», sin «.json»: también fijos)
+    const fijo = (u) => /fonts|glyphs|sprite|\/styles\/|\/planet(\?|$)|\.json(\?|$)/.test(u);
     const c = await caches.open(CACHE), keys = (await c.keys()).filter((k) => !fijo(k.url)), sobran = keys.slice(0, Math.max(0, keys.length - max));
     for (const k of sobran) await c.delete(k);
     return sobran.length;

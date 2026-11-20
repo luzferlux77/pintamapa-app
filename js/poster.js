@@ -27,7 +27,8 @@ PM.poster = (function () {
     painted.forEach((pc) => pc.pts.forEach((q) => { a = Math.min(a, q[0]); b = Math.max(b, q[0]); l = Math.min(l, q[1]); r = Math.max(r, q[1]); }));
     // la caja con la forma de la zona del mapa y un poco de aire
     const k = Math.cos((a + b) / 2 * Math.PI / 180);
-    let sx = (r - l) * k, sy = b - a;
+    // (con un mínimo: lo pintado en una sola calle recta, norte-sur o este-oeste, tiene ancho o alto 0 y el póster salía en blanco)
+    let sx = Math.max(0.0004, (r - l) * k), sy = Math.max(0.0004, b - a);
     const want = MAP.w / MAP.h;
     if (sx / sy > want) sy = sx / want; else sx = sy * want;
     sx *= 1.12; sy *= 1.12;

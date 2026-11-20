@@ -174,7 +174,9 @@
     if (!pc) return;
     // (ya guardado: solo se cambia si ahora el tramo está más completo, para reparar los que quedaron recortados)
     const ya = pgeo.get(pc.id);
-    if (ya && (ya.p.length >= pc.pts.length || PM.geo.dist(ya.p[0], ya.p[ya.p.length - 1]) + 0.5 >= PM.geo.dist(pc.pts[0], pc.pts[pc.pts.length - 1]))) return;
+    // (se repara si el nuevo es mejor en algo: más puntos O más largo. Con «o» en la condición de salir, un tramo recortado de 2
+    // puntos no se reparaba nunca con el completo, también de 2 —informe de Gemini (2)—)
+    if (ya && ya.p.length >= pc.pts.length && PM.geo.dist(ya.p[0], ya.p[ya.p.length - 1]) + 0.5 >= PM.geo.dist(pc.pts[0], pc.pts[pc.pts.length - 1])) return;
     pgeo.set(pc.id, { k: pc.tile, p: pc.pts.map((q) => [+q[0].toFixed(6), +q[1].toFixed(6)]) });
     (pgeoTile.get(pc.tile) || pgeoTile.set(pc.tile, new Set()).get(pc.tile)).add(pc.id);
     pgeoNew.add(pc.tile);
@@ -187,7 +189,7 @@
     try {
       // (se da por escrito solo cuando la base de datos lo confirma; si falla, esas zonas vuelven a la cola)
       const db = await geoDb(), tx = db.transaction('geo', 'readwrite'), st = tx.objectStore('geo');
-      for (const k of tilesToWrite) { const o = {}; for (const id of pgeoTile.get(k) || []) o[id] = pgeo.get(id).p; st.put(o, k); }
+      for (const k of tilesToWrite) { const o = {}; for (const id of pgeoTile.get(k) || []) { const g = pgeo.get(id); if (g) o[id] = g.p; } st.put(o, k); }
       await idbDone(tx);
     } catch (e) { tilesToWrite.forEach((k) => pgeoNew.add(k)); clearTimeout(pgeoTimer); pgeoTimer = setTimeout(geoFlush, 30000); }
   }
@@ -290,7 +292,7 @@
       const isP = (id) => !!painted[id];
       if (t) for (const p of t.pieces) if (painted[p.id]) { const h = heatLevel(p.id); by[h].push(p.pts); seen.add(p.id); for (const j of W.joinsOf(p, isP)) by[h].push(j); }   // (y sus uniones de cruce: sin cortes)
       const ids = pgeoTile.get(k);
-      if (ids) for (const id of ids) if (painted[id] && !seen.has(id)) by[heatLevel(id)].push(pgeo.get(id).p);
+      if (ids) for (const id of ids) if (painted[id] && !seen.has(id) && pgeo.get(id)) by[heatLevel(id)].push(pgeo.get(id).p);
       by.forEach((list, h) => { if (list.length) f.push({ type: 'Feature', properties: { h }, geometry: { type: 'MultiLineString', coordinates: list.map((pts) => pts.map(ll)) } }); });
     }
     paintedF = f;
@@ -895,7 +897,10 @@
       await W.precargaCerca(r0.pos[0], r0.pos[1]);
       await W.ensureKeys([k]);
       if (!(W.tiles[k] && W.tiles[k].loaded)) { revTry[k] = Date.now(); return; }   // (sin conexión: en media hora)
-      await Promise.race([W.completado(), new Promise((ok) => setTimeout(ok, 20000))]);
+      // (si no termina en 20 s, la zona NO se da por revisada: se reintenta en media hora. Antes se revisaba igual, con los datos
+      // a medias, y podían quitarse cartas válidas —informe de Gemini (2), 20-nov-2026—)
+      const listo = await Promise.race([W.completado().then(() => true, () => false), new Promise((ok) => setTimeout(() => ok(false), 20000))]);
+      if (!listo) { revTry[k] = Date.now(); if (!keepSet().has(k)) W.unloadTiles([k]); return; }
       S().cartasRev.k[k] = 1;
       if (PM.fillLandmarkCities(S()) + W.fixRecords(S(), k)) { lmDirty = true; flushLandmarks(true); }
       PM.state.save();
@@ -2293,7 +2298,7 @@
   function marcasHTML() {
     const D = profileData(), st = D.st;
     if (!D.walks.length) return '';
-    const pace = (ms, m) => { if (!m || m < 50) return '—'; const sec = ms / 1000 / (m / 1000); return Math.floor(sec / 60) + ':' + String(Math.round(sec % 60)).padStart(2, '0') + ' /km'; };
+    const pace = (ms, m) => { if (!m || m < 50) return '—'; const sec = Math.round(ms / 1000 / (m / 1000)); return Math.floor(sec / 60) + ':' + String(sec % 60).padStart(2, '0') + ' /km'; };
     const when = (w) => w ? new Date(w.start).toLocaleDateString(PM.LOCALE, { day: 'numeric', month: 'short', year: '2-digit' }) : '';
     const rec = (ic, l, v, w) => `<div class="pf-rec" ${w ? `data-walk="${esc(w.id)}"` : ''}><span>${ic}</span><div><small>${l}</small><b>${v}</b></div><em>${w ? when(w) + ' ›' : ''}</em></div>`;
     const L = D.best((w) => w.st.walked || 0), P = D.best((w) => w.st.painted || 0);
@@ -2320,10 +2325,13 @@
     });
   }
   // Importar un recorrido de reloj: lee los puntos (con hora y altitud), carga sus calles y las pinta siguiendo el trazado
+  let importando = false;
   async function importTrack(file) {
     const msg = (t) => { const el = $('#imp-msg'); if (el) el.textContent = t; };
     // con un paseo en marcha (o en pausa) no: lo pintado se sumaba a ESE paseo (metros, tramos, puntos) —informe de Gemini—
     if (session) { msg('⏸ ' + PM.t('Termina el paseo antes de importar un recorrido.')); return; }
+    if (importando) return;   // (dos a la vez no: se pintaría todo dos veces)
+    importando = true;
     try {
       const xml = new DOMParser().parseFromString(await file.text(), 'application/xml');
       if (xml.getElementsByTagName('parsererror').length) { msg('❌ ' + PM.t('El archivo está dañado o no es un GPX/TCX.')); return; }
@@ -2340,6 +2348,8 @@
       const keys = [...new Set(pts.map((q) => W.tileKeyOf(q.lat, q.lon)))];
       msg(`⏳ Cargando calles (${keys.length} zona${keys.length > 1 ? 's' : ''})…`);
       await W.ensureKeys(keys);
+      // (y otra vez tras cargar las calles: si mientras tanto empezaste un paseo, no se mezcla con él —Gemini (2)—)
+      if (session) { msg('⏸ ' + PM.t('Termina el paseo antes de importar un recorrido.')); return; }
       msg('🖌️ Pintando…');
       const st = { walked: 0, painted: 0, pts: 0, pieces: 0, captures: 0, bestCombo: 0, conquests: 0, repassed: 0 };
       const before = { m: S().stats.paintedM, xp: S().xp };
@@ -2371,6 +2381,7 @@
           if (i) {
             const a = [seg[i - 1].lat, seg[i - 1].lon], d = PM.geo.dist(a, q);
             if (rapido) { enVehiculo += d; if (track.length && track[track.length - 1] !== null) track.push(null); last = null; continue; }
+            if (d >= 400 && track.length && track[track.length - 1] !== null) { track.push(null); last = null; }   // (salto sin puntos: corte, no una línea recta)
             if (d < 400) { const n = Math.ceil(d / 4), hd = [q[0] - a[0], (q[1] - a[1]) * Math.cos(q[0] * Math.PI / 180)]; for (let k = 1; k <= n; k++) paintAround(PM.geo.lerp(a, q, k / n), hd); st.walked += d; }
           }
           if (!last || PM.geo.dist(last, q) >= 8 || i === seg.length - 1) {
@@ -2389,7 +2400,7 @@
       msg(`✅ Importado: ${PM.fmtDist(st.walked)} recorridos · ${PM.fmtDist(st.painted)} de calles nuevas pintadas.` +
         (enVehiculo > 100 ? ' ' + PM.t('{d} a más de 20 km/h (en vehículo): no se pintan.', { d: PM.fmtDist(enVehiculo) }) : ''));
       PM.sync.auto();
-    } catch (e) { msg('❌ No se pudo leer el archivo: ' + (e.message || e)); }
+    } catch (e) { msg('❌ No se pudo leer el archivo: ' + (e.message || e)); } finally { importando = false; }
   }
 
   // Al volver de segundo plano: recolocar cámara y redibujar lo pintado mientras estaba oculta
@@ -3256,7 +3267,7 @@
   function panelProfile() {
     if (!['res', 'cit', 'aj'].includes(profTab)) profTab = 'res';   // («Récords» pasó a Paseos)
     const D = profileData(), s = D.s, st = D.st, lp = G.levelProgress();
-    const pace = (ms, m) => { if (!m || m < 50) return '—'; const sec = ms / 1000 / (m / 1000); return Math.floor(sec / 60) + ':' + String(Math.round(sec % 60)).padStart(2, '0') + ' /km'; };
+    const pace = (ms, m) => { if (!m || m < 50) return '—'; const sec = Math.round(ms / 1000 / (m / 1000)); return Math.floor(sec / 60) + ':' + String(sec % 60).padStart(2, '0') + ' /km'; };
     const dur = (ms) => { const m = Math.round(ms / 60000); return m >= 60 ? Math.floor(m / 60) + ' h ' + (m % 60) + ' min' : m + ' min'; };
     const tile = (ic, v, l, act) => `<div class="pf-tile" ${act ? `data-act="${act}"` : ''}><span>${ic}</span><b>${v}</b><small>${l}</small></div>`;
     const card = (title, inner, extra) => `<div class="pf-card"><h5>${title}${extra ? `<span>${extra}</span>` : ''}</h5>${inner}</div>`;
@@ -3614,6 +3625,11 @@
     if (autoResumed && session && !session.paused) avisoDiario('reabierta ' + cerradaMin + 'min');
     if (autoResumed && !vueltaLarga && session && !session.paused && vistaAntes && S().lastPos) { lastT = vistaAntes; session.recDesde = vistaAntes; }
     else if (vueltaLarga) { lastP = null; cortarUnion(); }   // (hace mucho: tramo nuevo, sin rellenar)
+    // (en los DOS casos, la «última lectura» es la de antes de cerrarse, no la de ahora que puso teleport: en la vuelta larga se
+    // quedaba en «ahora» y la recuperación pedía el diario desde ahora → 0 posiciones de lo andado con la app cerrada. Y
+    // lastFixT también: con 0, una lectura en directo en el primer segundo y medio no esperaba al diario y lo anulaba
+    // —informe de Gemini (2), 20-nov-2026—)
+    if (autoResumed && session && !session.paused && vistaAntes) { lastT = vistaAntes; lastFixT = vistaAntes; }
     setMode(mode);
     setOrient(orient);
     if (autoResumed) setTimeout(() => recuperarDiarioGps(), 1500);   // (si el GPS siguió apuntando mientras tanto; tras mucho rato, desde que se cerró)

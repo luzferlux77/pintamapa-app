@@ -46,6 +46,15 @@
       for (const [id, v] of Object.entries(b[k] || {})) out[k][id] = out[k][id] ? Math.min(out[k][id], v) : v;
     };
     ['painted', 'tileNames', 'barrioNames', 'cardInfo', 'barrioCards', 'cityCards'].forEach(union);
+    // fichas de carta: una vacía («no se encontró nada», p. ej. sin conexión) no pisa una buena; entre dos buenas, la de formato
+    // más nuevo y luego la más reciente (informe de Gemini (2), 20-nov-2026)
+    for (const [id, o] of Object.entries(a.cardInfo || {})) {
+      const v = (b.cardInfo || {})[id];
+      if (!o || !v || o === v) continue;
+      const buena = (x) => x && typeof x === 'object' && !x.none;
+      if (buena(o) && !buena(v)) out.cardInfo[id] = o;
+      else if (buena(o) && buena(v)) out.cardInfo[id] = (o.v || 0) > (v.v || 0) || ((o.v || 0) === (v.v || 0) && (o.t || 0) > (v.t || 0)) ? o : v;
+    }
     // fotos propias: por cada carta gana la foto MÁS RECIENTE (antes, siempre la del segundo: una copia vieja tapaba una nueva)
     out.cardPhotos = Object.assign({}, a.cardPhotos || {});
     // (una entrada vacía no borra una foto; y con la MISMA versión en las dos, se conserva la marca de «ya subida» de la que la
@@ -74,8 +83,12 @@
     out.landmarks = Object.assign({}, a.landmarks);
     for (const [id, v] of Object.entries(b.landmarks || {})) {
       const o = out.landmarks[id];
-      out.landmarks[id] = o ? Object.assign({}, o, v, { t: Math.min(o.t, v.t), visits: Math.max(o.visits || 1, v.visits || 1),
-        last: Math.max(o.last || 0, v.last || 0), pos: v.pos || o.pos }) : v;
+      if (!v || typeof v !== 'object') continue;
+      // (una carta brillante lo es para siempre: antes la otra partida, sin brillo, se lo quitaba; y sin fecha en una de las
+      // dos, la fecha salía NaN —informe de Gemini (2), 20-nov-2026—)
+      const tt = [o && o.t, v.t].filter((x) => Number.isFinite(x));
+      out.landmarks[id] = o ? Object.assign({}, o, v, { t: tt.length ? Math.min(...tt) : o.t || v.t || 0, visits: Math.max(o.visits || 1, v.visits || 1),
+        last: Math.max(o.last || 0, v.last || 0), pos: v.pos || o.pos }, o.shiny || v.shiny ? { shiny: 1 } : {}) : v;
     }
     // cartas quitadas o trasladadas a otro identificador (duplicados, lugares que ya no están): la copia de la otra partida
     // no las devuelve; si allí solo está la vieja, pasa al identificador nuevo
@@ -97,7 +110,7 @@
       const r = out.landmarks[old];
       if (r) {
         const k = fin !== 1 && out.landmarks[fin];
-        if (fin !== 1) out.landmarks[fin] = k ? Object.assign({}, k, { t: Math.min(k.t || r.t, r.t || k.t), visits: Math.max(k.visits || 1, r.visits || 1), last: Math.max(k.last || 0, r.last || 0) }) : r;
+        if (fin !== 1) out.landmarks[fin] = k ? Object.assign({}, k, { t: Math.min(k.t || r.t, r.t || k.t), visits: Math.max(k.visits || 1, r.visits || 1), last: Math.max(k.last || 0, r.last || 0) }, k.shiny || r.shiny ? { shiny: 1 } : {}) : r;   // (y el brillo de cualquiera de las dos)
         delete out.landmarks[old];
       }
       for (const c of ['cardInfo', 'cardPhotos']) {
