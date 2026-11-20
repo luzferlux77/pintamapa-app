@@ -1,10 +1,10 @@
 {
-  "version": "0.9.23",
-  "notes": "Correcciones del informe de Codex: botón de versión caducada, contornos de ciudades lejanas, gemelas por nombre, pausas durante la recuperación GPS, fotos de la nube, copia de seguridad, cartas trasladadas y calles cercanas a cualquier latitud",
+  "version": "0.9.24",
+  "notes": "Correcciones del informe de Gemini: GPS al reabrir y al sacar el móvil del bolsillo, textos de cartas, sensor de la carta, fotos en la nube, importar GPX sin trampas, aviso de APK nueva, sobre, álbum y más",
   "native": 1,
   "nativeApk": 9,
   "apkMin": "0.9.4",
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.9.23/pintamapa-web-0.9.23.zip",
-  "checksum": "bd3d7e1773d981ffd0d177c73188ce274045d44a4c8afa0829bec6262ef66048",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.9.23/PintaMapa-v0.9.23.apk"
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.9.24/pintamapa-web-0.9.24.zip",
+  "checksum": "7b511d47f998be56d5a2b1a3e40c106b5b0b5586f4f363514474a4ec1ac5a76d",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.9.24/PintaMapa-v0.9.24.apk"
 }
