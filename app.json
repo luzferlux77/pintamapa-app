@@ -1,10 +1,10 @@
 {
-  "version": "0.9.24",
-  "notes": "Correcciones del informe de Gemini: GPS al reabrir y al sacar el móvil del bolsillo, textos de cartas, sensor de la carta, fotos en la nube, importar GPX sin trampas, aviso de APK nueva, sobre, álbum y más",
+  "version": "0.9.25",
+  "notes": "Correcciones del segundo informe de Gemini: diario GPS al reabrir, revisión de cartas, fusión de partidas, motor de lugares (nombres en cualquier alfabeto, lugares añadidos a mano, plazas, monasterios, distancias), mapa sin conexión, altitudes y ritmo",
   "native": 1,
   "nativeApk": 9,
   "apkMin": "0.9.4",
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.9.24/pintamapa-web-0.9.24.zip",
-  "checksum": "7b511d47f998be56d5a2b1a3e40c106b5b0b5586f4f363514474a4ec1ac5a76d",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.9.24/PintaMapa-v0.9.24.apk"
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.9.25/pintamapa-web-0.9.25.zip",
+  "checksum": "07e80149c077afbe8620f61ff4a14af67c300679e31078c8de257379dfc91abb",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.9.25/PintaMapa-v0.9.25.apk"
 }
