@@ -258,6 +258,21 @@ PM.game = (function () {
     return pts;
   }
 
+  // La otra mitad de la calle que pintas (la otra calzada, la acera de enfrente: world.gemelasDe). Cuenta como pintada —metros, % del
+  // barrio y de la ciudad, la nube— pero sin puntos ni combo: has andado la calle una vez, no dos
+  function pintarGemela(piece) {
+    const s = S();
+    if (!piece || s.painted[piece.id] || piece.trail) return false;
+    s.painted[piece.id] = 1;
+    if (PM.profile === 'real' && PM.cloud && PM.cloud.allowed()) s.pendingGeo[piece.id] = piece.pts.map((q) => [+q[0].toFixed(6), +q[1].toFixed(6)]);
+    s.paintedByTile[piece.tile] = (s.paintedByTile[piece.tile] || 0) + piece.len;
+    s.stats.paintedM += piece.len;
+    emit('painted', { piece, pts: 0, combo, mult: comboMult(), aura: false, gemela: true });
+    checkTile(piece.tile);
+    if (piece.barrio) checkBarrio(piece.barrio);
+    return true;
+  }
+
   // Volver a pasar por una calle ya pintada: cuenta como "otra pasada" si hace más de 30 min de la anterior
   const lastPass = {};
   function repass(piece) {
@@ -617,7 +632,7 @@ PM.game = (function () {
   return {
     on: (fn) => listeners.push(fn),
     level, levelProgress, COLORS, ACHIEVEMENTS, checkAchievements: checkAll, REVISIT_MS, addXP,
-    paintPiece, repass, tileProgress, cityProgress, barrioProgress, checkBarrio, checkSets, photoTaken, visitLandmark, ensureDaily, addWalk, tickCombo,
+    paintPiece, pintarGemela, repass, tileProgress, cityProgress, barrioProgress, checkBarrio, checkSets, photoTaken, visitLandmark, ensureDaily, addWalk, tickCombo,
     get combo() { return combo; },
     comboMult,
   };

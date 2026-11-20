@@ -471,7 +471,7 @@ PM.world = (function () {
     cells.add(cellKey(mid[0], mid[1]));
     cells.forEach((c) => { const l = index[c] || (index[c] = []); if (!l.includes(p.id)) l.push(p.id); (p.cells || (p.cells = new Set())).add(c); });
   }
-  function addWay(wayId, geom, acceptTiles, wide, trail, ped) {
+  function addWay(wayId, geom, acceptTiles, wide, trail, ped, ow) {
     const added = [], crecidos = [];
     for (const pts of gridCut(geom)) {
       let len = 0;
@@ -499,7 +499,7 @@ PM.world = (function () {
       const painted = PM.state ? PM.state.data.painted : {};
       if (!painted[id]) for (const alt of [base + (sec + 1) % 8, base + (sec + 7) % 8]) if (painted[alt] && !pieces[alt]) { id = alt; break; }
       if (pieces[id]) { let n = 2; while (pieces[id + '~' + n]) n++; id = id + '~' + n; }   // dos calles en la misma casilla
-      const p = { id, tile: tk, pts, len, mid, wide: !!wide, trail: !!trail, ped: !!ped };   // ped: plaza o calle peatonal
+      const p = { id, tile: tk, pts, len, mid, wide: !!wide, trail: !!trail, ped: !!ped, ow: !!ow };   // ped: plaza o calle peatonal · ow: de sentido único
       if (gemelo && painted[gemelo]) painted[id] = 1;   // (la otra mitad del mismo tramo: si estaba pintado, ella también)
       graphAdd(p);
       p.avoid = inAvoidCircle(mid);
@@ -1287,7 +1287,7 @@ PM.world = (function () {
         const trail = !HW_RE.test(el.tags.highway);
         const geom = el.geometry.map((g) => [g.lat, g.lon]);
         legacyFrom(el, geom);
-        newPieces.push(...addWay('w' + el.id, geom, accept, !trail && isWide(el.tags), trail, /^(pedestrian|living_street)$/.test(el.tags.highway)));
+        newPieces.push(...addWay('w' + el.id, geom, accept, !trail && isWide(el.tags), trail, /^(pedestrian|living_street)$/.test(el.tags.highway), el.tags.oneway === 'yes'));
       } else if (el.tags && !noteBarrio(el)) addLandmark(el);
     }
     for (const el of footways) {
@@ -1743,9 +1743,38 @@ PM.world = (function () {
     return out;
   }
 
+  // La «gemela» de un tramo: la otra mitad de la MISMA calle cuando el mapa la dibuja con dos líneas (petición del usuario, 17-nov-2026:
+  // «si voy por una acera, la calle se debería pintar toda, incluso la acera de enfrente»). Medido en su móvil: junto a lo pintado
+  // quedaban 673 tramos paralelos sin pintar (6,5 km), casi todos la otra calzada de una avenida. Para no pintar calles que no has
+  // pisado (en los cascos antiguos dos calles distintas pueden ir en paralelo a 25-30 m), solo cuenta como gemela:
+  //  · en una avenida (las dos líneas «anchas»): la paralela que va a su lado, a menos de 40 m;
+  //  · en una calle normal: la paralela a menos de 20 m, si las dos son de sentido único y van en sentidos CONTRARIOS
+  //    (una calle con mediana: un carril de ida y otro de vuelta).
+  // «A su lado» de verdad: separada de lado y solapada a lo largo (nunca el tramo siguiente de la misma línea, que va delante)
+  function gemelasDe(A) {
+    if (!A || A.trail || A.ped || !A.pts || A.pts.length < 2) return [];
+    const cosL = Math.cos(A.mid[0] * Math.PI / 180), M = 111320;
+    const xy = (q) => [(q[1] - A.mid[1]) * cosL * M, (q[0] - A.mid[0]) * M];   // metros respecto al centro de A (x este, y norte)
+    const dirDe = (pc) => { const a = xy(pc.pts[0]), b = xy(pc.pts[pc.pts.length - 1]), l = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1; return [(b[0] - a[0]) / l, (b[1] - a[1]) / l]; };
+    const da = dirDe(A), out = [];
+    for (const B of piecesNear(A.mid, 42)) {
+      if (B === A || B.trail || B.ped || !B.pts || B.pts.length < 2) continue;
+      const avenida = A.wide && B.wide, mediana = A.ow && B.ow;
+      if (!avenida && !mediana) continue;
+      const db = dirDe(B), cos = da[0] * db[0] + da[1] * db[1];
+      if (Math.abs(cos) < 0.96) continue;                 // paralelas (menos de ~16°)
+      if (!avenida && cos > -0.9) continue;               // calle con mediana: sentidos contrarios
+      const c = xy(B.mid), lado = Math.abs(c[0] * da[1] - c[1] * da[0]), largo = Math.abs(c[0] * da[0] + c[1] * da[1]);
+      if (lado < 4 || lado > (avenida ? 40 : 20)) continue;   // a su lado (ni encima ni lejos)
+      if (largo > Math.max(A.len, B.len) / 2 + 4) continue;  // solapadas a lo largo (no delante ni detrás)
+      out.push(B);
+    }
+    return out;
+  }
+
   const api = {
     TILE, RARITY, tiles, pieces, landmarks, updateMustSee,
-    tileKeyOf, tileBounds, ensureAround, piecesNear, onChange,
+    tileKeyOf, tileBounds, ensureAround, piecesNear, gemelasDe, onChange,
     barrios, barrioAt: barrioOf, barrioComplete, route, joinsOf, setAvoid, isAvoided, addLegacyGeo, ensureKeys, unloadTiles,
     cityAt(p) { const c = shapeCity(p); if (c) return c; const t = tiles[tileKeyOf(p[0], p[1])]; return (t && t.city) || (PM.state && (PM.state.data.tileNames[tileKeyOf(p[0], p[1])] || {}).city) || null; },
     // los imprescindibles fijos de cada ciudad, con el lugar del mapa que les corresponde (id) si ya está cargado

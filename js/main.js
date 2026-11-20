@@ -960,8 +960,35 @@
     const aura = nearCache.v.d <= AURA_RADIUS;
     const { lista, nearest } = tramosEn(p, heading);
     for (const piece of lista) { if (S().painted[piece.id]) G.repass(piece); else G.paintPiece(piece, aura); }
+    for (const piece of lista) if (S().painted[piece.id]) pintarGemelas(piece);   // (y la otra calzada / la acera de enfrente)
     if (!walkedPts.length || PM.geo.dist(walkedPts[walkedPts.length - 1], p) > 3) { walkedPts.push(p); if (walkedPts.length > 40) walkedPts.shift(); }
     if (nearest && S().painted[nearest[0].id]) bridgeTo(nearest[0], p, aura);
+  }
+  // La otra mitad de la calle (la otra calzada de una avenida, la acera de enfrente de una calle con mediana): world.gemelasDe.
+  // Devuelve los metros añadidos
+  function pintarGemelas(piece) {
+    let m = 0;
+    for (const g of W.gemelasDe(piece)) if (!S().painted[g.id] && G.pintarGemela(g)) m += g.len;
+    return m;
+  }
+  // Lo que ya tenías pintado de antes: al cargar una zona, la otra mitad de cada calle pintada (las 6,5 km que faltaban en el
+  // móvil del usuario el 17-nov-2026). Una vez por zona y sesión
+  const gemelasHechas = new Set();
+  function rellenarGemelas(keys) {
+    let m = 0;
+    for (const k of keys || []) {
+      const t = W.tiles[k];
+      if (!t || !t.pieces || gemelasHechas.has(k)) continue;
+      gemelasHechas.add(k);
+      // (en los dos sentidos: lo pintado de esta zona pinta su gemela, y un tramo de esta zona cuya gemela ya estaba pintada en la
+      // zona de al lado —cargada antes— también se pinta)
+      for (const pc of t.pieces.slice()) {
+        if (S().painted[pc.id]) m += pintarGemelas(pc);
+        else if (!pc.trail && W.gemelasDe(pc).some((g) => S().painted[g.id]) && G.pintarGemela(pc)) m += pc.len;
+      }
+    }
+    if (m) PM.state.save();
+    return m;
   }
   // Los tramos de calle que corresponden a una posición y un rumbo (lo usan el pintado en marcha y el repaso del final)
   function tramosEn(p, heading) {
@@ -1930,7 +1957,7 @@
   let enRepaso = false;
   function repintarRecorrido(track, i0 = 1, i1 = track.length) {
     const painted = S().painted, res = { n: 0, m: 0, falta: 0 };
-    const pinta = (pc) => { if (pc && !painted[pc.id]) { G.paintPiece(pc, false); res.n++; res.m += pc.len; } };
+    const pinta = (pc) => { if (pc && !painted[pc.id]) { G.paintPiece(pc, false); res.n++; res.m += pc.len; } if (pc && painted[pc.id]) res.m += pintarGemelas(pc); };
     // (paso a paso, un tramo solo se da por pisado si le toca en 2 pasos o más —van cada 4 m y un tramo mide unos 11—: una
     // lectura suelta desviada no pinta la calle de al lado. PM.debug.repasoMin lo cambia en las pruebas)
     const toques = new Map(), toca = (pc) => { if (!painted[pc.id]) toques.set(pc, (toques.get(pc) || 0) + 1); }, MIN = PM.debug.repasoMin || 2;
@@ -2550,7 +2577,7 @@
         geoAdd(d.piece);
         if (session) { session.st.painted += d.piece.len; session.st.pieces++; session.st.bestCombo = Math.max(session.st.bestCombo, d.combo); }
         const now = performance.now();
-        if (enRepaso) break;   // (el repaso del final pinta en silencio: ni salpicaduras ni avisos de combo)
+        if (enRepaso || d.gemela) break;   // (el repaso del final y la otra mitad de la calle pintan en silencio: ni salpicaduras ni avisos de combo)
         if (!document.hidden && now - splatThrottle > 120) {
           splatThrottle = now;
           floatText('+' + Math.round(d.pts), d.aura ? 'aura' : '');
@@ -2647,7 +2674,7 @@
     // (varios de golpe, como al llegar la precarga de una ciudad: un solo redibujado, no uno de miles de iconos por cada lugar)
     if (ev === 'lmRemoved') { if (lmIndex[d.id]) { delete lmIndex[d.id]; clearTimeout(lmFlushT); lmFlushT = setTimeout(() => flushLandmarks(true), 60); } return; }
     if (ev === 'loaded' || ev === 'partial') {
-      if (ev === 'loaded') { retryGaps(); geoHarvest(d.tiles); }
+      if (ev === 'loaded') { retryGaps(); geoHarvest(d.tiles); rellenarGemelas(d.tiles); }
       d.tiles.forEach((k) => renderTile(k, true));
       renderLandmarks();
       if (ev === 'loaded') $('#loading').classList.remove('show');
