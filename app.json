@@ -1,10 +1,10 @@
 {
-  "version": "0.9.21",
-  "notes": "Nueva carta en Cornellà: la locomotora de vapor nº 37 de la carretera d'Esplugues",
+  "version": "0.9.22",
+  "notes": "Al ir por una acera se pinta la calle entera: también la otra calzada y la acera de enfrente",
   "native": 1,
   "nativeApk": 9,
   "apkMin": "0.9.4",
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.9.21/pintamapa-web-0.9.21.zip",
-  "checksum": "5ef92a6897ad967c4d607f6a15f7d249a97fa75fbadc30fb34329099ae085d29",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.9.21/PintaMapa-v0.9.21.apk"
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.9.22/pintamapa-web-0.9.22.zip",
+  "checksum": "604745dde970cb30fecbc19065b7bad34ccd726f0565d3313e3853acc6d19d80",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.9.22/PintaMapa-v0.9.22.apk"
 }
