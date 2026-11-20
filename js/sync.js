@@ -204,10 +204,16 @@ PM.cloud = (function () {
         .sort((a, b) => (fi[a[0]] || 0) - (fi[b[0]] || 0) || (a[0] < b[0] ? -1 : 1));
       for (const [id, v] of cola.slice(0, 15)) {
         fi[id] = Date.now();
+        // (si mientras llega haces una foto nueva de esa carta, la de la nube ya no vale: no se escribe encima —ver putPhoto—)
+        const rev = PM.cards.fotoRev ? PM.cards.fotoRev(id) : null, tPide = v.t || 0;
         try {
           const r = await readRaw(base + 'fotos/' + (await photoName(id, pass)) + '.json', token);
           const o = r && await decrypt(key, r.data);
-          if (o && o.id === id && typeof o.img === 'string' && o.img.startsWith('data:image/')) { await PM.cards.putPhoto(id, o.img); fr[id] = v.t || 0; delete fi[id]; }
+          const sigue = ((PM.state.data.cardPhotos || {})[id] || {}).t === v.t;
+          if (sigue && o && o.id === id && typeof o.img === 'string' && o.img.startsWith('data:image/')) {
+            const escrita = await PM.cards.putPhoto(id, o.img, rev != null ? { siRev: rev } : undefined);
+            if (escrita !== false) { fr[id] = tPide; delete fi[id]; }
+          }
         } catch (e) { /* se reintenta en otra copia, cuando le vuelva el turno */ }
       }
       saveCfg();

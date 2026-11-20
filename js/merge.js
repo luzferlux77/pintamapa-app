@@ -72,11 +72,33 @@
     }
     // cartas quitadas o trasladadas a otro identificador (duplicados, lugares que ya no están): la copia de la otra partida
     // no las devuelve; si allí solo está la vieja, pasa al identificador nuevo
+    // Informe de Codex (17-nov-2026): (1) con A→B y B→C, según el orden en que salieran, la carta acababa en B (que también
+    // está retirado); ahora se sigue la cadena hasta el final, en cualquier orden, y si da la vuelta (A→B, B→A) no se mueve
+    // nada (mejor una carta de más que perderla). (2) La ficha y la foto de la carta vieja volvían con la copia de la otra
+    // partida: ahora pasan con ella al identificador nuevo (o se van, si la carta se quitó)
     out.lmGone = Object.assign({}, a.lmGone || {}, b.lmGone || {});
-    for (const [old, nuevo] of Object.entries(out.lmGone)) {
-      if (!out.landmarks[old]) continue;
-      if (nuevo !== 1 && !out.landmarks[nuevo]) out.landmarks[nuevo] = out.landmarks[old];
-      delete out.landmarks[old];
+    const G = out.lmGone, tiene = (o, k) => Object.prototype.hasOwnProperty.call(o, k), finales = {};
+    const destino = (id) => {   // identificador vigente, 1 si la carta se quitó, null si la cadena da la vuelta
+      if (tiene(finales, id)) return finales[id];
+      const visto = new Set([id]); let cur = id;
+      while (tiene(G, cur) && G[cur] !== 1) { cur = G[cur]; if (visto.has(cur)) return (finales[id] = null); visto.add(cur); }
+      return (finales[id] = tiene(G, cur) ? 1 : cur);
+    };
+    for (const old of Object.keys(G)) {
+      const fin = destino(old);
+      if (fin === null || fin === old) continue;
+      const r = out.landmarks[old];
+      if (r) {
+        const k = fin !== 1 && out.landmarks[fin];
+        if (fin !== 1) out.landmarks[fin] = k ? Object.assign({}, k, { t: Math.min(k.t || r.t, r.t || k.t), visits: Math.max(k.visits || 1, r.visits || 1), last: Math.max(k.last || 0, r.last || 0) }) : r;
+        delete out.landmarks[old];
+      }
+      for (const c of ['cardInfo', 'cardPhotos']) {
+        if (!out[c] || !out[c][old]) continue;
+        // (la foto, con up: 0: en la nube va con el identificador de la carta y hay que subirla con el nuevo, como en world.trasladar)
+        if (fin !== 1 && !out[c][fin]) out[c][fin] = c === 'cardPhotos' ? Object.assign({}, out[c][old], { up: 0 }) : out[c][old];
+        delete out[c][old];
+      }
     }
     out.xp = Math.max(a.xp || 0, b.xp || 0);
     out.stats = Object.assign({}, a.stats);

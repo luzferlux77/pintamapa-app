@@ -514,11 +514,16 @@ PM.errores = (function () {
 // Devuelve la entrada saneada o null si no sirve; los imprescindibles inválidos se quitan sin tirar el contorno.
 PM.ciudadValida = function (ci) {
   if (!ci || typeof ci !== 'object' || Array.isArray(ci)) return null;
-  const okP = (q) => Array.isArray(q) && q.length >= 2 && isFinite(q[0]) && isFinite(q[1]) && Math.abs(q[0]) <= 90 && Math.abs(q[1]) <= 180;
+  // dos formatos distintos: los puntos del juego son [lat, lon]; los anillos del contorno, como GeoJSON, [lon, lat]. Antes se
+  // comprobaban los dos como [lat, lon] y una ciudad con longitud de más de 90° (Japón, Australia, la costa oeste de América)
+  // perdía su contorno al reabrir la app o importar una copia (informe de Codex, 17-nov-2026)
+  const num = (v) => typeof v === 'number' && isFinite(v);
+  const okP = (q) => Array.isArray(q) && q.length >= 2 && num(+q[0]) && num(+q[1]) && Math.abs(q[0]) <= 90 && Math.abs(q[1]) <= 180;   // [lat, lon]
+  const okAnillo = (q) => Array.isArray(q) && q.length >= 2 && num(+q[0]) && num(+q[1]) && Math.abs(q[0]) <= 180 && Math.abs(q[1]) <= 90;   // [lon, lat]
   const b = ci.bbox;
   if (!Array.isArray(b) || b.length !== 4 || !b.every((x) => isFinite(x)) || b[0] > b[2] || b[1] > b[3] || Math.abs(b[0]) > 90 || Math.abs(b[2]) > 90 || Math.abs(b[1]) > 180 || Math.abs(b[3]) > 180) return null;
   if (!Array.isArray(ci.polys) || !ci.polys.length) return null;
-  const polys = ci.polys.filter((poly) => Array.isArray(poly) && poly.length && poly.every((ring) => Array.isArray(ring) && ring.length >= 4 && ring.every(okP)));
+  const polys = ci.polys.filter((poly) => Array.isArray(poly) && poly.length && poly.every((ring) => Array.isArray(ring) && ring.length >= 4 && ring.every(okAnillo)));
   if (!polys.length) return null;
   const out = Object.assign({}, ci, { polys });
   if (out.must != null) out.must = Array.isArray(out.must) ? out.must.filter((m) => m && typeof m === 'object' && okP(m.pos) && typeof m.name === 'string') : null;

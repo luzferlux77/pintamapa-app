@@ -175,6 +175,16 @@ PM.cards = (function () {
       const d = await db();
       const get = (k) => new Promise((res, ko) => { const q = d.transaction('fotos').objectStore('fotos').get(k); q.onsuccess = () => res(q.result || null); q.onerror = () => (estricto ? ko(q.error || new Error('foto')) : res(null)); });
       const mia = await get(fotoKey(id));
+      // (la carta pasó a este identificador al juntar dos partidas y su imagen sigue guardada con el viejo: se busca allí y se
+      // pasa a su nombre nuevo)
+      if (!mia) { const G = S().lmGone || {};
+        for (const old of Object.keys(G)) {
+          if (old === id) continue;
+          let cur = old, n = 0; while (G[cur] && G[cur] !== 1 && n++ < 50) cur = G[cur];
+          if (cur !== id) continue;
+          const x = await get(fotoKey(old));
+          if (x) { putPhoto(id, x).catch(() => {}); return x; }
+        } }
       if (mia || !PM.player) return mia || (await get(id));
       const vieja = fotosAjenas().has(id) ? null : await get(id);
       if (vieja) putPhoto(id, vieja).catch(() => {});   // (queda a su nombre)
@@ -191,8 +201,18 @@ PM.cards = (function () {
     } catch (e) { /* sin fotos */ }
   }
   // (se espera a que la escritura quede confirmada: si falla, el que llama se entera)
-  async function putPhoto(id, dataUrl) {
+  // Escritura condicional (informe de Codex, 17-nov-2026): la nube pide una foto, tarda unos segundos, y si mientras tanto
+  // hacías una foto nueva de esa carta, la vieja de la nube la pisaba (y luego se subía la vieja como si fuera la nueva).
+  // Cada escritura cuenta (fotoRev); quien baja de la nube apunta el número al pedirla y pasa { siRev }: si alguien ha
+  // escrito esa foto desde entonces, no escribe y devuelve false. (Las escrituras del almacén van en el orden en que se
+  // abren: la comprobación y la apertura van juntas, sin esperas en medio)
+  const fotoRevs = {};
+  const fotoRev = (id) => fotoRevs[id] || 0;
+  async function putPhoto(id, dataUrl, op) {
+    const siRev = op && op.siRev != null ? op.siRev : null;
+    if (siRev == null) fotoRevs[id] = fotoRev(id) + 1;
     const d = await db();
+    if (siRev != null) { if (fotoRev(id) !== siRev) return false; fotoRevs[id] = siRev + 1; }
     await new Promise((ok, ko) => {
       const tx = d.transaction('fotos', 'readwrite');
       tx.objectStore('fotos').put(dataUrl, fotoKey(id));
@@ -200,6 +220,7 @@ PM.cards = (function () {
       tx.onerror = () => ko(tx.error || new Error('No se pudo guardar la foto'));
       tx.onabort = () => ko(tx.error || new Error('No se pudo guardar la foto'));
     });
+    return true;
   }
 
   // ---------------- Filtros de cromo ----------------
@@ -447,5 +468,5 @@ PM.cards = (function () {
       <div class="pie"><b>${esc(b.name)}</b><small>${b.city ? esc(b.city) + ' · ' : ''}${new Date(b.t).toLocaleDateString(PM.LOCALE)}</small></div></div></div></div>`;
   }
 
-  return { open, close, album, fetchInfo, dataFor, SETS, setCount, getPhoto, putPhoto, moverFoto, takePhoto, FILTERS, _img: { loadImg, cropCard, applyFilter } };
+  return { open, close, album, fetchInfo, dataFor, SETS, setCount, getPhoto, putPhoto, fotoRev, moverFoto, takePhoto, FILTERS, _img: { loadImg, cropCard, applyFilter } };
 })();

@@ -471,7 +471,8 @@ PM.world = (function () {
     cells.add(cellKey(mid[0], mid[1]));
     cells.forEach((c) => { const l = index[c] || (index[c] = []); if (!l.includes(p.id)) l.push(p.id); (p.cells || (p.cells = new Set())).add(c); });
   }
-  function addWay(wayId, geom, acceptTiles, wide, trail, ped, ow) {
+  function addWay(wayId, geom, acceptTiles, wide, trail, ped, ow, nombre) {
+    const nom = typeof nombre === 'string' ? nombre.trim().toLowerCase() : '';   // (para reconocer las dos calzadas de una misma calle)
     const added = [], crecidos = [];
     for (const pts of gridCut(geom)) {
       let len = 0;
@@ -499,7 +500,7 @@ PM.world = (function () {
       const painted = PM.state ? PM.state.data.painted : {};
       if (!painted[id]) for (const alt of [base + (sec + 1) % 8, base + (sec + 7) % 8]) if (painted[alt] && !pieces[alt]) { id = alt; break; }
       if (pieces[id]) { let n = 2; while (pieces[id + '~' + n]) n++; id = id + '~' + n; }   // dos calles en la misma casilla
-      const p = { id, tile: tk, pts, len, mid, wide: !!wide, trail: !!trail, ped: !!ped, ow: !!ow };   // ped: plaza o calle peatonal · ow: de sentido único
+      const p = { id, tile: tk, pts, len, mid, wide: !!wide, trail: !!trail, ped: !!ped, ow: !!ow, nom };   // ped: plaza o calle peatonal · ow: de sentido único · nom: nombre en minúsculas
       if (gemelo && painted[gemelo]) painted[id] = 1;   // (la otra mitad del mismo tramo: si estaba pintado, ella también)
       graphAdd(p);
       p.avoid = inAvoidCircle(mid);
@@ -1287,7 +1288,7 @@ PM.world = (function () {
         const trail = !HW_RE.test(el.tags.highway);
         const geom = el.geometry.map((g) => [g.lat, g.lon]);
         legacyFrom(el, geom);
-        newPieces.push(...addWay('w' + el.id, geom, accept, !trail && isWide(el.tags), trail, /^(pedestrian|living_street)$/.test(el.tags.highway), el.tags.oneway === 'yes'));
+        newPieces.push(...addWay('w' + el.id, geom, accept, !trail && isWide(el.tags), trail, /^(pedestrian|living_street)$/.test(el.tags.highway), el.tags.oneway === 'yes', el.tags.name));
       } else if (el.tags && !noteBarrio(el)) addLandmark(el);
     }
     for (const el of footways) {
@@ -1727,12 +1728,21 @@ PM.world = (function () {
   }
 
   // ---------------- Consultas ----------------
+  // Tramos a menos de radiusM de p. Se miran todas las casillas del índice a menos de (radio + medio tramo) de p: un tramo
+  // está apuntado en las casillas de sus puntos, y gridCut no deja dos puntos seguidos a más de ~18 m (la diagonal de su
+  // rejilla), así que si la calle pasa a menos del radio, alguno de sus puntos está a menos de radio + 10 m. Antes se miraban
+  // siempre 3×3 casillas: las casillas miden 0,0005° y de este a oeste encogen con la latitud (42 m en Barcelona, 28 m en
+  // Oslo, 10 m a 80°), y con radios de 40 m (avenidas, gemelas) se escapaban calles (informe de Codex, 17-nov-2026)
+  const MARGEN_TRAMO = 12;
   function piecesNear(p, radiusM) {
     const out = [];
-    const ci = Math.floor(p[0] / CELL), cj = Math.floor(p[1] / CELL);
+    const alcance = (radiusM || 0) + MARGEN_TRAMO;
+    const dLat = alcance / 111320, dLon = alcance / (111320 * Math.max(0.01, Math.cos(p[0] * Math.PI / 180)));
+    const i0 = Math.floor((p[0] - dLat) / CELL), i1 = Math.floor((p[0] + dLat) / CELL);
+    const j0 = Math.floor((p[1] - dLon) / CELL), j1 = Math.floor((p[1] + dLon) / CELL);
     const seen = new Set();
-    for (let di = -1; di <= 1; di++) for (let dj = -1; dj <= 1; dj++) {
-      const ids = index[(ci + di) + ':' + (cj + dj)];
+    for (let ci = i0; ci <= i1; ci++) for (let cj = j0; cj <= j1; cj++) {
+      const ids = index[ci + ':' + cj];
       if (!ids) continue;
       for (const id of ids) {
         if (seen.has(id)) continue; seen.add(id);
@@ -1751,6 +1761,9 @@ PM.world = (function () {
   //  · en una calle normal: la paralela a menos de 20 m, si las dos son de sentido único y van en sentidos CONTRARIOS
   //    (una calle con mediana: un carril de ida y otro de vuelta).
   // «A su lado» de verdad: separada de lado y solapada a lo largo (nunca el tramo siguiente de la misma línea, que va delante)
+  // Y el nombre (informe de Codex, 17-nov-2026: dos avenidas distintas o dos calles de sentido único contrarias pueden ir en
+  // paralelo y no ser la misma calle): si las dos tienen nombre y no coincide, nunca son gemelas; en una calle normal, además,
+  // hace falta que las dos tengan el MISMO nombre (sin nombre no hay pruebas de que sea la misma calle).
   function gemelasDe(A) {
     if (!A || A.trail || A.ped || !A.pts || A.pts.length < 2) return [];
     const cosL = Math.cos(A.mid[0] * Math.PI / 180), M = 111320;
@@ -1759,7 +1772,8 @@ PM.world = (function () {
     const da = dirDe(A), out = [];
     for (const B of piecesNear(A.mid, 42)) {
       if (B === A || B.trail || B.ped || !B.pts || B.pts.length < 2) continue;
-      const avenida = A.wide && B.wide, mediana = A.ow && B.ow;
+      if (A.nom && B.nom && A.nom !== B.nom) continue;    // dos calles distintas
+      const avenida = A.wide && B.wide, mediana = A.ow && B.ow && !!A.nom && A.nom === B.nom;
       if (!avenida && !mediana) continue;
       const db = dirDe(B), cos = da[0] * db[0] + da[1] * db[1];
       if (Math.abs(cos) < 0.96) continue;                 // paralelas (menos de ~16°)

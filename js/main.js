@@ -1098,6 +1098,9 @@
   // Captura de VARIOS a la vez: cada lugar en cuyo radio estás cuenta su propio tiempo; si hay varios juntos
   // (castillo + palacio + museo en la misma plaza…), a los 10 s se conquistan todos.
   let dwells = {};   // id -> { lm, since }
+  // al empezar, pausar, reanudar o terminar, las capturas a medias se cancelan: antes, una empezada antes de la pausa seguía
+  // contando su tiempo y al reanudar se conquistaba sin haber estado los 10 s (informe de Codex, 17-nov-2026)
+  function cortarCapturas() { dwells = {}; showDwell(); }
   const canCapture = (lm) => { const r = S().landmarks[lm.id]; return !r || Date.now() - r.last > G.REVISIT_MS; };
   function checkDwell(p, t, visible) {
     if (!session || session.paused) { dwells = {}; showDwell(); return; }
@@ -1565,7 +1568,7 @@
     // ESPERA a que entre antes lo que el servicio apuntó mientras tanto. Antes se usaba en el acto, la «última hora» saltaba a
     // ahora y lo apuntado en el bolsillo ya no valía (paseo del 14-nov-2026: de ~600 posiciones apuntadas se recuperaron 10)
     if (!rec && !deCola && session && !session.paused && (recuperando || (lastFixT && Date.now() - lastFixT > 20000 && hayDiarioGps()))) {
-      if (vivasEnCola.length < 500) vivasEnCola.push([c, t]);
+      if (vivasEnCola.length < 500) vivasEnCola.push([c, t, tramoGps]);
       recuperarDiarioGps();
       return;
     }
@@ -1682,7 +1685,12 @@
   // de GPS siga vivo (paseos del 13-nov-2026: ni una lectura en 7 min con el servicio en marcha). El servicio apunta cada
   // posición en un archivo; al despertar se recuperan las que no llegaron, en orden y con su hora, como si hubieran llegado
   // en su momento (pintan las calles por donde pasaste de verdad, no un relleno adivinado)
-  var recHasta = 0, recuperando = false, recPromesa = null, vivasEnCola = [];   // (var: onFix las mira y está antes)
+  var recHasta = 0, recuperando = false, recPromesa = null, vivasEnCola = [], tramoGps = 0;   // (var: onFix las mira y está antes)
+  // Cada empezar, pausar, reanudar o terminar abre un tramo nuevo (tramoGps). Lo que estaba esperando del tramo anterior —las
+  // lecturas en cola y la recuperación del diario que aún no ha contestado— ya no vale: antes, si pausabas y reanudabas (o
+  // terminabas y empezabas otro paseo) en esos segundos, se pintaba en el tramo nuevo con posiciones del viejo y se unía el
+  // salto de la pausa (informe de Codex, 17-nov-2026)
+  function cortarTramoGps() { tramoGps++; vivasEnCola = []; }
   // (una sola recuperación a la vez: quien llegue mientras tanto espera a la que está en marcha)
   function recuperarDiarioGps() {
     if (!recPromesa) recPromesa = recuperarYa().finally(() => { recPromesa = null; });
@@ -1691,7 +1699,7 @@
   async function recuperarYa() {
     const P = isNative && nativePlugin('PmSystem');
     if (!P || !P.diarioGps || !gpsWanted()) { soltarCola(); return 0; }   // (APK anterior sin diario: como antes)
-    const ses = session;
+    const ses = session, tramo = tramoGps;
     recuperando = true;
     // La lectura en espera (se confirma con la siguiente) se aparta ya: su temporizador de 12 s se congela con la app, así
     // que casi siempre es la ÚLTIMA de antes de guardarse el móvil, más vieja que todo lo apuntado en el bolsillo. Antes,
@@ -1702,7 +1710,7 @@
       const desde = Math.max(lastT || 0, recHasta, ses.recDesde || ses.resumedAt || ses.start || 0);
       // (si el móvil no contesta, no se queda todo esperando: las lecturas en cola siguen a los 8 s)
       const r = await Promise.race([P.diarioGps({ desde }), new Promise((ok) => setTimeout(() => ok(null), 8000))]);
-      if (session !== ses || !gpsWanted()) return 0;
+      if (session !== ses || tramo !== tramoGps || !gpsWanted()) return 0;
       delete ses.recDesde;
       const filas = PM.filasDiarioGps(r && r.datos, Math.max(desde, lastT || 0));
       // todo en orden de hora: las recuperadas, y la que estaba en espera en su sitio (si es la misma lectura, una vez)
@@ -1715,15 +1723,15 @@
       if (n) { const g = gpsSt(); if (g) g.recuperadas = (g.recuperadas || 0) + n; avisoDiario('nativo:' + n); }
       return n;
     } catch (e) { return 0; } finally {
-      if (!hPuesta && session === ses) holdFix(h);
+      if (!hPuesta && session === ses && tramo === tramoGps) holdFix(h);
       recuperando = false;
       soltarCola();
     }
   }
-  // las lecturas en directo que esperaban, en su orden (las ya recuperadas del diario se saltan solas)
+  // las lecturas en directo que esperaban, en su orden (las ya recuperadas del diario se saltan solas; las de otro tramo, fuera)
   function soltarCola() {
     const q = vivasEnCola; vivasEnCola = [];
-    for (const [c, t] of q) onFix(c, t, false, true);
+    for (const [c, t, tr] of q) if (tr === tramoGps) onFix(c, t, false, true);
   }
   function hayDiarioGps() { const P = isNative && nativePlugin('PmSystem'); return !!(P && P.diarioGps); }
   function vaciarDiarioGps() { const P = isNative && nativePlugin('PmSystem'); if (P && P.vaciarDiarioGps) P.vaciarDiarioGps().catch(() => {}); recHasta = 0; }
@@ -1901,8 +1909,11 @@
   }
   function persistSession() { if (session) { session.lastSeen = Date.now(); session.gaps = pendingGaps; } S().session = session; PM.state.save(); }
 
+  // empezar, pausar, reanudar y terminar cortan el tramo: nada a medias del tramo anterior pasa al siguiente
+  function nuevoTramo() { cortarTramoGps(); cortarCapturas(); }
   function startSession() {
     if (placesOff) setPlaces(false, true);   // pintando, los lugares se ven siempre (si no, pasarías de largo)
+    nuevoTramo();
     session = { start: Date.now(), resumedAt: Date.now(), elapsed: 0, paused: false, st: newSessionStats(), track: [] };
     lastP = null; walkAnchor = null; cortarUnion(); vaciarDiarioGps();
     persistSession(); syncGPS(); renderSession();
@@ -1933,6 +1944,7 @@
   function pauseSession() {
     if (!session || session.paused) return;
     flushHeldFix();
+    nuevoTramo();
     session.elapsed += Date.now() - session.resumedAt;
     session.paused = true;
     persistSession(); syncGPS(); renderSession();
@@ -1940,6 +1952,7 @@
   }
   function resumeSession() {
     if (!session || !session.paused) return;
+    nuevoTramo();
     session.paused = false; session.resumedAt = Date.now();
     if (session.track && session.track.length && session.track[session.track.length - 1] !== null) session.track.push(null);   // corte del recorrido (pausa)
     lastP = null; walkAnchor = null; paintPrev = null; recentP = []; cortarUnion();   // no se pinta el "salto" desde donde pausaste
@@ -2151,6 +2164,7 @@
   function endSession() {
     if (!session) return;
     flushHeldFix();
+    nuevoTramo();
     // huecos pendientes (GPS en el bolsillo justo al final, calles aún sin llegar): se pintan si ya se puede; si no, al
     // menos cuentan los metros y el recorrido (antes se tiraban al cerrar el paseo)
     retryGaps(true);
@@ -2935,13 +2949,22 @@
     for (const [k, ids] of pgeoTile) { const o = {}; for (const id of ids) if (s.painted[id] && pgeo.get(id)) o[id] = pgeo.get(id).p; if (Object.keys(o).length) geo[k] = o; }
     let cityinfo = null; try { cityinfo = JSON.parse(localStorage.getItem('pintamapa_cityinfo') || 'null'); } catch (e) {}
     // (una foto que no se puede leer se reintenta; las que faltan se cuentan y se avisa: la copia no se da por completa sin decirlo)
+    // Imagen y datos tienen que ser de la MISMA foto. Si mientras se leía se hizo otra (cambia su hora o se escribió una
+    // imagen —fotoRev—), no se sabe de cuál es lo leído: se vuelve a leer. Antes se daba por hecho que lo leído era la nueva
+    // y la copia podía llevar la hora nueva con la imagen vieja (informe de Codex, 17-nov-2026). Si no cuadra ni a la
+    // tercera, cuenta como no leída y se avisa (la copia no se da por completa)
+    const rev = (id) => (PM.cards.fotoRev ? PM.cards.fotoRev(id) : 0), hora = (id) => ((S().cardPhotos || {})[id] || {}).t;
     for (const id of Object.keys(save.cardPhotos || {})) {
-      let p = null, err = false;
-      for (let i = 0; i < 2 && !p; i++) { try { p = await PM.cards.getPhoto(id, true); err = false; } catch (e) { err = true; } }
-      // (si mientras se leía la foto se cambió por otra, la imagen leída es la nueva: van juntos sus datos nuevos)
-      const ahora = (S().cardPhotos || {})[id];
-      if (p && ahora && save.cardPhotos[id] && ahora.t !== save.cardPhotos[id].t) save.cardPhotos[id] = JSON.parse(JSON.stringify(ahora));
-      if (p) photos[id] = p; else (err ? fallidas : sinFoto).push(id);
+      let p = null, err = false, cuadra = false;
+      for (let i = 0; i < 3 && !(p && cuadra); i++) {
+        const r0 = rev(id), t0 = hora(id);
+        try { p = await PM.cards.getPhoto(id, true); err = false; } catch (e) { p = null; err = true; continue; }
+        if (!p) break;   // (no hay imagen en este móvil)
+        cuadra = rev(id) === r0 && hora(id) === t0;
+        const ahora = (S().cardPhotos || {})[id];
+        if (cuadra && ahora && ahora.t !== save.cardPhotos[id].t) save.cardPhotos[id] = JSON.parse(JSON.stringify(ahora));
+      }
+      if (p && cuadra) photos[id] = p; else if (p || err) fallidas.push(id); else sinFoto.push(id);
     }
     // fotosFaltan: apuntadas pero sin la imagen en este móvil (p. ej. llegaron de la nube); fotosFallidas: no se pudieron leer
     return { app: 'PintaMapa', version: PM.VERSION.app, player: PM.player ? PM.player.name : '', t: Date.now(), save, photos, geo, bgeo, cityinfo, fotosFaltan: sinFoto.length, fotosFallidas: fallidas.length };

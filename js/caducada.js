@@ -45,8 +45,10 @@
       '<button type="button">' + t('Descargar la versión nueva') + '</button>' +
       '<small>' + t('Cuando termine la descarga, ábrela e instálala encima de esta.') + '<br>' +
       t('Tienes la {a}; hace falta la {b} o una posterior.', { a: tengo, b: hace }) + '</small></div>';
-    // nada de lo de debajo se puede tocar
-    ['click', 'pointerdown', 'touchstart', 'keydown'].forEach(function (ev) { el.addEventListener(ev, function (e) { e.stopPropagation(); }, true); });
+    // nada de lo de debajo se puede tocar. En fase de BURBUJA (no de captura): así el toque llega primero al botón del aviso y
+    // luego no sigue hacia el juego. En captura se paraba antes de llegar al botón y «Descargar» no hacía nada (informe de Codex,
+    // 17-nov-2026). El juego no está debajo en el árbol: el aviso cubre la pantalla y lo que haya en document/window no se entera
+    ['click', 'pointerdown', 'touchstart', 'keydown'].forEach(function (ev) { el.addEventListener(ev, function (e) { e.stopPropagation(); }); });
     var btn = el.querySelector('button');
     btn.addEventListener('click', function () {
       btn.textContent = '⏳';
