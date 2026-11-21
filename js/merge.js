@@ -155,10 +155,7 @@
     for (const [k, v] of Object.entries(b.cityRank || {})) out.cityRank[k] = Math.max(out.cityRank[k] ?? -1, v);
     delete out.pet; delete out.bones; delete out.mystery; delete out.cansTaken; if (out.stats) delete out.stats.cans;   // funciones retiradas: no se guardan ni vuelven de la nube
     out.barrioRankT = Object.assign({}, a.barrioRankT || {}); for (const [k, v] of Object.entries(b.barrioRankT || {})) out.barrioRankT[k] = Object.assign({}, out.barrioRankT[k] || {}, v);
-    out.avoidRemoved = Object.assign({}, a.avoidRemoved || {}, b.avoidRemoved || {});
-    const av = {};
-    [...(a.avoid || []), ...(b.avoid || [])].forEach((z) => { if (z && z.id != null && !out.avoidRemoved[z.id]) av[z.id] = z; });
-    out.avoid = Object.values(av);
+    delete out.avoid; delete out.avoidRemoved;   // (las «zonas a evitar» ya no existen: ni se guardan ni vuelven de la nube)
     return out;
   }
   merge.renombrarCiudad = renombrarCiudad;

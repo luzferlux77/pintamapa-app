@@ -165,12 +165,16 @@ PM.cloud = (function () {
           fotosMal++;
         }
       }
-      const sinCambios = !force && cfg[hk] && cfg[hk] === await huella();
+      // (el texto de la huella es también la foto de la subida: con una partida de 3-4 MB, cada conversión a texto congela el
+      // móvil un rato y antes se hacían 4 por copia —auditoría v0.9.25, PERF-01—. Lo que se pinte entre medias lo detecta
+      // «cambiadaDurante» y la próxima copia lo sube)
+      let texto0 = huellaTexto();
+      const sinCambios = !force && cfg[hk] && cfg[hk] === await huella(texto0);
       if (sinCambios && !Object.keys(PM.state.data.pendingGeo || {}).length && !bajarPend()) return fotosMal ? 'fotos pendientes' : 'sin cambios';
       let subida = sinCambios;
       for (let attempt = 0; attempt < 3 && !subida; attempt++) {
         // foto de la partida que se sube (copia profunda: lo que se pinte mientras tanto no la cambia)
-        const snap = huellaTexto();
+        const snap = texto0 || huellaTexto(); texto0 = null;
         const mine = JSON.parse(snap);
         mine.player = PM.player.name;
         const remote = await readRaw(base + 'partida.json', token);
@@ -265,15 +269,18 @@ PM.cloud = (function () {
     const save = PM.limpiarPartida(await decrypt(key, p.data));
     const geo = {};
     const files = (await gh(base.replace(/\/$/, ''))) || [];
-    for (const f of files) {
-      if (!/^calles-.*\.json$/.test(f.name)) continue;
-      // (por la descarga directa: hay un archivo por día y la API solo deja 60 consultas por hora sin clave; a los dos meses de
-      // pasear, «Mi progreso» ya no habría podido abrirse)
+    // (por la descarga directa: hay un archivo por día y la API solo deja 60 consultas por hora sin clave; a los dos meses de
+    // pasear, «Mi progreso» ya no habría podido abrirse)
+    const uno = async (f) => {
       let box = null;
       if (f.download_url) { try { const r = await fetch(f.download_url, { cache: 'no-store', signal: limite(TIMEOUT * 2) }); if (r.ok) box = await r.json(); } catch (e) { box = null; } }
       if (!box) { const c = await readRaw(base + f.name); box = c && c.data; }
-      if (box) Object.assign(geo, await decrypt(key, box));
-    }
+      return box ? decrypt(key, box) : null;
+    };
+    // de 6 en 6 (antes de uno en uno: con 300 días paseados, 300 descargas seguidas —auditoría v0.9.25, PERF-02—), y se juntan
+    // en el mismo orden de siempre
+    const dias = files.filter((f) => /^calles-.*\.json$/.test(f.name));
+    for (let i = 0; i < dias.length; i += 6) for (const g of await Promise.all(dias.slice(i, i + 6).map(uno))) if (g) Object.assign(geo, g);
     // tus fotos de cromo: se descargan al abrir cada carta
     const photo = async (id) => {
       try {

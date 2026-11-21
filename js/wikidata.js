@@ -4,6 +4,9 @@
 // como elementos tipo OSM, con etiquetas equivalentes para que el juego los clasifique igual.
 // Lo usan la app (www/js/world.js) y el generador de calles (tools/generar-calles.mjs).
 (function (root) {
+  // subclase → clase de la tabla (www/js/clases-auto.js, generada por scripts/pois/clases-auto.mjs). Si no está cargada, nada
+  const auto = (c) => { const A = (root.PM && root.PM.CLS_AUTO) || root.CLS_AUTO; return A ? A[c] : undefined; };
+  const herAuto = (c) => { const A = (root.PM && root.PM.HER_AUTO) || root.HER_AUTO; return A ? A[c] : undefined; };   // (clase que es una figura de protección)
   // clase de Wikidata (P31) -> etiquetas equivalentes de OSM
   const CLS = {
     Q33506: { tourism: 'museum' }, Q207694: { tourism: 'museum' }, Q17431399: { tourism: 'museum' },
@@ -88,7 +91,7 @@
   // y barrios (Gion, el Born…) y obras de arte guardadas en un museo (cuadros, retratos, biombos): no son lugares que visitar
   // y conjuntos y cascos antiguos (la ficha UNESCO «Catedral, Alcázar y Archivo de Indias», «Centro histórico de…»)
   // y clubes de fútbol e instituciones religiosas (el Botafogo o la Iglesia ortodoxa de Jerusalén tienen protección, pero no son un sitio)
-  const NO_CLS = new Set(['Q928830', 'Q2175765', 'Q22808403', 'Q123705', 'Q1574228', 'Q10564515', 'Q2983893', 'Q188509', 'Q3305213', 'Q134307', 'Q1144689', 'Q676050', 'Q3317612',
+  const NO_CLS = new Set(['Q26883973', 'Q928830', 'Q2175765', 'Q22808403', 'Q123705', 'Q1574228', 'Q10564515', 'Q2983893', 'Q188509', 'Q3305213', 'Q134307', 'Q1144689', 'Q676050', 'Q3317612',
     'Q15243209', 'Q110977120', 'Q476028', 'Q847017', 'Q44301618']);
   // nivel de protección (P1435): 3 Patrimonio de la Humanidad · 2 nacional (BIC, BCIN, monumento histórico clasificado,
   // Grado I, monumento nacional…) · 1 el resto · 0 catálogos que no protegen (arte público de Barcelona)
@@ -168,8 +171,11 @@
   // (las etiquetas en español van en minúscula —«iglesia de Santa María»—; en una carta, el nombre empieza en mayúscula. «iPhone», no)
   const capital = (s) => (/^\p{Ll}/u.test(s) && !/^\p{Ll}\p{Lu}/u.test(s) ? s[0].toUpperCase() + s.slice(1) : s);
   const TREN = new Set(Object.keys(CLS).filter((c) => CLS[c]._tren));
-  function parse(json) {
-    const out = [];
+  // opts.guias: { Q: nº de guías de viaje que lo recomiendan } (solo en los generadores de datos: scripts/pois/guias.json). Lo que
+  // recomiendan 2+ guías no se descarta por tener pocas Wikipedias ni por estar en la colección de un museo (Manneken Pis, el
+  // Monumento a Sibelius: esculturas de la calle inventariadas por un museo) —informe de Gemini (2), ML-C01—
+  function parse(json, opts) {
+    const out = [], GU = (opts && opts.guias) || {};
     for (const b of (json && json.results && json.results.bindings) || []) {
       if (!b || !b.item || !b.coord) continue;   // (una fila incompleta se salta: no tira la zona entera)
       const q = b.item.value.split('/').pop(), label = b.itemLabel && (PM.limpio ? PM.limpio(b.itemLabel.value) : b.itemLabel.value);
@@ -177,7 +183,11 @@
       const name = capital(label);
       const m = /Point\(([-\d.]+) ([-\d.]+)\)/.exec(b.coord.value);
       if (!m) continue;
-      const hers = (b.her && b.her.value || '').split(',').filter(Boolean), her = hers.length > 0, cls = (b.cls && b.cls.value || '').split(',').filter(Boolean);
+      const hers = (b.her && b.her.value || '').split(',').filter(Boolean), cls = (b.cls && b.cls.value || '').split(',').filter(Boolean);
+      // (la protección también puede venir en la propia clase: La Giralda es «Monumento (España)», subclase de Bien de Interés
+      // Cultural, sin el dato de protección aparte —clases-auto.js, HER_AUTO—)
+      for (const c of cls) { const h = HER3.has(c) || HER2.has(c) ? c : herAuto(c); if (h && !hers.includes(h)) hers.push(h); }
+      const her = hers.length > 0;
       const wp = +(b.wp && b.wp.value) || 0;
       // metro, tranvía, barrios, cuadros, cascos antiguos (una plaza que Wikidata da también como barrio —Times Square— sí)
       // (y una estación subterránea que también es de ferrocarril —Sants— la deciden las reglas de estación; el metro, nunca)
@@ -188,7 +198,10 @@
       // varias clases: gana la más específica por un orden FIJO (antes, la primera que llegara: Wikidata no garantiza
       // el orden y el Foro Romano salía como «iglesia»; y dos móviles podían clasificar distinto el mismo sitio)
       let tags = null, best = 1e9;
-      for (const c of cls) { const tg = CLS[c]; if (!tg) continue; const r = rango(tg); if (r < best || (r === best && tags && c < tags.__c)) { best = r; tags = Object.assign({ __c: c }, tg); } }
+      // (una clase que la tabla no conoce, por la que conoce de la que es subclase en Wikidata: «torre campanario de iglesia» →
+      // campanario → torre. La tabla sale de scripts/pois/clases-auto.mjs —www/js/clases-auto.js—. Sin ella se perdían La
+      // Giralda, Manneken Pis, el Redentore… —informe de Gemini (2), ML-C01—)
+      for (const c of cls) { const tg = CLS[c] || CLS[auto(c)]; if (!tg) continue; const r = rango(tg); if (r < best || (r === best && tags && c < tags.__c)) { best = r; tags = Object.assign({ __c: c }, tg); } }
       if (tags) delete tags.__c;
       // un museo en un palacio que se llama museo o galería es un museo (la Galería Uffizi; el Palacio Pitti sigue siendo un palacio)
       if (tags && tags.building === 'palace' && /^(galer[ií]a|galerie|gallery|museo|museu|museum|mus[eé]e|pinacoteca)\b/i.test(name) && cls.some((c) => CLS[c] && CLS[c].tourism === 'museum')) tags = { tourism: 'museum' };
@@ -204,9 +217,10 @@
       if (calle) tags = { _calle: 1 };
       if (!tags && !her) continue;                    // ni lugar reconocible ni patrimonio: barrio, empresa, colegio, evento…
       if (!tags && cls.some((c) => AREA.has(c))) continue;   // un estrecho, una calle, un aeropuerto… (aunque sean patrimonio)
-      if (b.coll && (!tags || tags.historic === 'monument' || tags.tourism === 'artwork')) continue;   // pieza de la colección de un museo (la Venus de Milo, los Mármoles de Elgin)
+      const enGuias = (GU[q] || 0) >= 2;
+      if (b.coll && (!tags || tags.historic === 'monument' || tags.tourism === 'artwork') && !enGuias) continue;   // pieza de la colección de un museo (la Venus de Milo, los Mármoles de Elgin)
       if (tags && tags.building === 'yes' && !her) continue;
-      if (!her && wp < 2) continue;                   // sin protección y casi sin artículos: poco conocido (cines cerrados, etc.)
+      if (!her && wp < 2 && !enGuias) continue;                   // sin protección y casi sin artículos: poco conocido (cines cerrados, etc.)
       if (DULL.test(name) && wp < 2) continue;
       const t = Object.assign({ historic: 'building' }, tags && tags.building !== 'yes' ? tags : {}, { name, wikidata: q, _wp: wp });
       delete t._tren;
@@ -239,7 +253,7 @@
     return parse(await r.json()).sort((a, b) => b.tags._wp - a.tags._wp);   // de más a menos conocido
   }
 
-  const api = { fetchBox, fetchTop, parse, query, topQuery, idsQuery, patrimonioQuery, CLS };
+  const api = { fetchBox, fetchTop, parse, query, topQuery, idsQuery, patrimonioQuery, CLS, NO_CLS, AREA, CALLE, HER2, HER3 };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else { root.PM = root.PM || {}; root.PM.wikidata = api; }
 })(typeof window !== 'undefined' ? window : globalThis);

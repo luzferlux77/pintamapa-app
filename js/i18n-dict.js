@@ -1283,6 +1283,10 @@
     'El archivo no trae la hora de cada punto: parece una ruta planificada, no un recorrido hecho. No se importa.': ['L’arxiu no porta l’hora de cada punt: sembla una ruta planificada, no un recorregut fet. No s’importa.', 'The file has no time for each point: it looks like a planned route, not a completed one. Not imported.', 'Le fichier n’a pas l’heure de chaque point : cela ressemble à un itinéraire prévu, pas à un parcours réalisé. Non importé.'],
     'El recorrido dura menos de 2 minutos: no se importa (los paseos cortos no se guardan).': ['El recorregut dura menys de 2 minuts: no s’importa (les passejades curtes no es desen).', 'The track lasts less than 2 minutes: not imported (short walks are not saved).', 'Le parcours dure moins de 2 minutes : non importé (les balades courtes ne sont pas enregistrées).'],
     '📍 {n}: te falta en el álbum': ['📍 {n}: et falta a l’àlbum', '📍 {n}: missing from your album', '📍 {n} : il te manque dans l’album'],
+    // auditoría v0.9.25 (DATA-01): la partida apartada sale de la app
+    'Tu partida apartada (la que no se podía leer) está guardada en Documentos/PintaMapa y ya no ocupa sitio en la app.': ['La teva partida apartada (la que no es podia llegir) està desada a Documents/PintaMapa i ja no ocupa espai a l’app.', 'Your set-aside game (the one that could not be read) is saved in Documents/PintaMapa and no longer takes up space in the app.', 'Ta partie mise de côté (celle qui était illisible) est enregistrée dans Documents/PintaMapa et n’occupe plus de place dans l’app.'],
+    'Hay una partida apartada (no se podía leer) ocupando sitio en la app.': ['Hi ha una partida apartada (no es podia llegir) que ocupa espai a l’app.', 'There is a set-aside game (it could not be read) taking up space in the app.', 'Une partie mise de côté (illisible) occupe de la place dans l’app.'],
+    'Guardar la partida apartada y liberar sitio': ['Desar la partida apartada i alliberar espai', 'Save the set-aside game and free up space', 'Enregistrer la partie mise de côté et libérer de la place'],
   };
   const out = {};
   for (const k in D) out[k] = D[k][i];

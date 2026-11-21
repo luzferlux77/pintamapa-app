@@ -145,7 +145,6 @@ PM.limpiarPartida = function (d) {
     const o = obj(d[k]); if (!o) continue;
     for (const id of Object.keys(o)) if (/[<>"]/.test(id)) { const v = o[id]; delete o[id]; o[L(id)] = v; }
   }
-  if (Array.isArray(d.avoid)) d.avoid = d.avoid.filter((a) => a && typeof a === 'object').map((a) => Object.assign(a, { name: L(a.name) }));
   if (d.walks && !Array.isArray(d.walks)) d.walks = [];
   // (lo que no es un nombre también llega a la pantalla: misiones, desglose de puntos y cifras de cada paseo. Una copia manipulada no puede colar nada)
   if (d.daily != null) {
@@ -180,7 +179,7 @@ PM.limpiarPartida = function (d) {
     if (!(Number.isFinite(d.session.elapsed) && d.session.elapsed >= 0)) d.session.elapsed = 0;
     if (!Number.isFinite(d.session.resumedAt)) d.session.resumedAt = d.session.start;
   }
-  if (Array.isArray(d.avoid)) d.avoid = d.avoid.filter((a) => a.type !== 'circle' || (PM.puntoOk(a.c) && isFinite(a.r) && a.r > 0));
+  delete d.avoid; delete d.avoidRemoved;   // (las «zonas a evitar» se quitaron del todo, 21-nov-2026: las guardadas se borran)
   // (el color y la foto de perfil van dentro de un style="…": solo un color y una imagen de verdad)
   if (d.color != null && !/^#[0-9a-f]{3,8}$/i.test(String(d.color))) d.color = '#2563eb';
   // (solo fotos: jpeg, png, webp o gif; un SVG puede llevar código dentro —informe de Gemini, 20-nov-2026—)

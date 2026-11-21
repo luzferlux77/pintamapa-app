@@ -304,7 +304,6 @@
   let curBarrio = null, ensureBT = 0;
   let flagTimer = null;
   function refreshFlag() { clearTimeout(flagTimer); flagTimer = setTimeout(renderBarrios, 120); }
-  // (las «zonas a evitar» se retiraron: las que hubiera guardadas siguen en la partida, pero ya no se aplican)
 
   let flagMarkers = [];
   // ---------------- Rangos de barrio: bronce 60 % (conquista) · plata 80 % · oro 90 % · leyenda (100 % y todos sus lugares) ----------------
@@ -758,7 +757,7 @@
     if (painting && !isTeleport) { session.lastSeen = Date.now(); session.gaps = pendingGaps; }   // si Android cierra la app, se sabe desde cuándo falta el recorrido
     PM.state.save();
 
-    if (painting) { checkLandmarks(p, visible, now); if (!visible) checkNearCard(p); }
+    if (painting) { checkLandmarks(p, visible, fixTime ? fixTime + relojDesfase : Date.now()); if (!visible) checkNearCard(p); }   // (la captura, en el reloj del móvil)
     const tk = W.tileKeyOf(p[0], p[1]);
     if (tk !== curTile) { curTile = tk; W.ensureAround(p[0], p[1]); }
     if (visible) updateSpeedBadge();
@@ -812,6 +811,16 @@
       if (!(dt > 0)) continue;   // (hueco sin un tiempo válido —guardado por una versión anterior—: no se rellena)
       if (r && r.len <= Math.max(maxLen, r.via ? r.len : 0) && r.len / dt <= MAX_SPEED * 1.5) { fillGap(r, g.a, g.b, g.ta, g.tb); continue; }
       if (!final && Date.now() - g.since < (g.noStreets ? 30 : 3) * 60000) { keep.push(g); continue; }   // (sin calles aún: sin cobertura, hasta media hora)
+      // en vehículo (metro, autobús): si el camino por las calles —o tus propios puntos— piden más velocidad que la de una
+      // persona, no es andado: ni se pinta ni suma metros, y el recorrido queda cortado en su sitio. Antes se sumaban, p. ej.,
+      // 2,9 km «andados» al salir del metro (auditoría v0.9.25, GPS-03)
+      const wayV = [g.a, ...g.via, g.b];
+      let lenV = 0; for (let i = 1; i < wayV.length; i++) lenV += PM.geo.dist(wayV[i - 1], wayV[i]);
+      if (Math.max(lenV, r ? r.len : 0) / dt > MAX_SPEED * 1.5) {
+        const tr = session.track;
+        if (tr && tr.length) { let k = tr.length; while (k > 0 && tr[k - 1] && tr[k - 1][2] > g.ta) k--; if (k > 0 && tr[k - 1] !== null && tr[k] !== null) tr.splice(k, 0, null); }
+        continue;
+      }
       // sin camino posible (de verdad no lo hay): como antes, lo que haya justo en línea recta (si es corto)
       if (g.d < 400) { const st = Math.ceil(g.d / 4), h = [g.b[0] - g.a[0], (g.b[1] - g.a[1]) * Math.cos(g.b[0] * Math.PI / 180)]; for (let i = 1; i <= st; i++) paintAround(PM.geo.lerp(g.a, g.b, i / st), h); }
       // y lo andado cuenta igual: metros y recorrido por tus puntos (antes ese trozo desaparecía del paseo)
@@ -1102,15 +1111,21 @@
   // t = hora real de la lectura GPS (con la pantalla bloqueada las lecturas llegan luego, en lote).
   // Captura de VARIOS a la vez: cada lugar en cuyo radio estás cuenta su propio tiempo; si hay varios juntos
   // (castillo + palacio + museo en la misma plaza…), a los 10 s se conquistan todos.
-  let dwells = {};   // id -> { lm, since }
+  let dwells = {};   // id -> { lm, since, rec }
+  var relojDesfase = 0, fixDeDiario = false;   // (var: onMove y onFix están antes) reloj del móvil − reloj del GPS · lectura del diario en curso
   // al empezar, pausar, reanudar o terminar, las capturas a medias se cancelan: antes, una empezada antes de la pausa seguía
   // contando su tiempo y al reanudar se conquistaba sin haber estado los 10 s (informe de Codex, 17-nov-2026)
   function cortarCapturas() { dwells = {}; showDwell(); }
   const canCapture = (lm) => { const r = S().landmarks[lm.id]; return !r || Date.now() - r.last > G.REVISIT_MS; };
-  function checkDwell(p, t, visible) {
+  // t: SIEMPRE en el reloj del móvil (onMove convierte la hora del GPS con relojDesfase). Antes se mezclaban los dos relojes:
+  // con el móvil atrasado la captura no terminaba nunca; adelantado, era al instante (auditoría v0.9.25, GPS-05).
+  // deReloj: la llamada de cada segundo. Una captura abierta con filas recuperadas del diario (horas de hace minutos) se
+  // completa si esas filas cubren los 10 s; si no, el reloj la vuelve a empezar desde ahora (antes se daba por hecha al instante)
+  function checkDwell(p, t, visible, deReloj) {
     if (!session || session.paused) { dwells = {}; showDwell(); return; }
     // los que ya estaban en marcha: ¿sigues cerca?, ¿ha pasado el tiempo?
     for (const [id, dw] of Object.entries(dwells)) {
+      if (deReloj && dw.rec) { dw.rec = false; dw.since = t; }
       if (PM.geo.dist(p, dw.lm.pos) > (dw.lm.capR || CAPTURE_RADIUS) + (CAPTURE_EXIT - CAPTURE_RADIUS) || !canCapture(dw.lm)) {
         if (visible && canCapture(dw.lm)) toast(`📸 Te has alejado de ${dw.lm.emoji} ${PM.esc(dw.lm.name)}: captura cancelada`, 'warn', 2500);
         delete dwells[id];
@@ -1124,7 +1139,7 @@
     for (const id in W.landmarks) {
       const lm = W.landmarks[id];
       if (dwells[id] || !canCapture(lm) || PM.geo.dist(p, lm.pos) > (lm.capR || CAPTURE_RADIUS)) continue;
-      dwells[id] = { lm, since: t }; nuevos.push(lm);
+      dwells[id] = { lm, since: t, rec: fixDeDiario }; nuevos.push(lm);
     }
     if (nuevos.length && visible) {
       toast(nuevos.length === 1 ? `📸 Quédate ${CAPTURE_SECONDS} s junto a ${nuevos[0].emoji} <b>${PM.esc(nuevos[0].name)}</b> para capturarlo`
@@ -1145,7 +1160,7 @@
     el.classList.add('show');
   }
   // quieto junto al monumento no llegan lecturas nuevas del GPS: se comprueba cada segundo con la última posición
-  setInterval(() => { if (session && !session.paused) checkDwell(pos, Date.now(), !document.hidden); }, 1000);   // también en el bolsillo: quieto junto a un lugar, el GPS no manda nada nuevo
+  setInterval(() => { if (session && !session.paused) checkDwell(pos, Date.now(), !document.hidden, true); }, 1000);   // también en el bolsillo: quieto junto a un lugar, el GPS no manda nada nuevo
 
   function checkLandmarks(p, visible = true, t = Date.now()) {
     const n = nearestLandmark(p);
@@ -1579,6 +1594,8 @@
       recuperarDiarioGps();
       return;
     }
+    // (diferencia entre el reloj del móvil y el del GPS, de las lecturas en directo: para medir la captura con un solo reloj)
+    if (!rec && !deCola && t && Math.abs(Date.now() - t) < 86400000) relojDesfase = Date.now() - t;
     const acc = c.accuracy || 0;
     gpsIcon(acc > 35 ? 'weak' : 'ok', acc);
     lastFixT = rec ? Math.max(lastFixT || 0, t) : Date.now();
@@ -1592,7 +1609,7 @@
       return;
     }
     pos = [c.latitude, c.longitude];
-    const f = { p: pos.slice(), t: t || c.time || Date.now(), acc, spd: c.speed, brg: c.bearing != null ? c.bearing : c.heading };
+    const f = { p: pos.slice(), t: t || c.time || Date.now(), acc, spd: c.speed, brg: c.bearing != null ? c.bearing : c.heading, rec: !!rec };
     if (!(session && !session.paused) || PM.debug.sinFiltro) { onMove(f.p, false, f.t, f.spd, f.brg); return; }
     // Pintando: cada lectura se confirma con la siguiente. Un rebote del GPS entre edificios (una lectura suelta
     // desviada 30-60 m) hacía que se trazara un camino hasta ella y de vuelta, pintando calles que no pisaste.
@@ -1604,6 +1621,7 @@
     const h = heldFix; heldFix = null;
     if (h) {
       const base = lastP;
+      fixDeDiario = !!h.rec;
       if (base && f) {
         const dev = PM.geo.distToPolyline(h.p, [base, f.p]);
         const vuelta = PM.geo.dist(base, h.p) + PM.geo.dist(h.p, f.p), recta = PM.geo.dist(base, f.p);
@@ -1611,6 +1629,7 @@
         if (!(dev > Math.max(20, h.acc * 1.5) && vuelta > recta * 1.6 + 20)) onMove(h.p, false, h.t, h.spd, h.brg, true);
         else if (session) gpsSt().rebotes++;
       } else onMove(h.p, false, h.t, h.spd, h.brg, true);
+      fixDeDiario = false;
     }
     heldFix = f || null;
     clearTimeout(heldTimer);
@@ -1715,10 +1734,15 @@
     let n = 0, hPuesta = !h;
     try {
       const desde = Math.max(lastT || 0, recHasta, ses.recDesde || ses.resumedAt || ses.start || 0);
-      // (si el móvil no contesta, no se queda todo esperando: las lecturas en cola siguen a los 8 s)
-      const r = await Promise.race([P.diarioGps({ desde }), new Promise((ok) => setTimeout(() => ok(null), 8000))]);
+      // (si el móvil no contesta, no se queda todo esperando para siempre: las lecturas en cola siguen a los 30 s como mucho)
+      // Si tarda más de 8 s —el móvil está ocupado arrancando: mapa, calles, cartas— se sigue esperando a la MISMA lectura,
+      // con las de en directo en cola: si se soltaran, su hora dejaría fuera todo lo apuntado con la app cerrada. Y «recDesde»
+      // solo se borra si el diario contestó (antes se borraba sin haber recuperado nada: auditoría v0.9.25, GPS-02)
+      const pide = P.diarioGps({ desde }), espera = (ms) => new Promise((ok) => setTimeout(() => ok(null), ms));
+      let r = await Promise.race([pide, espera(8000)]);
+      if (!r && session === ses && tramo === tramoGps) r = await Promise.race([pide, espera(22000)]);
       if (session !== ses || tramo !== tramoGps || !gpsWanted()) return 0;
-      delete ses.recDesde;
+      if (r) delete ses.recDesde; else { const g = gpsSt(); if (g) g.diarioTarde = (g.diarioTarde || 0) + 1; }
       const filas = PM.filasDiarioGps(r && r.datos, Math.max(desde, lastT || 0));
       // todo en orden de hora: las recuperadas, y la que estaba en espera en su sitio (si es la misma lectura, una vez)
       for (const f of filas) {
@@ -1728,6 +1752,14 @@
         n++;
       }
       if (n) { const g = gpsSt(); if (g) g.recuperadas = (g.recuperadas || 0) + n; avisoDiario('nativo:' + n); }
+      // tras una vuelta larga ese rato no contaba como tiempo de paseo, pero sus metros sí: el ritmo salía de récord (3 km en
+      // 0 min). Suma el tiempo que cubren las filas recuperadas, sin los parones de más de 5 min (auditoría v0.9.25, GPS-04)
+      if (r && ses.recSumaTiempo) {
+        delete ses.recSumaTiempo;
+        let cub = 0, prev = desde;
+        for (const f of filas) { const dd = f.t - prev; if (dd > 0 && dd <= 5 * 60000) cub += dd; prev = f.t; }
+        ses.elapsed = (ses.elapsed || 0) + cub;
+      }
       return n;
     } catch (e) { return 0; } finally {
       if (!hPuesta && session === ses && tramo === tramoGps) holdFix(h);
@@ -1903,6 +1935,7 @@
       vueltaLarga = true;
       // (si el servicio de GPS siguió vivo y apuntando mientras tanto, eso sí se recupera: son posiciones de verdad)
       session.recDesde = session.lastSeen || 0;
+      session.recSumaTiempo = true;   // (lo que se recupere de ese rato suma su tiempo: recuperarYa)
       session.elapsed += Math.max(0, (session.lastSeen || session.resumedAt) - session.resumedAt);
       session.resumedAt = Date.now();
       if (session.track && session.track.length) session.track.push(null);   // corte del recorrido
@@ -1959,6 +1992,16 @@
     session.paused = true;
     persistSession(); syncGPS(); renderSession();
     toast('⏸ En pausa: GPS apagado, no gasta batería', 'info');
+  }
+  // ⏸ como ⏹: antes de cortar, lo que el GPS apuntó con la app congelada. Antes, si sacabas el móvil del bolsillo y pausabas
+  // enseguida, la pausa cortaba el tramo y la recuperación en marcha se tiraba: se perdía todo lo andado en el bolsillo, y al
+  // reanudar ya no se pedía (auditoría v0.9.25, GPS-01). Mientras espera, el botón queda en «⏳» (dos toques, una pausa)
+  let pausando = false;
+  function pausarConDiario() {
+    if (pausando || !session || session.paused) return;
+    pausando = true;
+    const b = $('#s-pause'); if (b) { b.disabled = true; b.textContent = '⏳'; }
+    recuperarDiarioGps().catch(() => 0).then(() => { pausando = false; pauseSession(); });
   }
   function resumeSession() {
     if (!session || !session.paused) return;
@@ -2219,7 +2262,7 @@
       ${session.paused ? '<button class="btn sbtn go" id="s-resume" title="Reanudar">▶</button>' : '<button class="btn sbtn" id="s-pause" title="Pausar">⏸</button>'}
       <button class="btn sbtn stop" id="s-end" title="Finalizar">⏹</button>`;
     if (session.paused) $('#s-resume').addEventListener('click', resumeSession);
-    else $('#s-pause').addEventListener('click', pauseSession);
+    else $('#s-pause').addEventListener('click', pausarConDiario);
     $('#s-end').addEventListener('click', () => { if (confirm('¿Finalizar el paseo? Se apagará el GPS.')) recuperarDiarioGps().catch(() => 0).then(() => endSession()); });   // (antes, lo que el GPS apuntó con la app congelada)
     updateSessionInfo();
   }
@@ -2232,7 +2275,8 @@
   }
   setInterval(updateSessionInfo, 1000);
   // copia en la nube cada 30 min mientras paseas (si Android cierra la app, no se pierde lo pintado); al terminar, siempre
-  setInterval(() => { if (session && !session.paused) PM.sync.auto(); }, 30 * 60000);
+  // (cuando el móvil esté desocupado: la copia convierte la partida entera a texto, y en mitad de un pintado se nota —PERF-01—)
+  setInterval(() => { if (session && !session.paused) (window.requestIdleCallback || ((f) => setTimeout(f, 0)))(() => PM.sync.auto(), { timeout: 60000 }); }, 30 * 60000);
 
   // Informe de calidad del GPS del paseo: cuánto rato hubo lecturas y cuántas veces se cortó (para saber si un tramo sin
   // pintar es del GPS, de Android frenando la app con la pantalla apagada, o de una zona sin calles en el mapa)
@@ -2756,6 +2800,26 @@
   $('#sheet .close').addEventListener('click', () => $('#sheet').classList.remove('show'));
 
   $('#card').addEventListener('click', () => $('#card').classList.remove('show'));
+  // Botón «Atrás» de Android: cierra lo que haya abierto encima (lo más alto en pantalla) y dice si cerró algo; si no había nada,
+  // la parte nativa deja la app en segundo plano, como hasta ahora (auditoría v0.9.25, NAT-01: antes «Atrás» siempre mandaba la
+  // app a segundo plano aunque hubiera una carta, un álbum o una hoja abiertos). Necesita la APK que lo pregunta (MainActivity)
+  PM.atras = () => {
+    const vis = (el) => !!el && el.getClientRects().length > 0 && getComputedStyle(el).visibility !== 'hidden';
+    const capa = (el) => { let z = 0; for (let e = el; e && e !== document.body; e = e.parentElement) { const v = parseInt(getComputedStyle(e).zIndex, 10); if (v > z) z = v; } return z; };
+    const abiertos = [];
+    // (abierta = con su clase «show», aunque aún se esté animando: mientras la hoja sube, su botón está en «visibility: hidden»
+    // y un «Atrás» rápido no la cerraba)
+    const poner = (el, accion, porClase) => { if (el && (porClase || vis(el))) abiertos.push({ el, accion, z: capa(el) }); };
+    poner(document.querySelector('#celebrate.show'), (el) => el.classList.remove('show'), true);
+    poner(document.querySelector('#card.show'), (el) => el.classList.remove('show'), true);
+    poner(document.querySelector('#tcg-view.show'), () => PM.tcg && PM.tcg.close(), true);
+    poner(document.querySelector('#sheet.show .close'), (el) => el.click(), true);
+    document.querySelectorAll('.wr-close, .rp-x, .po-x, .x').forEach((b) => poner(b, (el) => el.click()));
+    if (!abiertos.length) return false;
+    abiertos.sort((a, b) => b.z - a.z || (a.el.compareDocumentPosition(b.el) & Node.DOCUMENT_POSITION_FOLLOWING ? 1 : -1));
+    try { abiertos[0].accion(abiertos[0].el); } catch (e) { return false; }
+    return true;
+  };
 
   function showLandmarkInfo(lm) {
     const got = S().landmarks[lm.id];
@@ -3017,6 +3081,28 @@
   // lo que le falta a una copia, para decirlo junto a «copia guardada»
   const copiaIncompleta = (d) => [d.fotosFallidas ? PM.t('{n} foto(s) no se pudieron leer y no van en la copia: vuelve a intentarlo.', { n: d.fotosFallidas }) : '',
     d.fotosFaltan ? PM.t('{n} foto(s) apuntadas no están en este móvil y no van en la copia.', { n: d.fotosFaltan }) : ''].filter(Boolean).join(' ');
+  // Partidas apartadas (una partida ilegible se aparta en «…_rota» para no pisarla): antes se quedaban para siempre en la
+  // memoria de la app, sin forma de sacarlas, y se comían casi todo el sitio (unos 5 MB): la partida nueva acababa sin
+  // poder guardarse (auditoría v0.9.25, DATA-01). En el móvil se guardan solas como archivo en Documentos/PintaMapa y solo
+  // entonces se quitan; en el navegador, con el botón de Ajustes (se descarga y se quita)
+  const clavesRotas = () => { const k = []; try { for (let i = 0; i < localStorage.length; i++) { const x = localStorage.key(i); if (x && /_rota(_\d+)?$/.test(x)) k.push(x); } } catch (e) {} return k; };
+  async function sacarRotas(manual) {
+    const FS = isNative && window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Filesystem;
+    let n = 0;
+    for (const k of clavesRotas()) {
+      let txt = null; try { txt = localStorage.getItem(k); } catch (e) {}
+      if (txt == null) continue;
+      const m = k.match(/_rota_(\d+)$/), name = `partida-apartada-${new Date(m ? +m[1] : Date.now()).toISOString().slice(0, 19).replace(/[:T]/g, '-')}${m ? '' : '-' + n}.json`;
+      try {
+        if (FS) await FS.writeFile({ path: 'PintaMapa/' + name, data: txt, directory: 'DOCUMENTS', encoding: 'utf8', recursive: true });
+        else if (manual) { await PM.need('lib/mp4-muxer.js', 'js/replay.js'); if ((await PM.replay.save(new Blob([txt], { type: 'application/json' }), name, 'Partida apartada de PintaMapa')) === false) break; }
+        else break;
+        localStorage.removeItem(k); n++;
+      } catch (e) { break; }   // (no se pudo guardar el archivo: se queda donde estaba, no se pierde)
+    }
+    if (n) toast('📦 ' + PM.t('Tu partida apartada (la que no se podía leer) está guardada en Documentos/PintaMapa y ya no ocupa sitio en la app.'), 'ok', 7000);
+    return n;
+  }
   async function exportBackup() {
     const msg = $('#bk-msg');
     if (msg) msg.textContent = '⏳ Preparando la copia…';
@@ -3333,7 +3419,8 @@
           <a class="btn on" href="progreso.html" target="_blank" style="display:inline-block;text-decoration:none">📊 Abrir «Mi progreso»</a>`);
       }
       html += card('💾 Copia de seguridad', `<p class="muted">Toda tu partida en un archivo, en Documentos/PintaMapa. En otro móvil, impórtala: se suma a lo que tengas, sin perder nada.</p>
-        <div class="seg"><button class="btn on" id="bk-exp">💾 Exportar copia</button><button class="btn" id="bk-imp">📂 Importar copia</button></div><p class="muted" id="bk-msg">${s.backupT ? 'Última copia: ' + new Date(s.backupT).toLocaleString(PM.LOCALE) : 'Aún no has hecho ninguna copia.'}</p>`);
+        <div class="seg"><button class="btn on" id="bk-exp">💾 Exportar copia</button><button class="btn" id="bk-imp">📂 Importar copia</button></div><p class="muted" id="bk-msg">${s.backupT ? 'Última copia: ' + new Date(s.backupT).toLocaleString(PM.LOCALE) : 'Aún no has hecho ninguna copia.'}</p>
+        ${clavesRotas().length ? `<p class="muted">📦 ${PM.t('Hay una partida apartada (no se podía leer) ocupando sitio en la app.')}</p><button class="btn" id="bk-rota" style="width:100%">📦 ${PM.t('Guardar la partida apartada y liberar sitio')}</button>` : ''}`);
       html += card('📴 Mapa sin conexión', `<p class="muted">Para ver el mapa y pintar sin cobertura (metro, montaña, viajes).</p>
         <div class="seg"><button class="btn on" id="off-dl" data-km="3">⬇️ Mi zona (3 km)</button><button class="btn" id="off-dl2" data-km="6">⬇️ Mi ciudad (6 km)</button></div><p class="muted" id="off-msg">Calculando lo guardado…</p>`);
       html += '<h4 class="pf-grupo">❓ Ayuda</h4>';
@@ -3412,6 +3499,7 @@
     $('#opt-bv') && $('#opt-bv').addEventListener('click', () => PM.need('js/bienvenida.js').then(() => PM.bienvenida.abrir(() => {})));
     if ($('#bk-exp')) $('#bk-exp').addEventListener('click', exportBackup);
     if ($('#bk-imp')) $('#bk-imp').addEventListener('click', importBackup);
+    if ($('#bk-rota')) $('#bk-rota').addEventListener('click', async () => { const b = $('#bk-rota'); b.disabled = true; if ((await sacarRotas(true)) && !clavesRotas().length) b.remove(); else b.disabled = false; });
     if ($('#off-msg')) {
       PM.mapStyle.cacheInfo().then((i) => { const m = $('#off-msg'); if (m) m.textContent = i.n ? `Guardado en el móvil: ${PM.fmtNum(i.n)} piezas de mapa${i.mb ? ' · ' + i.mb.toFixed(0) + ' MB' : ''}` : 'Aún no hay mapa guardado.'; });
       ['#off-dl', '#off-dl2'].forEach((sel) => $(sel).addEventListener('click', async (e) => {
@@ -3640,6 +3728,7 @@
     compressOldWalks();
     setTimeout(() => PM.mapStyle.podar().catch(() => {}), 60000);
     setTimeout(() => W.purgarCache().catch(() => {}), 90000);
+    if (isNative) setTimeout(() => { if (clavesRotas().length) sacarRotas(false); }, 6000);   // (partidas apartadas: a Documentos/PintaMapa)
     if (PM.state.rota && !PM.state.bloqueada) setTimeout(() => toast('⚠️ ' + PM.t('Tu partida guardada no se podía leer: se ha apartado y empiezas de cero. Si tienes una copia de seguridad, impórtala en Perfil → Ajustes.'), 'warn', 10000), 1500);
     scheduleStreakReminder();
     document.addEventListener('visibilitychange', () => { if (document.hidden) scheduleStreakReminder(); });

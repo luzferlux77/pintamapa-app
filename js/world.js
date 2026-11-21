@@ -507,7 +507,6 @@ PM.world = (function () {
       const p = { id, tile: tk, pts, len, mid, wide: !!wide, trail: !!trail, ped: !!ped, ow: !!ow, nom };   // ped: plaza o calle peatonal · ow: de sentido único · nom: nombre en minúsculas
       if (gemelo && painted[gemelo]) painted[id] = 1;   // (la otra mitad del mismo tramo: si estaba pintado, ella también)
       graphAdd(p);
-      p.avoid = inAvoidCircle(mid);
       pieces[id] = p;
       tiles[tk].pieces.push(p);
       if (!trail) tiles[tk].total += len;
@@ -862,18 +861,7 @@ PM.world = (function () {
     return { len: dist.get(t), pieces: [...ids], path: path.reverse() };   // path: el camino por las calles, de a a b
   }
 
-  // ---------------- Zonas a evitar (personales) ----------------
-  // Cada pintor puede marcar barrios enteros o zonas (círculos) por donde prefiere no pasar.
-  // Sus calles quedan FUERA del porcentaje del barrio y de la ciudad: se puede llegar al 80 % sin pisarlas.
-  let avoidCircles = [], avoidBarrios = new Set();
-  function inAvoidCircle(p) { return avoidCircles.some((z) => PM.geo.dist(p, z.c) <= z.r); }
-  function setAvoid(list) {
-    avoidCircles = (list || []).filter((z) => z.type === 'circle');
-    avoidBarrios = new Set((list || []).filter((z) => z.type === 'barrio').map((z) => z.id));
-    for (const id in pieces) pieces[id].avoid = inAvoidCircle(pieces[id].mid);
-    scheduleReassign();
-  }
-  const isAvoided = (p) => inAvoidCircle(p) || avoidBarrios.has(barrioOf(p).id);
+  // (las «zonas a evitar» se quitaron del todo el 21-nov-2026, a petición del usuario: desde la v0.9.0 no tenían pantalla)
 
   // ---------------- Barrios reales ----------------
   // Cada calle pertenece a un barrio de verdad, según lo que tenga OpenStreetMap en esa ciudad:
@@ -994,10 +982,9 @@ PM.world = (function () {
           pos: b.node ? b.node.pos : b.rel ? [(b.rel.bounds[0] + b.rel.bounds[2]) / 2, (b.rel.bounds[1] + b.rel.bounds[3]) / 2] : null,
           bbox: b.rel ? b.rel.bounds.slice() : null, segs: b.rel ? b.rel.segs : null, tile: b.tile };
       }
-      if (avoidBarrios.has(b.id)) pc.avoid = true; else if (!inAvoidCircle(pc.mid)) pc.avoid = false;
       B.pieces.push(pc);
       if (pc.trail) continue;
-      if (pc.avoid) B.avoidLen = (B.avoidLen || 0) + pc.len; else B.total += pc.len;
+      B.total += pc.len;
     }
     for (const B of Object.values(barrios)) {
       if (!B.bbox) {   // sin contorno: caja de sus calles + 300 m de margen
@@ -1795,7 +1782,7 @@ PM.world = (function () {
   const api = {
     TILE, RARITY, tiles, pieces, landmarks, updateMustSee,
     tileKeyOf, tileBounds, ensureAround, piecesNear, gemelasDe, onChange,
-    barrios, barrioAt: barrioOf, barrioComplete, route, joinsOf, setAvoid, isAvoided, addLegacyGeo, ensureKeys, unloadTiles,
+    barrios, barrioAt: barrioOf, barrioComplete, route, joinsOf, addLegacyGeo, ensureKeys, unloadTiles,
     cityAt(p) { const c = shapeCity(p); if (c) return c; const t = tiles[tileKeyOf(p[0], p[1])]; return (t && t.city) || (PM.state && (PM.state.data.tileNames[tileKeyOf(p[0], p[1])] || {}).city) || null; },
     // los imprescindibles fijos de cada ciudad, con el lugar del mapa que les corresponde (id) si ya está cargado
     mustLists() {

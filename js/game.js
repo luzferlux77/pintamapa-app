@@ -72,8 +72,6 @@ PM.state = (function () {
     barrioCards: {},    // cromos de barrio: silueta de sus calles pintadas
     cityCards: {},      // cromos de ciudad (70 %)
     setsDone: {},       // colecciones temáticas: nivel conseguido (1 bronce, 2 plata, 3 oro)
-    avoid: [],          // zonas a evitar: { id, type:'barrio', name } | { id, type:'circle', c:[lat,lon], r }
-    avoidRemoved: {},   // zonas quitadas (para que la nube no las devuelva)
     stats: { paintedM: 0, walkedM: 0, bestCombo: 0, captures: 0, days: 0, streak: 0, lastDay: null, churches: 0 },
     daily: null,
     lastPos: null,
@@ -313,7 +311,7 @@ PM.game = (function () {
     if (!B || !B.total) return 0;
     const s = S();
     let m = 0;
-    for (const pc of B.pieces) if (!pc.avoid && !pc.trail && s.painted[pc.id]) m += pc.len;
+    for (const pc of B.pieces) if (!pc.trail && s.painted[pc.id]) m += pc.len;
     return Math.min(1, m / B.total);
   }
   function checkBarrio(id) {
