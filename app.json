@@ -1,10 +1,10 @@
 {
-  "version": "0.9.25",
-  "notes": "Correcciones del segundo informe de Gemini: diario GPS al reabrir, revisión de cartas, fusión de partidas, motor de lugares (nombres en cualquier alfabeto, lugares añadidos a mano, plazas, monasterios, distancias), mapa sin conexión, altitudes y ritmo",
+  "version": "0.9.26",
+  "notes": "GPS en el bolsillo más fiable: pausar ya no pierde lo andado, el metro no suma metros y las capturas miden bien el tiempo. El botón Atrás cierra cartas, álbum y ventanas antes de salir. Lo importante de los centros históricos ya no se queda fuera del mapa y se reconocen más tipos de monumento. Más seguridad en Android. Quitadas las zonas a evitar.",
   "native": 1,
-  "nativeApk": 9,
-  "apkMin": "0.9.4",
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.9.25/pintamapa-web-0.9.25.zip",
-  "checksum": "07e80149c077afbe8620f61ff4a14af67c300679e31078c8de257379dfc91abb",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.9.25/PintaMapa-v0.9.25.apk"
+  "nativeApk": 10,
+  "apkMin": "0.9.26",
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.9.26/pintamapa-web-0.9.26.zip",
+  "checksum": "9c2f3d565933218b0a726a26a846fab918d1a31775ae37ebd76811577347b7c2",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.9.26/PintaMapa-v0.9.26.apk"
 }
