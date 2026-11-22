@@ -1,10 +1,10 @@
 {
-  "version": "0.9.27",
-  "notes": "Revisión forense al terminar cada paseo: repasa todo el recorrido con el diario GPS, recupera las posiciones que no llegaron, quita rebotes, respeta las pausas y reconstruye por las calles los tramos sin satélites, y luego lo repinta. Arreglado el fallo que daba por perdidos los tramos tras un corte largo de GPS. Mismos lugares y mismos nombres de barrio para todos en cada ciudad. Cornellà con más lugares. Quitadas las zonas a evitar. El botón Atrás cierra ventanas.",
+  "version": "0.9.28",
+  "notes": "Motor de reconexión del GPS: si el GPS del móvil se atasca (como en el paseo del 22 de noviembre, 15 minutos sin posición), la app lo detecta en 20 segundos y lo intenta arreglar sola: pide los datos de los satélites, vuelve a pedir la posición y, si tiene permiso, apaga y enciende la ubicación; si no, vibra y avisa para que lo hagas tú. Avisa también si la ubicación está apagada. La revisión del final del paseo cuenta lo que hizo. Hay que instalar esta APK.",
   "native": 1,
-  "nativeApk": 10,
-  "apkMin": "0.9.26",
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.9.27/pintamapa-web-0.9.27.zip",
-  "checksum": "f6510216ee1884190869bc000e0db853f7f9f69bd0ad1ed5032ffa4b885ff926",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.9.27/PintaMapa-v0.9.27.apk"
+  "nativeApk": 11,
+  "apkMin": "0.9.28",
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.9.28/pintamapa-web-0.9.28.zip",
+  "checksum": "f313817a724357e7a301ac978513a4fffd3bc0ec363c8a8b16bc160b32805013",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.9.28/PintaMapa-v0.9.28.apk"
 }
