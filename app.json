@@ -1,10 +1,10 @@
 {
-  "version": "0.9.26",
-  "notes": "GPS en el bolsillo más fiable: pausar ya no pierde lo andado, el metro no suma metros y las capturas miden bien el tiempo. El botón Atrás cierra cartas, álbum y ventanas antes de salir. Lo importante de los centros históricos ya no se queda fuera del mapa y se reconocen más tipos de monumento. Más seguridad en Android. Quitadas las zonas a evitar.",
+  "version": "0.9.27",
+  "notes": "Revisión forense al terminar cada paseo: repasa todo el recorrido con el diario GPS, recupera las posiciones que no llegaron, quita rebotes, respeta las pausas y reconstruye por las calles los tramos sin satélites, y luego lo repinta. Arreglado el fallo que daba por perdidos los tramos tras un corte largo de GPS. Mismos lugares y mismos nombres de barrio para todos en cada ciudad. Cornellà con más lugares. Quitadas las zonas a evitar. El botón Atrás cierra ventanas.",
   "native": 1,
   "nativeApk": 10,
   "apkMin": "0.9.26",
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.9.26/pintamapa-web-0.9.26.zip",
-  "checksum": "9c2f3d565933218b0a726a26a846fab918d1a31775ae37ebd76811577347b7c2",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.9.26/PintaMapa-v0.9.26.apk"
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.9.27/pintamapa-web-0.9.27.zip",
+  "checksum": "f6510216ee1884190869bc000e0db853f7f9f69bd0ad1ed5032ffa4b885ff926",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.9.27/PintaMapa-v0.9.27.apk"
 }
