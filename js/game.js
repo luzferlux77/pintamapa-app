@@ -39,6 +39,18 @@ PM.setPlayer = function (name) {
   location.reload();
 };
 
+// El diagnóstico de un paseo —avisos, diario del GPS por minutos, eventos del motor GPS— solo sirve los primeros días (para
+// analizar un paseo con problemas): en los paseos antiguos se quita, y sus contadores —w.forense, w.forense.motor.sinGps…— se
+// quedan. Un paseo largo con problemas de GPS llevaba unos 50 KB de diagnóstico que nunca se recortaba, en una partida que vive
+// en localStorage y se sube entera a la nube (auditoría v0.9.29, DATA-03)
+PM.sinDiagnostico = function (w) {
+  let q = false;
+  if (!w) return q;
+  for (const k of ['diario', 'avisos']) if (w[k]) { delete w[k]; q = true; }
+  if (w.forense && w.forense.motor && w.forense.motor.eventos) { delete w.forense.motor.eventos; q = true; }
+  return q;
+};
+
 PM.state = (function () {
   const LEGACY_KEY = 'pintamapa_save_' + PM.profile;
   const KEY = PM.player ? 'pintamapa_save_' + PM.player.slug + '_' + PM.profile : LEGACY_KEY;
@@ -128,7 +140,9 @@ PM.state = (function () {
   function aligerar() {
     const viejos = (data.walks || []).slice(0, -20).filter((w) => !w.fino && w.track && w.track.length > 40).slice(0, 20);
     for (const w of viejos) { w.mov = PM.movingMs(w); w.dist = w.dist || (w.st && w.st.walked) || 0; w.track = PM.simplifyTrack(w.track, 8); w.slim = w.fino = 1; }
-    return viejos.length > 0;
+    let diag = false;
+    for (const w of (data.walks || []).slice(0, -20)) diag = PM.sinDiagnostico(w) || diag;
+    return viejos.length > 0 || diag;
   }
   const aviso = (n, d) => { try { window.dispatchEvent(new CustomEvent(n, { detail: d })); } catch (e) { /* sin pantalla */ } };
   // Escribe la partida. Solo se da por guardada si la escritura sale bien: si falla (móvil sin espacio…), sigue

@@ -42,18 +42,33 @@
     const todos = orig.slice();
     for (const f of buenas) if (!enCoche.has(f) && !(conPausas && pausado(f.t, f.t + 1)) && !cerca(f.t)) { todos.push({ p: [f.la, f.lo], t: f.t, de: 'd' }); recuperadas++; }
     todos.sort((x, y) => x.t - y.t);
-    // 2b) rebotes: una posición que se va lejos y vuelve en poco tiempo (las de antes y después, juntas): fuera, o se pintaría la
-    // calle de al lado (los del recorrido ya los quitaba el paseo; estos son sobre todo del diario)
+    // 2b) rebotes: una posición del DIARIO que se va lejos y vuelve en poco tiempo (las de antes y después, juntas): fuera, o se
+    // pintaría la calle de al lado. Solo las del diario: las del recorrido ya pasaron el filtro de rebotes en directo, y una ida y
+    // vuelta de verdad —45 m hasta un lugar o una calle sin salida, con un punto cada 30 s— no es un rebote (auditoría v0.9.29, FOR-01)
     let rebotes = 0;
     for (let i = 1; i < todos.length - 1; i++) {
       const a = todos[i - 1], m = todos[i], b = todos[i + 1];
-      if (b.t - a.t > 60000) continue;
+      if (m.de !== 'd' || b.t - a.t > 60000) continue;
       const am = dist(a.p, m.p), mb = dist(m.p, b.p), ab = dist(a.p, b.p);
       if (am > 40 && mb > 40 && ab < 0.5 * Math.min(am, mb)) { todos.splice(i, 1); i--; rebotes++; }
     }
 
+    // 2c) el paso de ESTA persona: la mediana de su velocidad andando (tramos de 3-30 s del recorrido). Un hueco largo a más de 1,6
+    // veces su paso (como mínimo 9 km/h, como mucho maxSpeed) no es andando: el autobús o el metro de 1-2 paradas, con la espera,
+    // van a 12-20 km/h y bajo tierra no dan ninguna lectura. Antes se rellenaba por las calles y sumaba sus km al paseo; un corredor
+    // sigue cubierto, porque su propio paso es alto (auditoría v0.9.29, FOR-02)
+    const vels = [];
+    for (let i = 1; i < orig.length; i++) {
+      const dt = (orig[i].t - orig[i - 1].t) / 1000;
+      if (dt < 3 || dt > 30) continue;
+      const v = dist(orig[i - 1].p, orig[i].p) / dt;
+      if (v >= 0.5 && v <= maxSpeed) vels.push(v);
+    }
+    vels.sort((x, y) => x - y);
+    const vPersona = vels.length >= 10 ? Math.max(2.5, Math.min(maxSpeed, 1.6 * vels[vels.length >> 1])) : maxSpeed;
+
     // 3) cada paso entre dos posiciones seguidas: ¿se sigue, o es un corte de verdad?
-    const informe = { recuperadas, rebotes, huecos: [], pausas: 0, vehiculo: 0, parado: 0, sinDatos: 0, metros: 0 };
+    const informe = { recuperadas, rebotes, huecos: [], pausas: 0, vehiculo: 0, parado: 0, sinDatos: 0, metros: 0, vPersona: +vPersona.toFixed(2) };
     const out = [], minDe = (t) => Math.round((t - start) / 60000);
     let ult = null;   // (el último punto guardado: de 8 en 8 m, como al andar; los del recorrido, siempre)
     const largo = (tr) => { let m = 0, a = null; for (const q of tr) { if (!q) { a = null; continue; } if (a) { const d = dist(a, q); if (d < 3000) m += d; } a = q; } return m; };
@@ -65,13 +80,14 @@
         let corte = false;
         if (conPausas && dt > 30 && pausado(a.t, b.t)) { corte = true; informe.pausas++; }
         else if ((dt >= 10 || d > 60) && dt > 0 && d / dt > maxSpeed) { corte = true; informe.vehiculo++; }
+        else if (dt > 120 && d >= 100 && d / dt > vPersona) { corte = true; informe.vehiculo++; }   // (más rápido que tu paso: FOR-02)
         else if ((dt > 60 && d > 40) || dt > 300) {
           // hueco: ¿hubo lecturas del GPS entre medias? (flojas: el GPS seguía, sin satélites; ninguna: apagado o sin datos)
           const entre = flojas.filter((f) => f.t > a.t && f.t < b.t);
           // (parado: nada que pintar; si fue un rato largo —una pausa de un paseo de antes, un bar—, el recorrido queda cortado)
           // (cada hueco lleva sus dos extremos, sus horas y las lecturas flojas de entre medias: con ellas main.js elige el camino
           // por las calles que mejor encaja —rutaDeHueco—)
-          const h = (tipo) => ({ desde: minDe(a.t), hasta: minDe(b.t), m: Math.round(d), tipo, a: a.p, b: b.p, ta: a.t, tb: b.t, guias: entre.map((f) => [f.la, f.lo, Math.round(f.a), f.t]) });
+          const h = (tipo) => ({ desde: minDe(a.t), hasta: minDe(b.t), m: Math.round(d), tipo, a: a.p, b: b.p, ta: a.t, tb: b.t, vMax: vPersona, guias: entre.map((f) => [f.la, f.lo, Math.round(f.a), f.t]) });
           if (d < 100) { informe.parado++; if (dt > 300) corte = true; }
           else if (entre.length) informe.huecos.push(h('sin satélites'));
           else if (conPausas) informe.huecos.push(h('sin datos'));

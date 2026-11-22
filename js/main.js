@@ -694,10 +694,16 @@
       if (tooFast && !eraRapido && Date.now() - avisoRapidoT > 60000) { avisoRapidoT = Date.now(); toast('🚲 ' + PM.t('Vas a más de 20 km/h: así no se pinta (solo andando o corriendo)'), 'warn', 4500); }
       // (en vehículo no se pinta ni se guarda el recorrido: queda un corte, y el repaso del final no une lo de antes con lo de después)
       if (tooFast && session.track && session.track.length && session.track[session.track.length - 1] !== null) session.track.push(null);
+      // tu paso andando (para saber qué hueco largo no pudo ser a pie: rapidoParaTi)
+      if (mode === 'gps' && !jump && dt >= 3 && dt <= 30 && implied >= 0.5 && implied <= MAX_SPEED) notaPaso(implied);
+      // un hueco de más de 2 min a más velocidad que tu paso (autobús, metro de 1-2 paradas con su espera: 12-20 km/h y bajo
+      // tierra sin lecturas) no es andado: corte, sin pintar ni sumar (auditoría v0.9.29, FOR-02)
+      const enBus = mode === 'gps' && !jump && !tooFast && rapidoParaTi(d, dt);
+      if (enBus && session.track && session.track.length && session.track[session.track.length - 1] !== null) session.track.push(null);
       // Hueco entre lecturas (GPS en el bolsillo): se pinta el camino más corto POR LAS CALLES
       let routed = false;
       const via = softFixes.filter((f) => f.t > lastT && f.t < now).map((f) => f.p); softFixes = [];
-      if (!jump && !deriva && !tooFast && mode === 'gps' && d > (PM.debug.umbralHueco || 20) && d < 3000) {
+      if (!jump && !deriva && !tooFast && !enBus && mode === 'gps' && d > (PM.debug.umbralHueco || 20) && d < 3000) {
         const maxLen = Math.max(d * 2, d + 250);
         const vale = (x) => x && dt > 0 && x.len <= Math.max(maxLen, x.via ? x.len : 0) && x.len / dt <= MAX_SPEED * 1.5;
         // (por las lecturas flojas, si se puede; si ese camino sale imposible a pie —con 100 m de error cada una zigzaguea—, el
@@ -723,7 +729,7 @@
       }
       // Calles de la zona aún sin llegar (zona nueva, caché renovada, red lenta): lo andado no se pierde. Se guarda
       // como un hueco pendiente (con puntos intermedios para seguir tu camino) y se pinta por las calles al llegar.
-      if (!routed && !jump && !deriva && !tooFast && d > 0.01 && d < 400 && !(streetsReady(p) && streetsReady(lastP))) {
+      if (!routed && !jump && !deriva && !tooFast && !enBus && d > 0.01 && d < 400 && !(streetsReady(p) && streetsReady(lastP))) {
         const g = pendingGaps[pendingGaps.length - 1];
         if (g && g.noStreets && PM.geo.dist(g.b, lastP) < 1) {
           if (PM.geo.dist(g.via.length ? g.via[g.via.length - 1] : g.a, g.b) > 30) g.via.push(g.b.slice());
@@ -736,7 +742,7 @@
         walkAnchor = p.slice(); paintPrev = null; recentP = [];
         routed = true;
       }
-      if (!routed && !jump && !deriva && d > 0.01 && d < 400) {
+      if (!routed && !jump && !deriva && !enBus && d > 0.01 && d < 400) {
         if (!tooFast) {
           const steps = Math.ceil(d / 4);
           const heading = [p[0] - lastP[0], (p[1] - lastP[1]) * Math.cos(p[0] * Math.PI / 180)];
@@ -807,6 +813,20 @@
   const okGap = (g) => g && Array.isArray(g.a) && Array.isArray(g.b) && Array.isArray(g.via) && isFinite(g.d) && isFinite(g.ta) && isFinite(g.tb);
   let pendingGaps = (S().session && Array.isArray(S().session.gaps) ? S().session.gaps.filter(okGap) : []).map((g) => Object.assign(g, { since: Date.now() }));
   setInterval(() => { if (pendingGaps.length) retryGaps(); }, 20000);
+  // Tu paso andando en ESTE paseo (las velocidades de los tramos de 3-30 s): un hueco de más de 2 min más rápido que 1,6 veces tu
+  // paso (como mínimo 9 km/h; como mucho, el tope de 20) no fue a pie. Lo mismo que forense.js (vPersona)
+  var pasoDe = null, pasoVels = [];   // (var: onMove puede llegar antes que esta línea al arrancar)
+  function notaPaso(v) {
+    const id = session && session.start;
+    if (pasoDe !== id) { pasoDe = id; pasoVels = []; }
+    pasoVels.push(v); if (pasoVels.length > 300) pasoVels.shift();
+  }
+  function vPersonaPaseo() {
+    if (!session || pasoDe !== session.start || pasoVels.length < 10) return MAX_SPEED;
+    const s = pasoVels.slice().sort((x, y) => x - y);
+    return Math.max(2.5, Math.min(MAX_SPEED, 1.6 * s[s.length >> 1]));
+  }
+  function rapidoParaTi(d, dt) { return dt > 120 && d >= 100 && d / dt > vPersonaPaseo(); }
   // final: al terminar el paseo, lo que siga sin camino ya no espera más
   function retryGaps(final) {
     if (!pendingGaps.length) return;
@@ -817,10 +837,11 @@
       if (!(dt > 0)) continue;   // (hueco sin un tiempo válido —guardado por una versión anterior—: no se rellena)
       const vale = (x) => x && x.len <= Math.max(maxLen, x.via ? x.len : 0) && x.len / dt <= MAX_SPEED * 1.5;
       // (por las lecturas flojas si sale un camino posible a pie; si no, el directo: el de las flojas zigzaguea con su error)
-      let r = (g.via.length && routeVia(g.a, g.b, g.via)) || null;
-      if (!vale(r)) r = W.route(g.a, g.b, maxLen) || r;
-      if (vale(r)) { fillGap(r, g.a, g.b, g.ta, g.tb); continue; }
-      if (!final && Date.now() - g.since < (g.noStreets ? 30 : 3) * 60000) { keep.push(g); continue; }   // (sin calles aún: sin cobertura, hasta media hora)
+      const bus = rapidoParaTi(g.d, dt);   // (más rápido que tu paso durante más de 2 min: FOR-02)
+      let r = bus ? null : (g.via.length && routeVia(g.a, g.b, g.via)) || null;
+      if (!bus && !vale(r)) r = W.route(g.a, g.b, maxLen) || r;
+      if (!bus && vale(r)) { fillGap(r, g.a, g.b, g.ta, g.tb); continue; }
+      if (!bus && !final && Date.now() - g.since < (g.noStreets ? 30 : 3) * 60000) { keep.push(g); continue; }   // (sin calles aún: sin cobertura, hasta media hora)
       // en vehículo (metro, autobús): si el camino por las calles —o tus propios puntos— piden más velocidad que la de una
       // persona, no es andado: ni se pinta ni suma metros, y el recorrido queda cortado en su sitio. Antes se sumaban, p. ej.,
       // 2,9 km «andados» al salir del metro (auditoría v0.9.25, GPS-03)
@@ -828,7 +849,7 @@
       // viaje en vehículo —22-nov-2026—)
       const wayV = [g.a, ...g.via, g.b];
       let lenV = 0; for (let i = 1; i < wayV.length; i++) lenV += PM.geo.dist(wayV[i - 1], wayV[i]);
-      if (g.d / dt > MAX_SPEED * 1.5) {
+      if (bus || g.d / dt > MAX_SPEED * 1.5) {
         const tr = session.track;
         if (tr && tr.length) { let k = tr.length; while (k > 0 && tr[k - 1] && tr[k - 1][2] > g.ta) k--; if (k > 0 && tr[k - 1] !== null && tr[k] !== null) tr.splice(k, 0, null); }
         continue;
@@ -1605,6 +1626,11 @@
     // ahora y lo apuntado en el bolsillo ya no valía (paseo del 14-nov-2026: de ~600 posiciones apuntadas se recuperaron 10)
     if (!rec && !deCola && session && !session.paused && (recuperando || (lastFixT && Date.now() - lastFixT > 20000 && hayDiarioGps()))) {
       if (vivasEnCola.length < 500) vivasEnCola.push([c, t, tramoGps]);
+      // (mientras espera —hasta 2 min—, tu punto y el icono del GPS sí se mueven: mostrar no pinta; el pintado sigue en la cola.
+      // Antes el punto se quedaba quieto aunque anduvieras con la app a la vista —auditoría v0.9.29, UX-01—)
+      const ac = c.accuracy || 0;
+      gpsIcon(ac > 35 ? 'weak' : 'ok', ac);
+      if (ac <= 35 && isFinite(c.latitude) && isFinite(c.longitude)) showAt([c.latitude, c.longitude], true);
       recuperarDiarioGps();
       return;
     }
@@ -1829,16 +1855,22 @@
     let e = null;
     try { e = await P.estadoGps(); } catch (er) { return; }
     if (!e || !gpsWanted() || document.hidden) return;
-    let msg = null;
-    if (e.ubicacion === false) msg = PM.t('La ubicación del móvil está apagada: enciéndela para seguir pintando.');
-    else if (e.paso >= 4 && !e.puedeReiniciar && e.sinGps >= 90) msg = PM.t('El GPS del móvil se ha atascado: apaga y enciende la ubicación.');
+    let msg = null, app = false;
+    // (ubicación «aproximada» —Android 12+—: el GPS da 1-3 km y no se pinta nada; antes pasaba en silencio —auditoría v0.9.29,
+    // MOT-02—. Se avisa al empezar el paseo y al volver a la app, con un botón a los ajustes de PintaMapa)
+    if (e.preciso === false) { msg = PM.t('PintaMapa tiene la ubicación aproximada: así no puede pintar calles. Activa «Usar ubicación precisa».'); app = true; }
+    else if (e.ubicacion === false) msg = PM.t('La ubicación del móvil está apagada: enciéndela para seguir pintando.');
+    // (sin afirmar que el chip esté roto: puede que estés bajo techo. Y si ya lo reinició sin éxito, se dice —UX-02—)
+    else if (e.paso >= 4 && e.sinGps >= 90) msg = e.reinicios > 0 && e.puedeReiniciar
+      ? PM.t('Sin GPS: ya he reiniciado la ubicación {n} veces. Si estás al aire libre y sigue igual, apágala y enciéndela tú.', { n: e.reinicios })
+      : PM.t('Sin GPS desde hace un rato: si estás al aire libre, apaga y enciende la ubicación.');
     if (!msg) return;
     motorAvisoT = Date.now();
-    avisoDiario(e.ubicacion === false ? 'motor:apagada' : 'motor:atascado ' + e.sinGps + 's');
-    const el = toast(`📡 ${PM.esc(msg)} <button class="btn">${PM.esc(PM.t('Abrir ajustes de ubicación'))}</button>`, 'warn', 9000);
+    avisoDiario(e.preciso === false ? 'motor:aproximada' : e.ubicacion === false ? 'motor:apagada' : 'motor:atascado ' + e.sinGps + 's');
+    const el = toast(`📡 ${PM.esc(msg)} <button class="btn">${PM.esc(PM.t(app ? 'Abrir ajustes de PintaMapa' : 'Abrir ajustes de ubicación'))}</button>`, 'warn', 9000);
     el.style.pointerEvents = 'auto';   // (los avisos no se tocan; este sí: lleva botón)
     const b = el.querySelector('button');
-    if (b) b.addEventListener('click', () => { Promise.resolve(P.abrirUbicacion && P.abrirUbicacion()).catch(() => {}); });
+    if (b) b.addEventListener('click', () => { Promise.resolve(app ? P.abrirAjustesApp && P.abrirAjustesApp() : P.abrirUbicacion && P.abrirUbicacion()).catch(() => {}); });
   }
   // los textos de la notificación del motor, en el idioma de la app (una vez por arranque, al pedir el GPS)
   var textosGpsOk = false;   // (var: startGPS puede llamarse antes de llegar aquí al arrancar)
@@ -1846,7 +1878,7 @@
     const P = isNative && nativePlugin('PmSystem');
     if (textosGpsOk || !P || !P.textosGps) return;
     textosGpsOk = true;
-    P.textosGps({ titulo: PM.t('El GPS del móvil se ha atascado'), texto: PM.t('Apaga y enciende la ubicación (desliza desde arriba de la pantalla). El paseo sigue.'),
+    P.textosGps({ titulo: PM.t('Sin GPS desde hace un rato'), texto: PM.t('Si estás al aire libre, apaga y enciende la ubicación del móvil (desliza desde arriba de la pantalla). El paseo sigue.'),
       tituloApagada: PM.t('La ubicación está apagada'), textoApagada: PM.t('Enciéndela para seguir pintando tus calles.') }).catch(() => { textosGpsOk = false; });
   }
   // Al sacar el móvil del bolsillo (la app vuelve a verse) se mira en el acto: si hace más de 20 s que no llega ninguna
@@ -1904,6 +1936,7 @@
         if (old) Promise.resolve(BG.removeWatcher({ id: old.bg })).catch(() => {});
         quitarHuerfanos(id);
         textosMotorGps();
+        setTimeout(() => mirarMotorGps(true), 3000);   // (al empezar: ubicación aproximada o apagada, se dice ya —MOT-02—)
       } else if (navigator.geolocation) {
         const w = { web: null }, vale = () => gpsWatch === w;
         w.web = navigator.geolocation.watchPosition((p) => { if (vale()) onFix(p.coords, p.timestamp); },
@@ -2023,7 +2056,11 @@
     if (placesOff) setPlaces(false, true);   // pintando, los lugares se ven siempre (si no, pasarías de largo)
     nuevoTramo();
     session = { start: Date.now(), resumedAt: Date.now(), elapsed: 0, paused: false, st: newSessionStats(), track: [] };
-    lastP = null; walkAnchor = null; cortarUnion(); vaciarDiarioGps();
+    lastP = null; walkAnchor = null; cortarUnion();
+    // (el diario GPS se vacía solo si el paseo anterior ya está revisado: si empiezas otro justo al terminar, antes se borraba lo
+    // que la revisión aún no había leído y el paseo quedaba «revisado» sin datos —auditoría v0.9.29, FOR-03—. Sin vaciar no se
+    // mezcla nada: cada lectura del diario va por horas, y lleno pasa a pm_gps.old.csv)
+    { const ws = S().walks || [], ult = ws[ws.length - 1]; if (!ult || ult.forense || ult.imported) vaciarDiarioGps(); }
     persistSession(); syncGPS(); renderSession();
     PM.update.hold();
     PM.sound.pickup(); PM.vibrate(60);
@@ -2068,7 +2105,20 @@
     if (pausando || !session || session.paused) return;
     pausando = true;
     const b = $('#s-pause'); if (b) { b.disabled = true; b.textContent = '⏳'; }
+    avisoEsperaDiario();
     recuperarDiarioGps().catch(() => 0).then(() => { pausando = false; pauseSession(); });
+  }
+  // (si ⏸ o ⏹ tienen que esperar al diario —hasta 2 min con el móvil ocupado—, se dice; antes ⏹ no hacía nada visible y se volvía
+  // a tocar —auditoría v0.9.29, UX-01—)
+  function avisoEsperaDiario() { if (recuperando || recPromesa) toast('⏳ ' + PM.t('Recuperando las posiciones del bolsillo…'), 'info', 4000); }
+  let terminando = false;
+  function terminarConDiario() {
+    if (terminando || !session) return;
+    if (!confirm('¿Finalizar el paseo? Se apagará el GPS.')) return;
+    terminando = true;
+    const b = $('#s-end'); if (b) b.disabled = true;
+    avisoEsperaDiario();
+    recuperarDiarioGps().catch(() => 0).then(() => { terminando = false; if (b) b.disabled = false; if (session) endSession(); });   // (antes, lo que el GPS apuntó con la app congelada)
   }
   function resumeSession() {
     if (!session || !session.paused) return;
@@ -2195,6 +2245,9 @@
       let r = null; try { r = await Promise.race([P.diarioGps({ desde: w.start - 1 }), new Promise((ok) => setTimeout(() => ok(null), 30000))]); } catch (e) { r = null; }
       if (!r) return null;   // (no contestó: se intentará en otro momento)
       filas = PM.filasDiarioGps(r.datos, w.start - 1);
+      // (diario vacío y el paseo tiene cortes: puede que se vaciara antes de tiempo o que aún no esté escrito. No se da por revisado
+      // —se volvería a mirar nunca—: hasta 3 intentos —auditoría v0.9.29, FOR-03—)
+      if (!filas.length && w.track.includes(null) && (w.forenseIntentos = (w.forenseIntentos || 0) + 1) < 3) { PM.state.save(); return null; }
     }
     if (session && String(session.start) === w.id) return null;   // (no debería: el paseo aún en marcha)
     const { track, informe } = PM.forense.reconstruir({ filas, track: w.track, start: w.start, pausas: w.pausas, maxSpeed: MAX_SPEED, dist: (a, b) => PM.geo.dist(a, b) });
@@ -2240,7 +2293,12 @@
       : mot.avisos ? PM.t('el GPS se atascó (te avisé para apagar y encender la ubicación)') : '';
     if (cambia) {
       w.track = track; w.rev = 0;   // (el repaso pendiente lo repinta entero, con sus calles cargadas, a trozos)
-      if (metros > 0) { w.st = w.st || {}; w.st.walked = (w.st.walked || 0) + metros; G.addWalk(metros); }
+      // (si la revisión llega otro día —al abrir la app días después—, los metros van al total, no a las misiones ni a la racha de
+      // hoy —auditoría v0.9.29, FOR-04—)
+      if (metros > 0) {
+        w.st = w.st || {}; w.st.walked = (w.st.walked || 0) + metros;
+        if (new Date(w.start).toDateString() === new Date().toDateString()) G.addWalk(metros); else S().stats.walkedM += metros;
+      }
       const partes = [];
       if (informe.recuperadas) partes.push(PM.t('{n} posiciones del GPS que no habían llegado', { n: informe.recuperadas }));
       if (estimado) partes.push(PM.t('{d} sin satélites reconstruidos por las calles', { d: PM.fmtDist(estimado) }));
@@ -2270,9 +2328,12 @@
     if (finas.length) { const v = routeVia(h.a, h.b, finas); if (v) cand.push(['por las lecturas más precisas', v]); }
     if (med.length > finas.length) { const v = routeVia(h.a, h.b, med.map((x) => [x[0], x[1]])); if (v) cand.push(['por todas las lecturas', v]); }
     let mejor = null;
+    // (la ruta por las calles es más larga que la recta: hasta 1,5 veces el paso de esta persona —forense.js, vPersona—; antes, 30 km/h
+    // para todos: un hueco en autobús se rellenaba como andado —auditoría v0.9.29, FOR-02—)
+    const vTope = (h.vMax || MAX_SPEED) * 1.5;
     for (const [nombre, r] of cand) {
       const v = r.len / dt;
-      if (v > MAX_SPEED * 1.5) continue;
+      if (v > vTope) continue;
       const poli = [h.a, ...(r.path || []), h.b];
       const enc = g.length ? g.reduce((s, x) => s + Math.max(0, PM.geo.distToPolyline([x[0], x[1]], poli) - x[2]) / Math.max(x[2], 50), 0) / g.length : 0;
       const score = enc + Math.max(0, r.len / Math.max(d, 1) - 1.3) * 0.5 + Math.max(0, v - 2.2) * 0.5;
@@ -2428,7 +2489,12 @@
       const w = { id: String(s.start), start: s.start, elapsed: s.elapsed, st: s.st, track: s.track || [], rev: rp.falta && !PM.debug.sinRepaso ? 0 : 1, diario: s.diario || [], avisos: s.avisos || [], pausas: ps };
       S().walks.push(w);
       // y la revisión forense con todo lo que apuntó el GPS (el diario sigue entero hasta el próximo paseo): ver forense.js
-      if (!PM.debug.sinRepaso) setTimeout(() => revisarForense(w).catch((e) => console.warn('Revisión forense', e)), 2500);
+      // (y el anterior, si quedó sin revisar —empezaste este justo al terminar aquel—: su parte del diario sigue ahí, FOR-03)
+      const prev = S().walks[S().walks.length - 2];
+      if (!PM.debug.sinRepaso) setTimeout(async () => {
+        try { if (prev && !prev.forense && !prev.imported && prev.start > Date.now() - 2 * 86400000) await revisarForense(prev); } catch (e) { /* el de ahora va igual */ }
+        revisarForense(w).catch((e) => console.warn('Revisión forense', e));
+      }, 2500);
     }
     persistSession(); syncGPS(); renderSession();
     showSummary(s);
@@ -2457,7 +2523,7 @@
       <button class="btn sbtn stop" id="s-end" title="Finalizar">⏹</button>`;
     if (session.paused) $('#s-resume').addEventListener('click', resumeSession);
     else $('#s-pause').addEventListener('click', pausarConDiario);
-    $('#s-end').addEventListener('click', () => { if (confirm('¿Finalizar el paseo? Se apagará el GPS.')) recuperarDiarioGps().catch(() => 0).then(() => endSession()); });   // (antes, lo que el GPS apuntó con la app congelada)
+    $('#s-end').addEventListener('click', terminarConDiario);
     updateSessionInfo();
   }
   function updateSessionInfo() {
@@ -3885,7 +3951,9 @@
     const old = Date.now() - 30 * 86400000;
     let before = 0, after = 0;
     for (const w of s.walks || []) {
-      if (w.start > old || w.slim || !w.track || w.track.length < 40) continue;
+      if (w.start > old) continue;
+      PM.sinDiagnostico(w);   // (avisos, diario y eventos del motor de hace más de 30 días: fuera —DATA-03—)
+      if (w.slim || !w.track || w.track.length < 40) continue;
       // antes de quitar puntos se guarda lo que depende de ellos (tiempo en movimiento y distancia exacta)
       w.mov = PM.movingMs(w); w.dist = w.dist || (w.st && w.st.walked) || 0;
       before += w.track.length; w.track = PM.simplifyTrack(w.track, 3); after += w.track.length; w.slim = 1;
