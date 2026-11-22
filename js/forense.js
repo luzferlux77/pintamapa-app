@@ -101,7 +101,7 @@
     }
     const n = (q) => ev.filter((e) => e[1] === q).length;
     const arr = ev.filter((e) => e[1] === 'arranca').pop();
-    const r = { sinGps: n('sin-gps'), reinicios: n('reinicia-ubicacion'), avisos: n('aviso'), recuperado: n('recuperado'), apagada: n('ubicacion-apagada'),
+    const r = { sinGps: n('sin-gps'), pausasGps: n('pausa-gps'), reinicios: n('reinicia-ubicacion'), avisos: n('aviso'), recuperado: n('recuperado'), apagada: n('ubicacion-apagada'),
       fallos: n('reinicio-falla') + n('chip-falla'), puedeReiniciar: arr ? /reinicio sí/.test(arr[2]) : null,
       eventos: ev.slice(-300).map(([t, q, d]) => [Math.round((t - start) / 1000), q, d.slice(0, 80)]) };
     for (const h of huecos || []) {
@@ -110,6 +110,7 @@
       h.motor = dentro;
       h.causa = dentro.includes('ubicacion-apagada') ? 'ubicación apagada'
         : dentro.includes('reinicia-ubicacion') ? 'GPS atascado: reiniciado'
+        : dentro.includes('pausa-gps') && dentro.includes('recuperado') ? 'GPS atascado: reiniciado (soltándolo)'
         : dentro.includes('aviso') ? 'GPS atascado: avisado'
         : dentro.includes('sin-gps') ? 'sin GPS' : null;
     }

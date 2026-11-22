@@ -1831,7 +1831,7 @@
     if (!e || !gpsWanted() || document.hidden) return;
     let msg = null;
     if (e.ubicacion === false) msg = PM.t('La ubicación del móvil está apagada: enciéndela para seguir pintando.');
-    else if (e.paso >= 3 && !e.puedeReiniciar && e.sinGps >= 75) msg = PM.t('El GPS del móvil se ha atascado: apaga y enciende la ubicación.');
+    else if (e.paso >= 4 && !e.puedeReiniciar && e.sinGps >= 90) msg = PM.t('El GPS del móvil se ha atascado: apaga y enciende la ubicación.');
     if (!msg) return;
     motorAvisoT = Date.now();
     avisoDiario(e.ubicacion === false ? 'motor:apagada' : 'motor:atascado ' + e.sinGps + 's');
@@ -2234,8 +2234,9 @@
     if (mot) w.forense.motor = mot;
     const cambia = informe.recuperadas > 0 || informe.rebotes > 0 || huecos.length > 0 || metros > 0;
     // (qué hizo el motor con el GPS atascado, también si no hubo nada que repintar)
+    const reini = mot ? mot.reinicios + mot.pausasGps : 0;   // (apagar y encender la ubicación, o soltar el GPS 4 s)
     const motTxt = !mot ? ''
-      : mot.reinicios ? (mot.reinicios === 1 ? PM.t('el GPS se atascó y lo reinicié') : PM.t('el GPS se atascó y lo reinicié {n} veces', { n: mot.reinicios }))
+      : reini ? (reini === 1 ? PM.t('el GPS se atascó y lo reinicié') : PM.t('el GPS se atascó y lo reinicié {n} veces', { n: reini }))
       : mot.avisos ? PM.t('el GPS se atascó (te avisé para apagar y encender la ubicación)') : '';
     if (cambia) {
       w.track = track; w.rev = 0;   // (el repaso pendiente lo repinta entero, con sus calles cargadas, a trozos)
