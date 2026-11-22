@@ -1719,6 +1719,14 @@
         return 'movido';
       }
       avisoDiario((acc <= 50 ? 'vig:quieto ' : 'vig:incierto ') + Math.round(acc) + 'm');
+      // (solo lecturas flojas desde hace más de 2 min: el GPS puede estar atascado —22-nov, 15 min con lecturas de antena—. Con el
+      // motor nativo —PmMotorGps— lo vigila él, y mejor: hasta apaga y enciende la ubicación. Sin él, al menos se vuelve a pedir)
+      const Pm = isNative && nativePlugin('PmSystem');
+      if (acc > 50 && !(Pm && Pm.estadoGps) && Date.now() - (lastBuenaT || 0) > 2 * 60000) {
+        if (g) g.reinicios = (g.reinicios || 0) + 1;
+        avisoDiario('vig:flojo, se reinicia');
+        startGPS();
+      }
       return acc <= 50 ? 'quieto' : 'incierto';   // (en el mismo sitio: el GPS sigue vivo y no hay nada que rellenar)
     } finally { vigilando = false; }
   }
@@ -1808,6 +1816,39 @@
     if (!hayDiarioGps()) { gpsDespierto(); return; }
     recuperarDiarioGps().then(() => { if (gpsWanted() && !vigilando && Date.now() - Math.max(lastBuenaT || 0, gpsPedidoT || 0) >= 2 * 60000) gpsDespierto(); });
   }, 30000);
+  setInterval(() => { if (!document.hidden) mirarMotorGps(false); }, 30000);
+  // Motor de reconexión del GPS (APK con PmMotorGps, dentro del servicio de GPS: vigila aunque la app esté congelada en el
+  // bolsillo; si el chip se atasca, lo reinicia —hasta apagar y encender la ubicación— o avisa con una notificación). Con la app
+  // a la vista se mira cómo está: si la ubicación está apagada, o el GPS lleva atascado más de 75 s y la app no puede reiniciarlo
+  // sola, se dice aquí también, con un botón a los ajustes de ubicación (como mucho cada 2 min, o al volver a la app)
+  var motorAvisoT = 0;
+  async function mirarMotorGps(alVolver) {
+    const P = isNative && nativePlugin('PmSystem');
+    if (!P || !P.estadoGps || !gpsWanted()) return;
+    if (!alVolver && Date.now() - motorAvisoT < 2 * 60000) return;
+    let e = null;
+    try { e = await P.estadoGps(); } catch (er) { return; }
+    if (!e || !gpsWanted() || document.hidden) return;
+    let msg = null;
+    if (e.ubicacion === false) msg = PM.t('La ubicación del móvil está apagada: enciéndela para seguir pintando.');
+    else if (e.paso >= 3 && !e.puedeReiniciar && e.sinGps >= 75) msg = PM.t('El GPS del móvil se ha atascado: apaga y enciende la ubicación.');
+    if (!msg) return;
+    motorAvisoT = Date.now();
+    avisoDiario(e.ubicacion === false ? 'motor:apagada' : 'motor:atascado ' + e.sinGps + 's');
+    const el = toast(`📡 ${PM.esc(msg)} <button class="btn">${PM.esc(PM.t('Abrir ajustes de ubicación'))}</button>`, 'warn', 9000);
+    el.style.pointerEvents = 'auto';   // (los avisos no se tocan; este sí: lleva botón)
+    const b = el.querySelector('button');
+    if (b) b.addEventListener('click', () => { Promise.resolve(P.abrirUbicacion && P.abrirUbicacion()).catch(() => {}); });
+  }
+  // los textos de la notificación del motor, en el idioma de la app (una vez por arranque, al pedir el GPS)
+  var textosGpsOk = false;   // (var: startGPS puede llamarse antes de llegar aquí al arrancar)
+  function textosMotorGps() {
+    const P = isNative && nativePlugin('PmSystem');
+    if (textosGpsOk || !P || !P.textosGps) return;
+    textosGpsOk = true;
+    P.textosGps({ titulo: PM.t('El GPS del móvil se ha atascado'), texto: PM.t('Apaga y enciende la ubicación (desliza desde arriba de la pantalla). El paseo sigue.'),
+      tituloApagada: PM.t('La ubicación está apagada'), textoApagada: PM.t('Enciéndela para seguir pintando tus calles.') }).catch(() => { textosGpsOk = false; });
+  }
   // Al sacar el móvil del bolsillo (la app vuelve a verse) se mira en el acto: si hace más de 20 s que no llega ninguna
   // lectura, se pregunta ya la posición en vez de esperar a los 2 min del vigilante. Con la pantalla apagada Android puede
   // frenar los temporizadores de la app (el vigilante de arriba tarda más en saltar), pero este momento siempre llega.
@@ -1816,6 +1857,7 @@
     if (session && !session.paused) avisoDiario(document.hidden ? 'oculta' : 'visible');
     if (document.hidden || !gpsWanted() || vigilando) return;
     await recuperarDiarioGps();   // (lo que el GPS apuntó mientras la app estaba congelada en el bolsillo)
+    mirarMotorGps(true);
     if (document.hidden || !gpsWanted() || vigilando) return;
     const ultimo = Math.max(lastBuenaT || 0, gpsPedidoT || 0, session.resumedAt || session.start || 0);
     if (Date.now() - ultimo < 20000 || Date.now() - vigilaT < 20000) return;
@@ -1861,6 +1903,7 @@
         gpsWatch = { bg: id };
         if (old) Promise.resolve(BG.removeWatcher({ id: old.bg })).catch(() => {});
         quitarHuerfanos(id);
+        textosMotorGps();
       } else if (navigator.geolocation) {
         const w = { web: null }, vale = () => gpsWatch === w;
         w.web = navigator.geolocation.watchPosition((p) => { if (vale()) onFix(p.coords, p.timestamp); },
@@ -2171,14 +2214,29 @@
         extra += m.r.len - h.m; estimado += m.r.len;
       }
     }
+    // lo que hizo el motor de reconexión del GPS (APK con PmMotorGps): cuántas veces se atascó el GPS, si lo reinició o avisó, y la
+    // causa de cada hueco
+    let mot = null;
+    const PS = isNative && nativePlugin('PmSystem');
+    if (PS && PS.eventosGps && PM.forense.motor) {
+      try {
+        const r = await Promise.race([PS.eventosGps({ desde: w.start - 1 }), new Promise((ok) => setTimeout(() => ok(null), 15000))]);
+        if (r) mot = PM.forense.motor(r.datos, w.start, huecos);
+      } catch (e) { mot = null; }
+    }
     // la evaluación del paseo: qué parte del tiempo hubo buena señal (posiciones precisas a menos de 1 min unas de otras)
     let bien = 0, total = 0, prevQ = null;
     for (const q of track) { if (!q) { prevQ = null; continue; } if (prevQ) { const dt = q[2] - prevQ[2]; total += dt; if (dt <= 60) bien += dt; } prevQ = q; }
     const metros = Math.max(0, Math.round(informe.metros + extra));
     w.forense = { t: Date.now(), recuperadas: informe.recuperadas, rebotes: informe.rebotes, pausas: informe.pausas, vehiculo: informe.vehiculo, parado: informe.parado, sinDatos: informe.sinDatos,
       metros, estimado: Math.round(estimado), senal: total ? Math.round(100 * bien / total) : 100,
-      huecos: huecos.map((h) => ({ desde: h.desde, hasta: h.hasta, m: h.m, tipo: h.tipo, ruta: h.ruta, encaje: h.encaje })) };
+      huecos: huecos.map((h) => ({ desde: h.desde, hasta: h.hasta, m: h.m, tipo: h.tipo, ruta: h.ruta, encaje: h.encaje, causa: h.causa || null })) };
+    if (mot) w.forense.motor = mot;
     const cambia = informe.recuperadas > 0 || informe.rebotes > 0 || huecos.length > 0 || metros > 0;
+    // (qué hizo el motor con el GPS atascado, también si no hubo nada que repintar)
+    const motTxt = !mot ? ''
+      : mot.reinicios ? (mot.reinicios === 1 ? PM.t('el GPS se atascó y lo reinicié') : PM.t('el GPS se atascó y lo reinicié {n} veces', { n: mot.reinicios }))
+      : mot.avisos ? PM.t('el GPS se atascó (te avisé para apagar y encender la ubicación)') : '';
     if (cambia) {
       w.track = track; w.rev = 0;   // (el repaso pendiente lo repinta entero, con sus calles cargadas, a trozos)
       if (metros > 0) { w.st = w.st || {}; w.st.walked = (w.st.walked || 0) + metros; G.addWalk(metros); }
@@ -2186,8 +2244,9 @@
       if (informe.recuperadas) partes.push(PM.t('{n} posiciones del GPS que no habían llegado', { n: informe.recuperadas }));
       if (estimado) partes.push(PM.t('{d} sin satélites reconstruidos por las calles', { d: PM.fmtDist(estimado) }));
       if (informe.rebotes) partes.push(PM.t('{n} rebotes quitados', { n: informe.rebotes }));
+      if (motTxt) partes.push(motTxt);
       toast('🔎 ' + PM.t('Revisión del paseo') + ': ' + (partes.join(' · ') || PM.t('recorrido completado')) + '. ' + PM.t('Pintando lo que faltaba…'), 'ok', 8000);
-    }
+    } else if (motTxt) toast('🔎 ' + PM.t('Revisión del paseo') + ': ' + motTxt + '.', 'info', 6000);
     PM.state.save();
     if (cambia) setTimeout(repasoPendiente, 1500);
     return w.forense;

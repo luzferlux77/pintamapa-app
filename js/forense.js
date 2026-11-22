@@ -88,6 +88,34 @@
     return { track: out, informe };
   }
 
-  PM.forense = { reconstruir };
+  // Lo que hizo el motor de reconexión del GPS (scripts/nativo/PmMotorGps.java) durante el paseo, de su diario (PmSystem.eventosGps:
+  // filas «hora,qué,detalle»): cuántas veces se quedó sin GPS, cuántas lo reinició (apagar y encender la ubicación) o avisó, y la
+  // causa de cada hueco (los huecos llevan ta/tb: se mira lo que pasó entre medias, con medio minuto de margen)
+  function motor(texto, start, huecos) {
+    const ev = [];
+    for (const l of String(texto || '').split('\n')) {
+      const i = l.indexOf(','), j = l.indexOf(',', i + 1);
+      if (i <= 0 || j < 0) continue;
+      const t = +l.slice(0, i);
+      if (isFinite(t) && t >= start) ev.push([t, l.slice(i + 1, j), l.slice(j + 1).trim()]);
+    }
+    const n = (q) => ev.filter((e) => e[1] === q).length;
+    const arr = ev.filter((e) => e[1] === 'arranca').pop();
+    const r = { sinGps: n('sin-gps'), reinicios: n('reinicia-ubicacion'), avisos: n('aviso'), recuperado: n('recuperado'), apagada: n('ubicacion-apagada'),
+      fallos: n('reinicio-falla') + n('chip-falla'), puedeReiniciar: arr ? /reinicio sí/.test(arr[2]) : null,
+      eventos: ev.slice(-300).map(([t, q, d]) => [Math.round((t - start) / 1000), q, d.slice(0, 80)]) };
+    for (const h of huecos || []) {
+      const dentro = [...new Set(ev.filter((e) => e[0] >= h.ta - 30000 && e[0] <= h.tb + 30000).map((e) => e[1]))];
+      if (!dentro.length) continue;
+      h.motor = dentro;
+      h.causa = dentro.includes('ubicacion-apagada') ? 'ubicación apagada'
+        : dentro.includes('reinicia-ubicacion') ? 'GPS atascado: reiniciado'
+        : dentro.includes('aviso') ? 'GPS atascado: avisado'
+        : dentro.includes('sin-gps') ? 'sin GPS' : null;
+    }
+    return r;
+  }
+
+  PM.forense = { reconstruir, motor };
   if (typeof module !== 'undefined') module.exports = PM.forense;
 })();
