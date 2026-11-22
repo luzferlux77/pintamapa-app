@@ -238,13 +238,16 @@ PM.vtiles = (function () {
     // si un trozo falla, se reintenta solo ese (una vez, al segundo); los demás no se tiran
     const got = await Promise.all(tiles.map(([X, Y]) => fetchAny(X, Y).catch(() => new Promise((r) => setTimeout(r, 1200)).then(() => fetchAny(X, Y)))));
     // poisOk: todos los trozos son de la fuente de los lugares (si no, los lugares se piden luego solo a ella: fetchPois)
-    return { els: got.flatMap((g) => (g.src === CANON ? g.els : g.els.filter((el) => !esLugar(el)))), src: [...new Set(got.map((g) => g.src))].join('+'), poisOk: got.every((g) => g.src === CANON) };
+    // (de las otras fuentes, solo las calles: ni lugares ni nombres de barrio —los nombran a su manera y en la misma calle
+    // salía otro barrio, 21-nov-2026—)
+    return { els: got.flatMap((g) => (g.src === CANON ? g.els : g.els.filter((el) => el.tags && el.tags.highway))), src: [...new Set(got.map((g) => g.src))].join('+'), poisOk: got.every((g) => g.src === CANON) };
   }
-  // solo los lugares, y solo de la fuente de los lugares (si no contesta, error: se reintenta más tarde, nunca con otra)
+  // solo los lugares y los nombres de barrio, y solo de la fuente de los lugares (si no contesta, error: se reintenta más tarde,
+  // nunca con otra)
   async function fetchPois(s, w, n, e) {
     const src = SOURCES[0];
     const got = await Promise.all(cajaDe(s, w, n, e).map(([X, Y]) => fetchTile(src, X, Y).catch(() => new Promise((r) => setTimeout(r, 1200)).then(() => fetchTile(src, X, Y)))));
-    return got.flat().filter(esLugar);
+    return got.flat().filter((el) => esLugar(el) || (el.tags && el.tags.place));
   }
 
   // una tesela concreta (z14) y sus límites: para medir una ciudad entera sin contar dos veces el borde de cada tesela

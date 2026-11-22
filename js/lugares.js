@@ -39,7 +39,10 @@
     ICON_MAX: 18, ICON_KIND_MAX: 6, ZONE_MAX: 26,                    // topes en ciudades monumentales
     // centro histórico: zona de ~1 km² con HIST_MIN lugares de guía o más (el casco de Sevilla, el Gòtic, el centro de Roma):
     // ahí caben más (antes se quedaban fuera la Plaza Nueva o las Setas de Sevilla por «zona completa», 20-nov-2026)
-    HIST_MIN: 10, HIST_ZONE_QUOTA: 20, HIST_KIND_QUOTA: 6, HIST_ZONE_MAX: 45, HIST_TECHO: 60,
+    // (techo 90, no 60: con las clases nuevas de Wikidata compiten más lugares, y con 60 se quedaban fuera el Chiostro dello Scalzo,
+    // la Piazza dei Martiri o la sinagoga de Nápoles —22-nov-2026—. Con 90 solo quedan fuera las tumbas de Luxor y el km² más
+    // denso de Roma, Florencia y Venecia, que ya pasan de 90 con lo muy importante)
+    HIST_MIN: 10, HIST_ZONE_QUOTA: 20, HIST_KIND_QUOTA: 6, HIST_ZONE_MAX: 45, HIST_TECHO: 90,
     WORLD_FAMOUS: 15,                                                // idiomas: entra siempre (lo legendario por fama no se queda fuera por un tope: la plaza de Sant Jaume)
     GRID: 0.0015,                                                    // celda del índice de separación (~160 m)
     MAIN_CHURCH_M: 800,
@@ -449,7 +452,9 @@
       prep(u);
       let mejor = null;
       for (const o of cands) {
-        if (o === u || o.inst) continue;
+        // (solo un EDIFICIO: el estadio, el museo o la iglesia «de la Universidad X» son otra cosa —la Universidad de San Marcos de
+        // Lima le pasaba su carta a su estadio—)
+        if (o === u || o.inst || !/^(Patrimonio|Palacio|Rascacielos)$/.test(o.kind)) continue;
         prep(o);
         if (d2(o, u) < 90000 && sameN(o, u) && o.prio >= u.prio - 40 && (!mejor || o.prio > mejor.prio)) mejor = o;
       }

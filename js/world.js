@@ -61,9 +61,12 @@ PM.world = (function () {
     if (lmBatch) lmBatch.push(lm); else commitLandmarks([lm]);
   }
 
+  // (lo que tienes a medio capturar no se quita: si cambia la selección en ese momento, sigue hasta que acabes —CAT-04—)
+  let protegido = null;
   function removeLandmark(id) {
     const lm = landmarks[id];
     if (!lm || (PM.state && PM.state.data.landmarks[id])) return;   // lo ya conquistado se respeta
+    if (protegido && protegido(id)) return;
     delete landmarks[id];
     emit('lmRemoved', { id });
   }
@@ -375,6 +378,24 @@ PM.world = (function () {
     // La selección es COMÚN: no sabe qué has conquistado (antes lo conquistado iba primero y ocupaba cupo: a quien tenía
     // la Biblioteca Sofia Barat le desaparecía el Taller Masriera, y a quien no, no)
     const { keep, why, dup } = L.seleccionar(Object.values(pool), { zona: (p) => tileKeyOf(p[0], p[1]) });
+    // dentro de una ciudad con catálogo fijo, sus lugares de Wikidata y los añadidos a mano son los de su álbum y solo esos (ver
+    // cargarCatalogo). Los de OpenStreetMap sin Wikidata no están en los álbumes: siguen con el motor de siempre —parroquias,
+    // mercados, bibliotecas, campos de fútbol, comercios—, que ya salen de una sola fuente igual para todos (auditoría v0.9.27,
+    // CAT-01). Y solo se quita un lugar si cae DENTRO del contorno oficial de una ciudad con su catálogo ya cargado: lo que queda
+    // fuera de todos —la Cripta de la Colonia Güell, en un pueblo sin álbum— no se toca (CAT-02)
+    if (catalogos && catalogos.size) {
+      for (const id in pool) {
+        const q = enCatalogo.get(id);
+        if (q) { if (!keep.has(id)) keep.add(id); why.set(id, 'del catálogo de ' + catalogos.get(q).nombre); continue; }
+        const lm = pool[id];
+        if (!(lm.wd || /^nM/.test(id)) || !lm.pos) continue;
+        const cat = catalogoDe(lm.pos);
+        if (cat) { keep.delete(id); why.set(id, 'fuera del catálogo de ' + cat.nombre + ' (la lista fija de la ciudad, igual para todos)'); }
+      }
+      // (si la selección en directo había dejado un lugar del catálogo como duplicado de uno del mapa, el del catálogo gana: si no,
+      // saldrían los dos en el mismo sitio)
+      if (dup) for (const [a, b] of dup) if (enCatalogo.has(a) && !enCatalogo.has(b) && keep.has(b)) { keep.delete(b); why.set(b, 'duplicado de ' + (pool[a] ? pool[a].name : a) + ' (del catálogo de la ciudad)'); }
+    }
     const s = PM.state && PM.state.data;
     // tu carta de una versión que la selección deja fuera (duplicada, o demasiado cerca de la que se queda) pasa al sitio
     // que se queda si de verdad es el mismo (L.mismaCarta, la regla estricta); fecha, visitas y foto se conservan. Si no es
@@ -399,12 +420,46 @@ PM.world = (function () {
       }
       if (n) { PM.state.save(); emit('lmMigrated', { n }); }
     }
-    lastWhy = why;
+    lastWhy = why; lastKeep = keep;
     // se aplica: fuera los que ya no tocan (nunca lo conquistado) y dentro los nuevos
     for (const id of Object.keys(landmarks)) if (!keep.has(id) && pool[id]) removeLandmark(id);
     for (const id of keep) if (!landmarks[id]) accept(pool[id]);
     // lo tuyo, aparte: lo conquistado sigue en el mapa aunque no esté en la selección común, sin quitarle sitio a nada
     if (s) for (const id in s.landmarks) if (pool[id] && !keep.has(id)) { if (!landmarks[id]) accept(pool[id]); why.set(id, 'conquistado (fuera de la selección común: ' + (why.get(id) || '—') + ')'); }
+  }
+  // Diagnóstico de lugares (Perfil → Ayuda): para comparar dos móviles en el mismo sitio. b = [s, w, n, e] de lo que se ve.
+  // «huella»: un código de la lista COMÚN de lugares en pantalla (sin lo tuyo conquistado): si dos móviles dan la misma, ven
+  // los mismos lugares; si no, las demás cifras dicen por qué (datos de la ciudad sin cargar, zonas a medias, otra versión…)
+  // (a petición del usuario, 21-nov-2026: «a Clelia no le aparecen los mismos lugares que a mí»)
+  let lastKeep = new Set();
+  // (p: un punto; se mira su zona de ~1 km y las 8 de alrededor —un área fija, igual en cualquier móvil, sea cual sea su
+  // pantalla o su zoom—)
+  function diagnostico(p) {
+    const [i, j] = tileIJ(tileKeyOf(p[0], p[1])), b = [(i - 1) * TILE, (j - 1) * TILE, (i + 2) * TILE, (j + 2) * TILE];
+    const en = (p) => !!p && p[0] >= b[0] && p[0] <= b[2] && p[1] >= b[1] && p[1] <= b[3];
+    const comunes = [], tuyos = [], origen = { precarga: 0, mapa: 0, mano: 0 };
+    for (const id in landmarks) {
+      if (!en(landmarks[id].pos)) continue;
+      if (!lastKeep.has(id)) { tuyos.push(id); continue; }
+      comunes.push(id);
+      origen[/^nM/.test(id) ? 'mano' : /^n?Q\d+$/.test(id) ? 'precarga' : 'mapa']++;
+    }
+    comunes.sort();
+    let h = 2166136261; for (const c of comunes.join(',')) { h ^= c.charCodeAt(0); h = Math.imul(h, 16777619) >>> 0; }
+    const zonas = { total: 0, sinCalles: 0, sinWikidata: 0, sinMapa: 0 };
+    for (const k in tiles) {
+      const [[s, w], [n, e]] = tileBounds(k);
+      if (n < b[0] || s > b[2] || e < b[1] || w > b[3]) continue;
+      zonas.total++;
+      if (!tiles[k].loaded) zonas.sinCalles++;
+      if (!zonaWd.has(k)) zonas.sinWikidata++;
+      if (!zonaVt.has(k)) zonas.sinMapa++;
+    }
+    const idx = {}; for (const c of preIndex || []) idx[c.q] = c.t;
+    const ciudades = Object.entries(preData).map(([q, d]) => ({ q, nombre: d.name, t: d.t, alDia: !idx[q] || idx[q] === d.t, n: d.els.length }));
+    const bar = barrioOf(p);
+    return { huella: h.toString(36).toUpperCase().padStart(7, '0').slice(-7), zona: tileKeyOf(p[0], p[1]), comunes: comunes.length, tuyos: tuyos.length, origen, zonas, ciudades,
+      barrio: { id: bar.id, nombre: bar.name, oficial: !!(bar.rel && bar.rel.fijo) }, catalogo: (catalogoDe(p) || {}).nombre || null, candidatos: Object.keys(pool).length, cacheV: CACHE_V };
   }
   // por qué un lugar está (o no) en el mapa y cómo se calcula su puntuación
   function porque(id) {
@@ -678,7 +733,7 @@ PM.world = (function () {
   // ---------------- Caché local de barrios (IndexedDB) ----------------
   // Cada barrio se descarga una vez y se guarda 90 días: menos datos móviles, menos batería y arranque instantáneo.
   const CACHE_DAYS = 90;
-  const CACHE_V = 23;   // 23: los lugares del mapa solo de la fuente de los lugares (antes, de la que contestara antes); 22: las zonas guardadas por la versión previa, sin las preparadas; 21: guías, enlaces, tamaño de los sitios grandes y clases nuevas (y las zonas preparadas); 20: clases corregidas, calles famosas, protección nacional de todo el mundo y nombres en mayúscula; 19: año también de la inauguración (P1619: estaciones antiguas como la de Cornellà); 18: clases por orden fijo (lo que el edificio ES), catedrales católicas/anglicanas/ortodoxas, sin conjuntos ni esculturas de museo; 17: visitantes al año y atracción turística (puntuación de guía); 16: uso de cada edificio (hotel, escuela…) para la puntuación; 15: templos budistas y sintoístas, rascacielos, sin barrios ni cuadros de museo; 14: nivel de patrimonio, zoos, acuarios, puertas de muralla (puntuación igual para todos); 13: estaciones de tren históricas de Wikidata (antes se perdían); 12: lugares solo de mapas vectoriales + Wikidata   // súbelo si cambia lo que se descarga (p. ej. nuevos tipos de puntos): fuerza a renovar la caché
+  const CACHE_V = 24;   // 24: nombres de barrio solo de la fuente de los lugares (y todos los móviles con las zonas del mismo día, 21-nov-2026); 23: los lugares del mapa solo de la fuente de los lugares (antes, de la que contestara antes); 22: las zonas guardadas por la versión previa, sin las preparadas; 21: guías, enlaces, tamaño de los sitios grandes y clases nuevas (y las zonas preparadas); 20: clases corregidas, calles famosas, protección nacional de todo el mundo y nombres en mayúscula; 19: año también de la inauguración (P1619: estaciones antiguas como la de Cornellà); 18: clases por orden fijo (lo que el edificio ES), catedrales católicas/anglicanas/ortodoxas, sin conjuntos ni esculturas de museo; 17: visitantes al año y atracción turística (puntuación de guía); 16: uso de cada edificio (hotel, escuela…) para la puntuación; 15: templos budistas y sintoístas, rascacielos, sin barrios ni cuadros de museo; 14: nivel de patrimonio, zoos, acuarios, puertas de muralla (puntuación igual para todos); 13: estaciones de tren históricas de Wikidata (antes se perdían); 12: lugares solo de mapas vectoriales + Wikidata   // súbelo si cambia lo que se descarga (p. ej. nuevos tipos de puntos): fuerza a renovar la caché
   const cache = (function () {
     let dbp = null;
     function db() {
@@ -875,8 +930,41 @@ PM.world = (function () {
   const barrios = {};         // 'r123' | 'n456' | 't4135_207' -> { id, name, kind, pos, pieces:[], total, bbox }
   const REL_CDN = 'https://luzferlux77.github.io/pintamapa-app/calles/barrios/';
 
+  // Barrios y distritos oficiales de las ciudades precargadas, preparados (scripts/pois/barrios.mjs → GitHub Pages): los
+  // mismos para todos. Antes la lista salía solo de Overpass, que pasa días saturado; el móvil que no recibía respuesta usaba
+  // los nombres sueltos del mapa y en la misma calle le salía otro barrio, con otro % de conquista (a Clelia y al usuario,
+  // 21-nov-2026). Estos mandan: lo que llegue después de Overpass con el mismo id ya no los cambia
+  const BARRIOS_CDN = 'https://luzferlux77.github.io/pintamapa-app/barrios/';
+  let barriosIdx = null, barriosFallo = 0;
+  const barriosHechos = new Set();
+  function barriosIndice() {
+    if (barriosIdx && barriosFallo && Date.now() - barriosFallo > 30000) { barriosIdx = null; barriosFallo = 0; }
+    if (!barriosIdx) barriosIdx = (typeof fetch === 'undefined' ? Promise.resolve(null) : fetch('data/barrios.json').then((r) => (r.ok ? r.json() : null)).catch(() => null))
+      .then((j) => { if (j && j.q) return { t: j.t, q: new Set(j.q) }; barriosFallo = Date.now(); return { q: new Set() }; });
+    return barriosIdx;
+  }
+  async function barriosFijos(q) {
+    if (demoMode || barriosHechos.has(q)) return;
+    const idx = await barriosIndice();
+    if (!idx.q.has(q)) return;
+    let d = await cache.get('barrios:' + q);
+    if (!d || d.t !== idx.t) {
+      try { const r = await fetch(BARRIOS_CDN + q + '.json', plazo(20000)); if (r.ok) { d = { t: idx.t, d: await r.json() }; cache.put('barrios:' + q, d); } } catch (e) { /* sin conexión: lo guardado, si había */ }
+    }
+    if (!d || !d.d || !Array.isArray(d.d.r)) return;   // (se volverá a intentar con la siguiente carga de la ciudad)
+    barriosHechos.add(q);
+    for (const r of d.d.r) {
+      if (!(r.id > 0) || !r.n || !Array.isArray(r.s) || !Array.isArray(r.b)) continue;
+      barrioRels[r.id] = { id: r.id, name: r.n, lvl: r.l, bounds: r.b, segs: r.s, fijo: true };
+    }
+    scheduleReassign();
+  }
+
   function noteBarrio(el) {
     const t = el.tags || {};
+    // (los puntos con nombre de barrio, solo de la fuente de los lugares —OpenFreeMap—, como los lugares: los de Overpass, o
+    // los de otro mapa vectorial que contestara antes, daban a cada móvil otra lista y en la misma calle otro barrio)
+    if (el.type === 'node' && NODE_LVL[t.place] && t.name && !demoMode && el.src !== 'vt') return true;
     if (el.type === 'node' && NODE_LVL[t.place] && t.name) {
       // el mismo barrio llegado de otra fuente (con otro id): se queda el primero
       if (!barrioNodes[el.id] && Object.values(barrioNodes).some((b) => b.name === t.name && PM.geo.dist(b.pos, [el.lat, el.lon]) < 600)) return true;
@@ -884,7 +972,7 @@ PM.world = (function () {
       return true;
     }
     if (el.type === 'relation' && t.boundary === 'administrative' && /^(9|10)$/.test(t.admin_level || '') && t.name && el.bounds) {
-      if (!barrioRels[el.id]) {
+      if (!barrioRels[el.id]) {   // (uno oficial preparado ya está: no se toca)
         const b = el.bounds;
         barrioRels[el.id] = { id: el.id, name: t.name, lvl: +t.admin_level, bounds: [b.minlat, b.minlon, b.maxlat, b.maxlon], segs: null };
         loadRel(barrioRels[el.id]);
@@ -1107,10 +1195,9 @@ PM.world = (function () {
         const [[s, w], [n, e]] = tileBounds(k);
         const bb = [s, w, n, e].map((v) => v.toFixed(5)).join(',');
         let add = [], extrasMiss = !!c.extrasMiss, wdMiss = !!c.wdMiss;
-        if (extrasMiss && Date.now() - extrasFailT > 600000) {   // Overpass caído hace poco: ni lo intenta (10 min)
-          try { const d = await overpass(QUERY(bb), 45000); add = add.concat(d.elements.map(slim).filter((el) => tilesOf(el).has(k))); extrasMiss = false; }
-          catch (err) { extrasFailT = Date.now(); console.warn('Extras del barrio pendientes (Overpass no responde)', k, err); }
-        }
+        // (lo de Overpass —nombres y límites de barrio, nada de lugares— va DESPUÉS, en su propio turno de la cola: antes iba
+        // primero y, con Overpass saturado, cada zona esperaba hasta 45 s sin los lugares de Wikidata ni del mapa; en ese rato
+        // cada móvil veía otra cosa —21-nov-2026—)
         // zona sin los lugares de la fuente de los lugares (bajada por Overpass, o contestó otro mapa vectorial): se piden
         // solo a ella, una vez por zona. Hace falta SIEMPRE: los lugares salen solo de ahí y de Wikidata, iguales para todos
         // (si no contesta, la zona sigue pendiente y se reintenta; nunca se rellena con lo de otra fuente)
@@ -1139,8 +1226,26 @@ PM.world = (function () {
         while (loading.has(k)) await new Promise((res) => setTimeout(res, 200));   // (sus calles aún están entrando: lo de aquí, al acabar)
         marcarZona(k, { wdMiss, vtPois });   // (antes de meterlos: la selección que sigue ya sabe que la zona está entera)
         if (add.length && tiles[k] && (tiles[k].loaded || tiles[k].partial)) { ingest(add, new Set([k])); emit('loaded', { tiles: [k] }); }
+        if (extrasMiss) extrasDeZona(k);
       } catch (err) { console.warn('Zona sin completar', k, err);   // (sin esto, un solo error paraba la cola: ninguna zona más se completaba en toda la sesión)
       } finally { completing.delete(k); }
+    });
+  }
+  // Lo de Overpass de una zona (nombres y límites de barrio): al final de la misma cola, para no escribir la zona a la vez que otro
+  const extrasEnCola = new Set();
+  function extrasDeZona(k) {
+    if (extrasEnCola.has(k) || Date.now() - extrasFailT < 600000) return;   // (Overpass caído hace poco: ni lo intenta, 10 min)
+    extrasEnCola.add(k);
+    completeChain = completeChain.then(async () => {
+      try {
+        const [[s, w], [n, e]] = tileBounds(k);
+        const d = await overpass(QUERY([s, w, n, e].map((v) => v.toFixed(5)).join(',')), 45000);
+        const add = d.elements.map(slim).filter((el) => tilesOf(el).has(k));
+        const cur = await cache.get(k);
+        if (cur) { const llave = (el) => el.type + el.id, nuevos = new Set(add.map(llave)); cache.put(k, Object.assign({}, cur, { els: cur.els.filter((el) => !nuevos.has(llave(el))).concat(add), extrasMiss: false })); }
+        if (add.length && tiles[k] && (tiles[k].loaded || tiles[k].partial)) { ingest(add, new Set([k])); emit('loaded', { tiles: [k] }); }
+      } catch (err) { extrasFailT = Date.now(); console.warn('Extras del barrio pendientes (Overpass no responde)', k, err);
+      } finally { extrasEnCola.delete(k); }
     });
   }
 
@@ -1432,9 +1537,15 @@ PM.world = (function () {
   async function precargaCerca(lat, lon) {
     if (demoMode || typeof fetch === 'undefined') return;
     for (const c of await preIdx()) {
-      if (preDone.has(c.q) || PM.geo.dist([lat, lon], c.c) > c.r * 1000 + 3000) continue;
+      // (cerca: a menos de su radio + 3 km, o DENTRO de la caja de su municipio, que en las grandes llega más lejos —el norte de
+      // Madrid está a 25 km del centro y su radio es de 10—: si no, en el borde un móvil la tenía cargada y otro no)
+      const enCaja = Array.isArray(c.b) && lat >= c.b[0] - 0.01 && lat <= c.b[2] + 0.01 && lon >= c.b[1] - 0.01 && lon <= c.b[3] + 0.01;
+      if (preDone.has(c.q) || (!enCaja && PM.geo.dist([lat, lon], c.c) > c.r * 1000 + 3000)) continue;
       preDone.add(c.q);
-      const d = await precarga(c.q, c.t);
+      barriosFijos(c.q).catch(() => {});   // (sus barrios oficiales, los mismos para todos)
+      // (y su catálogo fijo —los lugares del mapa, los de su álbum—, ANTES de pintar sus lugares: si llegaba después, el mapa
+      // cambiaba de lugares mientras lo mirabas —auditoría v0.9.27, CAT-04—)
+      const [d] = await Promise.all([precarga(c.q, c.t), cargarCatalogo(c).catch(() => {})]);
       if (!d) { preDone.delete(c.q); continue; }   // (se reintentará al moverte)
       lmBatch = []; for (const el of d.els) addLandmark(el);
       const b = lmBatch; lmBatch = null; commitLandmarks(b);
@@ -1450,6 +1561,37 @@ PM.world = (function () {
   let albTanda = null;
   // (si falla, no se queda «sin tanda» toda la sesión: se vuelve a pedir la próxima vez —informe de Gemini—)
   const tandaAlbumes = () => (albTanda = albTanda || fetch('data/albumes.json', plazo(8000)).then((r) => (r.ok ? r.json() : Promise.reject(new Error(r.status)))).then((j) => j.t || 0).catch(() => { albTanda = null; return 0; }));
+  // ---------- Catálogo fijo del mapa (21-nov-2026) ----------
+  // «Los mismos lugares para cualquiera que tenga la app» (el usuario). Antes cada móvil pasaba la selección sobre lo que tuviera
+  // cargado en ese momento (qué zonas, qué servidores contestaron, de qué semana era lo guardado), y los cupos por zona miraban solo
+  // eso: dos móviles en el mismo sitio podían ver lugares distintos, y el mapa no coincidía del todo con el álbum. Ahora, dentro
+  // de una ciudad precargada, los lugares del mapa son EXACTAMENTE los de su álbum (calculado una vez en el PC con todos los datos
+  // y publicado igual para todos), más lo que tú hayas conquistado. Fuera de ellas, el motor en directo, como antes.
+  //   territorio: su contorno oficial (ct del álbum); sin él, la caja de su precarga
+  var catalogos = new Map(), enCatalogo = new Map();   // (var: selectLandmarks está antes) q → { q, nombre, ids, ct, bbox } · id del lugar → q
+  async function cargarCatalogo(c) {
+    if (demoMode || catalogos.has(c.q)) return;
+    const d = await albumArchivo(c.q, c.t);
+    if (!d || !Array.isArray(d.l) || catalogos.has(c.q)) return;   // (sin álbum: se intentará con la próxima carga de la ciudad)
+    const ids = new Set();
+    for (const x of d.l) { if (d.contorno && x[10]) continue; ids.add(/^[QM]\d/.test(x[0]) ? 'n' + x[0] : String(x[0])); }
+    // (sin contorno oficial, sin catálogo: la caja de su radio se pisaba con las de las vecinas —13 en el Baix Llobregat— y
+    // quitaba monumentos de otros pueblos. Mejor el motor de siempre que quitar lugares —auditoría v0.9.27, CAT-02—)
+    const ct = Array.isArray(d.ct) && d.ct.length ? d.ct : null;
+    if (!ct) return;
+    const ps = ct.flat(), bbox = [Math.min(...ps.map((p) => p[0])), Math.min(...ps.map((p) => p[1])), Math.max(...ps.map((p) => p[0])), Math.max(...ps.map((p) => p[1]))];
+    catalogos.set(c.q, { q: c.q, nombre: d.name || c.name, ids, ct, bbox });
+    for (const id of ids) if (!enCatalogo.has(id)) enCatalogo.set(id, c.q);
+    selectLandmarks(); emit('loaded', { tiles: [] });
+  }
+  // el catálogo cuyo contorno oficial contiene este punto (los contornos de dos municipios no se pisan: no depende del orden)
+  function catalogoDe(p) {
+    for (const c of catalogos.values()) {
+      if (p[0] < c.bbox[0] || p[0] > c.bbox[2] || p[1] < c.bbox[1] || p[1] > c.bbox[3]) continue;
+      if (pip(p, c.ct)) return c;
+    }
+    return null;
+  }
   async function albumArchivo(q, t) {
     const tanda = await tandaAlbumes();
     let d = await cache.get('alb:' + q);
@@ -1782,7 +1924,7 @@ PM.world = (function () {
   const api = {
     TILE, RARITY, tiles, pieces, landmarks, updateMustSee,
     tileKeyOf, tileBounds, ensureAround, piecesNear, gemelasDe, onChange,
-    barrios, barrioAt: barrioOf, barrioComplete, route, joinsOf, addLegacyGeo, ensureKeys, unloadTiles,
+    barrios, barrioAt: barrioOf, barrioComplete, route, joinsOf, addLegacyGeo, diagnostico, ensureKeys, unloadTiles,
     cityAt(p) { const c = shapeCity(p); if (c) return c; const t = tiles[tileKeyOf(p[0], p[1])]; return (t && t.city) || (PM.state && (PM.state.data.tileNames[tileKeyOf(p[0], p[1])] || {}).city) || null; },
     // los imprescindibles fijos de cada ciudad, con el lugar del mapa que les corresponde (id) si ya está cargado
     mustLists() {
@@ -1936,7 +2078,7 @@ PM.world = (function () {
     barrioGrande,
     albumDe, purgarCache, completado: () => completeChain,   // (cuando acabe la cola: Wikidata de las zonas pedidas ya ha llegado)
     formaDe: fetchCityShape, conForma: (city) => !!(cityInfo[city] && cityInfo[city].polys),   // («Mi progreso»: el contorno de una ciudad sin pasear por ella)
-    _graph: () => gnodes, _pool: () => pool, _classify: classify, _usoNoTuristico: L.usoNoTuristico, _revisar: (r) => { const f = L.revisarRegistro(r); if (f) Object.assign(r, f); return f; }, _conf: L.CONF, porque, _why: () => lastWhy, precargaCerca, _precarga: () => preData, _zonaPreparada: zonaPreparada, _reselect: () => selectLandmarks(), _ingest: (els, keys) => { keys.forEach((k) => ensureTile(k)); ingest(els, new Set(keys)); }, _ingestTurnos: (els, keys) => { keys.forEach((k) => ensureTile(k)); return ingestPorTurnos(els, new Set(keys)); }, _measureCity: (c) => measureCityVT(c),   // (pruebas)
+    _graph: () => gnodes, _pool: () => pool, _classify: classify, _usoNoTuristico: L.usoNoTuristico, _revisar: (r) => { const f = L.revisarRegistro(r); if (f) Object.assign(r, f); return f; }, _conf: L.CONF, porque, _why: () => lastWhy, precargaCerca, _precarga: () => preData, _zonaPreparada: zonaPreparada, _reselect: () => selectLandmarks(), _barriosFijos: barriosFijos, _cargarCatalogo: cargarCatalogo, proteger: (fn) => { protegido = fn; }, _ingest: (els, keys) => { keys.forEach((k) => ensureTile(k)); ingest(els, new Set(keys)); }, _ingestTurnos: (els, keys) => { keys.forEach((k) => ensureTile(k)); return ingestPorTurnos(els, new Set(keys)); }, _measureCity: (c) => measureCityVT(c),   // (pruebas)
     isDemo: () => demoMode,
     setDemo: (v) => { demoMode = v; },
   };

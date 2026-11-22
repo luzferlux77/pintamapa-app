@@ -1286,6 +1286,16 @@
     // auditoría v0.9.25 (DATA-01): la partida apartada sale de la app
     'Tu partida apartada (la que no se podía leer) está guardada en Documentos/PintaMapa y ya no ocupa sitio en la app.': ['La teva partida apartada (la que no es podia llegir) està desada a Documents/PintaMapa i ja no ocupa espai a l’app.', 'Your set-aside game (the one that could not be read) is saved in Documents/PintaMapa and no longer takes up space in the app.', 'Ta partie mise de côté (celle qui était illisible) est enregistrée dans Documents/PintaMapa et n’occupe plus de place dans l’app.'],
     'Hay una partida apartada (no se podía leer) ocupando sitio en la app.': ['Hi ha una partida apartada (no es podia llegir) que ocupa espai a l’app.', 'There is a set-aside game (it could not be read) taking up space in the app.', 'Une partie mise de côté (illisible) occupe de la place dans l’app.'],
+    // revisión forense del paseo (22-nov-2026)
+    'Revisión del paseo': ['Revisió de la passejada', 'Walk review', 'Révision de la balade'],
+    '{n} posiciones del GPS que no habían llegado': ['{n} posicions del GPS que no havien arribat', '{n} GPS positions that had not arrived', '{n} positions GPS qui n’étaient pas arrivées'],
+    '{d} sin satélites reconstruidos por las calles': ['{d} sense satèl·lits reconstruïts pels carrers', '{d} without satellites rebuilt along the streets', '{d} sans satellites reconstitués par les rues'],
+    '{n} rebotes quitados': ['{n} rebots trets', '{n} GPS bounces removed', '{n} rebonds supprimés'],
+    'recorrido completado': ['recorregut completat', 'route completed', 'parcours complété'],
+    'Pintando lo que faltaba…': ['Pintant el que faltava…', 'Painting what was missing…', 'On peint ce qui manquait…'],
+    'Comparar lugares con otro móvil': ['Comparar llocs amb un altre mòbil', 'Compare places with another phone', 'Comparer les lieux avec un autre téléphone'],
+    'Poned el mapa en el mismo sitio en los dos móviles y pulsad el botón en cada uno: si sale el mismo código, veis los mismos lugares.': ['Poseu el mapa al mateix lloc als dos mòbils i premeu el botó a cadascun: si surt el mateix codi, veieu els mateixos llocs.', 'Put the map in the same spot on both phones and press the button on each: if the code is the same, you see the same places.', 'Mettez la carte au même endroit sur les deux téléphones et appuyez sur le bouton sur chacun : si le code est le même, vous voyez les mêmes lieux.'],
+    'Calcular': ['Calcular', 'Calculate', 'Calculer'],
     'Guardar la partida apartada y liberar sitio': ['Desar la partida apartada i alliberar espai', 'Save the set-aside game and free up space', 'Enregistrer la partie mise de côté et libérer de la place'],
   };
   const out = {};

@@ -88,6 +88,7 @@ PM.wrapped = (function () {
   // tu foto de perfil en un círculo (o un pincel gigante) que bota
   function dogAt(c, A, x, y, size, t, bounce) {
     const b = bounce ? Math.abs(Math.sin(t * 5)) * 16 : 0, r = size * 0.42, cy = y - size * 0.6 - b;
+    if (r <= 8) return;   // (al empezar la animación el tamaño es 0: el círculo de la foto salía con radio -8 y el lienzo daba error)
     if (A.avatar) {
       c.save(); c.beginPath(); c.arc(x, cy, r, 0, 7); c.closePath(); c.fillStyle = '#fff'; c.shadowColor = 'rgba(0,0,0,.35)'; c.shadowBlur = 24; c.fill(); c.restore();
       c.save(); c.beginPath(); c.arc(x, cy, r - 8, 0, 7); c.clip(); c.drawImage(A.avatar, x - r + 8, cy - r + 8, (r - 8) * 2, (r - 8) * 2); c.restore();
