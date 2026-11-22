@@ -1,10 +1,10 @@
 {
-  "version": "0.9.29",
-  "notes": "Reinicio del GPS sin cables ni permisos: si el GPS se atasca más de un minuto, la app lo suelta 4 segundos y lo vuelve a pedir, y así Android lo reinicia (como apagar y encender la ubicación). Funciona en el móvil de cualquiera. Hay que instalar esta APK.",
+  "version": "0.9.30",
+  "notes": "Motor del GPS más prudente: solo reinicia el GPS o avisa si andas sin señal; bajo techo, en un bar o en el metro quieto no toca nada, y como mucho avisa una vez. Avisa si PintaMapa tiene la ubicación aproximada (así no se pintan calles). Nunca vuelve a encender la ubicación si la apagaste tú. Los trayectos en autobús o metro sin señal ya no se cuentan como andados. Tu punto se mueve en el mapa mientras se recuperan las posiciones del bolsillo. Hay que instalar esta APK.",
   "native": 1,
-  "nativeApk": 12,
-  "apkMin": "0.9.29",
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.9.29/pintamapa-web-0.9.29.zip",
-  "checksum": "e585966386639dd8731bad286f2d4b893a2fdf91af61d4ba959c892b80d2b94e",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.9.29/PintaMapa-v0.9.29.apk"
+  "nativeApk": 13,
+  "apkMin": "0.9.30",
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.9.30/pintamapa-web-0.9.30.zip",
+  "checksum": "7b4948cd3aacfbcbe8e620a0c87e9016d6a7741a214dd74039d0a8bc91998efd",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.9.30/PintaMapa-v0.9.30.apk"
 }
