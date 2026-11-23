@@ -124,7 +124,7 @@
     .ach div span { display: grid; place-items: center; width: 44px; height: 44px; margin: 0 auto 4px; border-radius: 12px; background: var(--soft-bg); font-size: 22px; }
     .ach div.off span { filter: grayscale(1); opacity: .35; }
     .logros summary { list-style: none; cursor: pointer; } .logros summary::-webkit-details-marker { display: none; } .logros:not([open]) h3 { margin: 0; } .logros[open] summary span::after { content: " ▴"; }
-    #album-box { --panel: var(--card); --ab-tope: 34px; scroll-margin-top: 44px; }   /* (la barra del álbum, justo debajo de las pestañas fijas) */
+    #album-box { --panel: var(--card); --ab-tope: 34px; --ab-lado: 0px; --ab-lado-p: 0px; scroll-margin-top: 44px; }   /* (la barra del álbum, justo debajo de las pestañas fijas) */
     #album-box .cromos { display: grid; grid-template-columns: repeat(auto-fill, minmax(146px, 1fr)); gap: 10px; }
     #album-box .cromos .tcg-cell { --w: 146px; } #album-box .cromos .tcg.mini { font-size: calc(var(--w) / 26); }
     /* álbumes a pantalla completa: portadas en rejilla, la ciudad a dos columnas y las cartas más grandes */
@@ -136,15 +136,15 @@
     #alb-full #album-box { max-width: 1500px; margin: 0 auto; --ab-tope: 0px; scroll-margin-top: 0; }
     #alb-full [data-vista="inicio"] { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 360px), 1fr)); gap: 18px; align-items: start; }
     #alb-full [data-vista="inicio"] h4 { grid-column: 1 / -1; margin: 0; }
-    #alb-full [data-vista="inicio"] .ab-cover { margin: 0; }
+    #alb-full [data-vista="inicio"] .ab-fila { margin: 0; }
     @media (max-width: 899px) { #af-body { padding: 12px; } .af-top { padding: 8px 12px; } }
     @media (min-width: 900px) {
       #alb-full #album-box .cromos { grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 16px; }
       #alb-full #album-box .cromos .tcg-cell { --w: 190px; }
-      #alb-full .ab-hoja { padding: 20px 20px 24px; }
-      #alb-full .ab-tapa { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(330px, 1fr); gap: 32px; align-items: center; }
-      #alb-full .ab-cover.ab-hero { aspect-ratio: 16 / 10; } #alb-full .ab-hero .ab-tit b { font-size: 54px; } #alb-full .ab-hero .ab-tit b.largo { font-size: 40px; }
-      #alb-full .ab-cifra b { font-size: 60px; } #alb-full .ab-rar { padding: 12px 14px; font-size: 14px; }
+      /* el álbum de una ciudad, en grande: la foto más alta y cromos más grandes */
+      #alb-full .ab-cab { height: 220px; } #alb-full .ab-cab .ab-tit b { font-size: 48px; } #alb-full .ab-cab .ab-tit b.largo { font-size: 36px; }
+      #alb-full .ab-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 16px; } #alb-full .ab-c b { font-size: 13.5px; }
+      #alb-full .ab-chips, #alb-full .ab-saltos { flex-wrap: wrap; overflow: visible; margin-left: 0; margin-right: 0; padding: 0; }
     }
     /* ventana estrecha (o el móvil): todo en una columna, el mapa arriba */
     @media (max-width: 980px) {
@@ -513,8 +513,9 @@
     // tu foto de cromo (de la nube), en la carta en cuanto llega
     async function pegarFoto(el, id) {
       if (!(A.s.cardPhotos || {})[id]) return;
-      const img = await ownPhoto(id), ph = img && el.querySelector('.tcg-photo');
-      if (ph) { ph.style.backgroundImage = `url('${img}')`; ph.innerHTML = ''; }
+      // (.ab-ph: el cromo del álbum —rediseño del 23-nov-2026—; .tcg-photo: la carta grande)
+      const img = await ownPhoto(id), ph = img && el.querySelector('.ab-ph, .tcg-photo');
+      if (ph) { ph.style.backgroundImage = `url('${img}')`; ph.innerHTML = ''; ph.classList.add('con'); }
     }
     const rangoCiudad = (c) => PM.RANKS[Math.max(0, PM.rankFor('city', c.pct))];
 

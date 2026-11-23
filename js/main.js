@@ -3073,7 +3073,8 @@
     poner(document.querySelector('#celebrate.show'), (el) => el.classList.remove('show'), true);
     poner(document.querySelector('#card.show'), (el) => el.classList.remove('show'), true);
     poner(document.querySelector('#tcg-view.show'), () => PM.tcg && PM.tcg.close(), true);
-    poner(document.querySelector('#sheet.show .close'), (el) => el.click(), true);
+    // (dentro del álbum de una ciudad, Atrás vuelve a la lista de ciudades; en la lista, cierra la ventana)
+    poner(document.querySelector('#sheet.show #city-stacks[data-vista="ciudad"] .ab-atras') || document.querySelector('#sheet.show .close'), (el) => el.click(), true);
     // (y las capas que se crean y se quitan: «¡Nuevo álbum!», la fiesta de nivel o de rango y el sobre de cartas —auditoría
     // v0.9.27, REV-03—)
     poner(document.querySelector('#ab-nuevo #ab-luego'), (el) => el.click(), true);
@@ -3102,7 +3103,8 @@
 
   function panelAlbum(ciudad) {
     openSheet('📖 Mis álbumes', '<div id="album-box"></div>');
-    PM.cards.album($('#album-box'), { goTo: goToPlace, ciudad: typeof ciudad === 'string' ? ciudad : null });
+    // (pos: tu posición, para «📍 Cerca de ti» —lo que te falta, del más cercano al más lejano—; sin GPS ni posición, no sale)
+    PM.cards.album($('#album-box'), { goTo: goToPlace, ciudad: typeof ciudad === 'string' ? ciudad : null, pos: () => (pos && (mode === 'sim' || lastFixT) ? pos : null) });
   }
   // El álbum de una ciudad aparece la primera vez que la pisas. Las ciudades donde ya habías estado lo tienen desde el principio, sin aviso.
   function albumPisado(t) {

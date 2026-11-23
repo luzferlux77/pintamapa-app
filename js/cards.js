@@ -416,7 +416,7 @@ PM.cards = (function () {
     const ids = Object.keys(s.landmarks).sort((a, b) => s.landmarks[b].t - s.landmarks[a].t);
     let tab = 'cromos', vista = null;
     const draw = async () => {
-      let html = `<div class="seg tabs"><button class="btn ${tab === 'cromos' ? 'on' : ''}" data-t="cromos">Álbumes</button>
+      let html = `<div class="seg tabs"><button class="btn ${tab === 'cromos' ? 'on' : ''}" data-t="cromos">Ciudades</button>
         <button class="btn ${tab === 'col' ? 'on' : ''}" data-t="col">Colecciones</button>
         <button class="btn ${tab === 'bar' ? 'on' : ''}" data-t="bar">Barrios</button></div>`;
       // (v0.9: sin la sección «Imprescindibles»: cada álbum de ciudad ya tiene su pestaña ★, y tocar un hueco lleva al mapa)
@@ -444,9 +444,10 @@ PM.cards = (function () {
         // mazos por ciudad (la que más cartas tiene, primero): se despliegan al tocar
         // (las cartas sin ciudad conocida van en su mazo, como antes)
         const sueltas = ids.filter((id) => !s.landmarks[id].city || PM.album.NO_ES_CIUDAD.test(s.landmarks[id].city));
-        vista = PM.album.montar(container.querySelector('#city-stacks'), { datos: dataFor, abrir: open, irA: opts.goTo });
+        vista = PM.album.montar(container.querySelector('#city-stacks'), { datos: dataFor, abrir: open, irA: opts.goTo, pos: opts.pos });
         if (opts.ciudad) vista.ciudad(opts.ciudad);
-        if (sueltas.length) { const box = document.createElement('div'); container.appendChild(box); PM.tcg.stacks(box, [{ city: 'Otros lugares', ids: sueltas }], dataFor, (el, id) => el.addEventListener('click', () => open(id)), 'cromos'); }
+        // (las cartas sin ciudad conocida, debajo de la lista de ciudades; dentro de una ciudad no se ven)
+        if (sueltas.length) { const box = document.createElement('div'); box.className = 'ab-sueltas'; container.appendChild(box); PM.tcg.stacks(box, [{ city: 'Otros lugares', ids: sueltas }], dataFor, (el, id) => el.addEventListener('click', () => open(id)), 'cromos'); }
       }
       container.querySelectorAll('[data-t]').forEach((b) => b.addEventListener('click', () => { tab = b.dataset.t; draw(); }));
       container.querySelectorAll('[data-go]').forEach((b) => b.addEventListener('click', () => { const id = b.dataset.go; if (s.landmarks[id]) open(id); else if (opts.goTo) opts.goTo(id); }));
