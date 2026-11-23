@@ -401,10 +401,10 @@ PM.game = (function () {
 
   // ---------------- Monumentos ----------------
   const REVISIT_MS = 20 * 60 * 60 * 1000;   // "vuelve cada día": a partir de 20 h de la última visita
-  function visitLandmark(lm) {
+  function visitLandmark(lm, at) {
     const s = S();
     const rec = s.landmarks[lm.id];
-    const now = Date.now();
+    const now = Number.isFinite(at) ? at : Date.now();
     if (!rec) {
       // se guarda la posición: el monumento conquistado se dibuja para siempre, aunque esa zona no esté cargada
       s.landmarks[lm.id] = { t: now, last: now, visits: 1, name: lm.name, kind: lm.kind, emoji: lm.emoji, rarity: lm.rarity,

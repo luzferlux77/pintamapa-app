@@ -327,7 +327,7 @@ PM.nominatim = function (url, ms = 15000) {
     const espera = 1100 - (Date.now() - nomiT);
     if (espera > 0) await new Promise((res) => setTimeout(res, espera));
     nomiT = Date.now();
-    return fetch(url, AbortSignal.timeout ? { signal: AbortSignal.timeout(ms) } : {});
+    return fetch(url, typeof AbortSignal !== 'undefined' && AbortSignal.timeout ? { signal: AbortSignal.timeout(ms) } : {});
   });
   nomiCola = turno.catch(() => {});   // (un fallo no para la cola)
   return turno;

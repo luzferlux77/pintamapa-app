@@ -1331,6 +1331,23 @@
     'Poned el mapa en el mismo sitio en los dos móviles y pulsad el botón en cada uno: si sale el mismo código, veis los mismos lugares.': ['Poseu el mapa al mateix lloc als dos mòbils i premeu el botó a cadascun: si surt el mateix codi, veieu els mateixos llocs.', 'Put the map in the same spot on both phones and press the button on each: if the code is the same, you see the same places.', 'Mettez la carte au même endroit sur les deux téléphones et appuyez sur le bouton sur chacun : si le code est le même, vous voyez les mêmes lieux.'],
     'Calcular': ['Calcular', 'Calculate', 'Calculer'],
     'Guardar la partida apartada y liberar sitio': ['Desar la partida apartada i alliberar espai', 'Save the set-aside game and free up space', 'Enregistrer la partie mise de côté et libérer de la place'],
+    // ---- rediseño álbumes v0.9.32 ----
+    'Estás aquí': ['Ets aquí', 'You are here', 'Tu es ici'],
+    'Recién pisadas': ['Acabades de trepitjar', 'Just visited', 'Fraîchement visitées'],
+    '{n} ciudades': ['{n} ciutats', '{n} cities', '{n} villes'],
+    '1 ciudad': ['1 ciutat', '1 city', '1 ville'],
+    '0 cartas': ['0 cartes', '0 cards', '0 carte'],
+    'Más cartas': ['Més cartes', 'Most cards', 'Plus de cartes'],
+    'A–Z': ['A–Z', 'A–Z', 'A–Z'],
+    '+ {n} extras': ['+ {n} extres', '+ {n} extras', '+ {n} extras'],
+    '1 extra más': ['1 extra més', '1 extra', '1 extra'],
+    'Extras descubiertos': ['Extres descoberts', 'Extras discovered', 'Extras découverts'],
+    'Filtros': ['Filtres', 'Filters', 'Filtres'],
+    'Desplegar todo': ['Desplegar-ho tot', 'Expand all', 'Tout déplier'],
+    'Plegar todo': ['Plegar-ho tot', 'Collapse all', 'Tout replier'],
+    'Subir arriba': ['Pujar a dalt', 'Back to top', 'Haut de page'],
+    'En progreso': ['En progrés', 'In progress', 'En cours'],
+    'Conquistados': ['Conquerits', 'Conquered', 'Conquis'],
   };
   const out = {};
   for (const k in D) out[k] = D[k][i];

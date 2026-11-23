@@ -368,7 +368,7 @@
       lmMarkers.forEach((m) => m.remove()); lmMarkers = [];
       lms.filter((v) => v.pos).forEach((v) => {
         const el = document.createElement('div');
-        el.innerHTML = `<div class="lmk" style="--c:${RAR_C[v.rarity]}" title="${esc(v.name)}">${v.emoji}</div>`;
+        el.innerHTML = `<div class="lmk" style="--c:${RAR_C[v.rarity]}" title="${esc(v.name)}">${esc(v.emoji)}</div>`;
         el.addEventListener('click', (e) => { e.stopPropagation(); openCard(v.id); });
         lmMarkers.push(new maplibregl.Marker({ element: el }).setLngLat(ll(v.pos)).addTo(map));
         bounds.extend(ll(v.pos));
@@ -513,9 +513,15 @@
     // tu foto de cromo (de la nube), en la carta en cuanto llega
     async function pegarFoto(el, id) {
       if (!(A.s.cardPhotos || {})[id]) return;
-      // (.ab-ph: el cromo del álbum —rediseño del 23-nov-2026—; .tcg-photo: la carta grande)
-      const img = await ownPhoto(id), ph = img && el.querySelector('.ab-ph, .tcg-photo');
-      if (ph) { ph.style.backgroundImage = `url('${img}')`; ph.innerHTML = ''; ph.classList.add('con'); }
+      // (.ab-ph: el cromo del álbum —rediseño—; .tcg-photo: la carta grande)
+      const img = await ownPhoto(id);
+      if (!img || !el.isConnected) return;
+      const ph = el.querySelector('.ab-ph, .tcg-photo');
+      if (!ph) return;
+      el.dataset.own = '1';
+      ph.style.backgroundImage = `url('${String(img).replace(/'/g, '%27')}')`;
+      ph.innerHTML = '';
+      ph.classList.add('con');
     }
     const rangoCiudad = (c) => PM.RANKS[Math.max(0, PM.rankFor('city', c.pct))];
 
@@ -647,6 +653,7 @@
     }
 
     function drawPanel() {
+      if ($('#alb-full').classList.contains('show')) pantallaAlbum(false);
       const P = $('#panel'), { walks } = A;
       P.innerHTML = tab === 'pas' ? panelPaseos() : tab === 'col' ? panelColeccion() : panelResumen();
       if (tab === 'col') {
@@ -654,7 +661,7 @@
         PM.world.usarCiudades(A.s.ciudadId || (A.s.ciudadId = {}));   // (las ciudades con el mismo nombre se distinguen como en el móvil)
         PM.album.usar({ save: () => A.s, albumDe: albumWeb });
         $('#alb-fs').addEventListener('click', () => pantallaAlbum(true));
-        const irA = (e) => { pantallaAlbum(false); $('#bigmap').scrollIntoView({ behavior: 'smooth', block: 'nearest' }); map.flyTo({ center: ll(e.pos), zoom: 17 }); };
+        const irA = (e) => { if (!e || !Array.isArray(e.pos) || e.pos.length < 2) return; pantallaAlbum(false); $('#bigmap').scrollIntoView({ behavior: 'smooth', block: 'nearest' }); map.flyTo({ center: ll(e.pos), zoom: 17 }); };
         PM.album.montar($('#album-box'), { datos: cardData, abrir: openCard, irA, pegada: pegarFoto });
       }
       P.querySelectorAll('.walk').forEach((el) => el.addEventListener('click', () => showWalk(walks[+el.dataset.i], el)));

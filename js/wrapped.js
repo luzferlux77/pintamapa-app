@@ -234,19 +234,21 @@ PM.wrapped = (function () {
     const muxer = new Mp4Muxer.Muxer({ target: new Mp4Muxer.ArrayBufferTarget(), video: { codec: 'avc', width: W, height: H, frameRate: FPS }, fastStart: 'in-memory' });
     let err = null;
     const enc = new VideoEncoder({ output: (ch, meta) => muxer.addVideoChunk(ch, meta), error: (e) => { err = e; } });
-    enc.configure({ codec, width: W, height: H, bitrate: 5e6, framerate: FPS, avc: { format: 'avc' } });
-    const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
-    const c = cv.getContext('2d'), total = DUR * FPS, us = 1e6 / FPS;
-    for (let i = 0; i < total; i++) {
+    try {
+      enc.configure({ codec, width: W, height: H, bitrate: 5e6, framerate: FPS, avc: { format: 'avc' } });
+      const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+      const c = cv.getContext('2d'), total = DUR * FPS, us = 1e6 / FPS;
+      for (let i = 0; i < total; i++) {
+        if (err) throw err;
+        draw(c, i / FPS, D, A);
+        const fr = new VideoFrame(cv, { timestamp: Math.round(i * us), duration: Math.round(us) });
+        enc.encode(fr, { keyFrame: i % (FPS * 2) === 0 }); fr.close();
+        while (enc.encodeQueueSize > 6) await new Promise((r) => setTimeout(r, 5));
+        if (i % 10 === 0) { progress(i / total); await new Promise((r) => setTimeout(r, 0)); }
+      }
+      await enc.flush();
       if (err) throw err;
-      draw(c, i / FPS, D, A);
-      const fr = new VideoFrame(cv, { timestamp: Math.round(i * us), duration: Math.round(us) });
-      enc.encode(fr, { keyFrame: i % (FPS * 2) === 0 }); fr.close();
-      while (enc.encodeQueueSize > 6) await new Promise((r) => setTimeout(r, 5));
-      if (i % 10 === 0) { progress(i / total); await new Promise((r) => setTimeout(r, 0)); }
-    }
-    await enc.flush(); enc.close();
-    if (err) throw err;
+    } finally { try { enc.close(); } catch (e) {} }
     muxer.finalize();
     return new Blob([muxer.target.buffer], { type: 'video/mp4' });
   }

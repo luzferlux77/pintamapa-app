@@ -423,55 +423,81 @@ PM.cards = (function () {
       if (tab === 'cromos') {
         html += '<div id="city-stacks"></div>';
       } else if (tab === 'col') {
-        // (solo las colecciones temáticas: el «por ciudad» repetía el porcentaje de cada álbum)
+        // colecciones temáticas: cada una es desplegable para ver tus cartas de esa categoría, con contraste AA en medallas
+        const tierCls = ['', 'tr-bronce', 'tr-plata', 'tr-oro'];
         html += SETS.map((set) => {
           const n = setCount(set), tier = s.setsDone[set.id] || 0, next = set.goals[tier];
-          return `<div class="mission ${tier >= 3 ? 'done' : ''}"><div class="mt">${set.icon} ${set.name}<span>${tier ? TIER[tier - 1] : ''}</span></div>
+          const lista = set.photos
+            ? ids.filter((id) => (s.cardPhotos || {})[id])
+            : ids.filter((id) => set.kinds.includes(s.landmarks[id].kind));
+          const items = lista.length
+            ? `<div class="col-chips">${lista.map((id) => { const r = s.landmarks[id]; return `<button class="col-item" data-go="${esc(id)}"><span>${esc(r.emoji || '📍')}</span><b translate="no">${esc(r.name)}</b></button>`; }).join('')}</div>`
+            : '';
+          return `<details class="mission col-card ${tier >= 3 ? 'done' : ''}"><summary><div class="mt">${set.icon} ${set.name}<span class="col-tier ${tierCls[tier] || ''}">${tier ? TIER[tier - 1] : ''}</span></div>
             <div class="bar"><i style="width:${next ? Math.min(100, n / next * 100) : 100}%"></i></div>
-            <small>${n} ${next ? '/ ' + next + ' para ' + TIER[tier] : '· ¡colección completa!'}</small></div>`;
+            <small>${n} ${next ? '/ ' + next + ' para ' + TIER[tier] : '· ¡colección completa!'}</small></summary>${items}</details>`;
         }).join('');
       } else {
         const bc = Object.entries(s.barrioCards || {}).sort((a, b) => b[1].t - a[1].t);
-        html += bc.length ? '<div class="cromos">' + bc.map(([, b]) => barrioCardHTML(b)).join('') + '</div>'
+        html += bc.length ? `<h4 class="ab-sec-h">${PM.t('Conquistados')} (${bc.length})</h4><div class="cromos">` + bc.map(([bid, b]) => barrioCardHTML(b, bid)).join('') + '</div>'
           : '<p class="muted">Conquista un barrio (pinta el 60 % de sus calles) y aquí aparecerá su cromo con la silueta pintada de tu color.</p>';
+        // Barrios en progreso (cargados en el mundo actual con calles pintadas, ordenados por % descendente)
+        const enProg = [];
+        if (PM.world && PM.world.barrios) {
+          for (const B of Object.values(PM.world.barrios)) {
+            if (!B || !(B.total > 0) || !B.name || (s.barrioCards || {})[B.id]) continue;
+            let pm = 0; for (const pc of B.pieces || []) if ((s.painted || {})[pc.id]) pm += pc.len;
+            const pct = pm / B.total * 100;
+            if (pct >= 3 && pct < 100) enProg.push({ id: B.id, name: B.name, pct, pos: B.pos });
+          }
+          enProg.sort((a, b) => b.pct - a.pct);
+        }
+        if (enProg.length) {
+          html += `<h4 class="ab-sec-h">${PM.t('En progreso')}</h4>` + enProg.slice(0, 12).map((b) =>
+            `<button class="mission bar-prog" data-bpos="${b.pos ? b.pos.join(',') : ''}" data-bname="${esc(b.name)}"><div class="mt"><span translate="no">${esc(b.name)}</span><span>${b.pct.toFixed(1).replace('.', ',')} %</span></div>
+            <div class="bar"><i style="width:${Math.min(100, b.pct)}%"></i></div></button>`).join('');
+        }
         const cities = Object.entries(s.cityCards || {});
         if (cities.length) html += '<h4>👑 Ciudades</h4><div class="cromos">' + cities.map(([c, v]) => `<div class="cromo r-legendario city"><div class="cromo-in"><div class="cara front">
           <div class="foto vacia"><span>👑</span></div><div class="holo"></div><div class="cinta" style="background:#ffb700">Ciudad</div>
-          <div class="pie"><b>${esc(c)}</b><small>Conquistada el ${new Date(v.t).toLocaleDateString(PM.LOCALE)}</small></div></div></div></div>`).join('') + '</div>';
+          <div class="pie"><b>${esc(c)}</b><small>Conquistada el ${new Date(v.t).toLocaleDateString(PM.LOCALE, { day: 'numeric', month: 'short', year: '2-digit' })}</small></div></div></div></div>`).join('') + '</div>';
       }
       container.innerHTML = html;
       if (tab === 'cromos') {
-        // mazos por ciudad (la que más cartas tiene, primero): se despliegan al tocar
-        // (las cartas sin ciudad conocida van en su mazo, como antes)
         const sueltas = ids.filter((id) => !s.landmarks[id].city || PM.album.NO_ES_CIUDAD.test(s.landmarks[id].city));
-        vista = PM.album.montar(container.querySelector('#city-stacks'), { datos: dataFor, abrir: open, irA: opts.goTo, pos: opts.pos });
+        vista = PM.album.montar(container.querySelector('#city-stacks'), { datos: dataFor, abrir: open, irA: opts.goTo, pos: opts.pos, ciudadActual: opts.ciudadActual, cerrar: opts.cerrar });
         if (opts.ciudad) vista.ciudad(opts.ciudad);
-        // (las cartas sin ciudad conocida, debajo de la lista de ciudades; dentro de una ciudad no se ven)
         if (sueltas.length) { const box = document.createElement('div'); box.className = 'ab-sueltas'; container.appendChild(box); PM.tcg.stacks(box, [{ city: 'Otros lugares', ids: sueltas }], dataFor, (el, id) => el.addEventListener('click', () => open(id)), 'cromos'); }
       }
       container.querySelectorAll('[data-t]').forEach((b) => b.addEventListener('click', () => { tab = b.dataset.t; draw(); }));
       container.querySelectorAll('[data-go]').forEach((b) => b.addEventListener('click', () => { const id = b.dataset.go; if (s.landmarks[id]) open(id); else if (opts.goTo) opts.goTo(id); }));
+      container.querySelectorAll('[data-bpos]').forEach((b) => b.addEventListener('click', () => {
+        const p = (b.dataset.bpos || '').split(',').map(Number);
+        if (p.length === 2 && isFinite(p[0]) && isFinite(p[1]) && opts.goTo) opts.goTo({ pos: p, name: b.dataset.bname || '' });
+      }));
       container.querySelectorAll('.cromo[data-id], .tcg[data-id]').forEach((el) => el.addEventListener('click', () => open(el.dataset.id)));
     };
     draw();
-    // completar info de los cromos que aún no la tienen (poco a poco)
-    (async () => { for (const id of ids) if (caduca(S().cardInfo[id])) { const r = S().landmarks[id]; if (r) await fetchInfo(id, PM.world.landmarks[id] || Object.assign({ id, pos: r.pos }, r)); } if (tab === 'cromos' && vista && container.isConnected) vista.refrescar(); })();   // (sin sacarte de la carpeta que miras)
+    // completar info de los cromos que aún no la tienen (poco a poco; se detiene si se cierra el panel)
+    (async () => { for (const id of ids) { if (!container.isConnected) return; if (caduca(S().cardInfo[id])) { const r = S().landmarks[id]; if (r) await fetchInfo(id, PM.world.landmarks[id] || Object.assign({ id, pos: r.pos }, r)); } } if (tab === 'cromos' && vista && container.isConnected) vista.refrescar(); })();
   }
 
-  function barrioCardHTML(b) {
+  function barrioCardHTML(b, bid) {
     // silueta: las calles pintadas del barrio, en tu color
-    let svg = '';
+    let svg = '', pos = null;
     if (b.lines && b.lines.length) {
       let s = 90, w = 180, n = -90, e = -180;
       b.lines.forEach((l) => l.forEach((p) => { s = Math.min(s, p[0]); n = Math.max(n, p[0]); w = Math.min(w, p[1]); e = Math.max(e, p[1]); }));
+      pos = [(s + n) / 2, (w + e) / 2];
       const k = Math.cos(((s + n) / 2) * Math.PI / 180), sx = (e - w) * k || 1e-6, sy = (n - s) || 1e-6, sc = 90 / Math.max(sx, sy);
       const P = (p) => `${(5 + (p[1] - w) * k * sc).toFixed(1)},${(5 + (n - p[0]) * sc).toFixed(1)}`;
       svg = `<svg viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet">${b.lines.map((l) => `<polyline points="${l.map(P).join(' ')}"/>`).join('')}</svg>`;
     }
-    return `<div class="cromo r-epico barrio"><div class="cromo-in"><div class="cara front">
+    const fecha = new Date(b.t).toLocaleDateString(PM.LOCALE, { day: 'numeric', month: 'short', year: '2-digit' });
+    return `<div class="cromo r-epico barrio" ${pos ? `data-bpos="${pos[0].toFixed(5)},${pos[1].toFixed(5)}" data-bname="${esc(b.name)}" style="cursor:pointer"` : ''}><div class="cromo-in"><div class="cara front">
       <div class="foto vacia sil" style="--paint:${b.color || S().color}">${svg || '<span>🏘️</span>'}</div><div class="holo"></div>
       <div class="cinta" style="background:#b65cff">Barrio</div>
-      <div class="pie"><b>${esc(b.name)}</b><small>${b.city ? esc(b.city) + ' · ' : ''}${new Date(b.t).toLocaleDateString(PM.LOCALE)}</small></div></div></div></div>`;
+      <div class="pie"><b translate="no">${esc(b.name)}</b><small>${b.city ? esc(b.city) + ' · ' : ''}${fecha}</small></div></div></div></div>`;
   }
 
   return { open, close, album, fetchInfo, dataFor, SETS, setCount, getPhoto, putPhoto, fotoRev, moverFoto, takePhoto, FILTERS, _img: { loadImg, cropCard, applyFilter } };

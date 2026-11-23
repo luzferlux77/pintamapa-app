@@ -119,7 +119,7 @@ PM.replay = (function () {
         const part = idx.slice(k, k + 100);
         const url = 'https://api.open-meteo.com/v1/elevation?latitude=' + part.map((i) => pts[i].lat.toFixed(5)).join(',') + '&longitude=' + part.map((i) => pts[i].lon.toFixed(5)).join(',');
         // (con tiempo máximo y solo números de verdad: un hueco en la respuesta dejaba «Altitud: NaN–NaN m» —Gemini (2)—)
-        const r = await fetch(url, AbortSignal.timeout ? { signal: AbortSignal.timeout(15000) } : {});
+        const r = await fetch(url, typeof AbortSignal !== 'undefined' && AbortSignal.timeout ? { signal: AbortSignal.timeout(15000) } : {});
         if (!r.ok) throw new Error('altitud ' + r.status);
         const j = await r.json();
         (j.elevation || []).forEach((e, n) => { if (part[n] != null && Number.isFinite(e)) pts[part[n]].e = e; });
@@ -445,6 +445,7 @@ ${segs.map((s) => `<LineString><tessellate>1</tessellate><altitudeMode>clampToGr
     ov.querySelector('[data-a=close]').onclick = close;
     ov.onclick = (e) => { if (e.target === ov) close(); };
     await elevations(P.pts);
+    if (!ov.isConnected) return;
     const A = analyze(walk, P), st = walk.st || {};
     const body = ov.querySelector('.rp-body');
     const tile = (k, v, s) => `<div class="rp-k"><small>${k}</small><b>${v}</b>${s ? `<em>${s}</em>` : ''}</div>`;
@@ -488,6 +489,7 @@ ${segs.map((s) => `<LineString><tessellate>1</tessellate><altitudeMode>clampToGr
     const cv = body.querySelector('canvas'), ctx = cv.getContext('2d'), msg = body.querySelector('.rp-msg');
     msg.textContent = 'Cargando el mapa…';
     await loadStreets(sc);
+    if (!ov.isConnected) return;
     msg.textContent = '';
     let t0 = performance.now(), raf = null, recording = false;
     const loop = (now) => {
@@ -548,21 +550,23 @@ ${segs.map((s) => `<LineString><tessellate>1</tessellate><altitudeMode>clampToGr
     const muxer = new Mp4Muxer.Muxer({ target: new Mp4Muxer.ArrayBufferTarget(), video: { codec: 'avc', width: W, height: H, frameRate: FPS }, fastStart: 'in-memory' });
     let err = null;
     const enc = new VideoEncoder({ output: (chunk, meta) => muxer.addVideoChunk(chunk, meta), error: (e) => { err = e; } });
-    enc.configure({ codec, width: W, height: H, bitrate: 5e6, framerate: FPS, avc: { format: 'avc' } });
-    const cvs = document.createElement('canvas'); cvs.width = W; cvs.height = H;
-    const ctx = cvs.getContext('2d');
-    const total = Math.round((DRAW_S + HOLD_S) * FPS), us = 1e6 / FPS;
-    for (let i = 0; i < total; i++) {
+    try {
+      enc.configure({ codec, width: W, height: H, bitrate: 5e6, framerate: FPS, avc: { format: 'avc' } });
+      const cvs = document.createElement('canvas'); cvs.width = W; cvs.height = H;
+      const ctx = cvs.getContext('2d');
+      const total = Math.round((DRAW_S + HOLD_S) * FPS), us = 1e6 / FPS;
+      for (let i = 0; i < total; i++) {
+        if (err) throw err;
+        draw(ctx, sc, i / FPS / DRAW_S, walk, opts, A);
+        const frame = new VideoFrame(cvs, { timestamp: Math.round(i * us), duration: Math.round(us) });
+        enc.encode(frame, { keyFrame: i % (FPS * 2) === 0 });
+        frame.close();
+        while (enc.encodeQueueSize > 6) await new Promise((r) => setTimeout(r, 5));
+        if (i % 10 === 0) { progress(i / total); await new Promise((r) => setTimeout(r, 0)); }
+      }
+      await enc.flush();
       if (err) throw err;
-      draw(ctx, sc, i / FPS / DRAW_S, walk, opts, A);
-      const frame = new VideoFrame(cvs, { timestamp: Math.round(i * us), duration: Math.round(us) });
-      enc.encode(frame, { keyFrame: i % (FPS * 2) === 0 });
-      frame.close();
-      while (enc.encodeQueueSize > 6) await new Promise((r) => setTimeout(r, 5));
-      if (i % 10 === 0) { progress(i / total); await new Promise((r) => setTimeout(r, 0)); }
-    }
-    await enc.flush(); enc.close();
-    if (err) throw err;
+    } finally { try { enc.close(); } catch (e) {} }
     muxer.finalize();
     return new Blob([muxer.target.buffer], { type: 'video/mp4' });
   }

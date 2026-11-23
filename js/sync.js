@@ -242,8 +242,9 @@ PM.cloud = (function () {
     return new Promise((res) => {
       const im = new Image();
       im.onload = () => {
+        if (!im.width || !im.height) return res(dataUrl);
         const k = Math.min(1, max / Math.max(im.width, im.height));
-        const c = document.createElement('canvas'); c.width = Math.round(im.width * k); c.height = Math.round(im.height * k);
+        const c = document.createElement('canvas'); c.width = Math.max(1, Math.round(im.width * k)); c.height = Math.max(1, Math.round(im.height * k));
         c.getContext('2d').drawImage(im, 0, 0, c.width, c.height);
         res(c.toDataURL('image/jpeg', 0.8));
       };
@@ -274,8 +275,9 @@ PM.cloud = (function () {
     const uno = async (f) => {
       let box = null;
       if (f.download_url) { try { const r = await fetch(f.download_url, { cache: 'no-store', signal: limite(TIMEOUT * 2) }); if (r.ok) box = await r.json(); } catch (e) { box = null; } }
-      if (!box) { const c = await readRaw(base + f.name); box = c && c.data; }
-      return box ? decrypt(key, box) : null;
+      if (!box) { try { const c = await readRaw(base + f.name); box = c && c.data; } catch (e) { box = null; } }
+      if (!box) return null;
+      try { return await decrypt(key, box); } catch (e) { return null; }
     };
     // de 6 en 6 (antes de uno en uno: con 300 días paseados, 300 descargas seguidas —auditoría v0.9.25, PERF-02—), y se juntan
     // en el mismo orden de siempre

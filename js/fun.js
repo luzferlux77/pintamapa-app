@@ -3,9 +3,11 @@
 PM.fun = (function () {
   function create(ctx) {
     const { S, toast, $ } = ctx;
+    const safeAvatar = (v) => (v && /^data:image\/(jpeg|jpg|png|webp|gif);base64,[A-Za-z0-9+/=]+$/.test(String(v)) ? String(v) : null);
+    const safeColor = (v) => (v && /^#[0-9a-f]{3,8}$/i.test(String(v)) ? String(v) : '#2563eb');
     function avatarHTML(cls) {
-      const s = S();
-      return s.avatar ? `<div class="${cls} has-photo" style="background-image:url('${s.avatar}')"></div>` : `<div class="${cls}" style="background:${s.color}">🖌️</div>`;
+      const s = S(), av = safeAvatar(s.avatar);
+      return av ? `<div class="${cls} has-photo" style="background-image:url('${av}')"></div>` : `<div class="${cls}" style="background:${safeColor(s.color)}">🖌️</div>`;
     }
     // recorta al centro en cuadrado y la guarda en JPEG pequeño
     function squareJpeg(dataUrl, size) {
@@ -35,8 +37,9 @@ PM.fun = (function () {
     function refreshAvatar() {
       const b = $('#nav-profile');
       if (!b) return;
-      b.classList.toggle('has-avatar', !!S().avatar);
-      b.style.setProperty('--avatar', S().avatar ? `url('${S().avatar}')` : 'none');
+      const av = safeAvatar(S().avatar);
+      b.classList.toggle('has-avatar', !!av);
+      b.style.setProperty('--avatar', av ? `url('${av}')` : 'none');
     }
     refreshAvatar();
     return { avatarHTML, changeAvatar, removeAvatar, refreshAvatar };

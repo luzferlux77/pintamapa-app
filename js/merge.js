@@ -88,7 +88,7 @@
       // dos, la fecha salía NaN —informe de Gemini (2), 20-nov-2026—)
       const tt = [o && o.t, v.t].filter((x) => Number.isFinite(x));
       out.landmarks[id] = o ? Object.assign({}, o, v, { t: tt.length ? Math.min(...tt) : o.t || v.t || 0, visits: Math.max(o.visits || 1, v.visits || 1),
-        last: Math.max(o.last || 0, v.last || 0), pos: v.pos || o.pos }, o.shiny || v.shiny ? { shiny: 1 } : {}) : v;
+        last: Math.max(o.last || 0, v.last || 0), pos: v.pos || o.pos }, o.shiny || v.shiny ? { shiny: 1 } : {}, o.must || v.must ? { must: 1 } : {}) : v;
     }
     // cartas quitadas o trasladadas a otro identificador (duplicados, lugares que ya no están): la copia de la otra partida
     // no las devuelve; si allí solo está la vieja, pasa al identificador nuevo
@@ -110,7 +110,8 @@
       const r = out.landmarks[old];
       if (r) {
         const k = fin !== 1 && out.landmarks[fin];
-        if (fin !== 1) out.landmarks[fin] = k ? Object.assign({}, k, { t: Math.min(k.t || r.t, r.t || k.t), visits: Math.max(k.visits || 1, r.visits || 1), last: Math.max(k.last || 0, r.last || 0) }, k.shiny || r.shiny ? { shiny: 1 } : {}) : r;   // (y el brillo de cualquiera de las dos)
+        const kt = k ? [k.t, r.t].filter((x) => Number.isFinite(x)) : [];
+        if (fin !== 1) out.landmarks[fin] = k ? Object.assign({}, k, { t: kt.length ? Math.min(...kt) : 0, visits: Math.max(k.visits || 1, r.visits || 1), last: Math.max(k.last || 0, r.last || 0) }, k.shiny || r.shiny ? { shiny: 1 } : {}, k.must || r.must ? { must: 1 } : {}) : r;   // (y el brillo/must de cualquiera de las dos)
         delete out.landmarks[old];
       }
       for (const c of ['cardInfo', 'cardPhotos']) {
@@ -135,7 +136,14 @@
       if (!w || typeof w !== 'object' || w.id == null) return;
       const o = walks[w.id], ew = w.elapsed || 0, eo = o ? o.elapsed || 0 : -1;
       if (!o || ew > eo) walks[w.id] = w;
-      else if (ew === eo) { const g = detalle(w) >= detalle(o) ? w : o; walks[w.id] = (o.rev || w.rev) && !g.rev ? Object.assign({}, g, { rev: 1 }) : g; }
+      else if (ew === eo) {
+        const g = (w.forense && !o.forense) ? w : (o.forense && !w.forense) ? o : (detalle(w) >= detalle(o) ? w : o);
+        const extra = {};
+        if ((o.rev || w.rev) && !g.rev) extra.rev = 1;
+        if (!g.forense && (o.forense || w.forense)) extra.forense = o.forense || w.forense;
+        if (!g.pausas && (o.pausas || w.pausas)) extra.pausas = o.pausas || w.pausas;
+        walks[w.id] = Object.keys(extra).length ? Object.assign({}, g, extra) : g;
+      }
     });
     out.walks = Object.values(walks).filter((w) => (w.elapsed || 0) >= 120000).sort((x, y) => x.start - y.start);   // < 2 min: no cuentan
     if (a.daily && (!b.daily || a.daily.date > b.daily.date)) out.daily = a.daily;   // (una partida sin misiones aún no borra las de la otra: se cobrarían dos veces)

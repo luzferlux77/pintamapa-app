@@ -667,11 +667,11 @@ PM.tcg = (function () {
   let regiones = null;
   try { regiones = new Intl.DisplayNames([PM.LOCALE || 'es-ES'], { type: 'region' }); } catch (e) { /* navegador antiguo */ }
   const paisNombre = (c) => { try { if (regiones && c.cc && c.cc.length === 2) return regiones.of(c.cc.toUpperCase()); } catch (e) { /* código raro */ } return c.name; };
-  function byCountry(groups, countries) {
+  function byCountry(groups, countries, mantenerOrden) {
     const col = (a, b) => a.localeCompare(b, PM.LOCALE || 'es', { sensitivity: 'base' });
-    groups.forEach((g) => { const c = (countries || {})[g.city]; g.country = c ? paisNombre(c) : 'Otros países'; g.flag = c ? PM.flag(c.cc) : '🌍'; });
+    groups.forEach((g, idx) => { const c = (countries || {})[g.city]; g.country = c ? paisNombre(c) : 'Otros países'; g.flag = c ? PM.flag(c.cc) : '🌍'; g._ord = idx; });
     return groups.sort((a, b) => ((a.country === 'Otros países') - (b.country === 'Otros países')) || col(a.country, b.country)
-      || ((a.city === 'Otros lugares') - (b.city === 'Otros lugares')) || col(a.city, b.city));
+      || ((a.city === 'Otros lugares') - (b.city === 'Otros lugares')) || (mantenerOrden ? a._ord - b._ord : col(a.city, b.city)));
   }
   async function stacks(container, groups, getData, onCell, gridClass) {
     container.innerHTML = groups.map((g, i) => (g.country && (i === 0 || groups[i - 1].country !== g.country)

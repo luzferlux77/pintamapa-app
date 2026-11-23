@@ -18,22 +18,30 @@
   // filas: las del diario (PM.filasDiarioGps: { t, la, lo, a, s }) · track: el del paseo ([lat, lon, segundos desde start, alt?] o
   // null de corte) · start: hora de inicio (ms) · pausas: [[desde, hasta]] (ms; las de paseos de antes no las traen)
   // dist(a, b): metros · maxSpeed: m/s (lo más rápido a pie, 20 km/h)
-  function reconstruir({ filas, track, start, pausas, maxSpeed = 5.6, dist }) {
+  function reconstruir({ filas, track, start, end, pausas, maxSpeed = 5.6, dist }) {
     const abs = (p) => start + p[2] * 1000;
-    const orig = (track || []).filter(Boolean).map((p) => ({ p: [p[0], p[1]], t: abs(p), alt: p[3], de: 't' }));
-    const fin = orig.length ? orig[orig.length - 1].t + 120000 : Infinity;
+    const orig = (track || []).filter(Boolean).map((p) => ({ p: [p[0], p[1]], t: abs(p), alt: p[3], de: 't' })).sort((x, y) => x.t - y.t);
+    const finTrack = orig.length ? orig[orig.length - 1].t + 120000 : Infinity;
+    const fin = end && isFinite(end) ? Math.max(finTrack, end + 120000) : finTrack;
     const rows = (filas || []).filter((f) => f.t >= start && f.t <= fin && isFinite(f.la) && isFinite(f.lo)).sort((x, y) => x.t - y.t);
     const conPausas = Array.isArray(pausas);
     const P = (pausas || []).map(([a, b]) => [a, b || Infinity]);
     const pausado = (t0, t1) => P.some(([a, b]) => a < t1 && b > t0 && Math.min(t1, b) - Math.max(t0, a) >= 0.5 * (t1 - t0));
 
     // 1) posiciones precisas del diario en vehículo (más de 20 km/h, medido en ventanas de 10 s o más, o por su velocidad): fuera
+    // (si solo hay un salto puntual al salir de metro/bus y la siguiente lectura ya va andando, no descartamos el punto de llegada)
     const buenas = rows.filter((f) => f.a <= 35), flojas = rows.filter((f) => f.a > 35 && f.a <= 800);
     const enCoche = new Set();
     for (let i = 0, j = 0; i < buenas.length; i++) {
       while (j < i && buenas[i].t - buenas[j + 1].t >= 10000) j++;
       const dt = (buenas[i].t - buenas[j].t) / 1000;
-      if ((buenas[i].s != null && buenas[i].s > maxSpeed) || (dt >= 10 && dist([buenas[j].la, buenas[j].lo], [buenas[i].la, buenas[i].lo]) / dt > maxSpeed)) enCoche.add(buenas[i]);
+      const rapidoPrev = dt >= 10 && dist([buenas[j].la, buenas[j].lo], [buenas[i].la, buenas[i].lo]) / dt > maxSpeed;
+      let sigueAndando = false;
+      if (rapidoPrev && i + 1 < buenas.length) {
+        const dtNext = (buenas[i + 1].t - buenas[i].t) / 1000;
+        if (dtNext >= 2 && dtNext <= 30 && dist([buenas[i].la, buenas[i].lo], [buenas[i + 1].la, buenas[i + 1].lo]) / dtNext <= maxSpeed) sigueAndando = true;
+      }
+      if ((buenas[i].s != null && buenas[i].s > maxSpeed) || (rapidoPrev && !sigueAndando)) enCoche.add(buenas[i]);
     }
     // 2) recorrido + lo que faltaba del diario (si no hay un punto del recorrido a menos de 3 s), en orden de hora
     const ts = orig.map((q) => q.t);
@@ -107,13 +115,13 @@
   // Lo que hizo el motor de reconexión del GPS (scripts/nativo/PmMotorGps.java) durante el paseo, de su diario (PmSystem.eventosGps:
   // filas «hora,qué,detalle»): cuántas veces se quedó sin GPS, cuántas lo reinició (apagar y encender la ubicación) o avisó, y la
   // causa de cada hueco (los huecos llevan ta/tb: se mira lo que pasó entre medias, con medio minuto de margen)
-  function motor(texto, start, huecos) {
-    const ev = [];
+  function motor(texto, start, huecos, end) {
+    const ev = [], tope = end && isFinite(end) ? end + 60000 : Infinity;
     for (const l of String(texto || '').split('\n')) {
       const i = l.indexOf(','), j = l.indexOf(',', i + 1);
       if (i <= 0 || j < 0) continue;
       const t = +l.slice(0, i);
-      if (isFinite(t) && t >= start) ev.push([t, l.slice(i + 1, j), l.slice(j + 1).trim()]);
+      if (isFinite(t) && t >= start && t <= tope) ev.push([t, l.slice(i + 1, j), l.slice(j + 1).trim()]);
     }
     const n = (q) => ev.filter((e) => e[1] === q).length;
     const arr = ev.filter((e) => e[1] === 'arranca').pop();

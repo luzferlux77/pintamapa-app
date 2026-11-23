@@ -38,7 +38,7 @@ PM.world = (function () {
     return [[i * TILE, j * TILE], [(i + 1) * TILE, (j + 1) * TILE]];
   };
   const cellKey = (lat, lon) => Math.floor(lat / CELL) + ':' + Math.floor(lon / CELL);
-  const plazo = (ms) => (AbortSignal.timeout ? { signal: AbortSignal.timeout(ms) } : {});   // (sin él, una descarga colgada con poca cobertura para su cola)
+  const plazo = (ms) => (typeof AbortSignal !== 'undefined' && AbortSignal.timeout ? { signal: AbortSignal.timeout(ms) } : {});   // (sin él, una descarga colgada con poca cobertura para su cola)
 
   function onChange(fn) { listeners.push(fn); }
   function emit(ev, data) { listeners.forEach((fn) => fn(ev, data)); }
@@ -1488,7 +1488,7 @@ PM.world = (function () {
       try { await loadTiles(keys.slice(i, i + 8)); } catch (e) { /* sin red: se intenta lo que se pueda */ }
     }
     const t0 = Date.now();
-    while (keys.some((k) => !(tiles[k] && tiles[k].loaded)) && Date.now() - t0 < 30000) await new Promise((r) => setTimeout(r, 400));
+    while (keys.some((k) => loading.has(k)) && Date.now() - t0 < 30000) await new Promise((r) => setTimeout(r, 400));
   }
 
   // Fase 1: solo el entorno inmediato, para empezar a pintar ya (no se guarda en caché: es parcial)
@@ -1545,10 +1545,12 @@ PM.world = (function () {
       barriosFijos(c.q).catch(() => {});   // (sus barrios oficiales, los mismos para todos)
       // (y su catálogo fijo —los lugares del mapa, los de su álbum—, ANTES de pintar sus lugares: si llegaba después, el mapa
       // cambiaba de lugares mientras lo mirabas —auditoría v0.9.27, CAT-04—)
-      const [d] = await Promise.all([precarga(c.q, c.t), cargarCatalogo(c).catch(() => {})]);
+      const [d] = await Promise.all([precarga(c.q, c.t), cargarCatalogo(c, true).catch(() => {})]);
       if (!d) { preDone.delete(c.q); continue; }   // (se reintentará al moverte)
-      lmBatch = []; for (const el of d.els) addLandmark(el);
-      const b = lmBatch; lmBatch = null; commitLandmarks(b);
+      lmBatch = [];
+      let b = null;
+      try { for (const el of d.els) addLandmark(el); b = lmBatch; }
+      finally { lmBatch = null; if (b) commitLandmarks(b); }
       emit('loaded', { tiles: [] });
     }
   }
@@ -1569,7 +1571,7 @@ PM.world = (function () {
   // y publicado igual para todos), más lo que tú hayas conquistado. Fuera de ellas, el motor en directo, como antes.
   //   territorio: su contorno oficial (ct del álbum); sin él, la caja de su precarga
   var catalogos = new Map(), enCatalogo = new Map();   // (var: selectLandmarks está antes) q → { q, nombre, ids, ct, bbox } · id del lugar → q
-  async function cargarCatalogo(c) {
+  async function cargarCatalogo(c, diferir) {
     if (demoMode || catalogos.has(c.q)) return;
     const d = await albumArchivo(c.q, c.t);
     if (!d || !Array.isArray(d.l) || catalogos.has(c.q)) return;   // (sin álbum: se intentará con la próxima carga de la ciudad)
@@ -1579,10 +1581,12 @@ PM.world = (function () {
     // quitaba monumentos de otros pueblos. Mejor el motor de siempre que quitar lugares —auditoría v0.9.27, CAT-02—)
     const ct = Array.isArray(d.ct) && d.ct.length ? d.ct : null;
     if (!ct) return;
-    const ps = ct.flat(), bbox = [Math.min(...ps.map((p) => p[0])), Math.min(...ps.map((p) => p[1])), Math.max(...ps.map((p) => p[0])), Math.max(...ps.map((p) => p[1]))];
+    let s = 90, w = 180, n = -90, e = -180;
+    for (const seg of ct) for (const p of seg) { if (p[0] < s) s = p[0]; if (p[0] > n) n = p[0]; if (p[1] < w) w = p[1]; if (p[1] > e) e = p[1]; }
+    const bbox = [s, w, n, e];
     catalogos.set(c.q, { q: c.q, nombre: d.name || c.name, ids, ct, bbox });
     for (const id of ids) if (!enCatalogo.has(id)) enCatalogo.set(id, c.q);
-    selectLandmarks(); emit('loaded', { tiles: [] });
+    if (!diferir) { selectLandmarks(); emit('loaded', { tiles: [] }); }
   }
   // el catálogo cuyo contorno oficial contiene este punto (los contornos de dos municipios no se pisan: no depende del orden)
   function catalogoDe(p) {

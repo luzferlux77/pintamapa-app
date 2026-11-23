@@ -152,11 +152,11 @@
   const idbReq = (r) => new Promise((ok, ko) => { r.onsuccess = () => ok(r.result); r.onerror = () => ko(r.error); });
   // (una transacción solo está escrita cuando termina: oncomplete; si falla o se aborta, error)
   const idbDone = (tx) => new Promise((ok, ko) => { tx.oncomplete = () => ok(); tx.onerror = () => ko(tx.error || new Error('IndexedDB')); tx.onabort = () => ko(tx.error || new Error('IndexedDB')); });
-  let geoDbP = null;
+  let geoDbP = null, geoFlushing = false;
   const geoDb = () => geoDbP || (geoDbP = new Promise((ok, ko) => {
     const r = indexedDB.open('pintamapa-geo', 1);
     r.onupgradeneeded = () => { r.result.createObjectStore('geo'); r.result.createObjectStore('meta'); };
-    r.onsuccess = () => ok(r.result); r.onerror = () => ko(r.error);
+    r.onsuccess = () => ok(r.result); r.onerror = () => { geoDbP = null; ko(r.error); };
   }));
   (async () => {
     try {
@@ -183,8 +183,9 @@
     clearTimeout(pgeoTimer); pgeoTimer = setTimeout(geoFlush, 3000);
   }
   async function geoFlush() {
-    if (!pgeoNew.size) return;
+    if (!pgeoNew.size || geoFlushing) return;
     if (!geoReady) { pgeoTimer = setTimeout(geoFlush, 2000); return; }   // primero hay que leer lo guardado
+    geoFlushing = true;
     const tilesToWrite = [...pgeoNew]; pgeoNew.clear();
     try {
       // (se da por escrito solo cuando la base de datos lo confirma; si falla, esas zonas vuelven a la cola)
@@ -192,6 +193,7 @@
       for (const k of tilesToWrite) { const o = {}; for (const id of pgeoTile.get(k) || []) { const g = pgeo.get(id); if (g) o[id] = g.p; } st.put(o, k); }
       await idbDone(tx);
     } catch (e) { tilesToWrite.forEach((k) => pgeoNew.add(k)); clearTimeout(pgeoTimer); pgeoTimer = setTimeout(geoFlush, 30000); }
+    finally { geoFlushing = false; if (pgeoNew.size) { clearTimeout(pgeoTimer); pgeoTimer = setTimeout(geoFlush, 3000); } }
   }
   // guarda la forma de lo pintado de unas zonas recién cargadas (y las da por «recogidas»)
   function geoHarvest(keys) {
@@ -1150,29 +1152,30 @@
   // al empezar, pausar, reanudar o terminar, las capturas a medias se cancelan: antes, una empezada antes de la pausa seguía
   // contando su tiempo y al reanudar se conquistaba sin haber estado los 10 s (informe de Codex, 17-nov-2026)
   function cortarCapturas() { dwells = {}; showDwell(); }
-  const canCapture = (lm) => { const r = S().landmarks[lm.id]; return !r || Date.now() - r.last > G.REVISIT_MS; };
+  const canCapture = (lm, t) => { const r = S().landmarks[lm.id]; return !r || (Number.isFinite(t) ? t : Date.now()) - r.last > G.REVISIT_MS; };
   // t: SIEMPRE en el reloj del móvil (onMove convierte la hora del GPS con relojDesfase). Antes se mezclaban los dos relojes:
   // con el móvil atrasado la captura no terminaba nunca; adelantado, era al instante (auditoría v0.9.25, GPS-05).
   // deReloj: la llamada de cada segundo. Una captura abierta con filas recuperadas del diario (horas de hace minutos) se
-  // completa si esas filas cubren los 10 s; si no, el reloj la vuelve a empezar desde ahora (antes se daba por hecha al instante)
+  // completa si esas filas cubren los 10 s; si no, cualquier lectura en directo (reloj o soltarCola) la vuelve a empezar desde ahora
   function checkDwell(p, t, visible, deReloj) {
     if (!session || session.paused) { dwells = {}; showDwell(); return; }
     // los que ya estaban en marcha: ¿sigues cerca?, ¿ha pasado el tiempo?
     for (const [id, dw] of Object.entries(dwells)) {
-      if (deReloj && dw.rec) { dw.rec = false; dw.since = t; }
-      if (PM.geo.dist(p, dw.lm.pos) > (dw.lm.capR || CAPTURE_RADIUS) + (CAPTURE_EXIT - CAPTURE_RADIUS) || !canCapture(dw.lm)) {
-        if (visible && canCapture(dw.lm)) toast(`📸 Te has alejado de ${dw.lm.emoji} ${PM.esc(dw.lm.name)}: captura cancelada`, 'warn', 2500);
+      if ((deReloj || !fixDeDiario) && dw.rec) { dw.rec = false; dw.since = t; }
+      const lmAct = W.landmarks[id] || dw.lm;
+      if (PM.geo.dist(p, lmAct.pos) > (lmAct.capR || CAPTURE_RADIUS) + (CAPTURE_EXIT - CAPTURE_RADIUS) || !canCapture(lmAct, t)) {
+        if (visible && canCapture(lmAct, t)) toast(`📸 Te has alejado de ${lmAct.emoji} ${PM.esc(lmAct.name)}: captura cancelada`, 'warn', 2500);
         delete dwells[id];
       } else if (t - dw.since >= CAPTURE_SECONDS * 1000) {
         delete dwells[id];
-        G.visitLandmark(dw.lm);
+        G.visitLandmark(lmAct, t);
       }
     }
     // los nuevos dentro de su radio de captura (da igual lo cerca que estén unos de otros)
     const nuevos = [];
     for (const id in W.landmarks) {
       const lm = W.landmarks[id];
-      if (dwells[id] || !canCapture(lm) || PM.geo.dist(p, lm.pos) > (lm.capR || CAPTURE_RADIUS)) continue;
+      if (dwells[id] || !canCapture(lm, t) || PM.geo.dist(p, lm.pos) > (lm.capR || CAPTURE_RADIUS)) continue;
       dwells[id] = { lm, since: t, rec: fixDeDiario }; nuevos.push(lm);
     }
     if (nuevos.length && visible) {
@@ -1356,6 +1359,7 @@
   const angDiff = (a, b) => ((b - a + 540) % 360) - 180;
   function setHeadingTarget(h) { headingTarget = (h + 360) % 360; wakeLoop(); }
   function onCompass(e) {
+    if (orient !== 'heading' || document.hidden) return;
     let h = null;
     if (e.webkitCompassHeading != null) h = e.webkitCompassHeading;
     else if (e.absolute && e.alpha != null) h = (360 - e.alpha) % 360;
@@ -1790,10 +1794,10 @@
       // (hasta 2 min: si se soltaran antes, el hueco se rellenaba por el camino más corto con lo de en directo y lo apuntado con la
       // app cerrada ya no podía entrar —llega con horas anteriores— —auditoría v0.9.27, REV-01—. Y se vuelve a pedir a los 36 s y
       // a los 92 s, por si la primera petición se perdió)
-      const espera = (ms) => new Promise((ok) => setTimeout(() => ok(null), ms)), pide = [P.diarioGps({ desde })];
+      const espera = (ms) => new Promise((ok) => setTimeout(() => ok(null), ms)), pide = [P.diarioGps({ desde }).catch(() => null)];
       let r = await Promise.race([...pide, espera(8000)]);
       for (let i = 0; !r && i < 4 && session === ses && tramo === tramoGps; i++) {
-        if (i === 1 || i === 3) pide.push(P.diarioGps({ desde }));
+        if (i === 1 || i === 3) pide.push(P.diarioGps({ desde }).catch(() => null));
         r = await Promise.race([...pide, espera(28000)]);
       }
       if (session !== ses || tramo !== tramoGps || !gpsWanted()) return 0;
@@ -1861,9 +1865,9 @@
     if (e.preciso === false) { msg = PM.t('PintaMapa tiene la ubicación aproximada: así no puede pintar calles. Activa «Usar ubicación precisa».'); app = true; }
     else if (e.ubicacion === false) msg = PM.t('La ubicación del móvil está apagada: enciéndela para seguir pintando.');
     // (sin afirmar que el chip esté roto: puede que estés bajo techo. Y si ya lo reinició sin éxito, se dice —UX-02—)
-    else if (e.paso >= 4 && e.sinGps >= 90) msg = e.reinicios > 0 && e.puedeReiniciar
-      ? PM.t('Sin GPS: ya he reiniciado la ubicación {n} veces. Si estás al aire libre y sigue igual, apágala y enciéndela tú.', { n: e.reinicios })
-      : PM.t('Sin GPS desde hace un rato: si estás al aire libre, apaga y enciende la ubicación.');
+    else if (e.paso >= 4 && e.sinGps >= 90) { const nr = e.epReinicios != null ? e.epReinicios : e.reinicios; msg = nr > 0 && e.puedeReiniciar
+      ? PM.t('Sin GPS: ya he reiniciado la ubicación {n} veces. Si estás al aire libre y sigue igual, apágala y enciéndela tú.', { n: nr })
+      : PM.t('Sin GPS desde hace un rato: si estás al aire libre, apaga y enciende la ubicación.'); }
     if (!msg) return;
     motorAvisoT = Date.now();
     avisoDiario(e.preciso === false ? 'motor:aproximada' : e.ubicacion === false ? 'motor:apagada' : 'motor:atascado ' + e.sinGps + 's');
@@ -2100,18 +2104,17 @@
   // ⏸ como ⏹: antes de cortar, lo que el GPS apuntó con la app congelada. Antes, si sacabas el móvil del bolsillo y pausabas
   // enseguida, la pausa cortaba el tramo y la recuperación en marcha se tiraba: se perdía todo lo andado en el bolsillo, y al
   // reanudar ya no se pedía (auditoría v0.9.25, GPS-01). Mientras espera, el botón queda en «⏳» (dos toques, una pausa)
-  let pausando = false;
+  let pausando = false, terminando = false;
   function pausarConDiario() {
-    if (pausando || !session || session.paused) return;
+    if (pausando || terminando || !session || session.paused) return;
     pausando = true;
     const b = $('#s-pause'); if (b) { b.disabled = true; b.textContent = '⏳'; }
     avisoEsperaDiario();
-    recuperarDiarioGps().catch(() => 0).then(() => { pausando = false; pauseSession(); });
+    recuperarDiarioGps().catch(() => 0).then(() => { pausando = false; if (!terminando && session && !session.paused) pauseSession(); });
   }
   // (si ⏸ o ⏹ tienen que esperar al diario —hasta 2 min con el móvil ocupado—, se dice; antes ⏹ no hacía nada visible y se volvía
   // a tocar —auditoría v0.9.29, UX-01—)
   function avisoEsperaDiario() { if (recuperando || recPromesa) toast('⏳ ' + PM.t('Recuperando las posiciones del bolsillo…'), 'info', 4000); }
-  let terminando = false;
   function terminarConDiario() {
     if (terminando || !session) return;
     if (!confirm('¿Finalizar el paseo? Se apagará el GPS.')) return;
@@ -2216,8 +2219,13 @@
         const miss = [...ks].filter((k) => !(W.tiles[k] && W.tiles[k].loaded));
         if (miss.length) { try { await W.ensureKeys(miss); } catch (e) { /* sin red: lo que haya */ } }
         if (session || document.hidden || !(S().walks || []).includes(w)) { delete repTry[w.id]; return; }   // (empezó un paseo, se guardó el móvil o cambió la partida: en otro momento)
-        const r = repintarRecorrido(tr, i, j);
-        let u = [0, 0]; try { enRepaso = true; u = repasarPaseo({ track: tr.slice(i - 1, j) }); } finally { enRepaso = false; }
+        const otroDia = new Date(w.start).toDateString() !== new Date().toDateString();
+        const correrRep = () => {
+          const r = repintarRecorrido(tr, i, j);
+          let u = [0, 0]; try { enRepaso = true; u = repasarPaseo({ track: tr.slice(i - 1, j) }); } finally { enRepaso = false; }
+          return [r, u];
+        };
+        const [r, u] = otroDia && G.enCalma ? G.enCalma(correrRep) : correrRep();
         m += r.m + u[1]; falta += r.falta; unidos += u[0];
         i = j;
       }
@@ -2237,78 +2245,87 @@
   // las lecturas flojas— se rehace el recorrido: entran las posiciones que faltaban, los huecos andados sin satélites dejan de
   // ser cortes y el repaso pendiente lo pinta todo por las calles. Al terminar cada paseo y, una vez, con el último al abrir la
   // app (el diario dura hasta que empiezas el siguiente). Lo pidió el usuario el 22-nov-2026 tras perder 1,4 km sin satélites
+  const forenseEnCurso = new Set();
   async function revisarForense(w, filas) {
-    if (!w || !Array.isArray(w.track) || w.imported || !PM.forense) return null;
-    if (!filas) {
-      const P = isNative && nativePlugin('PmSystem');
-      if (!P || !P.diarioGps) return null;   // (sin diario —web, APK antigua—: nada que añadir)
-      let r = null; try { r = await Promise.race([P.diarioGps({ desde: w.start - 1 }), new Promise((ok) => setTimeout(() => ok(null), 30000))]); } catch (e) { r = null; }
-      if (!r) return null;   // (no contestó: se intentará en otro momento)
-      filas = PM.filasDiarioGps(r.datos, w.start - 1);
-      // (diario vacío y el paseo tiene cortes: puede que se vaciara antes de tiempo o que aún no esté escrito. No se da por revisado
-      // —se volvería a mirar nunca—: hasta 3 intentos —auditoría v0.9.29, FOR-03—)
-      if (!filas.length && w.track.includes(null) && (w.forenseIntentos = (w.forenseIntentos || 0) + 1) < 3) { PM.state.save(); return null; }
-    }
-    if (session && String(session.start) === w.id) return null;   // (no debería: el paseo aún en marcha)
-    const { track, informe } = PM.forense.reconstruir({ filas, track: w.track, start: w.start, pausas: w.pausas, maxSpeed: MAX_SPEED, dist: (a, b) => PM.geo.dist(a, b) });
-    // cada hueco andado sin satélites: el camino por las calles que mejor encaja con lo que apuntó el GPS (rutaDeHueco), metido en
-    // el recorrido con sus horas. Las calles de esos huecos se cargan antes (pueden estar lejos de donde abres la app)
-    let extra = 0, estimado = 0;
-    const huecos = informe.huecos;
-    if (huecos.length) {
-      const ks = new Set(); for (const h of huecos) zonasDe([h.a, ...h.guias.filter((g) => g[2] <= 300).map((g) => [g[0], g[1]]), h.b]).forEach((k) => ks.add(k));
-      const miss = [...ks].filter((k) => !(W.tiles[k] && W.tiles[k].loaded));
-      if (miss.length && miss.length <= 60) { try { await W.ensureKeys(miss); } catch (e) { /* sin red: con lo que haya; el repaso pendiente lo intentará luego */ } }
-      for (const h of huecos) {
-        const m = rutaDeHueco(h);
-        h.ruta = m ? m.nombre : 'ninguna'; h.encaje = m ? +m.enc.toFixed(2) : null;
-        if (!m) continue;
-        meterRuta(track, w.start, h, m.r);
-        extra += m.r.len - h.m; estimado += m.r.len;
+    if (!w || !Array.isArray(w.track) || w.imported || !PM.forense || forenseEnCurso.has(w.id)) return null;
+    forenseEnCurso.add(w.id);
+    try {
+      if (!filas) {
+        const P = isNative && nativePlugin('PmSystem');
+        if (!P || !P.diarioGps) return null;   // (sin diario —web, APK antigua—: nada que añadir)
+        let r = null; try { r = await Promise.race([P.diarioGps({ desde: w.start - 1 }), new Promise((ok) => setTimeout(() => ok(null), 30000))]); } catch (e) { r = null; }
+        if (!r || !(S().walks || []).includes(w)) return null;   // (no contestó o cambió la partida: se intentará en otro momento)
+        filas = PM.filasDiarioGps(r.datos, w.start - 1);
+        // (diario vacío y el paseo tiene cortes: puede que se vaciara antes de tiempo o que aún no esté escrito. No se da por revisado
+        // —se volvería a mirar nunca—: hasta 3 intentos —auditoría v0.9.29, FOR-03—)
+        if (!filas.length && w.track.includes(null) && (w.forenseIntentos = (w.forenseIntentos || 0) + 1) < 3) { PM.state.save(); return null; }
       }
-    }
-    // lo que hizo el motor de reconexión del GPS (APK con PmMotorGps): cuántas veces se atascó el GPS, si lo reinició o avisó, y la
-    // causa de cada hueco
-    let mot = null;
-    const PS = isNative && nativePlugin('PmSystem');
-    if (PS && PS.eventosGps && PM.forense.motor) {
-      try {
-        const r = await Promise.race([PS.eventosGps({ desde: w.start - 1 }), new Promise((ok) => setTimeout(() => ok(null), 15000))]);
-        if (r) mot = PM.forense.motor(r.datos, w.start, huecos);
-      } catch (e) { mot = null; }
-    }
-    // la evaluación del paseo: qué parte del tiempo hubo buena señal (posiciones precisas a menos de 1 min unas de otras)
-    let bien = 0, total = 0, prevQ = null;
-    for (const q of track) { if (!q) { prevQ = null; continue; } if (prevQ) { const dt = q[2] - prevQ[2]; total += dt; if (dt <= 60) bien += dt; } prevQ = q; }
-    const metros = Math.max(0, Math.round(informe.metros + extra));
-    w.forense = { t: Date.now(), recuperadas: informe.recuperadas, rebotes: informe.rebotes, pausas: informe.pausas, vehiculo: informe.vehiculo, parado: informe.parado, sinDatos: informe.sinDatos,
-      metros, estimado: Math.round(estimado), senal: total ? Math.round(100 * bien / total) : 100,
-      huecos: huecos.map((h) => ({ desde: h.desde, hasta: h.hasta, m: h.m, tipo: h.tipo, ruta: h.ruta, encaje: h.encaje, causa: h.causa || null })) };
-    if (mot) w.forense.motor = mot;
-    const cambia = informe.recuperadas > 0 || informe.rebotes > 0 || huecos.length > 0 || metros > 0;
-    // (qué hizo el motor con el GPS atascado, también si no hubo nada que repintar)
-    const reini = mot ? mot.reinicios + mot.pausasGps : 0;   // (apagar y encender la ubicación, o soltar el GPS 4 s)
-    const motTxt = !mot ? ''
-      : reini ? (reini === 1 ? PM.t('el GPS se atascó y lo reinicié') : PM.t('el GPS se atascó y lo reinicié {n} veces', { n: reini }))
-      : mot.avisos ? PM.t('el GPS se atascó (te avisé para apagar y encender la ubicación)') : '';
-    if (cambia) {
-      w.track = track; w.rev = 0;   // (el repaso pendiente lo repinta entero, con sus calles cargadas, a trozos)
-      // (si la revisión llega otro día —al abrir la app días después—, los metros van al total, no a las misiones ni a la racha de
-      // hoy —auditoría v0.9.29, FOR-04—)
-      if (metros > 0) {
-        w.st = w.st || {}; w.st.walked = (w.st.walked || 0) + metros;
-        if (new Date(w.start).toDateString() === new Date().toDateString()) G.addWalk(metros); else S().stats.walkedM += metros;
+      if (session && String(session.start) === w.id) return null;   // (no debería: el paseo aún en marcha)
+      const wEnd = w.end || (w.start + Math.max(w.elapsed || 0, 60000));
+      const { track, informe } = PM.forense.reconstruir({ filas, track: w.track, start: w.start, end: wEnd, pausas: w.pausas, maxSpeed: MAX_SPEED, dist: (a, b) => PM.geo.dist(a, b) });
+      // cada hueco andado sin satélites: el camino por las calles que mejor encaja con lo que apuntó el GPS (rutaDeHueco), metido en
+      // el recorrido con sus horas. Las calles de esos huecos se cargan antes (pueden estar lejos de donde abres la app)
+      let extra = 0, estimado = 0, sinRedHuecos = false;
+      const huecos = informe.huecos;
+      if (huecos.length) {
+        const ks = new Set(); for (const h of huecos) zonasDe([h.a, ...h.guias.filter((g) => g[2] <= 300).map((g) => [g[0], g[1]]), h.b]).forEach((k) => ks.add(k));
+        const miss = [...ks].filter((k) => !(W.tiles[k] && W.tiles[k].loaded));
+        if (miss.length && miss.length <= 60) { try { await W.ensureKeys(miss); } catch (e) { /* sin red: con lo que haya; el repaso pendiente lo intentará luego */ } }
+        if (!(S().walks || []).includes(w)) return null;
+        if (miss.length && miss.every((k) => !(W.tiles[k] && W.tiles[k].loaded))) sinRedHuecos = true;
+        for (const h of huecos) {
+          const m = rutaDeHueco(h);
+          h.ruta = m ? m.nombre : 'ninguna'; h.encaje = m ? +m.enc.toFixed(2) : null;
+          if (!m) continue;
+          meterRuta(track, w.start, h, m.r);
+          extra += m.r.len - h.m; estimado += m.r.len;
+        }
       }
-      const partes = [];
-      if (informe.recuperadas) partes.push(PM.t('{n} posiciones del GPS que no habían llegado', { n: informe.recuperadas }));
-      if (estimado) partes.push(PM.t('{d} sin satélites reconstruidos por las calles', { d: PM.fmtDist(estimado) }));
-      if (informe.rebotes) partes.push(PM.t('{n} rebotes quitados', { n: informe.rebotes }));
-      if (motTxt) partes.push(motTxt);
-      toast('🔎 ' + PM.t('Revisión del paseo') + ': ' + (partes.join(' · ') || PM.t('recorrido completado')) + '. ' + PM.t('Pintando lo que faltaba…'), 'ok', 8000);
-    } else if (motTxt) toast('🔎 ' + PM.t('Revisión del paseo') + ': ' + motTxt + '.', 'info', 6000);
-    PM.state.save();
-    if (cambia) setTimeout(repasoPendiente, 1500);
-    return w.forense;
+      if (sinRedHuecos && estimado === 0 && (w.forenseRedIntentos = (w.forenseRedIntentos || 0) + 1) < 3) { PM.state.save(); return null; }
+      // lo que hizo el motor de reconexión del GPS (APK con PmMotorGps): cuántas veces se atascó el GPS, si lo reinició o avisó, y la
+      // causa de cada hueco (acotado al fin real de ESTE paseo para no mezclar eventos del siguiente)
+      let mot = null;
+      const PS = isNative && nativePlugin('PmSystem');
+      if (PS && PS.eventosGps && PM.forense.motor) {
+        try {
+          const r = await Promise.race([PS.eventosGps({ desde: w.start - 1 }), new Promise((ok) => setTimeout(() => ok(null), 15000))]);
+          if (r) mot = PM.forense.motor(r.datos, w.start, huecos, wEnd);
+        } catch (e) { mot = null; }
+      }
+      if (!(S().walks || []).includes(w)) return null;
+      // la evaluación del paseo: qué parte del tiempo hubo buena señal (posiciones precisas a menos de 1 min unas de otras)
+      let bien = 0, total = 0, prevQ = null;
+      for (const q of track) { if (!q) { prevQ = null; continue; } if (prevQ) { const dt = q[2] - prevQ[2]; total += dt; if (dt <= 60) bien += dt; } prevQ = q; }
+      const metros = Math.max(0, Math.round(informe.metros + extra));
+      w.forense = { t: Date.now(), recuperadas: informe.recuperadas, rebotes: informe.rebotes, pausas: informe.pausas, vehiculo: informe.vehiculo, parado: informe.parado, sinDatos: informe.sinDatos,
+        metros, estimado: Math.round(estimado), senal: total ? Math.round(100 * bien / total) : 100,
+        huecos: huecos.map((h) => ({ desde: h.desde, hasta: h.hasta, m: h.m, tipo: h.tipo, ruta: h.ruta, encaje: h.encaje, causa: h.causa || null })) };
+      if (mot) w.forense.motor = mot;
+      const cambia = informe.recuperadas > 0 || informe.rebotes > 0 || huecos.length > 0 || metros > 0;
+      // (qué hizo el motor con el GPS atascado, también si no hubo nada que repintar)
+      const reini = mot ? mot.reinicios + mot.pausasGps : 0;   // (apagar y encender la ubicación, o soltar el GPS 4 s)
+      const motTxt = !mot ? ''
+        : reini ? (reini === 1 ? PM.t('el GPS se atascó y lo reinicié') : PM.t('el GPS se atascó y lo reinicié {n} veces', { n: reini }))
+        : mot.avisos ? PM.t('el GPS se atascó (te avisé para apagar y encender la ubicación)') : '';
+      if (cambia) {
+        w.track = track; w.rev = 0;   // (el repaso pendiente lo repinta entero, con sus calles cargadas, a trozos)
+        // (si la revisión llega otro día —al abrir la app días después—, los metros van al total, no a las misiones ni a la racha de
+        // hoy —auditoría v0.9.29, FOR-04—)
+        if (metros > 0) {
+          w.st = w.st || {}; w.st.walked = (w.st.walked || 0) + metros;
+          if (new Date(w.start).toDateString() === new Date().toDateString()) G.addWalk(metros); else S().stats.walkedM += metros;
+        }
+        const partes = [];
+        if (informe.recuperadas) partes.push(PM.t('{n} posiciones del GPS que no habían llegado', { n: informe.recuperadas }));
+        if (estimado) partes.push(PM.t('{d} sin satélites reconstruidos por las calles', { d: PM.fmtDist(estimado) }));
+        if (informe.rebotes) partes.push(PM.t('{n} rebotes quitados', { n: informe.rebotes }));
+        if (motTxt) partes.push(motTxt);
+        toast('🔎 ' + PM.t('Revisión del paseo') + ': ' + (partes.join(' · ') || PM.t('recorrido completado')) + '. ' + PM.t('Pintando lo que faltaba…'), 'ok', 8000);
+      } else if (motTxt) toast('🔎 ' + PM.t('Revisión del paseo') + ': ' + motTxt + '.', 'info', 6000);
+      PM.state.save();
+      if (cambia) setTimeout(repasoPendiente, 1500);
+      return w.forense;
+    } finally { forenseEnCurso.delete(w.id); }
   }
   // El mejor camino por las calles para un hueco andado sin satélites. Se prueban varios —el directo y los que pasan por las
   // lecturas flojas, suavizadas (la mediana de cada minuto)— y se elige el que mejor encaja: lo lejos que queda de cada lectura
@@ -3053,9 +3070,12 @@
 
   // ---------------- Paneles ----------------
   function openSheet(title, html) {
+    const sh = $('#sheet'), body = $('#sheet .body');
+    sh.classList.remove('en-ciudad');
     $('#sheet h3').textContent = title;
-    $('#sheet .body').innerHTML = html;
-    $('#sheet').classList.add('show');
+    body.innerHTML = html;
+    body.scrollTop = 0;
+    sh.classList.add('show');
   }
   $('#sheet .close').addEventListener('click', () => $('#sheet').classList.remove('show'));
 
@@ -3078,6 +3098,8 @@
     // (y las capas que se crean y se quitan: «¡Nuevo álbum!», la fiesta de nivel o de rango y el sobre de cartas —auditoría
     // v0.9.27, REV-03—)
     poner(document.querySelector('#ab-nuevo #ab-luego'), (el) => el.click(), true);
+    poner(document.querySelector('#foto-editor #fe-cancel'), (el) => el.click(), true);
+    poner(document.querySelector('#bv .bv-salta'), (el) => el.click(), true);
     poner(document.querySelector('#fiesta .fz-go'), (el) => el.click(), true);
     poner(document.querySelector('#sobre .sb-saltar'), (el) => el.click(), true);
     // (el ✕ del aviso «PintaMapa x.y lista · Actualizar» no: Atrás no debe descartar el aviso de actualización)
@@ -3104,7 +3126,9 @@
   function panelAlbum(ciudad) {
     openSheet('📖 Mis álbumes', '<div id="album-box"></div>');
     // (pos: tu posición, para «📍 Cerca de ti» —lo que te falta, del más cercano al más lejano—; sin GPS ni posición, no sale)
-    PM.cards.album($('#album-box'), { goTo: goToPlace, ciudad: typeof ciudad === 'string' ? ciudad : null, pos: () => (pos && (mode === 'sim' || lastFixT) ? pos : null) });
+    const aqui = () => (pos && (mode === 'sim' || lastFixT) ? W.cityAt(pos) : null);
+    PM.cards.album($('#album-box'), { goTo: goToPlace, ciudad: typeof ciudad === 'string' ? ciudad : null,
+      pos: () => (pos && (mode === 'sim' || lastFixT) ? pos : null), ciudadActual: aqui, cerrar: () => $('#sheet').classList.remove('show') });
   }
   // El álbum de una ciudad aparece la primera vez que la pisas. Las ciudades donde ya habías estado lo tienen desde el principio, sin aviso.
   function albumPisado(t) {
@@ -3123,7 +3147,7 @@
   }
   // centra el mapa en un lugar y abre su carta (o su ficha si aún no es tuyo)
   function goToPlace(id) {
-    if (id && id.pos) {   // hueco del álbum: se va allí, aunque ese lugar aún no esté cargado
+    if (id && Array.isArray(id.pos) && id.pos.length >= 2) {   // hueco del álbum: se va allí, aunque ese lugar aún no esté cargado
       $('#sheet').classList.remove('show');
       follow = false; zoomAround(); $('#btn-center').classList.add('show'); clearTimeout(recenterTimer); recenterTimer = setTimeout(recenter, 25000);
       map.easeTo({ center: ll(id.pos), zoom: Math.max(16.2, map.getZoom()), duration: 900 });

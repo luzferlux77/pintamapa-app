@@ -654,6 +654,7 @@ input.sw:checked { background: var(--accent, #2563eb); } input.sw:checked::after
 #btn-orient.on .aguja .n { fill: #fff; }
 #btn-places .tacha { display: none; } #btn-places.off .tacha { display: block; }
 #badges { top: calc(102px + var(--safe-top)); right: 168px; min-height: 44px; }
+body:has(#gps.show):has(#btn-medalla.show) #badges { right: 220px; }
 
 /* ===== v0.9: más legible y más fácil de tocar (mínimo ~13 px en los paneles; botones de al menos 40 px) ===== */
 .mission small, .stats small, .pf-rec small, .pf-week small, .pf-who small, .pinfo small, .bh-ev small, .av-del { font-size: 13px; }
@@ -696,3 +697,24 @@ body:has(#gps.show) #btn-medalla { right: 168px; }
 #btn-medalla.rk-1 { --rk: #9aa3b5; }
 #btn-medalla.rk0 { --rk: #cd7f32; } #btn-medalla.rk1 { --rk: #a8b0bd; } #btn-medalla.rk2 { --rk: #eab308; } #btn-medalla.rk3 { --rk: #a855f7; }
 #btn-medalla.rk0, #btn-medalla.rk1, #btn-medalla.rk2, #btn-medalla.rk3 { background: radial-gradient(circle at 35% 30%, #fff, var(--sheet) 70%); }
+
+/* ===== v0.9.32: colecciones clicables con contraste AA y barrios en progreso ===== */
+.col-card summary { list-style: none; cursor: pointer; }
+.col-card summary::-webkit-details-marker { display: none; }
+.col-card.done { opacity: 1; border-color: #ca8a04; }
+.col-card .col-tier { font-weight: 800; }
+.col-card .col-tier.tr-bronce { color: #b45309; }
+.col-card .col-tier.tr-plata { color: #475569; }
+.col-card .col-tier.tr-oro { color: #a16207; }
+@media (prefers-color-scheme: dark) {
+  .col-card .col-tier.tr-bronce { color: #f59e0b; }
+  .col-card .col-tier.tr-plata { color: #cbd5e1; }
+  .col-card .col-tier.tr-oro { color: #facc15; }
+}
+.col-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--line); }
+.col-item { display: inline-flex; align-items: center; gap: 5px; max-width: 100%; padding: 5px 10px; border: 1px solid var(--line); border-radius: 99px; background: var(--sheet); color: var(--text); font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
+.col-item b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ab-sec-h { margin: 14px 2px 8px; font-size: 13.5px; font-weight: 800; color: var(--muted); }
+.ab-sec-h:first-of-type { margin-top: 4px; }
+.bar-prog { width: 100%; text-align: left; font: inherit; cursor: pointer; }
+.bar-prog .mt span:last-child { color: var(--accent); font-variant-numeric: tabular-nums; }
