@@ -1,10 +1,10 @@
 {
-  "version": "0.9.31",
-  "notes": "Álbumes rediseñados: cada ciudad en una sola página, con buscador y filtros (Me faltan, Tengo, Imprescindibles, Cerca de ti y por rareza), saltos a cada distrito y cromos del mismo tamaño: los tuyos con su foto y los que faltan con su número. El botón Atrás vuelve a la lista de ciudades.",
+  "version": "0.9.32",
+  "notes": "Álbumes reorganizados sin scroll tedioso (activas ordenadas por progreso, recién pisadas plegadas, una sola barra fija, acordeones por distrito/barrio, fichas compactas para pendientes, rareza visible en conquistados, colecciones clicables y barrios en progreso) y parches críticos de GPS nativo, forense, sincronización, HUD e iconos SVG",
   "native": 1,
   "nativeApk": 13,
   "apkMin": "0.9.30",
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.9.31/pintamapa-web-0.9.31.zip",
-  "checksum": "9940247402f6164e15a1edfe8a5c63f9707918df7eb888f5acdb6cf2a20575bf",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.9.31/PintaMapa-v0.9.31.apk"
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.9.32/pintamapa-web-0.9.32.zip",
+  "checksum": "8b4ade86727dccafb1f05358c5ac788287a1aa9755ab59d15e0129ea60737484",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.9.32/PintaMapa-v0.9.32.apk"
 }
