@@ -1,10 +1,10 @@
 {
-  "version": "0.9.32",
-  "notes": "Álbumes reorganizados sin scroll tedioso (activas ordenadas por progreso, recién pisadas plegadas, una sola barra fija, acordeones por distrito/barrio, fichas compactas para pendientes, rareza visible en conquistados, colecciones clicables y barrios en progreso) y parches críticos de GPS nativo, forense, sincronización, HUD e iconos SVG",
+  "version": "0.9.33",
+  "notes": "Corrección crítica de detección de barrios (Overpass ya no sobrescribe los nodos de barrio OpenFreeMap en caché, quarter y neighbourhood compiten por distancia real —la Gavarra y Almeda en Cornellà—, actualización inmediata del HUD y orden exacto por cartas en álbumes)",
   "native": 1,
   "nativeApk": 13,
   "apkMin": "0.9.30",
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.9.32/pintamapa-web-0.9.32.zip",
-  "checksum": "8b4ade86727dccafb1f05358c5ac788287a1aa9755ab59d15e0129ea60737484",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.9.32/PintaMapa-v0.9.32.apk"
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.9.33/pintamapa-web-0.9.33.zip",
+  "checksum": "c7ad1cab511b55620f835b93344d9bbfbb4d9c3dd8d8da4d5fed55ac8e533353",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.9.33/PintaMapa-v0.9.33.apk"
 }
