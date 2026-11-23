@@ -733,7 +733,7 @@ PM.world = (function () {
   // ---------------- Caché local de barrios (IndexedDB) ----------------
   // Cada barrio se descarga una vez y se guarda 90 días: menos datos móviles, menos batería y arranque instantáneo.
   const CACHE_DAYS = 90;
-  const CACHE_V = 24;   // 24: nombres de barrio solo de la fuente de los lugares (y todos los móviles con las zonas del mismo día, 21-nov-2026); 23: los lugares del mapa solo de la fuente de los lugares (antes, de la que contestara antes); 22: las zonas guardadas por la versión previa, sin las preparadas; 21: guías, enlaces, tamaño de los sitios grandes y clases nuevas (y las zonas preparadas); 20: clases corregidas, calles famosas, protección nacional de todo el mundo y nombres en mayúscula; 19: año también de la inauguración (P1619: estaciones antiguas como la de Cornellà); 18: clases por orden fijo (lo que el edificio ES), catedrales católicas/anglicanas/ortodoxas, sin conjuntos ni esculturas de museo; 17: visitantes al año y atracción turística (puntuación de guía); 16: uso de cada edificio (hotel, escuela…) para la puntuación; 15: templos budistas y sintoístas, rascacielos, sin barrios ni cuadros de museo; 14: nivel de patrimonio, zoos, acuarios, puertas de muralla (puntuación igual para todos); 13: estaciones de tren históricas de Wikidata (antes se perdían); 12: lugares solo de mapas vectoriales + Wikidata   // súbelo si cambia lo que se descarga (p. ej. nuevos tipos de puntos): fuerza a renovar la caché
+  const CACHE_V = 25;   // 25: extrasDeZona ya no machaca los nodos de barrio (src:'vt') en caché con los de Overpass sin src; 24: nombres de barrio solo de la fuente de los lugares (y todos los móviles con las zonas del mismo día, 21-nov-2026); 23: los lugares del mapa solo de la fuente de los lugares (antes, de la que contestara antes); 22: las zonas guardadas por la versión previa, sin las preparadas; 21: guías, enlaces, tamaño de los sitios grandes y clases nuevas (y las zonas preparadas); 20: clases corregidas, calles famosas, protección nacional de todo el mundo y nombres en mayúscula; 19: año también de la inauguración (P1619: estaciones antiguas como la de Cornellà); 18: clases por orden fijo (lo que el edificio ES), catedrales católicas/anglicanas/ortodoxas, sin conjuntos ni esculturas de museo; 17: visitantes al año y atracción turística (puntuación de guía); 16: uso de cada edificio (hotel, escuela…) para la puntuación; 15: templos budistas y sintoístas, rascacielos, sin barrios ni cuadros de museo; 14: nivel de patrimonio, zoos, acuarios, puertas de muralla (puntuación igual para todos); 13: estaciones de tren históricas de Wikidata (antes se perdían); 12: lugares solo de mapas vectoriales + Wikidata   // súbelo si cambia lo que se descarga (p. ej. nuevos tipos de puntos): fuerza a renovar la caché
   const cache = (function () {
     let dbp = null;
     function db() {
@@ -1036,16 +1036,17 @@ PM.world = (function () {
       if (r.lvl === 10) poly10 = r; else if (r.lvl === 9) poly9 = r;
     }
     if (poly10) return { id: 'r' + poly10.id, name: poly10.name, kind: 'poly', rel: poly10 };
-    // punto de barrio más cercano (del nivel más fino que haya cerca), dentro del distrito si se conoce
-    let best = null, bd = 1500, lvl = 0;
-    const near = [];
+    // punto de barrio más cercano (quarter y neighbourhood compiten por distancia real —en Cornellà Almeda es quarter y la Gavarra
+    // es neighbourhood—; suburb solo si no hay un barrio más fino dentro de 1,5 km), dentro del distrito si se conoce
+    let best = null, bd = 1500, bestSub = null, bdSub = 1500;
     for (const n of Object.values(barrioNodes)) {
       const d = PM.geo.dist(p, n.pos);
       if (d > 1500) continue;
       if (poly9 && !pip(n.pos, poly9.segs)) continue;
-      near.push([n, d]); if (n.lvl > lvl) lvl = n.lvl;
+      if (n.lvl >= 2) { if (d < bd) { bd = d; best = n; } }
+      else if (d < bdSub) { bdSub = d; bestSub = n; }
     }
-    for (const [n, d] of near) if (n.lvl === lvl && d < bd) { bd = d; best = n; }
+    if (!best && bestSub) best = bestSub;
     if (best) return { id: 'n' + best.id, name: best.name, kind: 'node', node: best };
     if (poly9) return { id: 'r' + poly9.id, name: poly9.name, kind: 'poly', rel: poly9 };
     const k = tileKeyOf(p[0], p[1]);
@@ -1134,8 +1135,6 @@ PM.world = (function () {
         nwr["heritage"]["name"]["highway"!~"."](${bb});
       );
       out center tags;
-      node["place"~"^(suburb|quarter|neighbourhood)$"]["name"](${bb});
-      out;
       rel["boundary"="administrative"]["admin_level"~"^(9|10)$"](${bb});
       out tags bb;`;
   const bboxOf = (keys) => {
@@ -1240,7 +1239,8 @@ PM.world = (function () {
       try {
         const [[s, w], [n, e]] = tileBounds(k);
         const d = await overpass(QUERY([s, w, n, e].map((v) => v.toFixed(5)).join(',')), 45000);
-        const add = d.elements.map(slim).filter((el) => tilesOf(el).has(k));
+        // (nunca sobrescribir nodos place de OpenFreeMap —src:'vt'— con nodos sin src de Overpass: al recargar caché desaparecían los barrios)
+        const add = d.elements.map(slim).filter((el) => !(el.type === 'node' && el.tags && NODE_LVL[el.tags.place]) && tilesOf(el).has(k));
         const cur = await cache.get(k);
         if (cur) { const llave = (el) => el.type + el.id, nuevos = new Set(add.map(llave)); cache.put(k, Object.assign({}, cur, { els: cur.els.filter((el) => !nuevos.has(llave(el))).concat(add), extrasMiss: false })); }
         if (add.length && tiles[k] && (tiles[k].loaded || tiles[k].partial)) { ingest(add, new Set([k])); emit('loaded', { tiles: [k] }); }

@@ -174,6 +174,17 @@ PM.album = (function () {
           el.querySelector('.ab-fc').innerHTML = `${PM.fmtNum(E.got)}<small>/${PM.fmtNum(E.total)}</small>`;
           el.querySelector('.ab-bar em').style.width = (E.total ? Math.min(100, E.got / E.total * 100) : 0) + '%';
           el.querySelector('.ab-fs').textContent = `${pctDe(E.got, E.total)} %` + (mn ? ` · ★ ${mg}/${mn}` : '') + (E.got >= E.total && E.total ? ' · 🏅' : '');
+          el.dataset.got = String(E.got);
+          // Reordenar filas activas por cartas reales del álbum (no totales con extras) si estamos en modo «Más cartas» y sin cabeceras de país
+          if (ordenAntes === 'cartas' && paises.size <= 1 && !el.closest('.ab-cero')) {
+            const act = [...box.querySelectorAll(':scope > .ab-fila')];
+            const gotOf = (x) => (x.dataset.got != null ? +x.dataset.got : (mias[x.dataset.c] || 0));
+            const ord = act.slice().sort((a, b) => ((b.dataset.c === aqui) - (a.dataset.c === aqui))
+              || (gotOf(b) - gotOf(a))
+              || a.dataset.c.localeCompare(b.dataset.c, PM.LOCALE || 'es', { sensitivity: 'base' }));
+            const ancla = box.querySelector('.ab-cero');
+            for (const f of ord) box.insertBefore(f, ancla);
+          }
         }
       };
       for (let k = 0; k < Math.min(4, filas.length); k++) worker();

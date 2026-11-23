@@ -3036,7 +3036,7 @@
 
   let fixT = null;
   W.onChange((ev, d) => {
-    if (ev === 'barrios') { hudB.dirty = true; renderBarrios(); return; }
+    if (ev === 'barrios') { hudB.dirty = true; renderBarrios(); wakeLoop(); return; }
     if (ev === 'migrated') { paintedDirty = true; return; }
     if (ev === 'unloaded') {   // zonas lejanas quitadas de la memoria: sus calles grises dejan de dibujarse (lo pintado sigue)
       for (const k of [...rendered]) { const t = W.tiles[k]; if (!t || !(t.loaded || t.partial)) { rendered.delete(k); delete tileFeat[k]; } }
