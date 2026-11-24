@@ -1,10 +1,10 @@
 {
-  "version": "0.9.33",
-  "notes": "Corrección crítica de detección de barrios (Overpass ya no sobrescribe los nodos de barrio OpenFreeMap en caché, quarter y neighbourhood compiten por distancia real —la Gavarra y Almeda en Cornellà—, actualización inmediata del HUD y orden exacto por cartas en álbumes)",
+  "version": "0.9.34",
+  "notes": "Barrios y cromos corregidos (Sant Ildefons, Fontsanta-Fatjó, aislamiento municipal y portada de Cornellà) + auditoría forense profunda (GPS, huecos de vehículo, álbumes, teselas y depuración)",
   "native": 1,
   "nativeApk": 13,
   "apkMin": "0.9.30",
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.9.33/pintamapa-web-0.9.33.zip",
-  "checksum": "c7ad1cab511b55620f835b93344d9bbfbb4d9c3dd8d8da4d5fed55ac8e533353",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.9.33/PintaMapa-v0.9.33.apk"
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.9.34/pintamapa-web-0.9.34.zip",
+  "checksum": "ca1e893e4c92f62339870088965cc8c1f434bf58913a28e82c73fe2b4eb61284",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.9.34/PintaMapa-v0.9.34.apk"
 }
