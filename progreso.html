@@ -256,6 +256,7 @@
         }
         localStorage.setItem(KEY, JSON.stringify(creds));
         data = { save: r.save, geo: r.geo, photo: r.photo };
+        if (photoCache) for (const k of Object.keys(photoCache)) delete photoCache[k];
         $('#login').style.display = 'none'; $('#app').classList.add('show');
         analyze(); header(); drawMap(); drawPanel();
       } catch (e) {
@@ -395,7 +396,7 @@
         img: info.img, text: info.text, credit: info.credit, points: 100 * ((RAR[v.rarity] || {}).mult || 1) * (v.must ? 2 : 1) * (v.shiny ? 2 : 1),
         number: order.indexOf(id) + 1, total: order.length, player: s.player || creds.user };
     }
-    const photoCache = {};
+    var photoCache = {};
     async function ownPhoto(id) {
       if (!(id in photoCache)) photoCache[id] = data.photo ? data.photo(id) : Promise.resolve(null);
       return photoCache[id];
@@ -415,14 +416,15 @@
       const r = Object.values(A.s.landmarks || {}).find((x) => x.city === city && x.pos);
       if (r) return r.pos;
       const k = Object.keys(A.s.tileNames || {}).find((x) => A.s.tileNames[x].city === city);
-      return k ? PM.world.tileBounds(k)[0] : null;
+      if (!k) return null;
+      const [[s, w], [n, e]] = PM.world.tileBounds(k);
+      return [(s + n) / 2, (w + e) / 2];
     }
     function albumWeb(city) {
       colaForma = colaForma.then(async () => {
         const p = posDe(city);
         if (PM.world.conForma(city) || !p) return;
         await PM.world.formaDe(p[0], p[1]);
-        await new Promise((r) => setTimeout(r, 1100));
       }).catch(() => {});   // (si una ciudad no se puede pedir, las demás siguen: antes la cola quedaba rota y ya no se abría ningún álbum)
       return colaForma.then(() => PM.world.albumDe(city));
     }

@@ -12,7 +12,10 @@ PM.vtiles = (function () {
     const u8 = new Uint8Array(buf);
     const varint = () => {
       let v = 0, s = 1, b;
-      do { b = u8[pos++]; v += (b & 0x7f) * s; s *= 128; } while (b & 0x80);
+      do {
+        if (pos >= u8.length) throw new Error('mvt truncado');
+        b = u8[pos++]; v += (b & 0x7f) * s; s *= 128;
+      } while (b & 0x80);
       return v;
     };
     const skip = (wt) => { if (wt === 0) varint(); else if (wt === 1) pos += 8; else if (wt === 2) pos += varint(); else if (wt === 5) pos += 4; else throw new Error('wire ' + wt); };
@@ -77,6 +80,7 @@ PM.vtiles = (function () {
       const c = F.geom[i++], cmd = c & 7, n = c >> 3;
       if (cmd === 7) { if (cur && cur.length) cur.push(cur[0]); continue; }
       for (let k = 0; k < n; k++) {
+        if (i + 1 >= F.geom.length) return out;
         x += zz(F.geom[i++]); y += zz(F.geom[i++]);
         if (cmd === 1) { cur = [[x, y]]; out.push(cur); } else if (cur) cur.push([x, y]);   // (tesela mal formada: una línea sin su punto de inicio se salta)
       }
@@ -107,7 +111,7 @@ PM.vtiles = (function () {
   function omtPoiTags(p) {
     const c = p.class, s = p.subclass, t = {};
     if (c === 'town_hall' && s === 'townhall') t.amenity = 'townhall';
-    else if (c === 'place_of_worship') { t.amenity = 'place_of_worship'; t.religion = s; }
+    else if (c === 'place_of_worship') { t.amenity = 'place_of_worship'; if (s && s !== 'place_of_worship') t.religion = s; }
     else if (c === 'museum') t.tourism = 'museum';
     else if (c === 'theatre') t.amenity = 'theatre';
     // estudios de televisión: en estos mapas salen como «oficina de telecomunicaciones» (TV3, RTVE…)
@@ -178,13 +182,21 @@ PM.vtiles = (function () {
     });
     // nombres de barrio (puntos)
     const PL = layers[schema === 'omt' ? 'place' : 'place_labels'];
+    const LATINO = /^[\p{Script=Latin}\p{M}\p{N}\p{P}\p{Zs}]+$/u;
+    const limpiarBarrio = (s) => String(s || '')
+      .replace(/\s*\([^)]*\)\s*$/g, '')
+      .replace(/^distrito (de |del )/i, '')
+      .replace(/^barri(?:o)?\s+(?:de\s+l[ao]s?\s+|de\s+)/i, '')
+      .replace(/^barri(?:o)?\s+del\s+/i, 'el ')
+      .trim();
     if (PL) PL.feats.forEach((F) => {
       const p = props(PL, F), kind = p.class || p.kind;
       if (!p.name || !/^(suburb|quarter|neighbourhood)$/.test(kind)) return;
       const g = lines(F)[0];
       // mismo id que en OpenStreetMap si se puede (OpenFreeMap: id × 10 + 1): así tus barrios conquistados se reconocen
       const osmId = schema === 'omt' && F.id != null && F.id % 10 === 1 ? Math.floor(F.id / 10) : 'pl' + plClave(p.name);
-      if (g && g.length) { const pt = toLL(g[0][0], g[0][1], X, Y, PL.extent); els.push({ type: 'node', id: osmId, lat: pt.lat, lon: pt.lon, tags: { place: kind, name: p.name }, src: 'vt' }); }
+      const nom = limpiarBarrio(LATINO.test(p.name) ? p.name : (p['name:es'] || p['name:latin'] || p.name)) || p.name;
+      if (g && g.length) { const pt = toLL(g[0][0], g[0][1], X, Y, PL.extent); els.push({ type: 'node', id: osmId, lat: pt.lat, lon: pt.lon, tags: { place: kind, name: nom }, src: 'vt' }); }
     });
     return els;
   }
@@ -196,23 +208,43 @@ PM.vtiles = (function () {
     { name: 'VersaTiles', schema: 'sb', url: 'https://tiles.versatiles.org/tiles/osm/{z}/{x}/{y}' },
   ];
   // OpenFreeMap cambia la ruta de sus teselas con cada actualización semanal: se lee de su "tilejson" (y se recuerda un día)
+  async function fetchConPlazo(url, ms, leer) {
+    if (typeof AbortController !== 'undefined') {
+      const ctl = new AbortController();
+      const to = setTimeout(() => ctl.abort(), ms);
+      try {
+        const r = await fetch(url, { signal: ctl.signal });
+        return leer ? await leer(r) : r;
+      } finally { clearTimeout(to); }
+    }
+    let to;
+    try {
+      const p = fetch(url).then((r) => (leer ? leer(r) : r));
+      return await Promise.race([p, new Promise((_, rej) => { to = setTimeout(() => rej(new Error('tiempo agotado')), ms); })]);
+    } finally { clearTimeout(to); }
+  }
   async function urlOf(src) {
     if (src.url) return src.url;
     try {
       const c = JSON.parse(localStorage.getItem('pm_tj_' + src.name) || 'null');
       if (c && Date.now() - c.t < 86400000) return c.url;
     } catch (e) {}
-    const j = await withTimeout(fetch(src.tilejson).then((r) => r.json()), 6000);
-    const url = j.tiles[0];
+    const j = await fetchConPlazo(src.tilejson, 6000, async (r) => {
+      if (!r.ok) throw new Error(src.name + ' tilejson HTTP ' + r.status);
+      return await r.json();
+    });
+    const url = j && j.tiles && j.tiles[0];
+    if (!url) throw new Error(src.name + ' tilejson sin tiles');
     try { localStorage.setItem('pm_tj_' + src.name, JSON.stringify({ url, t: Date.now() })); } catch (e) {}
     return url;
   }
-  const withTimeout = (p, ms) => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error('tiempo agotado')), ms))]);
   async function fetchTile(src, X, Y) {
     const url = (await urlOf(src)).replace('{z}', Z).replace('{x}', X).replace('{y}', Y);
-    const r = await withTimeout(fetch(url), 12000);
-    if (!r.ok) throw new Error(src.name + ' HTTP ' + r.status);
-    return convert(decode(await r.arrayBuffer()), X, Y, src.schema, Z + '/' + X + '/' + Y);
+    const buf = await fetchConPlazo(url, 12000, async (r) => {
+      if (!r.ok) throw new Error(src.name + ' HTTP ' + r.status);
+      return await r.arrayBuffer();
+    });
+    return convert(decode(buf), X, Y, src.schema, Z + '/' + X + '/' + Y);
   }
   // Una tesela: se pide a la primera fuente; si en 2,5 s no ha llegado, también a la siguiente (gana la primera)
   function fetchAny(X, Y) {

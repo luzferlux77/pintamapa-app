@@ -162,7 +162,17 @@
     out.cityRank = Object.assign({}, a.cityRank);
     for (const [k, v] of Object.entries(b.cityRank || {})) out.cityRank[k] = Math.max(out.cityRank[k] ?? -1, v);
     delete out.pet; delete out.bones; delete out.mystery; delete out.cansTaken; if (out.stats) delete out.stats.cans;   // funciones retiradas: no se guardan ni vuelven de la nube
-    out.barrioRankT = Object.assign({}, a.barrioRankT || {}); for (const [k, v] of Object.entries(b.barrioRankT || {})) out.barrioRankT[k] = Object.assign({}, out.barrioRankT[k] || {}, v);
+    out.barrioRankT = {};
+    for (const src of [a.barrioRankT, b.barrioRankT]) {
+      if (!src || typeof src !== 'object') continue;
+      for (const [k, v] of Object.entries(src)) {
+        if (!v || typeof v !== 'object') continue;
+        const dst = out.barrioRankT[k] || (out.barrioRankT[k] = {});
+        for (const [rk, t] of Object.entries(v)) {
+          if (typeof t === 'number' && isFinite(t) && t > 0) dst[rk] = dst[rk] ? Math.min(dst[rk], t) : t;
+        }
+      }
+    }
     delete out.avoid; delete out.avoidRemoved;   // (las «zonas a evitar» ya no existen: ni se guardan ni vuelven de la nube)
     return out;
   }

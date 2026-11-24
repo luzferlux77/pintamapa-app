@@ -717,4 +717,5 @@ body:has(#gps.show) #btn-medalla { right: 168px; }
 .ab-sec-h { margin: 14px 2px 8px; font-size: 13.5px; font-weight: 800; color: var(--muted); }
 .ab-sec-h:first-of-type { margin-top: 4px; }
 .bar-prog { width: 100%; text-align: left; font: inherit; cursor: pointer; }
+.bar-prog .mt span:first-child { color: var(--text); }
 .bar-prog .mt span:last-child { color: var(--accent); font-variant-numeric: tabular-nums; }

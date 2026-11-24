@@ -52,7 +52,11 @@
     var btn = el.querySelector('button');
     btn.addEventListener('click', function () {
       btn.textContent = '⏳';
-      var ir = function (url) { location.href = url || DESCARGAS; setTimeout(function () { btn.textContent = t('Descargar la versión nueva'); }, 4000); };
+      var ir = function (url) {
+        var segura = typeof url === 'string' && /^https:\/\/github\.com\/luzferlux77\/pintamapa-app\//.test(url);
+        location.href = segura ? url : DESCARGAS;
+        setTimeout(function () { btn.textContent = t('Descargar la versión nueva'); }, 4000);
+      };
       // (con tiempo máximo y mirando la respuesta: sin red el botón no se queda en «⏳» —auditoría v0.9.25, UPD-01—)
       var o = { cache: 'no-store' }; try { if (typeof AbortSignal !== 'undefined' && AbortSignal.timeout) o.signal = AbortSignal.timeout(15000); } catch (e) { /* WebView viejo */ }
       fetch(APP_JSON + '?t=' + Date.now(), o).then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })

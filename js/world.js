@@ -218,8 +218,9 @@ PM.world = (function () {
       const otra = L.otraCiudad(prev, q, bb);
       if (otra) mustCache = null;
       cityInfo[key] = { v: CITY_V, q, nombre: name, r: (regCiudad()[key] || {}).r || region[0] || '', pop: parseInt(String(ex.population || '').replace(/\D/g, ''), 10) || 0, polys, bbox: bb, t: Date.now(), must: otra ? null : (prev || {}).must || null, mustT: otra ? null : (prev || {}).mustT || null };
-      if (otra) albMem.delete(key);
+      albMem.delete(key);
       saveCityInfo();
+      scheduleReassign();
       emit('named', { city: key });
       cityMust(key);
       return key;
@@ -235,7 +236,7 @@ PM.world = (function () {
       // gran ciudad con precarga: sus imprescindibles ya vienen elegidos (interés turístico + visitas reales en Wikipedia)
       const pc = ci.q && (await preIdx()).find((c) => c.q === ci.q), pd = pc && await precarga(pc.q, pc.t);
       const pm = pd && (pd.must || []).filter((m) => inCity(m.pos, ci));
-      if (pm && pm.length >= 3) { cityInfo[name].must = pm; cityInfo[name].mustT = pc.t; mustCache = null; saveCityInfo(); emit('named', { city: name }); return; }
+      if (pm && pm.length >= 3) { cityInfo[name].must = pm; cityInfo[name].mustT = pc.t; mustCache = null; albMem.delete(name); saveCityInfo(); emit('named', { city: name }); return; }
       const [s0, w0, n0, e0] = ci.bbox;
       const big = ci.pop ? ci.pop >= 400000 : (n0 - s0) * (e0 - w0) > 0.02;   // ciudad grande: solo lo bastante conocido (la consulta es más ligera)
       const ctl = new AbortController(), to = setTimeout(() => ctl.abort(), 60000);
@@ -247,6 +248,7 @@ PM.world = (function () {
       if (!list.length) throw new Error('sin lugares conocidos');   // no se guarda vacía: se vuelve a pedir en otra sesión
       cityInfo[name].must = list;
       mustCache = null;
+      albMem.delete(name);
       saveCityInfo();
       emit('named', { city: name });
     } catch (e) { console.warn('Imprescindibles pendientes', e); }   // (sin el nombre de la ciudad: el aviso va al informe de errores)
@@ -262,7 +264,7 @@ PM.world = (function () {
     const pc = (await preIdx()).find((c) => c.q === ci.q);
     if (!pc || pc.t === ci.mustT) return;
     const pd = await precarga(pc.q, pc.t), pm = pd && (pd.must || []).filter((m) => inCity(m.pos, ci));
-    if (pm && pm.length >= 3) { ci.must = pm; ci.mustT = pc.t; mustCache = null; saveCityInfo(); emit('named', { city: name }); }
+    if (pm && pm.length >= 3) { ci.must = pm; ci.mustT = pc.t; mustCache = null; albMem.delete(name); saveCityInfo(); emit('named', { city: name }); }
   }
   const matchMust = L.matchMust;
 
@@ -740,8 +742,13 @@ PM.world = (function () {
       if (!dbp) dbp = new Promise((res, rej) => {
         const r = indexedDB.open('pintamapa', 1);
         r.onupgradeneeded = () => r.result.createObjectStore('tiles');
-        r.onsuccess = () => res(r.result);
-        r.onerror = () => rej(r.error);
+        r.onsuccess = () => {
+          const d = r.result;
+          d.onclose = () => { dbp = null; };
+          d.onversionchange = () => { d.close(); dbp = null; };
+          res(d);
+        };
+        r.onerror = () => { dbp = null; rej(r.error); };
       });
       return dbp;
     }
@@ -1029,28 +1036,59 @@ PM.world = (function () {
     return inside;
   }
 
-  function barrioOf(p) {
+  // ¿Están cargados los nodos OpenFreeMap de p y de sus bordes inmediatos (< 350 m)? Evita asignar un nodo lejano cuando falta la celda contigua
+  function zonaBarrioFiable(p) {
+    const k = tileKeyOf(p[0], p[1]);
+    if (!zonaVt.has(k)) return false;
+    const [[s, w], [n, e]] = tileBounds(k), dLat = 350 / PM.geo.mPerDegLat, dLon = 350 / PM.geo.mPerDegLon(p[0]);
+    const [i, j] = tileIJ(k);
+    if (p[0] - s < dLat && !zonaVt.has((i - 1) + '_' + j)) return false;
+    if (n - p[0] < dLat && !zonaVt.has((i + 1) + '_' + j)) return false;
+    if (p[1] - w < dLon && !zonaVt.has(i + '_' + (j - 1))) return false;
+    if (e - p[1] < dLon && !zonaVt.has(i + '_' + (j + 1))) return false;
+    return true;
+  }
+  function filtrarNodosBarrio(nodos) {
+    const mayores = nodos.filter((n) => n.lvl <= 2);
+    if (!mayores.length) return nodos;
+    return nodos.filter((n) => n.lvl !== 3 || !mayores.some((q) => PM.geo.dist(n.pos, q.pos) < 350));
+  }
+  function barrioOf(p, cacheNodos) {
     let poly10 = null, poly9 = null;
     for (const r of Object.values(barrioRels)) {
       if (!r.segs || !inBox(p, r.bounds) || !pip(p, r.segs)) continue;
       if (r.lvl === 10) poly10 = r; else if (r.lvl === 9) poly9 = r;
     }
-    if (poly10) return { id: 'r' + poly10.id, name: poly10.name, kind: 'poly', rel: poly10 };
+    if (poly10) return { id: 'r' + poly10.id, name: poly10.name, kind: 'poly', rel: poly10, fiable: true };
+    // Aislamiento municipal: si conocemos el contorno del municipio de p, ignoramos nodos de barrio de municipios vecinos
+    // (evita que fronteras de Cornellà caigan en «les Planes» de Esplugues o «Centre» de Sant Joan Despí).
+    const miCiudad = shapeCity(p), ci = miCiudad && cityInfo[miCiudad], usarCi = !!(ci && ci.polys);
+    const ck = (usarCi ? miCiudad : '') + '|' + (poly9 ? poly9.id : '');
+    let nodosValidos = cacheNodos && cacheNodos.get(ck);
+    if (!nodosValidos) {
+      const crudos = [];
+      for (const n of Object.values(barrioNodes)) {
+        if (poly9 && !pip(n.pos, poly9.segs)) continue;
+        if (usarCi && !inCity(n.pos, ci)) continue;
+        crudos.push(n);
+      }
+      nodosValidos = filtrarNodosBarrio(crudos);
+      if (cacheNodos) cacheNodos.set(ck, nodosValidos);
+    }
     // punto de barrio más cercano (quarter y neighbourhood compiten por distancia real —en Cornellà Almeda es quarter y la Gavarra
     // es neighbourhood—; suburb solo si no hay un barrio más fino dentro de 1,5 km), dentro del distrito si se conoce
     let best = null, bd = 1500, bestSub = null, bdSub = 1500;
-    for (const n of Object.values(barrioNodes)) {
+    for (const n of nodosValidos) {
       const d = PM.geo.dist(p, n.pos);
       if (d > 1500) continue;
-      if (poly9 && !pip(n.pos, poly9.segs)) continue;
       if (n.lvl >= 2) { if (d < bd) { bd = d; best = n; } }
       else if (d < bdSub) { bdSub = d; bestSub = n; }
     }
     if (!best && bestSub) best = bestSub;
-    if (best) return { id: 'n' + best.id, name: best.name, kind: 'node', node: best };
-    if (poly9) return { id: 'r' + poly9.id, name: poly9.name, kind: 'poly', rel: poly9 };
     const k = tileKeyOf(p[0], p[1]);
-    return { id: 't' + k, name: (tiles[k] && tiles[k].name) || 'Zona ' + k.replace('_', '·'), kind: 'tile', tile: k };
+    if (best) return { id: 'n' + best.id, name: best.name, kind: 'node', node: best, fiable: zonaBarrioFiable(p) };
+    if (poly9) return { id: 'r' + poly9.id, name: poly9.name, kind: 'poly', rel: poly9, fiable: true };
+    return { id: 't' + k, name: (tiles[k] && tiles[k].name) || 'Zona ' + k.replace('_', '·'), kind: 'tile', tile: k, fiable: false };
   }
 
   // Reparte todas las calles cargadas entre sus barrios (tras cada carga o cuando llega un contorno)
@@ -1058,12 +1096,12 @@ PM.world = (function () {
   function scheduleReassign() { clearTimeout(reassignTimer); reassignTimer = setTimeout(reassignAll, 250); }
   function reassignAll() {
     for (const k in barrios) delete barrios[k];
-    const memo = new Map();
+    const memo = new Map(), cacheNodos = new Map();
     for (const id in pieces) {
       const pc = pieces[id];
       const ck = cellKey(pc.mid[0], pc.mid[1]);
       let b = memo.get(ck);
-      if (!b) { b = barrioOf(pc.mid); memo.set(ck, b); }
+      if (!b) { b = barrioOf(pc.mid, cacheNodos); memo.set(ck, b); }
       pc.barrio = b.id;
       let B = barrios[b.id];
       if (!B) {
@@ -1534,14 +1572,24 @@ PM.world = (function () {
     if (d && Array.isArray(d.els)) preData[q] = d;
     return preData[q] || null;
   }
+  const catTry = new Map();
   async function precargaCerca(lat, lon) {
     if (demoMode || typeof fetch === 'undefined') return;
     for (const c of await preIdx()) {
       // (cerca: a menos de su radio + 3 km, o DENTRO de la caja de su municipio, que en las grandes llega más lejos —el norte de
       // Madrid está a 25 km del centro y su radio es de 10—: si no, en el borde un móvil la tenía cargada y otro no)
       const enCaja = Array.isArray(c.b) && lat >= c.b[0] - 0.01 && lat <= c.b[2] + 0.01 && lon >= c.b[1] - 0.01 && lon <= c.b[3] + 0.01;
-      if (preDone.has(c.q) || (!enCaja && PM.geo.dist([lat, lon], c.c) > c.r * 1000 + 3000)) continue;
+      if (!enCaja && PM.geo.dist([lat, lon], c.c) > c.r * 1000 + 3000) continue;
+      if (preDone.has(c.q)) {
+        // Si la precarga salió de caché pero el catálogo fijo falló por red, reintentarlo (cada 30 s máx.)
+        if (!catalogos.has(c.q) && Date.now() - (catTry.get(c.q) || 0) > 30000) {
+          catTry.set(c.q, Date.now());
+          cargarCatalogo(c, false).catch(() => {});
+        }
+        continue;
+      }
       preDone.add(c.q);
+      catTry.set(c.q, Date.now());
       barriosFijos(c.q).catch(() => {});   // (sus barrios oficiales, los mismos para todos)
       // (y su catálogo fijo —los lugares del mapa, los de su álbum—, ANTES de pintar sus lugares: si llegaba después, el mapa
       // cambiaba de lugares mientras lo mirabas —auditoría v0.9.27, CAT-04—)
@@ -1657,10 +1705,10 @@ PM.world = (function () {
     // sin archivo, o con uno que casi no trae nada (un pueblo con un solo lugar con artículo: Pozuelo de Calatrava): también lo que
     // ya se conoce de la ciudad, por los nombres de barrio del mapa
     if (out.l.length < 12) out.parcial = true;
-    if (out.parcial) for (const lm of Object.values(landmarks)) if (api.cityAt(lm.pos) === city) poner({ q: lm.wd || lm.id.replace(/^n(?=M\d)/, ''), name: lm.name, emoji: lm.emoji, kind: lm.kind, pos: lm.pos, bi: barrio(barrioSoloNombre(lm.pos)), must: !!lm.must });
-    // cuadernos de 1 o 2 lugares que el recorte ha dejado sueltos: juntos
+    if (out.parcial) for (const lm of Object.values(landmarks)) if (api.cityAt(lm.pos) === city) poner({ q: lm.wd || lm.id.replace(/^n(?=M\d)/, ''), name: lm.name, emoji: lm.emoji, kind: lm.kind, pos: lm.pos, bi: barrio(barrioSoloNombre(lm.pos)), rarity: lm.rarity, must: !!lm.must });
+    // cuadernos de 1 solo lugar que el recorte ha dejado sueltos: juntos (nunca se tocan barrios con ≥2 lugares ni barrios oficiales)
     const cuenta = {}; out.l.forEach((e2) => (cuenta[e2.bi] = (cuenta[e2.bi] || 0) + 1));
-    if (!out.oficial) for (const e2 of out.l) if (cuenta[e2.bi] < 3) { const dist = out.d[e2.bi]; e2.bi = barrio(dist, dist); }   // (un barrio oficial nunca se junta con otro)
+    if (!out.oficial) for (const e2 of out.l) if (cuenta[e2.bi] < 2) { const dist = out.d[e2.bi]; e2.bi = barrio(dist, dist); }   // (un barrio oficial nunca se junta con otro)
     if (!out.portada && ci) out.portada = await fotoCiudad(ci);
     albMem.set(city, out);
     return out;
@@ -2007,6 +2055,12 @@ PM.world = (function () {
         if (!r.pos) continue;
         const c = shapeCity(r.pos);
         if (c && r.city !== c) { r.city = c; n++; }
+        // Recalcular el barrio real de la carta cuando los polígonos oficiales o los nodos de barrio de su zona ya están cargados
+        // (corrige cromos conquistados antes de cargar los límites o con un nombre provisional/erróneo de versiones anteriores)
+        const b = barrioOf(r.pos);
+        if (b && b.name && b.fiable && r.barrio !== b.name) {
+          r.barrio = b.name; n++;
+        }
         const ci = c && cityInfo[c];
         if (!ci || !ci.must) continue;
         const lm = landmarks[id];

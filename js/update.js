@@ -96,13 +96,14 @@ PM.update = (function () {
         // (una versión que no arranca vuelve atrás sola y desaparece de la lista; si se bajara otra vez en cada apertura, el fallo se
         // repetiría para siempre: dos intentos por versión. Solo cuentan las descargas buenas: sin cobertura se puede reintentar)
         if (intentos(remote.version) >= 2) { setStatus(`La ${remote.version} no ha funcionado en este móvil: se espera a la siguiente`); return; }
+        if (!/^https:\/\/github\.com\/luzferlux77\/pintamapa-app\//.test(String(remote.bundle || ''))) { setStatus('Origen de actualización no reconocido'); return; }
         setStatus(`Descargando la ${remote.version}…`);
         b = await U().download({ url: remote.bundle, version: remote.version, checksum: remote.checksum });
-        anotarIntento(remote.version);
       }
       // (la descarga tarda: si mientras tanto empezó un paseo, se queda apartada y no se programa hasta terminarlo)
       if (paseando()) { setStatus('Actualización en espera: se buscará al terminar el paseo'); return; }
       await U().next({ id: b.id });
+      anotarIntento(remote.version);
       // (y si el paseo empezó mientras se programaba, se aparta otra vez: su hold() pudo ir antes que este next())
       if (paseando()) { await hold(); setStatus('Actualización en espera: se buscará al terminar el paseo'); return; }
       setStatus(`La ${remote.version} está descargada: se aplica al volver a abrir la app`);
@@ -142,11 +143,12 @@ PM.update = (function () {
   }
 
   function showApkBanner(remote) {
-    if (!remote.apk || document.getElementById('apk-banner')) return;
+    const apk = String((remote && remote.apk) || '');
+    if (!/^https:\/\/github\.com\/luzferlux77\/pintamapa-app\//.test(apk) || document.getElementById('apk-banner')) return;
     const el = document.createElement('div');
     el.id = 'apk-banner';
     el.innerHTML = `<span>🆕 PintaMapa ${PM.esc(String(remote.version))}: instala la versión nueva</span><button class="btn on">Instalar</button><button class="x">✕</button>`;
-    el.querySelector('.btn').addEventListener('click', () => { location.href = remote.apk; });   // Android abre el navegador y descarga la APK
+    el.querySelector('.btn').addEventListener('click', () => { location.href = apk; });   // Android abre el navegador y descarga la APK
     el.querySelector('.x').addEventListener('click', () => el.remove());
     document.body.appendChild(el);
   }

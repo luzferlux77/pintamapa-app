@@ -326,7 +326,16 @@ PM.cards = (function () {
     const img = await imageFor(id);
     const all = Object.keys(S().landmarks);
     const lm = PM.world.landmarks[id] || {};
-    return { id, capR: lm.capR, shiny: !!rec.shiny, must: !!rec.must, name: rec.name, kind: rec.kind, emoji: rec.emoji, rarity: rec.rarity, city: rec.city, barrio: rec.barrio, t: rec.t, visits: rec.visits, pos: rec.pos || lm.pos, color: S().color,
+    const pos = rec.pos || lm.pos;
+    let barrio = rec.barrio;
+    if (pos && PM.world && PM.world.barrioAt) {
+      const bw = PM.world.barrioAt(pos);
+      if (bw && bw.name && bw.fiable && (!barrio || /^Zona \d|^Sector /.test(barrio) || barrio !== bw.name)) {
+        barrio = bw.name;
+        if (rec.barrio !== barrio) { rec.barrio = barrio; PM.state.save(); }
+      }
+    }
+    return { id, capR: lm.capR, shiny: !!rec.shiny, must: !!rec.must, name: rec.name, kind: rec.kind, emoji: rec.emoji, rarity: rec.rarity, city: rec.city, barrio, t: rec.t, visits: rec.visits, pos, color: S().color,
       wiki: rec.wiki || lm.wiki, wd: rec.wd || lm.wd, desc: info.desc, addr: info.addr, ctx: info.ctx,
       her: rec.her != null ? rec.her : lm.her, anio: rec.anio || lm.anio, vis: rec.vis || lm.vis, wp: rec.wp || lm.wp,
       img: img && img.src, own: !!(img && img.own), text: info.text, credit: img && img.own ? 'Foto: ' + (PM.player ? PM.player.name : 'tuya') : info.credit,
@@ -342,7 +351,7 @@ PM.cards = (function () {
       PM.tcg.open(d, {
         badge: opts.isNew ? `${recOf(id).shiny ? '✨ ¡CARTA BRILLANTE! ✨' : recOf(id).must ? '⭐ ¡IMPRESCINDIBLE! ⭐' : '¡Nueva carta!'} ${opts.pts ? '+' + opts.pts + ' pts' : ''}` : '',
         actions: [{ ico: 'camara', label: d.own ? PM.t('Cambiar foto') : d.img ? PM.t('Tu foto') : PM.t('Hazle la foto'), primary: !d.img, on: () => editPhoto(id, show) }],
-        onText: (t) => { const ci = S().cardInfo[id] || (S().cardInfo[id] = { v: 3, t: Date.now(), lang: LANG() }); ci.text = t; delete ci.none; PM.state.save(); },
+        onText: (t) => { const ci = S().cardInfo[id] || (S().cardInfo[id] = { v: 3, t: Date.now(), lang: LANG() }); ci.text = t; ci.lang = LANG(); ci.v = 3; ci.t = Date.now(); delete ci.none; PM.state.save(); },
       });
     };
     await show();
@@ -462,6 +471,7 @@ PM.cards = (function () {
           <div class="foto vacia"><span>👑</span></div><div class="holo"></div><div class="cinta" style="background:#ffb700">Ciudad</div>
           <div class="pie"><b>${esc(c)}</b><small>Conquistada el ${new Date(v.t).toLocaleDateString(PM.LOCALE, { day: 'numeric', month: 'short', year: '2-digit' })}</small></div></div></div></div>`).join('') + '</div>';
       }
+      if (vista && vista.destruir) { vista.destruir(); vista = null; }
       container.innerHTML = html;
       if (tab === 'cromos') {
         const sueltas = ids.filter((id) => !s.landmarks[id].city || PM.album.NO_ES_CIUDAD.test(s.landmarks[id].city));
@@ -478,8 +488,10 @@ PM.cards = (function () {
       container.querySelectorAll('.cromo[data-id], .tcg[data-id]').forEach((el) => el.addEventListener('click', () => open(el.dataset.id)));
     };
     draw();
-    // completar info de los cromos que aún no la tienen (poco a poco; se detiene si se cierra el panel)
-    (async () => { for (const id of ids) { if (!container.isConnected) return; if (caduca(S().cardInfo[id])) { const r = S().landmarks[id]; if (r) await fetchInfo(id, PM.world.landmarks[id] || Object.assign({ id, pos: r.pos }, r)); } } if (tab === 'cromos' && vista && container.isConnected) vista.refrescar(); })();
+    // completar info de los cromos que aún no la tienen (poco a poco; se detiene si se cierra el panel o la hoja)
+    const sh = container.closest && container.closest('#sheet');
+    const visible = () => container.isConnected && (!sh || sh.classList.contains('show'));
+    (async () => { for (const id of ids) { if (!visible()) return; if (caduca(S().cardInfo[id])) { const r = S().landmarks[id]; if (r) await fetchInfo(id, PM.world.landmarks[id] || Object.assign({ id, pos: r.pos }, r)); } } if (tab === 'cromos' && vista && visible()) vista.refrescar(); })();
   }
 
   function barrioCardHTML(b, bid) {

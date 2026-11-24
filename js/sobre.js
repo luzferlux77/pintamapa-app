@@ -149,7 +149,7 @@ PM.sobre = (function () {
 
   // ---------- el sobre ----------
   function abrir(d, alFinal) {
-    const viejo = document.getElementById('sobre'); if (viejo) viejo.remove();
+    const viejo = document.getElementById('sobre'); if (viejo) { if (viejo._cancelar) viejo._cancelar(); viejo.remove(); }
     const r = COL[d.rarity] ? d.rarity : 'comun', k = NIVEL[r], [c1, c2, c3] = COL[r];
     const ov = document.createElement('div');
     ov.id = 'sobre'; ov.className = 'r-' + r + (d.shiny ? ' shiny' : '');
@@ -197,9 +197,15 @@ PM.sobre = (function () {
     // lanzando chispas sobre un sobre ya quitado —informe de Gemini, 20-nov-2026—)
     const timers = [];
     const tras = (f, ms) => { timers.push(setTimeout(() => { if (!terminado) f(); }, ms)); };
-    const fin = () => {   // (Saltar: fuera el sobre y la carta directamente)
+    const cancelar = () => {
       if (terminado) return; terminado = true;
       clearTimeout(autoGiro); timers.forEach(clearTimeout); paradas.forEach((f) => f());
+      document.documentElement.classList.remove('pm-desde-sobre');
+    };
+    ov._cancelar = cancelar;
+    const fin = () => {   // (Saltar: fuera el sobre y la carta directamente)
+      if (terminado) return;
+      cancelar();
       ov.classList.add('out'); setTimeout(() => ov.remove(), 300);
       alFinal();
     };

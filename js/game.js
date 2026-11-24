@@ -254,7 +254,7 @@ PM.game = (function () {
     if (s.painted[piece.id]) return 0;
     s.painted[piece.id] = 1;
     lastPass[piece.id] = Date.now();
-    markActiveDay();
+    if (!calma) markActiveDay();
     if (PM.profile === 'real' && PM.cloud && PM.cloud.allowed()) s.pendingGeo[piece.id] = piece.pts.map((q) => [+q[0].toFixed(6), +q[1].toFixed(6)]);   // (solo para subirlo a la nube)
     if (piece.trail) s.stats.trailM = (s.stats.trailM || 0) + piece.len;
     if (!piece.trail) s.paintedByTile[piece.tile] = (s.paintedByTile[piece.tile] || 0) + piece.len;   // senderos: no cuentan para el %
@@ -264,11 +264,13 @@ PM.game = (function () {
     let pts = 10 * (calma ? 1 : comboMult());
     if (nearLandmark) pts *= 2;           // aura de monumento
     addXP(pts, 'paint');
-    progressMission('paint', piece.len);
-    progressMission('combo', combo, true);
-    const hour = new Date().getHours();
-    if (hour < 8) unlock('madrugador');
-    if (hour >= 22) unlock('noctambulo');
+    if (!calma) {
+      progressMission('paint', piece.len);
+      progressMission('combo', combo, true);
+      const hour = new Date().getHours();
+      if (hour < 8) unlock('madrugador');
+      if (hour >= 22) unlock('noctambulo');
+    }
     emit('painted', { piece, pts, combo, mult: comboMult(), aura: !!nearLandmark });
     checkTile(piece.tile);
     if (piece.barrio) checkBarrio(piece.barrio);

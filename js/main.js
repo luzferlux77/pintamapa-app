@@ -156,7 +156,13 @@
   const geoDb = () => geoDbP || (geoDbP = new Promise((ok, ko) => {
     const r = indexedDB.open('pintamapa-geo', 1);
     r.onupgradeneeded = () => { r.result.createObjectStore('geo'); r.result.createObjectStore('meta'); };
-    r.onsuccess = () => ok(r.result); r.onerror = () => { geoDbP = null; ko(r.error); };
+    r.onsuccess = () => {
+      const d = r.result;
+      d.onclose = () => { geoDbP = null; };
+      d.onversionchange = () => { d.close(); geoDbP = null; };
+      ok(d);
+    };
+    r.onerror = () => { geoDbP = null; ko(r.error); };
   }));
   (async () => {
     try {
@@ -350,6 +356,7 @@
     try { map.setPaintProperty('pm-fx-fill', 'fill-color', paintColor()); map.setPaintProperty('pm-fx-line', 'line-color', paintColor()); } catch (e) {}
     const segs = B.segs || [];
     const t0 = performance.now(), DUR = 2600;
+    if (fxRaf) cancelAnimationFrame(fxRaf);
     (function step(now) {
       const t = Math.min(1, (now - t0) / DUR);
       const e = 1 - Math.pow(1 - t, 3);
@@ -357,12 +364,14 @@
       setSrc('pm-fx', FC(t < 1 ? wave : []));
       const pulse = Math.sin(t * Math.PI * 3);
       setSrc('pm-fxline', FC(t < 1 ? segs.map((sg) => lineF(sg, { w: 3 + 9 * Math.abs(pulse), o: 0.9 * (1 - t * 0.6) })) : []));
-      if (t < 1) requestAnimationFrame(step);
+      if (t < 1) fxRaf = requestAnimationFrame(step); else fxRaf = 0;
     })(t0);
     fireworks();
     PM.vibrate([80, 50, 80, 50, 200]);
   }
+  let fxRaf = 0, fwRaf = 0;
   function fireworks() {
+    if (fwRaf) cancelAnimationFrame(fwRaf);
     const cv = $('#confetti'), cx = cv.getContext('2d');
     cv.width = innerWidth; cv.height = innerHeight;
     const cols = [paintColor(), '#facc15', '#22d3ee', '#f472b6', '#a3e635', '#ffffff'];
@@ -382,7 +391,7 @@
         if (p.l <= 0) continue;
         cx.globalAlpha = Math.max(0, p.l); cx.fillStyle = p.c; cx.beginPath(); cx.arc(p.x, p.y, 2.6, 0, 7); cx.fill(); cx.globalAlpha = 1;
       }
-      if (f++ < 200) requestAnimationFrame(frame); else cx.clearRect(0, 0, cv.width, cv.height);
+      if (f++ < 200) fwRaf = requestAnimationFrame(frame); else { fwRaf = 0; cx.clearRect(0, 0, cv.width, cv.height); }
     })();
   }
 
@@ -793,9 +802,14 @@
       if (i < way.length - 1 && lt && PM.geo.dist(lt, way[i]) < 8) continue;
       pts.push(trackPt(way[i], ta + (tb - ta) * Math.min(1, acc / Math.max(1, r.len))));
     }
-    let k = tr.length;
     const t0 = pts.length ? pts[0][2] : 0;
-    while (k > 0 && tr[k - 1] && tr[k - 1][2] > t0) k--;
+    let k = tr.length;
+    while (k > 0) {
+      let p = k - 1;
+      while (p >= 0 && !tr[p]) p--;
+      if (p < 0 || !(tr[p][2] > t0)) break;
+      k = p;
+    }
     tr.splice(k, 0, ...pts);
   }
   const streetsReady = (q) => { const t = W.tiles[W.tileKeyOf(q[0], q[1])]; return !!(t && t.loaded); };
@@ -853,7 +867,17 @@
       let lenV = 0; for (let i = 1; i < wayV.length; i++) lenV += PM.geo.dist(wayV[i - 1], wayV[i]);
       if (bus || g.d / dt > MAX_SPEED * 1.5) {
         const tr = session.track;
-        if (tr && tr.length) { let k = tr.length; while (k > 0 && tr[k - 1] && tr[k - 1][2] > g.ta) k--; if (k > 0 && tr[k - 1] !== null && tr[k] !== null) tr.splice(k, 0, null); }
+        if (tr && tr.length) {
+          const taS = Number.isFinite(session.start) ? Math.round((g.ta - session.start) / 1000) : g.ta;
+          let k = tr.length;
+          while (k > 0) {
+            let p = k - 1;
+            while (p >= 0 && !tr[p]) p--;
+            if (p < 0 || !(tr[p][2] > taS)) break;
+            k = p;
+          }
+          if (k > 0 && tr[k - 1] !== null && tr[k] !== null) tr.splice(k, 0, null);
+        }
         continue;
       }
       // sin camino posible (de verdad no lo hay): como antes, lo que haya justo en línea recta (si es corto)
@@ -1794,10 +1818,12 @@
       // (hasta 2 min: si se soltaran antes, el hueco se rellenaba por el camino más corto con lo de en directo y lo apuntado con la
       // app cerrada ya no podía entrar —llega con horas anteriores— —auditoría v0.9.27, REV-01—. Y se vuelve a pedir a los 36 s y
       // a los 92 s, por si la primera petición se perdió)
-      const espera = (ms) => new Promise((ok) => setTimeout(() => ok(null), ms)), pide = [P.diarioGps({ desde }).catch(() => null)];
+      const espera = (ms) => new Promise((ok) => setTimeout(() => ok(null), ms));
+      const pedirDiario = () => new Promise((ok) => { Promise.resolve(P.diarioGps({ desde })).then((v) => { if (v) ok(v); }, () => {}); });
+      const pide = [pedirDiario()];
       let r = await Promise.race([...pide, espera(8000)]);
       for (let i = 0; !r && i < 4 && session === ses && tramo === tramoGps; i++) {
-        if (i === 1 || i === 3) pide.push(P.diarioGps({ desde }).catch(() => null));
+        if (i === 1 || i === 3) pide.push(pedirDiario());
         r = await Promise.race([...pide, espera(28000)]);
       }
       if (session !== ses || tramo !== tramoGps || !gpsWanted()) return 0;
@@ -2261,7 +2287,11 @@
         if (!filas.length && w.track.includes(null) && (w.forenseIntentos = (w.forenseIntentos || 0) + 1) < 3) { PM.state.save(); return null; }
       }
       if (session && String(session.start) === w.id) return null;   // (no debería: el paseo aún en marcha)
-      const wEnd = w.end || (w.start + Math.max(w.elapsed || 0, 60000));
+      let ultPtT = 0;
+      for (const q of w.track || []) if (q && Number.isFinite(q[2])) ultPtT = Math.max(ultPtT, w.start + q[2] * 1000);
+      let ultPausaT = 0;
+      for (const ps of w.pausas || []) if (Array.isArray(ps) && Number.isFinite(ps[1])) ultPausaT = Math.max(ultPausaT, ps[1]);
+      const wEnd = w.end || Math.max(w.start + Math.max(w.elapsed || 0, 60000), ultPtT, ultPausaT);
       const { track, informe } = PM.forense.reconstruir({ filas, track: w.track, start: w.start, end: wEnd, pausas: w.pausas, maxSpeed: MAX_SPEED, dist: (a, b) => PM.geo.dist(a, b) });
       // cada hueco andado sin satélites: el camino por las calles que mejor encaja con lo que apuntó el GPS (rutaDeHueco), metido en
       // el recorrido con sus horas. Las calles de esos huecos se cargan antes (pueden estar lejos de donde abres la app)
@@ -2503,7 +2533,7 @@
     if (s.elapsed >= 120000) {   // los paseos de menos de 2 minutos no se guardan en el historial (lo pintado sí cuenta)
       // (rev: 0 = quedan trozos por repasar cuando sus calles estén cargadas —repasoPendiente—; 1 = repasado entero)
       const ps = (s.pausas || []).map(([a, b]) => [a, b || Date.now()]);   // (terminar en pausa: la pausa acaba aquí)
-      const w = { id: String(s.start), start: s.start, elapsed: s.elapsed, st: s.st, track: s.track || [], rev: rp.falta && !PM.debug.sinRepaso ? 0 : 1, diario: s.diario || [], avisos: s.avisos || [], pausas: ps };
+      const w = { id: String(s.start), start: s.start, end: Date.now(), elapsed: s.elapsed, st: s.st, track: s.track || [], rev: rp.falta && !PM.debug.sinRepaso ? 0 : 1, diario: s.diario || [], avisos: s.avisos || [], pausas: ps };
       S().walks.push(w);
       // y la revisión forense con todo lo que apuntó el GPS (el diario sigue entero hasta el próximo paseo): ver forense.js
       // (y el anterior, si quedó sin revisar —empezaste este justo al terminar aquel—: su parte del diario sigue ahí, FOR-03)
@@ -2681,7 +2711,9 @@
       // temblor del GPS de una lectura a otra no cuente como ir rápido. Y en calma: sin salpicaduras ni combo
       let enVehiculo = 0;
       enRepaso = true;
+      cortarUnion();
       try { G.enCalma(() => segs.forEach((seg, si) => {
+        cortarUnion();
         if (si && track.length && track[track.length - 1] !== null) track.push(null);
         let last = null, j = 0;
         const cum = [0];
@@ -2701,8 +2733,8 @@
           }
           if (i) {
             const a = [seg[i - 1].lat, seg[i - 1].lon], d = PM.geo.dist(a, q);
-            if (rapido) { enVehiculo += d; if (track.length && track[track.length - 1] !== null) track.push(null); last = null; continue; }
-            if (d >= 400 && track.length && track[track.length - 1] !== null) { track.push(null); last = null; }   // (salto sin puntos: corte, no una línea recta)
+            if (rapido) { enVehiculo += d; cortarUnion(); if (track.length && track[track.length - 1] !== null) track.push(null); last = null; continue; }
+            if (d >= 400 && track.length && track[track.length - 1] !== null) { cortarUnion(); track.push(null); last = null; }   // (salto sin puntos: corte, no una línea recta)
             if (d < 400) { const n = Math.ceil(d / 4), hd = [q[0] - a[0], (q[1] - a[1]) * Math.cos(q[0] * Math.PI / 180)]; for (let k = 1; k <= n; k++) paintAround(PM.geo.lerp(a, q, k / n), hd); st.walked += d; }
           }
           if (!last || PM.geo.dist(last, q) >= 8 || i === seg.length - 1) {
@@ -2711,10 +2743,12 @@
             track.push(p); last = q;
           }
         }
-      })); } finally { enRepaso = false; }
+      })); } finally { cortarUnion(); enRepaso = false; }
       if (track.length && track[track.length - 1] === null) track.pop();
       st.painted = S().stats.paintedM - before.m; st.pts = S().xp - before.xp;
-      G.addWalk(st.walked);
+      // Solo un recorrido grabado HOY cuenta para las misiones diarias de caminar; uno antiguo suma a tu total de km sin tocar hoy
+      if (new Date(t0).toDateString() === new Date().toDateString()) G.addWalk(st.walked);
+      else S().stats.walkedM = (S().stats.walkedM || 0) + st.walked;
       S().walks.push({ id: 'gpx' + t0, start: t0, elapsed: t1 - t0, st, track, imported: true });
       S().walks.sort((x, y) => x.start - y.start);
       PM.state.save(); flushPaint();
@@ -3035,8 +3069,16 @@
   });
 
   let fixT = null;
+  const programarFix = () => {
+    clearTimeout(fixT);
+    fixT = setTimeout(() => { if (PM.fillLandmarkCities(S()) + W.fixRecords(S())) PM.state.save(); }, 1500);
+  };
   W.onChange((ev, d) => {
-    if (ev === 'barrios') { hudB.dirty = true; renderBarrios(); wakeLoop(); return; }
+    if (ev === 'barrios') {
+      hudB.dirty = true; renderBarrios(); wakeLoop();
+      programarFix();
+      return;
+    }
     if (ev === 'migrated') { paintedDirty = true; return; }
     if (ev === 'unloaded') {   // zonas lejanas quitadas de la memoria: sus calles grises dejan de dibujarse (lo pintado sigue)
       for (const k of [...rendered]) { const t = W.tiles[k]; if (!t || !(t.loaded || t.partial)) { rendered.delete(k); delete tileFeat[k]; } }
@@ -3045,8 +3087,9 @@
     }
     if (ev === 'named') {
       if (W.updateMustSee()) { lmDirty = true; flushLandmarks(); }
+      hudB.dirty = true;
       // (los nombres llegan de uno en uno, cada segundo, y repasar todas tus cartas por cada nombre pesa: una vez, al llegar el último)
-      clearTimeout(fixT); fixT = setTimeout(() => { if (PM.fillLandmarkCities(S()) + W.fixRecords(S())) PM.state.save(); }, 1500);
+      programarFix();
       return;
     }
     if (ev === 'lmMigrated') { lmDirty = true; flushLandmarks(true); return; }   // (cartas pasadas al lugar vigente: se redibujan)
@@ -3126,7 +3169,7 @@
   function panelAlbum(ciudad) {
     openSheet('📖 Mis álbumes', '<div id="album-box"></div>');
     // (pos: tu posición, para «📍 Cerca de ti» —lo que te falta, del más cercano al más lejano—; sin GPS ni posición, no sale)
-    const aqui = () => (pos && (mode === 'sim' || lastFixT) ? W.cityAt(pos) : null);
+    const aqui = () => (pos ? W.cityAt(pos) : null);
     PM.cards.album($('#album-box'), { goTo: goToPlace, ciudad: typeof ciudad === 'string' ? ciudad : null,
       pos: () => (pos && (mode === 'sim' || lastFixT) ? pos : null), ciudadActual: aqui, cerrar: () => $('#sheet').classList.remove('show') });
   }
@@ -3489,11 +3532,14 @@
     const geo = geoSano(d.geo), bg = PM.bgeoSano(d.bgeo);
     if (Object.keys(geo).length || Object.keys(bg).length) {
       try {
-        const db = await geoDb(), tx = db.transaction(['geo', 'meta'], 'readwrite'), st = tx.objectStore('geo');
-        for (const [k, o] of Object.entries(geo)) {
-          const prev = (await idbReq(st.get(k))) || {};
-          st.put(Object.assign(prev, o), k);
+        const db = await geoDb(), entries = Object.entries(geo), prevMap = {};
+        if (entries.length) {
+          const txR = db.transaction('geo', 'readonly'), stR = txR.objectStore('geo');
+          const vals = await Promise.all(entries.map(([k]) => idbReq(stR.get(k))));
+          entries.forEach(([k], idx) => { prevMap[k] = vals[idx] || {}; });
         }
+        const tx = db.transaction(['geo', 'meta'], 'readwrite'), st = tx.objectStore('geo');
+        for (const [k, o] of entries) st.put(Object.assign({}, prevMap[k], o), k);
         if (Object.keys(bg).length) tx.objectStore('meta').put(Object.assign({}, bg, bgeo), 'barrios');
         await idbDone(tx);
       } catch (e) { res.formas = Object.keys(geo).length + Object.keys(bg).length; }   // (se recogerán solas, zona a zona, al volver a pasar: se avisa)
@@ -3632,13 +3678,14 @@
     const wk = walks.filter((w) => w.start >= mon);
     const sum = (ws, f) => ws.reduce((x, w) => x + (f(w) || 0), 0);
     const best = (f) => walks.slice().sort((x, y) => f(y) - f(x))[0];
-    const timed = walks.filter((w) => (w.st.walked || 0) > 500);
+    // Solo paseos a pie/corriendo reales (≥ 500 m, ≥ 1 min en movimiento y ritmo humano ≥ 2:30 /km; excluye saltos GPS/vehículo)
+    const timed = walks.filter((w) => { const m = w.st.walked || 0, ms = PM.movingMs(w); return m > 500 && ms >= 60000 && ms / (m / 1000) >= 150000; });
     const fastest = timed.slice().sort((x, y) => PM.movingMs(x) / x.st.walked - PM.movingMs(y) / y.st.walked)[0];
     const bestDay = Object.entries(days).sort((x, y) => y[1].painted - x[1].painted)[0];
     const lms = Object.values(s.landmarks || {});
     const byR = ['legendario', 'epico', 'raro', 'comun'].map((r) => ({ r, n: lms.filter((l) => l.rarity === r).length }));
     const nAch = Object.keys(s.achievements || {}).filter((k) => G.ACHIEVEMENTS[k]).length;
-    const first = walks.length ? Math.min(...walks.map((w) => w.start)) : null;
+    const first = walks.length ? walks.reduce((m, w) => (w.start < m ? w.start : m), Infinity) : null;
     return { s, st, walks, days, maxStreak: Math.max(maxStreak, st.streak || 0), wk, sum, best, fastest, bestDay, lms, byR, nAch, first,
       movAll: sum(walks, (w) => PM.movingMs(w)), movWk: sum(wk, (w) => PM.movingMs(w)) };
   }

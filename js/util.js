@@ -122,7 +122,7 @@ PM.bgeoSano = function (o) {
 // diario del GPS de un paseo (main.js, anotarDiario): filas de números y avisos [minuto, texto corto]; lo demás, fuera
 PM.diarioSano = function (w) {
   if (w.diario != null) w.diario = Array.isArray(w.diario) ? w.diario.filter((e) => Array.isArray(e) && e.length === 5 && e.every((x) => typeof x === 'number' && isFinite(x))).slice(0, 600) : [];
-  if (w.avisos != null) w.avisos = Array.isArray(w.avisos) ? w.avisos.filter((e) => Array.isArray(e) && typeof e[0] === 'number' && isFinite(e[0]) && typeof e[1] === 'string').map((e) => [e[0], PM.limpio(e[1]).slice(0, 24)]).slice(0, 150) : [];
+  if (w.avisos != null) w.avisos = Array.isArray(w.avisos) ? w.avisos.filter((e) => Array.isArray(e) && typeof e[0] === 'number' && isFinite(e[0]) && typeof e[1] === 'string').map((e) => [e[0], PM.limpio(e[1]).slice(0, 24)]).slice(0, 600) : [];
   return w;
 };
 PM.limpiarPartida = function (d) {
@@ -405,15 +405,23 @@ PM.RANK_MIN = { barrio: [0.6, 0.8, 0.9], city: [0.7, 0.8, 0.9] };
 PM.rankFor = (kind, pct) => { const m = PM.RANK_MIN[kind]; return pct >= m[2] ? 2 : pct >= m[1] ? 1 : pct >= m[0] ? 0 : -1; };
 
 // ---------- Iconos iguales en todos los móviles (Twemoji, CC-BY 4.0, dentro de la app) ----------
-PM.TWEMOJI = new Set('1f4fa 1f309 1f32c 1f333 1f393 1f3a8 1f3ad 1f3c6 1f3d9 1f3db 1f3df 1f3e5 1f3ed 1f3f0 1f3fa 1f451 1f4cd 1f4da 1f4dc 1f525 1f52d 1f54c 1f54d 1f58c 1f5bc 1f5fa 1f5fb 1f5fc 1f5fd 1f5ff 1f689 1f68b 1f692 1f6a9 1f6d2 1f6d5 1f947 1f948 2615 26bd 26e9 26ea 26f2 2728 2b50'.split(' '));
+PM.TWEMOJI = new Set('1f4fa 1f309 1f32c 1f333 1f393 1f3a8 1f3ad 1f3c6 1f3d7 1f3d9 1f3db 1f3df 1f3e5 1f3e6 1f3e8 1f3ed 1f3f0 1f3fa 1f41f 1f451 1f4cd 1f4da 1f4dc 1f525 1f52d 1f54c 1f54d 1f58c 1f5bc 1f5fa 1f5fb 1f5fc 1f5fd 1f5ff 1f689 1f68b 1f692 1f6a9 1f6d2 1f6d5 1f947 1f948 1f981 2615 2638 26bd 26e9 26ea 26f2 2728 2b50'.split(' '));
 PM.emojiCode = (e) => [...String(e || '')].map((c) => c.codePointAt(0).toString(16)).filter((h) => h !== 'fe0f').join('-');
 PM.emojiURL = (e) => { const c = PM.emojiCode(e); return PM.TWEMOJI.has(c) ? 'lib/twemoji/' + c + '.svg' : null; };
 PM._emojiImg = {};
-// imagen ya cargada (para dibujar en canvas); si aún no está, se pide y devuelve null
+// imagen ya cargada (para dibujar en canvas); si aún no está, se pide y devuelve null (avisa a todos los llamantes concurrentes)
 PM.emojiImg = (e, onload) => {
   const url = PM.emojiURL(e); if (!url) return null;
   let im = PM._emojiImg[url];
-  if (!im) { im = PM._emojiImg[url] = new Image(); im.onload = () => { im._ok = true; onload && onload(); }; im.src = url; }
+  if (!im) {
+    im = PM._emojiImg[url] = new Image();
+    im._cbs = onload ? [onload] : [];
+    im.onload = () => { im._ok = true; const cbs = im._cbs || []; im._cbs = null; for (const fn of cbs) fn(); };
+    im.onerror = () => { im._cbs = null; delete PM._emojiImg[url]; };
+    im.src = url;
+  } else if (!im._ok && onload && im._cbs && !im._cbs.includes(onload)) {
+    im._cbs.push(onload);
+  }
   return im._ok ? im : null;
 };
 

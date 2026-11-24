@@ -45,7 +45,7 @@ PM.poster = (function () {
     const title = area !== 'all' ? area : (Object.entries(cities).sort((x, y) => y[1] - x[1])[0] || ['Mi mapa'])[0];
     const nB = Object.entries(s.barrioCards || {}).filter(([, v]) => area === 'all' || v.city === area).length;
     const nL = Object.values(s.landmarks || {}).filter((v) => area === 'all' || v.city === area).length;
-    const first = (s.walks || []).length ? Math.min(...s.walks.map((w) => w.start)) : Date.now();
+    const first = (s.walks || []).length ? s.walks.reduce((m, w) => (w.start < m ? w.start : m), Infinity) : Date.now();
     return { box, k, painted, streets, barrios, lms, title, paintedM: area === 'all' ? (s.stats.paintedM || paintedM) : paintedM, nPieces, nB, nL, first, center: [cy, cx], color: s.color || '#2563eb', player: PM.player ? PM.player.name : '' };
   }
 

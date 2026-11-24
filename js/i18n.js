@@ -60,7 +60,7 @@ PM.i18n = (function () {
     let r = String(s);
     if (lang !== 'es') {
       const k = norm(r), hit = k ? lookup(k) : null;
-      if (hit != null) r = hit; else if (k && /[a-záéíóúñ]{2}/i.test(k)) misses.add(k);
+      if (hit != null) r = hit; else if (k && misses.size < 500 && /[a-záéíóúñ]{2}/i.test(k)) misses.add(k);
     }
     if (vars) r = r.replace(/\{(\w+)\}/g, (m, name) => (vars[name] != null ? vars[name] : m));
     return r;
@@ -75,7 +75,7 @@ PM.i18n = (function () {
     if (n.__pm === k) return;   // (ya traducido)
     const hit = lookup(k);
     if (hit != null) { const lead = v.match(/^\s*/)[0], tail = v.match(/\s*$/)[0]; n.nodeValue = lead + hit + tail; n.__pm = norm(n.nodeValue); }
-    else if (/[a-záéíóúñ]{2}/i.test(k)) misses.add(k);
+    else { n.__pm = k; if (misses.size < 500 && /[a-záéíóúñ]{2}/i.test(k)) misses.add(k); }
   }
   function dom(root) {
     if (lang === 'es' || !root) return;

@@ -63,15 +63,41 @@ PM.album = (function () {
     if (!E.principal.length && !E.extras.length) {
       return E.otras.length ? [{ nombre: city, tinta: TINTAS[0], L: E.otras.map((id) => ({ id, suelta: true })), barrios: [{ nombre: null, L: E.otras.map((id) => ({ id, suelta: true })), X: [] }] }] : [];
     }
-    const sinArt = (t) => norm(t).replace(/^(el|la|els|les|l'|los|las)\s*/, '').trim();
-    const porNombre = new Map(A.b.map((n, i) => [sinArt(n), i]));
+    const claveBarrio = (t) => norm(t)
+      .replace(/\s*\([^)]*\)\s*$/g, '')
+      .replace(/^distrito\s+(?:de|del)\s+/i, '')
+      .replace(/^barri(?:o)?\s+(?:de\s+l'|de\s+l[ao]s?\s+|del\s+|de\s+)/i, '')
+      .replace(/^(el|la|els|les|l'|los|las)\s*/, '')
+      .trim();
+    const porNombre = new Map();
+    A.b.forEach((n, i) => { const k = claveBarrio(n); if (!k) return; (porNombre.get(k) || porNombre.set(k, []).get(k)).push(i); });
     const con = A.l.filter((e) => e.pos && e.bi != null), d2 = (p, q) => (p[0] - q[0]) ** 2 + ((p[1] - q[1]) * Math.cos(p[0] * Math.PI / 180)) ** 2;
+    const elegirBi = (lista, pos) => {
+      if (lista.length === 1 || !pos) return lista[0];
+      let mejor = lista[0], md = Infinity;
+      for (const bi of lista) for (const e of con) if (e.bi === bi) { const dd = d2(e.pos, pos); if (dd < md) { md = dd; mejor = bi; } }
+      return mejor;
+    };
     const barrioDe = (id) => {
       const r = rec(id);
-      if (r.barrio && porNombre.has(sinArt(r.barrio))) return porNombre.get(sinArt(r.barrio));
+      // 1) En el móvil, prioridad absoluta al barrio REAL en vivo si es fiable (polígono oficial o zona cargada con OpenFreeMap)
+      if (!fuente && r.pos && PM.world && PM.world.barrioAt) {
+        const bw = PM.world.barrioAt(r.pos);
+        if (bw && bw.fiable) {
+          const kb = claveBarrio(bw.name);
+          if (kb && porNombre.has(kb)) return elegirBi(porNombre.get(kb), r.pos);
+        }
+      }
+      // 2) Barrio guardado en el registro de la carta (si coincide con algún cuaderno del álbum)
+      if (r.barrio) {
+        const kr = claveBarrio(r.barrio);
+        if (kr && porNombre.has(kr)) return elegirBi(porNombre.get(kr), r.pos);
+      }
+      // 3) Respaldo: lugar del catálogo más cercano (solo si está razonablemente cerca, < ~1,5 km)
       if (!r.pos || !con.length) return -1;
-      let mejor = con[0]; for (const e of con) if (d2(e.pos, r.pos) < d2(mejor.pos, r.pos)) mejor = e;
-      return mejor.bi;
+      let mejor = con[0], md = d2(con[0].pos, r.pos);
+      for (const e of con) { const dd = d2(e.pos, r.pos); if (dd < md) { md = dd; mejor = e; } }
+      return md <= 0.0002 ? mejor.bi : -1;
     };
     const sueltas = E.otras.map((id) => ({ id, suelta: true, bi: barrioDe(id) }));
     const barrios = A.b.map((n, i) => ({ nombre: n, d: (A.d || [])[i] || '', L: E.principal.filter((e) => e.bi === i), X: sueltas.filter((e) => e.bi === i).concat(E.extras.filter((e) => e.bi === i)) }));
@@ -311,7 +337,7 @@ PM.album = (function () {
       btnTop.addEventListener('click', () => arriba(true));
       scrollEl = box.closest('#sheet .body') || scroller() || window;
       onScroll = () => {
-        if (!btnTop.isConnected) return;
+        if (!btnTop.isConnected) { limpiarScroll(); return; }
         const y = scrollEl === window ? window.scrollY : scrollEl.scrollTop;
         btnTop.hidden = y < 450;
       };
@@ -441,7 +467,7 @@ PM.album = (function () {
       box.querySelectorAll('.ab-c.tengo[data-h]').forEach((el) => foto(el));
     }
     inicio();
-    return { ciudad, refrescar, inicio };
+    return { ciudad, refrescar, inicio, destruir: () => { clearTimeout(tq); limpiarScroll(); if (obs) { obs.disconnect(); obs = null; } } };
   }
 
   // ---------------- La primera vez que pisas una ciudad ----------------

@@ -367,6 +367,8 @@ PM.tcg = (function () {
   function open(d, opts = {}) {
     let ov = document.getElementById('tcg-view');
     if (!ov) { ov = document.createElement('div'); ov.id = 'tcg-view'; document.body.appendChild(ov); }
+    const prevCard = ov.querySelector('.tcg');
+    if (prevCard && prevCard._soltar) prevCard._soltar();
     ov.innerHTML = `<div class="tcg-stage-wrap">
       ${opts.badge ? `<div class="tcg-badge">${opts.badge}</div>` : ''}
       ${html(d)}
