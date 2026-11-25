@@ -412,7 +412,7 @@ PM.game = (function () {
       s.landmarks[lm.id] = { t: now, last: now, visits: 1, name: lm.name, kind: lm.kind, emoji: lm.emoji, rarity: lm.rarity,
         pos: [+lm.pos[0].toFixed(6), +lm.pos[1].toFixed(6)], wiki: lm.wiki || null, wd: lm.wd || null,
         ...(lm.texto ? { texto: lm.texto, fuente: lm.fuente } : {}),   // (lugar añadido a mano: su texto va con la carta, sin artículo donde buscarlo)
-        her: lm.her || 0, anio: lm.anio || 0, vis: lm.vis || 0, wp: lm.wp || 0,      // (para la descripción de la carta)
+        her: lm.her || 0, anio: lm.anio || 0, vis: lm.vis || 0, wp: lm.wp || 0, ...(lm.arq ? { arq: 1 } : {}),      // (para la descripción y vigencia de la carta)
         city: PM.world.cityAt(lm.pos), barrio: (PM.world.barrioAt(lm.pos) || {}).name || null };
       if (lm.must) s.landmarks[lm.id].must = 1;   // imprescindible de su ciudad: vale el doble
       // carta BRILLANTE: 1 de cada 50 capturas sale dorada (vale el doble)

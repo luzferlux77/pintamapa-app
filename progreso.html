@@ -393,7 +393,8 @@
       const s = A.s, v = s.landmarks[id], info = (s.cardInfo || {})[id] || {};
       const order = Object.keys(s.landmarks).sort((a, b) => s.landmarks[a].t - s.landmarks[b].t);
       return { id, shiny: !!v.shiny, must: !!v.must, name: v.name, kind: v.kind, emoji: v.emoji, rarity: v.rarity, city: v.city, barrio: v.barrio, t: v.t, visits: v.visits, wiki: v.wiki, wd: v.wd, pos: v.pos, color: s.color,
-        img: info.img, text: info.text, credit: info.credit, points: 100 * ((RAR[v.rarity] || {}).mult || 1) * (v.must ? 2 : 1) * (v.shiny ? 2 : 1),
+        her: v.her || 0, anio: v.anio || 0, vis: v.vis || 0, wp: v.wp || 0, desc: info.desc, addr: info.addr, ctx: info.ctx,
+        img: info.img, text: info.text || v.texto || '', credit: info.credit || v.fuente, points: 100 * ((RAR[v.rarity] || {}).mult || 1) * (v.must ? 2 : 1) * (v.shiny ? 2 : 1),
         number: order.indexOf(id) + 1, total: order.length, player: s.player || creds.user };
     }
     var photoCache = {};
@@ -654,8 +655,10 @@
       return h;
     }
 
+    let albVista = null;
     function drawPanel() {
       if ($('#alb-full').classList.contains('show')) pantallaAlbum(false);
+      if (albVista && albVista.destruir) { albVista.destruir(); albVista = null; }
       const P = $('#panel'), { walks } = A;
       P.innerHTML = tab === 'pas' ? panelPaseos() : tab === 'col' ? panelColeccion() : panelResumen();
       if (tab === 'col') {
@@ -664,7 +667,7 @@
         PM.album.usar({ save: () => A.s, albumDe: albumWeb });
         $('#alb-fs').addEventListener('click', () => pantallaAlbum(true));
         const irA = (e) => { if (!e || !Array.isArray(e.pos) || e.pos.length < 2) return; pantallaAlbum(false); $('#bigmap').scrollIntoView({ behavior: 'smooth', block: 'nearest' }); map.flyTo({ center: ll(e.pos), zoom: 17 }); };
-        PM.album.montar($('#album-box'), { datos: cardData, abrir: openCard, irA, pegada: pegarFoto });
+        albVista = PM.album.montar($('#album-box'), { datos: cardData, abrir: openCard, irA, pegada: pegarFoto });
       }
       P.querySelectorAll('.walk').forEach((el) => el.addEventListener('click', () => showWalk(walks[+el.dataset.i], el)));
       P.querySelectorAll('[data-per]').forEach((b) => b.addEventListener('click', () => { actPeriod = b.dataset.per; drawPanel(); }));

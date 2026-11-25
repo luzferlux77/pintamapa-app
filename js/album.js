@@ -254,22 +254,23 @@ PM.album = (function () {
       const esGrande = E.total > 45 && D.length > 1;
       const extraTxt = demas ? ` · ${demas === 1 ? PM.t('1 extra más') : PM.t('+ {n} extras', { n: PM.fmtNum(demas) })}` : '';
 
-      // Distrito inicial a abrir en ciudades grandes: donde estás por GPS, o el que tiene más progreso
+      // Distrito inicial a abrir en ciudades grandes: donde estás por GPS (< ~2,2 km), o el que tiene más progreso
       let distInicial = 0;
       const miPos = posFn && posFn();
       if (esGrande) {
-        let mejorG = -1, mejorD = Infinity;
+        let mejorG = -1, distProg = 0, mejorD = Infinity, distGPS = 0;
         D.forEach((d, i) => {
           const [g] = cuantos(d.L);
+          if (g > mejorG) { mejorG = g; distProg = i; }
           if (miPos) {
             for (const e of d.L) {
               if (!e.pos) continue;
               const dd = (e.pos[0] - miPos[0]) ** 2 + (e.pos[1] - miPos[1]) ** 2;
-              if (dd < mejorD) { mejorD = dd; distInicial = i; }
+              if (dd < mejorD) { mejorD = dd; distGPS = i; }
             }
           }
-          if (mejorD > 0.0004 && g > mejorG) { mejorG = g; distInicial = i; }
         });
+        distInicial = mejorD <= 0.0004 ? distGPS : distProg;
       }
 
       const chip = (m, txt) => `<button class="ab-chip ${st.modo === m ? 'on' : ''}" data-m="${m}" aria-pressed="${st.modo === m}">${txt}</button>`;

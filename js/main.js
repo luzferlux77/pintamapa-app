@@ -487,7 +487,7 @@
     const emo = (e, px, ex, ey) => {
       const im = PM.emojiImg(e, iconsReady);
       if (im) x.drawImage(im, ex - px / 2, ey - px / 2, px, px);
-      else { x.font = `${px}px "Noto Color Emoji","Apple Color Emoji","Segoe UI Emoji",sans-serif`; x.fillText(e, ex, ey + px * 0.05); iconPending = true; }
+      else { x.font = `${px}px "Noto Color Emoji","Apple Color Emoji","Segoe UI Emoji",sans-serif`; x.fillText(e, ex, ey + px * 0.05); if (PM.emojiURL(e)) iconPending = true; }
     };
     emo(lm.emoji || '📍', 19 * k, cx, cx);
     if (must) emo('⭐', 14 * k, 9 * k, 9 * k);
@@ -573,14 +573,23 @@
     fxSync();
   }
   function renderLandmarks() {
+    const sLms = S().landmarks;
+    let halosCh = false;
+    for (const id of Object.keys(lmIndex)) {
+      if (!W.landmarks[id] && !sLms[id]) { delete lmIndex[id]; lmDirty = true; }
+    }
+    for (const id of Object.keys(lmHalos)) {
+      if (!sLms[id]) { delete lmHalos[id]; halosCh = true; }
+    }
+    if (halosCh) setSrc('pm-halos', FC(Object.values(lmHalos)));
     for (const id in W.landmarks) {
-      const rec = S().landmarks[id];
+      const rec = sLms[id];
       if (rec && !rec.pos) { rec.pos = W.landmarks[id].pos; PM.state.save(); }
       placeLandmark(W.landmarks[id]);
     }
     if (W.updateMustSee()) lmDirty = true;   // imprescindibles de cada ciudad
     // conquistados guardados en tu partida (estén o no cargados ahora): siempre visibles
-    for (const [id, rec] of Object.entries(S().landmarks)) if (!lmIndex[id] && rec.pos) placeLandmark(Object.assign({ id, points: 0 }, rec));
+    for (const [id, rec] of Object.entries(sLms)) if (!lmIndex[id] && rec.pos) placeLandmark(Object.assign({ id, points: 0 }, rec));
     flushLandmarks();
   }
   // tocar un lugar del mapa
@@ -3071,7 +3080,7 @@
   let fixT = null;
   const programarFix = () => {
     clearTimeout(fixT);
-    fixT = setTimeout(() => { if (PM.fillLandmarkCities(S()) + W.fixRecords(S())) PM.state.save(); }, 1500);
+    fixT = setTimeout(() => { const f = W.fixRecords(S()); if (PM.fillLandmarkCities(S()) + f) PM.state.save(); if (f) renderLandmarks(); }, 1500);
   };
   W.onChange((ev, d) => {
     if (ev === 'barrios') {
@@ -3092,9 +3101,13 @@
       programarFix();
       return;
     }
-    if (ev === 'lmMigrated') { lmDirty = true; flushLandmarks(true); return; }   // (cartas pasadas al lugar vigente: se redibujan)
+    if (ev === 'lmMigrated') { renderLandmarks(); flushLandmarks(true); return; }   // (cartas pasadas al lugar vigente: limpia fantasma y redibuja)
     // (varios de golpe, como al llegar la precarga de una ciudad: un solo redibujado, no uno de miles de iconos por cada lugar)
-    if (ev === 'lmRemoved') { if (lmIndex[d.id]) { delete lmIndex[d.id]; clearTimeout(lmFlushT); lmFlushT = setTimeout(() => flushLandmarks(true), 60); } return; }
+    if (ev === 'lmRemoved') {
+      if (lmHalos[d.id]) { delete lmHalos[d.id]; setSrc('pm-halos', FC(Object.values(lmHalos))); }
+      if (lmIndex[d.id]) { delete lmIndex[d.id]; clearTimeout(lmFlushT); lmFlushT = setTimeout(() => flushLandmarks(true), 60); }
+      return;
+    }
     if (ev === 'loaded' || ev === 'partial') {
       if (ev === 'loaded') { retryGaps(); geoHarvest(d.tiles); rellenarGemelas(d.tiles); }
       d.tiles.forEach((k) => renderTile(k, true));

@@ -29,7 +29,7 @@
     Q12277: { historic: 'city_gate' }, Q82117: { historic: 'city_gate' }, Q53060: { historic: 'city_gate' },
     Q483453: { amenity: 'fountain' }, Q174782: { place: 'square' },
     Q24354: { amenity: 'theatre' }, Q153562: { amenity: 'theatre' }, Q1060829: { amenity: 'theatre' },
-    Q483110: { leisure: 'stadium' }, Q1076486: { leisure: 'stadium' }, Q641226: { leisure: 'stadium' },
+    Q483110: { leisure: 'stadium' }, Q641226: { leisure: 'stadium' },
     Q39715: { man_made: 'lighthouse' }, Q839954: { historic: 'ruins' }, Q109607: { historic: 'ruins' }, Q474: { historic: 'monument' }, Q12280: { man_made: 'bridge' },
     Q2080521: { amenity: 'marketplace' }, Q330284: { amenity: 'marketplace' }, Q219760: { amenity: 'marketplace' }, Q7075: { amenity: 'library' }, Q28564: { amenity: 'library' }, Q3918: { amenity: 'university' },
     Q511355: { amenity: 'studio', studio: 'television' }, Q1474414: { amenity: 'studio', studio: 'television' },   // estudios de televisión y sedes de emisión
@@ -92,7 +92,7 @@
   // y conjuntos y cascos antiguos (la ficha UNESCO «Catedral, Alcázar y Archivo de Indias», «Centro histórico de…»)
   // y clubes de fútbol e instituciones religiosas (el Botafogo o la Iglesia ortodoxa de Jerusalén tienen protección, pero no son un sitio)
   const NO_CLS = new Set(['Q26883973', 'Q928830', 'Q2175765', 'Q22808403', 'Q123705', 'Q1574228', 'Q10564515', 'Q2983893', 'Q188509', 'Q3305213', 'Q134307', 'Q1144689', 'Q676050', 'Q3317612',
-    'Q15243209', 'Q110977120', 'Q476028', 'Q847017', 'Q44301618']);
+    'Q15243209', 'Q110977120', 'Q476028', 'Q847017', 'Q44301618', 'Q622425']);
   // nivel de protección (P1435): 3 Patrimonio de la Humanidad · 2 nacional (BIC, BCIN, monumento histórico clasificado,
   // Grado I, monumento nacional…) · 1 el resto · 0 catálogos que no protegen (arte público de Barcelona)
   const HER3 = new Set(['Q9259']);
@@ -203,8 +203,11 @@
       // Giralda, Manneken Pis, el Redentore… —informe de Gemini (2), ML-C01—)
       for (const c of cls) { const tg = CLS[c] || CLS[auto(c)]; if (!tg) continue; const r = rango(tg); if (r < best || (r === best && tags && c < tags.__c)) { best = r; tags = Object.assign({ __c: c }, tg); } }
       if (tags) delete tags.__c;
-      // un museo en un palacio que se llama museo o galería es un museo (la Galería Uffizi; el Palacio Pitti sigue siendo un palacio)
-      if (tags && tags.building === 'palace' && /^(galer[ií]a|galerie|gallery|museo|museu|museum|mus[eé]e|pinacoteca)\b/i.test(name) && cls.some((c) => CLS[c] && CLS[c].tourism === 'museum')) tags = { tourism: 'museum' };
+      // un museo alojado en un palacio, convento/iglesia o fortaleza que se llama museo o galería es un museo
+      // (Galeria Uffizi, Museo de Bellas Artes de Sevilla, Museo San Telmo, Museo de San Marcos, Hospital de la Roca)
+      if (tags && (tags.building === 'palace' || tags.amenity === 'place_of_worship' || tags.historic === 'monastery' || tags.historic === 'castle' || tags.historic === 'fort')
+        && /^(galer[ií]a|galerie|gallery|museo|museu|museum|mus[eé]e|pinacoteca)\b/i.test(name)
+        && cls.some((c) => { const tg = CLS[c] || CLS[auto(c)]; return tg && tg.tourism === 'museum'; })) tags = { tourism: 'museum' };
       // estaciones de tren: las protegidas, las antiguas y conocidas (Atocha, 1851), las monumentales de autor
       // (Liège-Guillemins, de Calatrava) y las principales de cada gran ciudad; no los apeaderos ni las de barrio
       const anio = b.y && +b.y.value, arq = !!(b.arqs && b.arqs.value);

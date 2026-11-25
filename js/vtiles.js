@@ -119,22 +119,16 @@ PM.vtiles = (function () {
     else if (c === 'library' && s === 'library') t.amenity = 'library';   // (la misma clase incluye librerías: Fnac, Casa del Libro…)
     else if (c === 'stadium') t.leisure = 'stadium';
     else if (c === 'pitch' && s === 'soccer') { t.leisure = 'pitch'; t.sport = 'soccer'; }
-    else if (c === 'hospital' && s === 'hospital') t.amenity = 'hospital';
-    else if (c === 'fire_station') t.amenity = 'fire_station';
     else if (c === 'castle') t.historic = s === 'fort' ? 'fort' : s === 'ruins' ? 'ruins' : 'castle';   // (las ruinas no son castillos)
     else if (c === 'sally_port' || s === 'city_gate') t.historic = 'city_gate';   // puertas de muralla (Portal de Santa Madrona, Puerta del Cambrón…)
     else if (c === 'zoo' && s === 'zoo') t.tourism = 'zoo';
     else if (c === 'aquarium') t.tourism = 'aquarium';
     else if (c === 'theme_park' || s === 'theme_park') t.tourism = 'theme_park';
-    else if (c === 'monument') t.historic = s === 'memorial' ? 'memorial' : 'monument';
-    else if (c === 'attraction') { if (s === 'viewpoint') t.tourism = 'viewpoint'; else if (s === 'attraction') t.tourism = 'attraction'; else if (s === 'fountain') t.amenity = 'fountain'; else return null; }
+    else if (c === 'monument' && s !== 'memorial') t.historic = 'monument';
+    else if (c === 'viewpoint' || s === 'viewpoint') t.tourism = 'viewpoint';   // (attraction/fountain/artwork/memorial/park/hospital/university/station sin Wikidata ni bounds siempre se descartan en candidato())
     else if (c === 'grocery' && s === 'marketplace') t.amenity = 'marketplace';
-    else if (c === 'college' && s === 'university') t.amenity = 'university';
-    else if (c === 'railway' && s === 'station') t.railway = 'station';   // (metro, apeaderos y tranvía: no son lugares del juego)
-    else if (c === 'park' && s === 'park') t.leisure = 'park';
     else if (c === 'lighthouse' || s === 'lighthouse') t.man_made = 'lighthouse';
     else if (s === 'ruins' || s === 'archaeological_site') t.historic = s;
-    else if (s === 'artwork') t.tourism = 'artwork';
     else return null;
     return t;
   }

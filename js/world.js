@@ -328,6 +328,7 @@ PM.world = (function () {
       // (y lo que se sabe del sitio: patrimonio, año, visitantes, idiomas y el texto propio de un lugar añadido a mano. Antes
       // se quedaban atrás y la carta trasladada seguía «dudosa» y sin su descripción —informe de Gemini (2)—)
       her: lm.her != null ? lm.her : r.her, anio: lm.anio || r.anio || 0, vis: lm.vis || r.vis || 0, wp: lm.wp || r.wp || 0 } : {},
+    lm && lm.arq ? { arq: 1 } : {},
     lm && lm.texto ? { texto: lm.texto, fuente: lm.fuente } : {});
     delete s.landmarks[oldId];
     for (const k of ['cardInfo', 'cardPhotos']) if (s[k] && s[k][oldId]) { if (!s[k][newId]) s[k][newId] = s[k][oldId]; delete s[k][oldId]; }
@@ -395,8 +396,12 @@ PM.world = (function () {
         if (cat) { keep.delete(id); why.set(id, 'fuera del catálogo de ' + cat.nombre + ' (la lista fija de la ciudad, igual para todos)'); }
       }
       // (si la selección en directo había dejado un lugar del catálogo como duplicado de uno del mapa, el del catálogo gana: si no,
-      // saldrían los dos en el mismo sitio)
-      if (dup) for (const [a, b] of dup) if (enCatalogo.has(a) && !enCatalogo.has(b) && keep.has(b)) { keep.delete(b); why.set(b, 'duplicado de ' + (pool[a] ? pool[a].name : a) + ' (del catálogo de la ciudad)'); }
+      // saldrían los dos en el mismo sitio; y se invierte el enlace dup para migrar tu carta del mapa al catálogo aunque cambie de idioma)
+      if (dup) {
+        const inv = [];
+        for (const [a, b] of dup) if (enCatalogo.has(a) && !enCatalogo.has(b) && keep.has(b)) { keep.delete(b); why.set(b, 'duplicado de ' + (pool[a] ? pool[a].name : a) + ' (del catálogo de la ciudad)'); inv.push([b, a]); }
+        for (const [b, a] of inv) dup.set(b, a);
+      }
     }
     const s = PM.state && PM.state.data;
     // tu carta de una versión que la selección deja fuera (duplicada, o demasiado cerca de la que se queda) pasa al sitio
@@ -2006,10 +2011,20 @@ PM.world = (function () {
           // carta antigua sin el dato de patrimonio: si el lugar sigue en el motor, se toman de ahí su tipo y protección;
           // si los datos de su zona están completos y ya no aparece, ya no existe; si no, se espera
           const lm = pool[id];
-          if (lm) { r.her = lm.her || 0; r.wp = lm.wp || r.wp || 0; r.anio = lm.anio || r.anio || 0; if (r.kind !== lm.kind) { r.kind = lm.kind; r.emoji = lm.emoji; r.rarity = lm.rarity; } n++; v = null; }
+          if (lm) { r.her = lm.her || 0; r.wp = lm.wp || r.wp || 0; r.anio = lm.anio || r.anio || 0; if (lm.arq) r.arq = 1; if (r.kind !== lm.kind) { r.kind = lm.kind; r.emoji = lm.emoji; r.rarity = lm.rarity; } n++; v = null; }
           // (una carta de Wikidata solo se quita si la respuesta de Wikidata de su zona llegó entera —zonaCompleta—, nunca solo
           // porque la zona se revisara: si Wikidata falló o tardó, se quitaban cartas buenas —informe de Gemini (2)—)
           else v = zonaCompleta(r.pos, id) || (zonaVista && !/^n?Q\d+$/.test(id) && r.pos && tileKeyOf(r.pos[0], r.pos[1]) === zonaVista) ? 'quitar' : null;
+        }
+        if (v === 'quitar' && (pool[id] || enCatalogo.has(id))) {   // nunca borrar una carta que sigue viva en el motor o catálogo; además sanea sus metadatos para que sobreviva fuera de su ciudad
+          const lm = pool[id];
+          if (lm) {
+            if (lm.arq && !r.arq) { r.arq = 1; n++; }
+            if (lm.her != null && (r.her == null || lm.her > r.her)) { r.her = lm.her; n++; }
+            if (lm.wp && lm.wp > (r.wp || 0)) { r.wp = lm.wp; n++; }
+            if (lm.anio && !r.anio) { r.anio = lm.anio; n++; }
+          }
+          v = null;
         }
         if (v === 'quitar') {
           delete s.landmarks[id];
@@ -2044,11 +2059,14 @@ PM.world = (function () {
         }
       }
       for (const [id, r] of Object.entries(s.landmarks || {})) {
-        // tipo que el nombre contradice (conquistas antiguas: el «Hotel Catalonia Catedral» era una catedral legendaria)
-        const fix = L.revisarRegistro(r);
-        if (fix) { Object.assign(r, fix); delete r.porque; n++; }
         // (cartas de antes de corregir la tabla de tipos: el nombre con su mayúscula y los puentes que salían como monumento)
         const vivo = landmarks[id] || pool[id];   // (también si aún no se ha colocado en el mapa)
+        // tipo que el nombre contradice (conquistas antiguas: el «Hotel Catalonia Catedral» era una catedral legendaria).
+        // Si el lugar sigue vivo en el motor actual, manda el tipo del motor (evita bucle infinito revisarRegistro <-> vivo.kind)
+        if (!vivo) {
+          const fix = L.revisarRegistro(r);
+          if (fix) { Object.assign(r, fix); delete r.porque; n++; }
+        }
         if (vivo && r.name !== vivo.name && r.name && r.name.toLowerCase() === vivo.name.toLowerCase()) { r.name = vivo.name; n++; }
         // (y el tipo: la carta del Partenón ganada cuando salía como «Patrimonio» pasa a «Ruinas»; los puntos no se tocan)
         if (vivo && r.kind && r.kind.replace(' principal', '') !== vivo.kind.replace(' principal', '')) { r.kind = vivo.kind; r.emoji = vivo.emoji; n++; }
