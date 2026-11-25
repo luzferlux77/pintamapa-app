@@ -1,5 +1,8 @@
 # Novedades de PintaMapa
 
+## v0.9.35 · 25 de noviembre de 2026
+- Motor de lugares mejorado: museos reconvertidos, sin falsos estadios ni autodestrucción de cartas, poda de POIs en teselas, 4 Twemoji nuevos, limpieza de marcadores fantasma y álbumes clave actualizados
+
 ## v0.9.34 · 24 de noviembre de 2026
 - Barrios y cromos corregidos (Sant Ildefons, Fontsanta-Fatjó, aislamiento municipal y portada de Cornellà) + auditoría forense profunda (GPS, huecos de vehículo, álbumes, teselas y depuración)
 

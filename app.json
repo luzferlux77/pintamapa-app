@@ -1,10 +1,10 @@
 {
-  "version": "0.9.34",
-  "notes": "Barrios y cromos corregidos (Sant Ildefons, Fontsanta-Fatjó, aislamiento municipal y portada de Cornellà) + auditoría forense profunda (GPS, huecos de vehículo, álbumes, teselas y depuración)",
+  "version": "0.9.35",
+  "notes": "Motor de lugares mejorado: museos reconvertidos, sin falsos estadios ni autodestrucción de cartas, poda de POIs en teselas, 4 Twemoji nuevos, limpieza de marcadores fantasma y álbumes clave actualizados",
   "native": 1,
   "nativeApk": 13,
   "apkMin": "0.9.30",
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.9.34/pintamapa-web-0.9.34.zip",
-  "checksum": "ca1e893e4c92f62339870088965cc8c1f434bf58913a28e82c73fe2b4eb61284",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.9.34/PintaMapa-v0.9.34.apk"
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.9.35/pintamapa-web-0.9.35.zip",
+  "checksum": "1190018bf4c06e5d8a38d828f9e06232d535f125e8977981b9e3ae1f1a72021e",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.9.35/PintaMapa-v0.9.35.apk"
 }
