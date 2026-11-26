@@ -654,7 +654,7 @@ PM.game = (function () {
   }
 
   return {
-    on: (fn) => listeners.push(fn),
+    on: (fn) => { listeners.push(fn); return () => { const i = listeners.indexOf(fn); if (i >= 0) listeners.splice(i, 1); }; },
     level, levelProgress, COLORS, ACHIEVEMENTS, checkAchievements: checkAll, REVISIT_MS, addXP,
     paintPiece, pintarGemela, enCalma, repass, tileProgress, cityProgress, barrioProgress, checkBarrio, checkSets, photoTaken, visitLandmark, ensureDaily, addWalk, tickCombo,
     get combo() { return combo; },

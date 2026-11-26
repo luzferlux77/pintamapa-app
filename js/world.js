@@ -320,6 +320,16 @@ PM.world = (function () {
   // Tu carta conquistada pasa al lugar VIGENTE cuando es el mismo sitio con otro identificador (de otra fuente o de una
   // versión anterior): así no sale dos veces (la conquistada y otra «sin conquistar» al lado) y cuenta como el
   // imprescindible que es. Se conservan fecha, visitas, foto y puntos; la posición y los datos pasan a ser los de ahora.
+  // Registra la retirada/traslado oldId → newId rompiendo cualquier ciclo inverso (newId → oldId) y acortando cadenas
+  function apuntarGone(s, oldId, newId) {
+    if (!oldId || oldId === newId) return;
+    const g = s.lmGone || (s.lmGone = {});
+    if (typeof newId === 'string') {
+      delete g[newId];
+      for (const k of Object.keys(g)) if (g[k] === oldId) { if (k === newId) delete g[k]; else g[k] = newId; }
+    }
+    g[oldId] = newId;
+  }
   function trasladar(s, oldId, newId, lm) {
     const r = s.landmarks[oldId];
     if (!r || oldId === newId) return;
@@ -335,7 +345,7 @@ PM.world = (function () {
     // (en la nube la foto se guarda con el identificador del lugar: con el nuevo hay que volver a subirla)
     if (s.cardPhotos && s.cardPhotos[newId]) s.cardPhotos[newId] = Object.assign({}, s.cardPhotos[newId], { up: 0 });
     if (PM.cards && PM.cards.moverFoto) PM.cards.moverFoto(oldId, newId);
-    (s.lmGone || (s.lmGone = {}))[oldId] = newId;   // (para que la copia de la nube no la devuelva con el identificador viejo)
+    apuntarGone(s, oldId, newId);   // (para que la copia de la nube no la devuelva con el identificador viejo, sin crear ciclos)
   }
   // ¿están ya todos los datos de la zona de este punto? (sus calles cargadas y, si el lugar venía de Wikidata, también
   // los lugares de Wikidata de esa zona: se nota en que ya hay alguno)
@@ -1274,12 +1284,24 @@ PM.world = (function () {
     });
   }
   // Lo de Overpass de una zona (nombres y límites de barrio): al final de la misma cola, para no escribir la zona a la vez que otro
-  const extrasEnCola = new Set();
+  const extrasEnCola = new Set(), extrasPend = new Set();
+  let extrasRetryT = null;
+  function programarExtrasRetry() {
+    if (extrasRetryT || !extrasPend.size) return;
+    const wait = Math.max(5000, 600000 - (Date.now() - extrasFailT) + 1000);
+    extrasRetryT = setTimeout(() => {
+      extrasRetryT = null;
+      const ks = [...extrasPend]; extrasPend.clear();
+      for (const k of ks) if (tiles[k] && (tiles[k].loaded || tiles[k].partial)) extrasDeZona(k);
+    }, wait);
+  }
   function extrasDeZona(k) {
-    if (extrasEnCola.has(k) || Date.now() - extrasFailT < 600000) return;   // (Overpass caído hace poco: ni lo intenta, 10 min)
+    if (extrasEnCola.has(k)) return;
+    if (Date.now() - extrasFailT < 600000) { extrasPend.add(k); programarExtrasRetry(); return; }   // (Overpass caído hace poco: se reintenta al pasar el enfriamiento)
     extrasEnCola.add(k);
     completeChain = completeChain.then(async () => {
       try {
+        if (Date.now() - extrasFailT < 600000) { extrasPend.add(k); programarExtrasRetry(); return; }
         const [[s, w], [n, e]] = tileBounds(k);
         const d = await overpass(QUERY([s, w, n, e].map((v) => v.toFixed(5)).join(',')), 45000);
         // (nunca sobrescribir nodos place de OpenFreeMap —src:'vt'— con nodos sin src de Overpass: al recargar caché desaparecían los barrios)
@@ -1287,7 +1309,7 @@ PM.world = (function () {
         const cur = await cache.get(k);
         if (cur) { const llave = (el) => el.type + el.id, nuevos = new Set(add.map(llave)); cache.put(k, Object.assign({}, cur, { els: cur.els.filter((el) => !nuevos.has(llave(el))).concat(add), extrasMiss: false })); }
         if (add.length && tiles[k] && (tiles[k].loaded || tiles[k].partial)) { ingest(add, new Set([k])); emit('loaded', { tiles: [k] }); }
-      } catch (err) { extrasFailT = Date.now(); console.warn('Extras del barrio pendientes (Overpass no responde)', k, err);
+      } catch (err) { extrasFailT = Date.now(); extrasPend.add(k); programarExtrasRetry(); console.warn('Extras del barrio pendientes (Overpass no responde)', k, err);
       } finally { extrasEnCola.delete(k); }
     });
   }
@@ -2002,6 +2024,18 @@ PM.world = (function () {
     fixRecords(s, zonaVista) {
       // (primero se pasan al lugar vigente las que solo han cambiado de identificador: así no se quita ninguna por error)
       let n = migrarConquistas();
+      // sanear lmGone: una carta viva en s.landmarks nunca debe figurar como retirada (rompe ciclos históricos A <-> B)
+      if (s.lmGone && s.landmarks) {
+        for (const id of Object.keys(s.lmGone)) {
+          if (s.landmarks[id]) { delete s.lmGone[id]; n++; }
+        }
+      }
+      // purgar fichas de Wikipedia huérfanas que ya no pertenecen a ninguna carta conquistada
+      if (s.cardInfo && s.landmarks) {
+        for (const id of Object.keys(s.cardInfo)) {
+          if (!s.landmarks[id]) { delete s.cardInfo[id]; n++; }
+        }
+      }
       // cartas de lo que el motor ya no pone (universidades, hospitales, bomberos que no son patrimonio, iglesias
       // evangélicas, hoteles, metro…): fuera del álbum (los puntos ganados se quedan)
       for (const [id, r] of Object.entries(s.landmarks || {})) {
@@ -2054,7 +2088,7 @@ PM.world = (function () {
           if (s.cardPhotos && s.cardPhotos[drop] && !s.cardPhotos[keep]) { s.cardPhotos[keep] = Object.assign({}, s.cardPhotos[drop], { up: 0 }); if (PM.cards && PM.cards.moverFoto) PM.cards.moverFoto(drop, keep); }   // (up: 0 → se sube con su identificador nuevo)
           for (const k of ['cardInfo', 'cardPhotos']) if (s[k]) delete s[k][drop];
           delete s.landmarks[drop];
-          (s.lmGone || (s.lmGone = {}))[drop] = keep; n++;
+          apuntarGone(s, drop, keep); n++;
           if (drop === ids[i]) break;
         }
       }

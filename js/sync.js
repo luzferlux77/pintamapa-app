@@ -80,7 +80,9 @@ PM.cloud = (function () {
   async function gh(path, opts = {}, token) {
     const headers = Object.assign({ 'X-GitHub-Api-Version': '2022-11-28', Accept: 'application/vnd.github+json' }, opts.headers || {});
     if (token) headers.Authorization = 'Bearer ' + token;
-    const r = await fetch(API + path + (opts.method ? '' : '?t=' + Date.now()), Object.assign({ signal: limite(TIMEOUT) }, opts, { cache: 'no-store', headers }));
+    const ms = opts.timeout || TIMEOUT;
+    const fetchOpts = Object.assign({}, opts); delete fetchOpts.timeout;
+    const r = await fetch(API + path + (opts.method ? '' : '?t=' + Date.now()), Object.assign({ signal: limite(ms) }, fetchOpts, { cache: 'no-store', headers }));
     // 404 al LEER = el archivo aún no existe; al ESCRIBIR es un fallo (repositorio o permiso), nunca un «guardado»
     if (r.status === 404 && !opts.method) return null;
     if (r.status === 404) { const e = new Error('GitHub respondió 404 al guardar'); e.status = 404; throw e; }
@@ -105,7 +107,7 @@ PM.cloud = (function () {
     return { data: JSON.parse(text), sha: meta.sha };
   }
   function write(path, data, sha, msg, token) {
-    return gh(path, { method: 'PUT', headers: { 'Content-Type': 'application/json' },
+    return gh(path, { method: 'PUT', timeout: TIMEOUT * 2, headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ message: msg, content: toB64(enc.encode(JSON.stringify(data))), sha: sha || undefined }) }, token);
   }
 
@@ -132,7 +134,8 @@ PM.cloud = (function () {
     busy = true;
     try {
       const token = writeToken(), slug = PM.player.slug, pass = password();
-      const key = await deriveKey(slug, pass);
+      let _key = null;
+      const getKey = () => _key || (_key = deriveKey(slug, pass));   // (PBKDF2 diferido: no quema CPU cuando no hay cambios)
       const base = await folderOf(slug, pass);
       PM.state.flush();
       const hk = 'h_' + slug;
@@ -157,7 +160,7 @@ PM.cloud = (function () {
           const small = await shrink(img, 800);
           const path = base + 'fotos/' + (await photoName(id, pass)) + '.json';
           const cur = await readRaw(path, token);
-          await write(path, await encrypt(key, { id, img: small }), cur && cur.sha, 'foto', token);
+          await write(path, await encrypt(await getKey(), { id, img: small }), cur && cur.sha, 'foto', token);
           const ahora = (PM.state.data.cardPhotos || {})[id] || v;
           ahora.up = Math.max(tSube, 1); fr[id] = tSube; saveCfg(); PM.state.save();
         } catch (e) {
@@ -171,6 +174,7 @@ PM.cloud = (function () {
       let texto0 = huellaTexto();
       const sinCambios = !force && cfg[hk] && cfg[hk] === await huella(texto0);
       if (sinCambios && !Object.keys(PM.state.data.pendingGeo || {}).length && !bajarPend()) return fotosMal ? 'fotos pendientes' : 'sin cambios';
+      const key = await getKey();
       let subida = sinCambios;
       for (let attempt = 0; attempt < 3 && !subida; attempt++) {
         // foto de la partida que se sube (copia profunda: lo que se pinte mientras tanto no la cambia)
@@ -180,6 +184,19 @@ PM.cloud = (function () {
         const remote = await readRaw(base + 'partida.json', token);
         let remoteSave = null;
         if (remote) { try { remoteSave = PM.limpiarPartida(await decrypt(key, remote.data)); } catch (e) { throw new Error('No se pudo descifrar la partida de la nube'); } }
+        // Si la nube arrastra ciclos históricos A <-> B en lmGone que este móvil ya resolvió a favor de una carta viva, romper el ciclo antes de fusionar
+        if (remoteSave && remoteSave.lmGone && mine.landmarks) {
+          const mg = mine.lmGone || {}, rg = remoteSave.lmGone;
+          for (const id of Object.keys(rg)) {
+            if (!mine.landmarks[id] || Object.prototype.hasOwnProperty.call(mg, id)) continue;
+            let cur = rg[id]; const visto = new Set([id]);
+            while (typeof cur === 'string' && !visto.has(cur)) {
+              visto.add(cur);
+              cur = Object.prototype.hasOwnProperty.call(mg, cur) ? mg[cur] : rg[cur];
+            }
+            if (cur === id) delete rg[id];
+          }
+        }
         const merged = PM.merge(remoteSave, mine);
         merged.syncedAt = Date.now();   // (la hora de esta subida: sin ella, «Mi progreso» enseñaba la de hace semanas)
         try { await write(base + 'partida.json', await encrypt(key, merged), remote && remote.sha, 'progreso', token); }
@@ -189,9 +206,11 @@ PM.cloud = (function () {
         const cur = PM.state.data;
         // se vuelve a fusionar con lo actual: lo pintado durante la subida (segundos) no se pierde
         PM.state.replace(Object.assign({}, PM.merge(merged, cur), { session: cur.session, pendingGeo: cur.pendingGeo, syncedAt: Date.now() }));
-        // la huella solo se apunta si la nube tiene TODO lo de aquí; si cambió algo durante la subida, la próxima
+        const arreglado = !!(PM.world && PM.world.fixRecords && PM.world.fixRecords(PM.state.data));
+        if (arreglado) PM.state.save();
+        // la huella solo se apunta si la nube tiene TODO lo de aquí; si cambió algo durante la subida o fixRecords saneó algo, la próxima
         // copia vuelve a subir (antes decía «sin cambios» y la nube se quedaba atrás)
-        cfg[hk] = cambiadaDurante ? null : await huella(); saveCfg();
+        cfg[hk] = (cambiadaDurante || arreglado) ? null : await huella(); saveCfg();
       }
       if (!subida) throw new Error('La nube está ocupada (otro dispositivo guardando a la vez): se reintentará');
       const pend = PM.state.data.pendingGeo || {};

@@ -2311,7 +2311,7 @@
         const miss = [...ks].filter((k) => !(W.tiles[k] && W.tiles[k].loaded));
         if (miss.length && miss.length <= 60) { try { await W.ensureKeys(miss); } catch (e) { /* sin red: con lo que haya; el repaso pendiente lo intentará luego */ } }
         if (!(S().walks || []).includes(w)) return null;
-        if (miss.length && miss.every((k) => !(W.tiles[k] && W.tiles[k].loaded))) sinRedHuecos = true;
+        if (miss.length && miss.length <= 60 && miss.every((k) => !(W.tiles[k] && W.tiles[k].loaded))) sinRedHuecos = true;
         for (const h of huecos) {
           const m = rutaDeHueco(h);
           h.ruta = m ? m.nombre : 'ninguna'; h.encaje = m ? +m.enc.toFixed(2) : null;
@@ -2332,9 +2332,20 @@
         } catch (e) { mot = null; }
       }
       if (!(S().walks || []).includes(w)) return null;
-      // la evaluación del paseo: qué parte del tiempo hubo buena señal (posiciones precisas a menos de 1 min unas de otras)
+      // la evaluación del paseo: qué parte del tiempo hubo buena señal (en marcha, posiciones precisas a menos de 1 min;
+      // estar parado en el mismo sitio —d <= 40 m— no es falta de señal, ya que distanceFilter=8 m no emite puntos quieto)
       let bien = 0, total = 0, prevQ = null;
-      for (const q of track) { if (!q) { prevQ = null; continue; } if (prevQ) { const dt = q[2] - prevQ[2]; total += dt; if (dt <= 60) bien += dt; } prevQ = q; }
+      for (const q of track) {
+        if (!q) { prevQ = null; continue; }
+        if (prevQ) {
+          const dt = q[2] - prevQ[2];
+          if (dt > 0) {
+            total += dt;
+            if (dt <= 60 || PM.geo.dist(prevQ, q) <= 40) bien += dt;
+          }
+        }
+        prevQ = q;
+      }
       const metros = Math.max(0, Math.round(informe.metros + extra));
       w.forense = { t: Date.now(), recuperadas: informe.recuperadas, rebotes: informe.rebotes, pausas: informe.pausas, vehiculo: informe.vehiculo, parado: informe.parado, sinDatos: informe.sinDatos,
         metros, estimado: Math.round(estimado), senal: total ? Math.round(100 * bien / total) : 100,
@@ -2549,12 +2560,13 @@
       const prev = S().walks[S().walks.length - 2];
       if (!PM.debug.sinRepaso) setTimeout(async () => {
         try { if (prev && !prev.forense && !prev.imported && prev.start > Date.now() - 2 * 86400000) await revisarForense(prev); } catch (e) { /* el de ahora va igual */ }
-        revisarForense(w).catch((e) => console.warn('Revisión forense', e));
+        await revisarForense(w).catch((e) => console.warn('Revisión forense', e));
+        PM.sync.auto(toast);
       }, 2500);
-    }
+      else PM.sync.auto(toast);
+    } else PM.sync.auto(toast);
     persistSession(); syncGPS(); renderSession();
     showSummary(s);
-    PM.sync.auto(toast);
     setTimeout(backupReminder, 8000);
     setTimeout(() => PM.update.check(false), 5000);
   }

@@ -51,9 +51,10 @@ PM.bienvenida = (function () {
       clearTimeout(quieto);
       quieto = setTimeout(() => { if (Date.now() >= yendo) marca(Math.round(pista.scrollLeft / Math.max(1, pista.clientWidth))); }, 90);
     }, { passive: true });
-    sigue.addEventListener('click', () => { if (i < ultimo) ir(i + 1); else { ov.remove(); fin(); } });
+    const cerrar = () => { clearTimeout(quieto); ov.remove(); fin(); };
+    sigue.addEventListener('click', () => { if (i < ultimo) ir(i + 1); else cerrar(); });
     // (en el móvil, saltar lleva a la última pantalla: el aviso de la ubicación se ve siempre antes del permiso)
-    salta.addEventListener('click', () => { if (pasos[ultimo].movil) ir(ultimo); else { ov.remove(); fin(); } });
+    salta.addEventListener('click', () => { if (pasos[ultimo].movil) ir(ultimo); else cerrar(); });
     marca(0);
     sigue.focus();
   }
@@ -66,9 +67,9 @@ PM.bienvenida = (function () {
     const el = document.createElement('div');
     el.id = 'guia';
     document.body.appendChild(el);
-    let obj = null, html = '', vivo = true, reloj = null;
+    let obj = null, html = '', vivo = true, reloj = null, offG = null;
     function fin(aviso) {
-      vivo = false; clearInterval(reloj); el.remove(); ctx.marcar(null);
+      vivo = false; clearInterval(reloj); if (typeof offG === 'function') { offG(); offG = null; } el.remove(); ctx.marcar(null);
       delete S().guia; PM.state.save();
       if (aviso) setTimeout(() => ctx.toast(aviso, 'gold', 7000), 400);
     }
@@ -103,7 +104,7 @@ PM.bienvenida = (function () {
       const s = el.querySelector('.g-obj span');
       if (s && o) { s.textContent = `${o.emoji || '📍'} ${o.name}`; el.querySelector('.g-obj small').textContent = PM.fmtDist(Math.max(10, Math.round(PM.geo.dist(ctx.pos(), o.pos) / 10) * 10)); }
     }
-    G.on((ev, d) => {
+    offG = G.on((ev, d) => {
       if (!vivo) return;
       if (ev === 'painted' && S().guia < 3) { S().guia = 3; PM.state.save(); dibuja(); }
       if (ev === 'captured' && d.first) fin('🎉 ' + PM.t('¡Tu primera carta! La tienes en el Álbum, en la página de tu ciudad.'));

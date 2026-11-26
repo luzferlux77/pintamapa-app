@@ -46,9 +46,8 @@
     // 2) recorrido + lo que faltaba del diario (si no hay un punto del recorrido a menos de 3 s), en orden de hora
     const ts = orig.map((q) => q.t);
     const cerca = (t) => { let lo = 0, hi = ts.length; while (lo < hi) { const m = (lo + hi) >> 1; if (ts[m] < t) lo = m + 1; else hi = m; } return (lo < ts.length && ts[lo] - t <= 3000) || (lo > 0 && t - ts[lo - 1] <= 3000); };
-    let recuperadas = 0;
     const todos = orig.slice();
-    for (const f of buenas) if (!enCoche.has(f) && !(conPausas && pausado(f.t, f.t + 1)) && !cerca(f.t)) { todos.push({ p: [f.la, f.lo], t: f.t, de: 'd' }); recuperadas++; }
+    for (const f of buenas) if (!enCoche.has(f) && !(conPausas && pausado(f.t, f.t + 1)) && !cerca(f.t)) todos.push({ p: [f.la, f.lo], t: f.t, de: 'd' });
     todos.sort((x, y) => x.t - y.t);
     // 2b) rebotes: una posición del DIARIO que se va lejos y vuelve en poco tiempo (las de antes y después, juntas): fuera, o se
     // pintaría la calle de al lado. Solo las del diario: las del recorrido ya pasaron el filtro de rebotes en directo, y una ida y
@@ -59,6 +58,23 @@
       if (m.de !== 'd' || b.t - a.t > 60000) continue;
       const am = dist(a.p, m.p), mb = dist(m.p, b.p), ab = dist(a.p, b.p);
       if (am > 40 && mb > 40 && ab < 0.5 * Math.min(am, mb)) { todos.splice(i, 1); i--; rebotes++; }
+    }
+    // 2b2) deriva en parado: el mismo filtro que onMove aplica en directo (< 0,2 m/s y < 40 m) sobre las filas del diario
+    // (sin esto, las lecturas que onMove descartó adrede en parado se reinyectaban al acabar, inflando metros y «recuperadas»;
+    // si justo después el usuario reanuda la marcha —siguiente lectura en <= 30 s a >= 0,4 m/s—, se conserva el punto de salida)
+    const limpios = [];
+    for (let i = 0; i < todos.length; i++) {
+      const m = todos[i], prev = limpios[limpios.length - 1];
+      if (m.de === 'd' && prev) {
+        const dt = (m.t - prev.t) / 1000, d = dist(prev.p, m.p);
+        if (dt > 0 && d < 40 && d / dt < 0.2) {
+          const next = todos[i + 1];
+          const dtNext = next ? (next.t - m.t) / 1000 : 0;
+          const sigueAndando = dtNext > 0 && dtNext <= 30 && dist(m.p, next.p) / dtNext >= 0.4;
+          if (!sigueAndando) continue;
+        }
+      }
+      limpios.push(m);
     }
 
     // 2c) el paso de ESTA persona: la mediana de su velocidad andando (tramos de 3-30 s del recorrido). Un hueco largo a más de 1,6
@@ -76,13 +92,13 @@
     const vPersona = vels.length >= 10 ? Math.max(2.5, Math.min(maxSpeed, 1.6 * vels[vels.length >> 1])) : maxSpeed;
 
     // 3) cada paso entre dos posiciones seguidas: ¿se sigue, o es un corte de verdad?
-    const informe = { recuperadas, rebotes, huecos: [], pausas: 0, vehiculo: 0, parado: 0, sinDatos: 0, metros: 0, vPersona: +vPersona.toFixed(2) };
+    const informe = { recuperadas: 0, rebotes, huecos: [], pausas: 0, vehiculo: 0, parado: 0, sinDatos: 0, metros: 0, vPersona: +vPersona.toFixed(2) };
     const out = [], minDe = (t) => Math.round((t - start) / 60000);
     let ult = null;   // (el último punto guardado: de 8 en 8 m, como al andar; los del recorrido, siempre)
     const largo = (tr) => { let m = 0, a = null; for (const q of tr) { if (!q) { a = null; continue; } if (a) { const d = dist(a, q); if (d < 3000) m += d; } a = q; } return m; };
     const punto = (q) => { const x = [+q.p[0].toFixed(6), +q.p[1].toFixed(6), Math.round((q.t - start) / 1000)]; if (q.alt != null) x.push(q.alt); return x; };
-    for (let i = 0; i < todos.length; i++) {
-      const b = todos[i], a = todos[i - 1];
+    for (let i = 0; i < limpios.length; i++) {
+      const b = limpios[i], a = limpios[i - 1];
       if (a) {
         const d = dist(a.p, b.p), dt = (b.t - a.t) / 1000;
         let corte = false;
@@ -105,7 +121,7 @@
         }
         if (corte && out.length && out[out.length - 1] !== null) { out.push(null); ult = null; }
       }
-      if (b.de === 't' || !ult || dist(ult.p, b.p) >= 8 || i === todos.length - 1) { out.push(punto(b)); ult = b; }
+      if (b.de === 't' || !ult || dist(ult.p, b.p) >= 8 || i === limpios.length - 1) { out.push(punto(b)); ult = b; if (b.de === 'd') informe.recuperadas++; }
     }
     if (out.length && out[out.length - 1] === null) out.pop();
     informe.metros = Math.max(0, Math.round(largo(out) - largo(track || [])));
