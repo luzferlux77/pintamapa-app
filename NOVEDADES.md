@@ -1,5 +1,8 @@
 # Novedades de PintaMapa
 
+## v0.9.36 · 26 de noviembre de 2026
+- Correcciones forenses de paseos y nube: ruptura de ciclos en lmGone, filtro anti-deriva con lookahead en forense.js, fórmula real de señal GPS, sync 60s con PBKDF2 diferido, reintento de Overpass y saneo de listeners y PmMotorGps
+
 ## v0.9.35 · 25 de noviembre de 2026
 - Motor de lugares mejorado: museos reconvertidos, sin falsos estadios ni autodestrucción de cartas, poda de POIs en teselas, 4 Twemoji nuevos, limpieza de marcadores fantasma y álbumes clave actualizados
 

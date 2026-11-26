@@ -1,10 +1,10 @@
 {
-  "version": "0.9.35",
-  "notes": "Motor de lugares mejorado: museos reconvertidos, sin falsos estadios ni autodestrucción de cartas, poda de POIs en teselas, 4 Twemoji nuevos, limpieza de marcadores fantasma y álbumes clave actualizados",
+  "version": "0.9.36",
+  "notes": "Correcciones forenses de paseos y nube: ruptura de ciclos en lmGone, filtro anti-deriva con lookahead en forense.js, fórmula real de señal GPS, sync 60s con PBKDF2 diferido, reintento de Overpass y saneo de listeners y PmMotorGps",
   "native": 1,
   "nativeApk": 13,
   "apkMin": "0.9.30",
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.9.35/pintamapa-web-0.9.35.zip",
-  "checksum": "1190018bf4c06e5d8a38d828f9e06232d535f125e8977981b9e3ae1f1a72021e",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.9.35/PintaMapa-v0.9.35.apk"
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.9.36/pintamapa-web-0.9.36.zip",
+  "checksum": "e08e08d723741b336e84e140c3db7cdcbe65ec136bfb54f0307d2431a343bfb9",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.9.36/PintaMapa-v0.9.36.apk"
 }
