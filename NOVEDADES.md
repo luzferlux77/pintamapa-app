@@ -1,5 +1,8 @@
 # Novedades de PintaMapa
 
+## v0.9.39 · 27 de noviembre de 2026
+- Barrios oficiales INE 2025 calle a calle en Cataluña y España (+312 ciudades nuevas, 372 totales en España y 7 barrios oficiales de Cornellà incluida la Gavarra) y contorno de barrio discreto bajo lo pintado
+
 ## v0.9.38 · 27 de noviembre de 2026
 - Corrección de arranque en main.js (declaración temprana de esc antes de inicializar el marcador del jugador)
 
@@ -14,6 +17,12 @@
 
 ## v0.9.34 · 24 de noviembre de 2026
 - Barrios y cromos corregidos (Sant Ildefons, Fontsanta-Fatjó, aislamiento municipal y portada de Cornellà) + auditoría forense profunda (GPS, huecos de vehículo, álbumes, teselas y depuración)
+
+## v0.9.33 · 23 de noviembre de 2026
+- Corrección crítica de detección de barrios (Overpass ya no sobrescribe los nodos de barrio OpenFreeMap en caché, quarter y neighbourhood compiten por distancia real —la Gavarra y Almeda en Cornellà—, actualización inmediata del HUD y orden exacto por cartas en álbumes)
+
+## v0.9.32 · 23 de noviembre de 2026
+- Álbumes reorganizados sin scroll tedioso (activas ordenadas por progreso, recién pisadas plegadas, una sola barra fija, acordeones por distrito/barrio, fichas compactas para pendientes, rareza visible en conquistados, colecciones clicables y barrios en progreso) y parches críticos de GPS nativo, forense, sincronización, HUD e iconos SVG
 
 ## v0.1.0 · 11 de octubre de 2026
 - Primer prototipo: pinta las calles reales que recorres, conquista barrios y ciudades (80 %), monumentos coleccionables, botes de pintura, combos, misiones diarias y logros.

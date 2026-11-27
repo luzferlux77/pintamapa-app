@@ -1,10 +1,10 @@
 {
-  "version": "0.9.38",
-  "notes": "Corrección de arranque en main.js (declaración temprana de esc antes de inicializar el marcador del jugador)",
+  "version": "0.9.39",
+  "notes": "Barrios oficiales INE 2025 calle a calle en Cataluña y España (+312 ciudades nuevas, 372 totales en España y 7 barrios oficiales de Cornellà incluida la Gavarra) y contorno de barrio discreto bajo lo pintado",
   "native": 1,
   "nativeApk": 13,
   "apkMin": "0.9.30",
-  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.9.38/pintamapa-web-0.9.38.zip",
-  "checksum": "47bac7c198b208937a6f6729cdbacbd14cdad697e8f189f0418d8dad7a8233ab",
-  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.9.38/PintaMapa-v0.9.38.apk"
+  "bundle": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.9.39/pintamapa-web-0.9.39.zip",
+  "checksum": "adec26722b9717ed07b72ce2143e3a3e75fb95e1786858dc015776073413f2ed",
+  "apk": "https://github.com/luzferlux77/pintamapa-app/releases/download/v0.9.39/PintaMapa-v0.9.39.apk"
 }
