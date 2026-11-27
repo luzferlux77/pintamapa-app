@@ -78,6 +78,7 @@
   // grosor según el zoom (las salidas pueden depender de datos: p. ej. la intensidad de la pasada)
   const zw = (a, b, c, f) => ['interpolate', ['exponential', 1.6], ['zoom'], 13, f ? ['*', a, f] : a, 17, f ? ['*', b, f] : b, 20, f ? ['*', c, f] : c];
   const paintExpr = () => ['match', ['get', 'h'], 1, heatColor(1), 2, heatColor(2), 3, heatColor(3), paintColor()];
+  const curBarrioCol = () => (S().theme === 'dark' ? '#94a3b8' : '#475569');
   function addOverlay() {
     for (const id of SRC) if (!map.getSource(id)) map.addSource(id, { type: 'geojson', data: srcData[id], tolerance: 0.25 });
     const firstSym = (map.getStyle().layers || []).find((l) => l.type === 'symbol');   // lo pintado, por debajo de los nombres de calle
@@ -88,6 +89,12 @@
     // barrios conquistados: su zona teñida del color de su rango (debajo de lo pintado). La medalla ya no va en el mapa, donde
     // se perdía entre los lugares: va en su botón redondo (#btn-medalla)
     add({ id: 'pm-terr', type: 'fill', source: 'pm-terr', paint: { 'fill-color': ['match', ['get', 'rk'], 1, PM.RANKS[1].color, 2, PM.RANKS[2].color, 3, PM.RANKS[3].color, PM.RANKS[0].color], 'fill-opacity': 0.24 } });
+    // límites de barrio (actual y conquistados): siempre debajo de lo pintado, de nombres de calle y de iconos
+    add({ id: 'pm-barrio-cur', type: 'line', source: 'pm-barrios', filter: ['==', ['get', 'c'], 0], layout: { 'line-join': 'round' },
+      paint: { 'line-color': curBarrioCol(), 'line-opacity': 0.42, 'line-width': zw(1, 1.5, 2.2), 'line-dasharray': [2.5, 2.5] } });
+    add({ id: 'pm-barrio-conq', type: 'line', source: 'pm-barrios', filter: ['==', ['get', 'c'], 1], layout: round,
+      paint: { 'line-color': ['match', ['get', 'rk'], 1, PM.RANKS[1].color, 2, PM.RANKS[2].color, 3, PM.RANKS[3].color, PM.RANKS[0].color], 'line-opacity': 0.72,
+        'line-width': ['+', ['case', ['==', ['get', 'cur'], 1], 2.6, 1.8], ['*', 0.5, ['get', 'rk']]] } });
     add({ id: 'pm-glow', type: 'line', source: 'pm-painted', layout: round, paint: { 'line-color': paintColor(), 'line-opacity': 0.22, 'line-width': zw(4, 14, 30), 'line-blur': zw(2, 6, 12) } });
     add({ id: 'pm-paint', type: 'line', source: 'pm-painted', layout: round, paint: { 'line-color': paintExpr(), 'line-width': zw(1.6, 5, 11, ['+', 1, ['*', 0.2, ['get', 'h']]]) } });
     // halo de los conquistados: simbólico (tamaño fijo en pantalla, no el radio real); solo mientras pintas.
@@ -95,7 +102,6 @@
     const haloVis = { visibility: haloOn ? 'visible' : 'none' };
     add({ id: 'pm-halo-fill', type: 'circle', source: 'pm-halos', layout: haloVis, paint: { 'circle-radius': haloR(1), 'circle-color': haloCol(), 'circle-opacity': ['case', ['==', ['get', 'm'], 1], 0.16, 0.2],
       'circle-stroke-color': haloCol(), 'circle-stroke-width': 1.5, 'circle-stroke-opacity': 0.6, 'circle-pitch-alignment': 'map' } });
-    add({ id: 'pm-barrio-cur', type: 'line', source: 'pm-barrios', filter: ['==', ['get', 'c'], 0], paint: { 'line-color': '#5b6478', 'line-opacity': 0.8, 'line-width': 2.5, 'line-dasharray': [3, 3] } }, true);
     // efecto de conquista (ola de color + contorno brillante)
     add({ id: 'pm-fx-fill', type: 'fill', source: 'pm-fx', paint: { 'fill-color': paintColor(), 'fill-opacity': ['get', 'o'] } });
     add({ id: 'pm-fx-line', type: 'line', source: 'pm-fxline', layout: round, paint: { 'line-color': paintColor(), 'line-width': ['get', 'w'], 'line-opacity': ['get', 'o'], 'line-blur': 1.5 } }, true);
@@ -103,9 +109,6 @@
     add({ id: 'pm-mano', type: 'line', source: 'pm-mano', layout: round, paint: { 'line-color': '#facc15', 'line-width': zw(4, 9, 16), 'line-opacity': 0.9 } }, true);
     add({ id: 'pm-lms', type: 'symbol', source: 'pm-lms', layout: { 'icon-image': ['get', 'icon'], 'icon-allow-overlap': true, 'icon-ignore-placement': true,
       'symbol-sort-key': ['get', 'z'], 'icon-size': ['interpolate', ['linear'], ['zoom'], 12, 0.55, 15, 0.85, 17, 1] } }, true);
-    add({ id: 'pm-barrio-conq', type: 'line', source: 'pm-barrios', filter: ['==', ['get', 'c'], 1], layout: round,
-      paint: { 'line-color': ['match', ['get', 'rk'], 1, PM.RANKS[1].color, 2, PM.RANKS[2].color, 3, PM.RANKS[3].color, PM.RANKS[0].color], 'line-opacity': 0.9,
-        'line-width': ['+', ['case', ['==', ['get', 'cur'], 1], 3.5, 2.5], ['*', 0.8, ['get', 'rk']]] } }, true);
   }
   map.on('style.load', () => { mapReady = true; PM.mapStyle.enhance(map, curStyle); iconMade.clear(); addOverlay(); set3D(false); flushLandmarks(true); if (placesOff) setPlaces(true, true); });
   // marcador HTML (lugares, banderas, etiquetas)
@@ -243,10 +246,16 @@
     const h = pts.length >= 3 ? envolvente(pts) : [];
     return h.length ? [h] : [];
   }
+  const geoSig = (ss) => {
+    let n = 0; for (const a of ss || []) n += a.length;
+    const p0 = ss && ss[0] && ss[0][0], pm = ss && ss[0] && ss[0][ss[0].length >> 1];
+    return n + '|' + (p0 ? p0[0] + ',' + p0[1] : '') + '|' + (pm ? pm[0] + ',' + pm[1] : '');
+  };
   function bgeoSave(B) {   // contorno de un barrio conquistado (simplificado)
     const segs = (B.segs || []).map((sg) => PM.simplifyTrack(sg.map((q) => [q[0], q[1]]), 4).map((q) => [+q[0].toFixed(5), +q[1].toFixed(5)]));
     const cur = bgeo[B.id], zona = zonaDe(B).map((r) => r.map((q) => [+q[0].toFixed(5), +q[1].toFixed(5)]));
-    if (cur && cur.segs.length === segs.length && cur.pos && (cur.zona || []).length === zona.length) return;
+    if (cur && cur.name === B.name && cur.pos && cur.segs.length === segs.length && (cur.zona || []).length === zona.length
+      && geoSig(cur.segs) === geoSig(segs) && geoSig(cur.zona) === geoSig(zona)) return;
     bgeo[B.id] = { name: B.name, segs, pos: B.pos ? [+B.pos[0].toFixed(5), +B.pos[1].toFixed(5)] : null, zona };
     if (geoReady) geoDb().then((db) => db.transaction('meta', 'readwrite').objectStore('meta').put(bgeo, 'barrios')).catch(() => {});
   }
@@ -451,7 +460,7 @@
   function recolorAll() {
     if (mapReady) {
       const c = paintColor();
-      [['pm-glow', 'line-color', c], ['pm-paint', 'line-color', paintExpr()], ['pm-halo-fill', 'circle-color', haloCol()], ['pm-halo-fill', 'circle-stroke-color', haloCol()]]
+      [['pm-glow', 'line-color', c], ['pm-paint', 'line-color', paintExpr()], ['pm-barrio-cur', 'line-color', curBarrioCol()], ['pm-halo-fill', 'circle-color', haloCol()], ['pm-halo-fill', 'circle-stroke-color', haloCol()]]
         .forEach(([l, prop, v]) => map.getLayer(l) && map.setPaintProperty(l, prop, v));
     }
     renderBarrios();
