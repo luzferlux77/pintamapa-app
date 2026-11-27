@@ -188,8 +188,9 @@ PM.tcg = (function () {
       try { const svg = await streetsFor(pos); if (svg) { el.innerHTML = svg; el.classList.add('real'); } } catch (e) { /* sin conexión: se queda el grabado */ }
     });
   }
+  let svgUid = 0;
   function backHTML(d, R, mini) {
-    const seed = hash(d.id), uid = 'bk' + seed;
+    const seed = hash(d.id), uid = 'bk' + (++svgUid) + '_' + seed;
     // la foto del lugar dentro del sello, recortada en círculo por el centro y derecha aunque el sello vaya inclinado; debajo
     // queda el icono por si la foto tarda o no llega (las cartas pequeñas del álbum no enseñan el reverso: ahí no se carga)
     const foto = d.img && !mini ? `<image class="sf" href="${esc(d.img)}" x="33" y="33" width="134" height="134" preserveAspectRatio="xMidYMid slice"/>` : '';
@@ -399,14 +400,16 @@ PM.tcg = (function () {
         }).catch(() => {});
       wb.addEventListener('click', () => openExternal(d._wikiUrl || wikiUrl(d)));
     }
+    const cssEsc = (s) => (typeof CSS !== 'undefined' && CSS.escape ? CSS.escape(String(s)) : String(s).replace(/["\\]/g, '\\$&'));
+    const qId = cssEsc(d.id);
     (opts.actions || []).forEach((a, i) => ov.querySelector(`[data-x="${i}"]`).addEventListener('click', a.on));
-    requestAnimationFrame(() => autofit(ov.querySelector(`.tcg[data-id="${d.id}"] .tcg-flavor`)));
+    requestAnimationFrame(() => autofit(ov.querySelector(`.tcg[data-id="${qId}"] .tcg-flavor`)));
     ov.onclick = (e) => { if (e.target === ov) close(); };
     if ((d.wiki || d.wd) && (!d.text || d.text.length < 350)) {
       longText(d).then((t) => {
         if (!t || t.length <= (d.text || '').length) return;
         d.text = t;
-        const f = ov.querySelector(`.tcg[data-id="${d.id}"] .tcg-flavor`);
+        const f = ov.querySelector(`.tcg[data-id="${qId}"] .tcg-flavor`);
         if (f) { f.textContent = descText(d); autofit(f); }
         if (opts.onText) opts.onText(t);
       }).catch(() => {});

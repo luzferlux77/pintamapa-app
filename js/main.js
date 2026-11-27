@@ -370,28 +370,36 @@
     PM.vibrate([80, 50, 80, 50, 200]);
   }
   let fxRaf = 0, fwRaf = 0;
+  const reduceMotion = (() => { try { return matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { return false; } })();
   function fireworks() {
-    if (fwRaf) cancelAnimationFrame(fwRaf);
-    const cv = $('#confetti'), cx = cv.getContext('2d');
-    cv.width = innerWidth; cv.height = innerHeight;
+    if (fwRaf) { cancelAnimationFrame(fwRaf); fwRaf = 0; }
+    confettiRun++;   // (evita que confeti y fuegos se borren mutuamente en el mismo lienzo)
+    if (reduceMotion) return;
+    const cv = $('#confetti'), cx = cv.getContext('2d'), dpr = Math.min(2, devicePixelRatio || 1);
+    const W0 = innerWidth, H0 = innerHeight;
+    cv.width = W0 * dpr; cv.height = H0 * dpr; cv.style.width = W0 + 'px'; cv.style.height = H0 + 'px';
+    cx.setTransform(dpr, 0, 0, dpr, 0, 0);
     const cols = [paintColor(), '#facc15', '#22d3ee', '#f472b6', '#a3e635', '#ffffff'];
     const rockets = [], sparks = [];
-    for (let i = 0; i < 6; i++) rockets.push({ x: innerWidth * (0.15 + Math.random() * 0.7), y: innerHeight + 10, vy: -(9 + Math.random() * 4), at: innerHeight * (0.18 + Math.random() * 0.3), d: i * 12, c: cols[i % cols.length] });
-    let f = 0;
-    (function frame() {
-      cx.clearRect(0, 0, cv.width, cv.height);
+    for (let i = 0; i < 6; i++) rockets.push({ x: W0 * (0.15 + Math.random() * 0.7), y: H0 + 10, vy: -(9 + Math.random() * 4), at: H0 * (0.18 + Math.random() * 0.3), d: i * 180, c: cols[i % cols.length] });
+    const t0 = performance.now(), DUR = 3200;
+    let last = t0;
+    (function frame(now = performance.now()) {
+      const k = Math.min(3, (now - last) / 16.7); last = now;
+      const el = now - t0;
+      cx.clearRect(0, 0, W0, H0);
       for (const r of rockets) {
-        if (r.done || f < r.d) continue;
-        r.y += r.vy; r.vy *= 0.985;
+        if (r.done || el < r.d) continue;
+        r.y += r.vy * k; r.vy *= Math.pow(0.985, k);
         cx.fillStyle = '#fff'; cx.beginPath(); cx.arc(r.x, r.y, 2.5, 0, 7); cx.fill();
-        if (r.y <= r.at) { r.done = true; for (let k = 0; k < 46; k++) { const a = k / 46 * Math.PI * 2, v = 2 + Math.random() * 4; sparks.push({ x: r.x, y: r.y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, l: 1, c: r.c }); } }
+        if (r.y <= r.at) { r.done = true; for (let j = 0; j < 46; j++) { const a = j / 46 * Math.PI * 2, v = 2 + Math.random() * 4; sparks.push({ x: r.x, y: r.y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, l: 1, c: r.c }); } }
       }
       for (const p of sparks) {
-        p.vy += 0.06; p.x += p.vx; p.y += p.vy; p.vx *= 0.98; p.l -= 0.014;
+        p.vy += 0.06 * k; p.x += p.vx * k; p.y += p.vy * k; p.vx *= Math.pow(0.98, k); p.l -= 0.014 * k;
         if (p.l <= 0) continue;
         cx.globalAlpha = Math.max(0, p.l); cx.fillStyle = p.c; cx.beginPath(); cx.arc(p.x, p.y, 2.6, 0, 7); cx.fill(); cx.globalAlpha = 1;
       }
-      if (f++ < 200) fwRaf = requestAnimationFrame(frame); else { fwRaf = 0; cx.clearRect(0, 0, cv.width, cv.height); }
+      if (el < DUR) fwRaf = requestAnimationFrame(frame); else { fwRaf = 0; cx.clearRect(0, 0, W0, H0); }
     })();
   }
 
@@ -438,6 +446,7 @@
     return c.length === 6 ? '#' + ch(0) + ch(2) + ch(4) : paintColor();
   }
 
+  let playerEl = null;
   function recolorAll() {
     if (mapReady) {
       const c = paintColor();
@@ -448,6 +457,7 @@
     if (typeof flushLandmarks === 'function') flushLandmarks(true);   // los conquistados llevan tu color
     document.documentElement.style.setProperty('--paint', paintColor());
     document.documentElement.style.setProperty('--fxc', paintColor());
+    if (playerEl) { const dot = playerEl.querySelector('.dot'); if (dot) dot.textContent = G.currentPointer(); }
   }
   map.on('style.load', () => recolorAll());
 
@@ -597,8 +607,8 @@
 
   // Jugador: punto con tu color, flecha de rumbo, anillo de pintura (alcance del pincel) y anillo dorado de captura
   let pos = start.slice();
-  const playerEl = document.createElement('div');
-  playerEl.innerHTML = '<div class="player"><div class="pring"></div><div class="aring"></div><div class="pulse"></div><div class="arrow"></div><div class="dot">🖌️</div></div>';
+  playerEl = document.createElement('div');
+  playerEl.innerHTML = `<div class="player"><div class="pring"></div><div class="aring"></div><div class="pulse"></div><div class="arrow"></div><div class="dot">${esc(G.currentPointer())}</div></div>`;
   const player = new maplibregl.Marker({ element: playerEl }).setLngLat(ll(pos)).addTo(map);
   const auraEl = playerEl.querySelector('.aring');
   function sizeRings() {
@@ -1148,24 +1158,41 @@
     for (const q of pcs) { if (S().painted[q.id]) G.repass(q); else G.paintPiece(q, aura); }
   }
 
-  // Radar: el monumento sin capturar más cercano, con distancia y flecha (anima a desviarse un poco)
+  // Radar: el monumento sin capturar más cercano (o el objetivo fijado «Ir a por él»), con distancia y flecha
+  let huntTarget = null;   // { id, name, emoji, pos, rarity }
   function bearingTo(a, b) {
     const dx = (b[1] - a[1]) * PM.geo.mPerDegLon(a[0]), dy = (b[0] - a[0]) * PM.geo.mPerDegLat;
     return (Math.atan2(dx, dy) * 180 / Math.PI + 360) % 360;
   }
   function updateRadar() {
-    if (document.hidden || !session) { $('#radar').classList.remove('show'); return; }
+    const rad = $('#radar');
+    if (document.hidden) { rad.classList.remove('show'); return; }
+    if (huntTarget && huntTarget.id && S().landmarks[huntTarget.id]) huntTarget = null;
+    const arrow = (t) => `<i class="rarrow" style="transform:rotate(${bearingTo(pos, t) - map.getBearing()}deg)">➤</i>`;
+    if (huntTarget && huntTarget.pos) {
+      const d = PM.geo.dist(pos, huntTarget.pos);
+      rad.classList.add('show', 'hunt');
+      rad.classList.toggle('hot', d <= 80);
+      if (!rad.querySelector('.rad-x')) {
+        rad.innerHTML = '<span class="rad-txt"></span><button class="rad-x" aria-label="Quitar objetivo">✕</button>';
+        rad.querySelector('.rad-x').addEventListener('click', (e) => { e.stopPropagation(); huntTarget = null; updateRadar(); });
+      }
+      const txt = rad.querySelector('.rad-txt');
+      if (txt) txt.innerHTML = `🎯 ${esc(huntTarget.emoji || '📍')} ${PM.fmtDist(d)} ${arrow(huntTarget.pos)}`;
+      return;
+    }
+    rad.classList.remove('hunt', 'hot');
+    if (!session) { rad.classList.remove('show'); return; }
     let lm = null, lmD = Infinity;
     for (const id in W.landmarks) {
       if (S().landmarks[id]) continue;
       const d = PM.geo.dist(pos, W.landmarks[id].pos);
       if (d < lmD) { lmD = d; lm = W.landmarks[id]; }
     }
-    const arrow = (t) => `<i class="rarrow" style="transform:rotate(${bearingTo(pos, t) - map.getBearing()}deg)">➤</i>`;
     const parts = [];
     if (lm && lmD < 1500) parts.push(`${lm.emoji} ${PM.fmtDist(lmD)} ${arrow(lm.pos)}`);
-    $('#radar').innerHTML = parts.length ? parts.join(' · ') : '';
-    $('#radar').classList.toggle('show', parts.length > 0);
+    rad.innerHTML = parts.length ? parts.join(' · ') : '';
+    rad.classList.toggle('show', parts.length > 0);
   }
   setInterval(updateRadar, 1000);
   // parado, el GPS deja de dar lecturas (una cada 8 m): sin esto el indicador se quedaba con la última velocidad (5 km/h
@@ -1211,23 +1238,41 @@
       if (dwells[id] || !canCapture(lm, t) || PM.geo.dist(p, lm.pos) > (lm.capR || CAPTURE_RADIUS)) continue;
       dwells[id] = { lm, since: t, rec: fixDeDiario }; nuevos.push(lm);
     }
-    if (nuevos.length && visible) {
-      toast(nuevos.length === 1 ? `📸 Quédate ${CAPTURE_SECONDS} s junto a ${nuevos[0].emoji} <b>${PM.esc(nuevos[0].name)}</b> para capturarlo`
-        : `📸 Quédate ${CAPTURE_SECONDS} s: capturas <b>${nuevos.length} lugares</b> a la vez (${nuevos.map((l) => l.emoji).join(' ')})`, 'info', 3000);
-      PM.vibrate(30);
-    }
+    if (nuevos.length && visible) PM.vibrate(30);
     if (visible) showDwell(t);
   }
+  let lastDwellTick = '';
   function showDwell(t) {
     const el = $('#capture');
     const list = Object.values(dwells).sort((x, y) => x.since - y.since);
-    if (!list.length) { el.classList.remove('show'); return; }
+    if (!list.length) { el.classList.remove('show', 'urgente'); el.dataset.capKey = ''; lastDwellTick = ''; return; }
     const dw = list[0], now = t || Date.now();
+    const frac = Math.max(0, Math.min(1, (now - dw.since) / (CAPTURE_SECONDS * 1000)));
     const left = Math.max(0, CAPTURE_SECONDS - Math.floor((now - dw.since) / 1000));
-    const pct = Math.min(100, ((now - dw.since) / (CAPTURE_SECONDS * 1000)) * 100);
-    const names = list.length === 1 ? `${dw.lm.emoji} ${PM.esc(dw.lm.name)}` : `${list.map((x) => x.lm.emoji).join(' ')} ${list.length} lugares`;
-    el.innerHTML = `📸 Capturando ${names}… <b>${left} s</b><span class="cbar"><i style="width:${pct}%"></i></span>`;
+    const rar = W.RARITY[dw.lm.rarity] || W.RARITY.comun;
+    const col = dw.lm.must ? '#f59e0b' : (rar.color || '#f59e0b');
+    const key = list.map((x) => x.lm.id).join('|');
+    const names = list.length === 1 ? PM.esc(dw.lm.name) : `${list.length} lugares a la vez`;
+    const sub = list.length === 1 ? `${dw.lm.must ? '⭐ Imprescindible · ' : ''}${PM.esc(rar.label)} · quédate cerca` : list.map((x) => esc(x.lm.emoji || '📍')).join(' ');
+    if (el.dataset.capKey !== key) {
+      el.dataset.capKey = key;
+      el.style.setProperty('--cap-c', col);
+      el.innerHTML = `<div class="cap-ring"><svg viewBox="0 0 44 44" aria-hidden="true"><circle class="cr-bg" cx="22" cy="22" r="20"/><circle class="cr-fg" cx="22" cy="22" r="20"/></svg><span>${esc(dw.lm.emoji || '📍')}</span></div>
+        <div class="cap-info"><div class="cap-top"><b class="cap-name">${names}</b><b class="cap-sec">${left} s</b></div><small class="cap-sub">${sub}</small><span class="cap-bar"><i></i></span></div>`;
+    }
+    const ring = el.querySelector('.cr-fg'), bar = el.querySelector('.cap-bar i'), sec = el.querySelector('.cap-sec');
+    if (ring) ring.style.strokeDashoffset = (125.66 * (1 - frac)).toFixed(2);
+    if (bar) bar.style.width = (frac * 100).toFixed(1) + '%';
+    if (sec) sec.textContent = left > 0 ? `${left} s` : '¡Ya!';
     el.classList.add('show');
+    el.classList.toggle('urgente', left <= 3 && left > 0);
+    // Tensión auditiva y háptica en los últimos 3-2-1 segundos antes del sobre
+    const tickKey = dw.lm.id + ':' + left;
+    if (left >= 1 && left <= 3 && lastDwellTick !== tickKey && !document.hidden) {
+      lastDwellTick = tickKey;
+      if (PM.sound && PM.sound.tick) PM.sound.tick(left);
+      PM.vibrate(left === 1 ? 26 : 12);
+    }
   }
   // quieto junto al monumento no llegan lecturas nuevas del GPS: se comprueba cada segundo con la última posición
   setInterval(() => { if (session && !session.paused) checkDwell(pos, Date.now(), !document.hidden, true); }, 1000);
@@ -1335,7 +1380,7 @@
     $('#mano-si').addEventListener('click', () => {
       let n = 0; for (const q of r.tramos) if (!S().painted[q.id]) { G.paintPiece(q, false); n++; }
       const s = S(); s.stats.aMano = (s.stats.aMano || 0) + 1; PM.state.save();
-      sh.classList.remove('show'); limpiar(); flushPaint();
+      closeSheet(); limpiar(); flushPaint();
       toast(`🖌️ Pintado a mano: ${PM.fmtDist(r.largo)}`, 'ok', 2500);
     });
   }
@@ -1579,7 +1624,7 @@
 
   // Gancho de pruebas (consola del navegador): PM.debug.walkTo([lat, lon]), PM.debug.setPace(0..4)
   PM.debug = { map, fiesta: (nivel, desde) => { const h = PM.hitoNivel(desde != null ? desde : nivel - 1, nivel); if (h) fiesta(h, []); return h; }, repasar: (x) => repasarPaseo(x), repintar: (t, a, b) => repintarRecorrido(t, a, b), repasoPendiente: () => repasoPendiente(), walkTo(p) { target = p; follow = true; }, setPace(i) { pace = i; turbo = false; }, get pos() { return pos.slice(); },
-    get bearing() { return map.getBearing(); }, get heading() { return heading; }, get gap() { return { lastP, lastT, pending: pendingGaps.length, autoResumed, lastSeen: session && session.lastSeen }; }, trim: () => trimMemory(), revisar: () => revisarCartas(), backup: () => buildBackup(), importData: (d) => importData(d), fix(lat, lon, t, acc = 5, spd, brg) { const m = mode; mode = 'gps'; try { onFix({ latitude: lat, longitude: lon, accuracy: acc, speed: spd, bearing: brg }, t); } finally { mode = m; } }, newSession() { if (session) endSession(); startSession(); $('#sheet').classList.remove('show'); }, endSession: () => endSession(), get sessionTrack() { return session && session.track; }, harvest: () => harvestOld(), flushGeo: () => geoFlush(), get geo() { return { pgeo: pgeo.size, zonas: pgeoTile.size, barrios: Object.keys(bgeo).length, recogidas: Object.keys(harvested).length, ready: geoReady }; }, get painted() { return paintedF; },
+    get bearing() { return map.getBearing(); }, get heading() { return heading; }, get gap() { return { lastP, lastT, pending: pendingGaps.length, autoResumed, lastSeen: session && session.lastSeen }; }, trim: () => trimMemory(), revisar: () => revisarCartas(), backup: () => buildBackup(), importData: (d) => importData(d), fix(lat, lon, t, acc = 5, spd, brg) { const m = mode; mode = 'gps'; try { onFix({ latitude: lat, longitude: lon, accuracy: acc, speed: spd, bearing: brg }, t); } finally { mode = m; } }, newSession() { if (session) endSession(); startSession(); closeSheet(); }, endSession: () => endSession(), get sessionTrack() { return session && session.track; }, harvest: () => harvestOld(), flushGeo: () => geoFlush(), get geo() { return { pgeo: pgeo.size, zonas: pgeoTile.size, barrios: Object.keys(bgeo).length, recogidas: Object.keys(harvested).length, ready: geoReady }; }, get painted() { return paintedF; },
     // avanza el juego n fotogramas a mano (pruebas con la pestaña oculta, donde el navegador congela la animación)
  };
   PM.debug.fx = (id) => conquestFX(id || curBarrio);   // pruebas: animación de conquista
@@ -2123,7 +2168,7 @@
       <p class="muted">Se abre el aviso de Android: elige <b>Permitir</b>. Si no sale, en <b>Ajustes → Aplicaciones → PintaMapa → Batería</b> pon <b>Sin restricciones</b>.
       PintaMapa solo usa el GPS mientras hay un paseo activo: en pausa o al finalizar se apaga del todo.</p>`);
     const btn = $('#bat-ok');
-    if (btn) btn.addEventListener('click', async () => { $('#sheet').classList.remove('show'); try { await PmSys.requestBattery(); } catch (e) { toast('Ábrelo en Ajustes → Aplicaciones → PintaMapa → Batería', 'warn', 5000); } });
+    if (btn) btn.addEventListener('click', async () => { closeSheet(); try { await PmSys.requestBattery(); } catch (e) { toast('Ábrelo en Ajustes → Aplicaciones → PintaMapa → Batería', 'warn', 5000); } });
   }
   function pauseSession() {
     if (!session || session.paused) return;
@@ -2625,16 +2670,41 @@
     return `<p class="muted gps-inf">📡 ${partes.join(' ')}</p>` + (malo ? `<p class="muted">Los cortes suelen ser el ahorro de batería del móvil frenando el GPS con la pantalla apagada.${
       isNative && PmSys ? ' <button class="btn" id="gps-bat">🔋 Quitar el ahorro de batería</button>' : ''} Si alguna calle quedó sin pintar, mantenla pulsada en el mapa.</p>` : '');
   }
+  function miniTrackSVG(track, color) {
+    const segs = []; let cur = [];
+    for (const q of track || []) { if (!q) { if (cur.length > 1) segs.push(cur); cur = []; } else cur.push(q); }
+    if (cur.length > 1) segs.push(cur);
+    const all = segs.flat();
+    if (all.length < 2) return '';
+    let a = 90, b = -90, l = 180, r = -180;
+    all.forEach((q) => { a = Math.min(a, q[0]); b = Math.max(b, q[0]); l = Math.min(l, q[1]); r = Math.max(r, q[1]); });
+    const k = Math.cos((a + b) / 2 * Math.PI / 180), sx = Math.max(1e-5, (r - l) * k), sy = Math.max(1e-5, b - a);
+    const W0 = 320, H0 = 124, pad = 16, sc = Math.min((W0 - pad * 2) / sx, (H0 - pad * 2) / sy);
+    const ox = (W0 - sx * sc) / 2, oy = (H0 - sy * sc) / 2;
+    const pt = (q) => `${(ox + (q[1] - l) * k * sc).toFixed(1)},${(oy + (b - q[0]) * sc).toFixed(1)}`;
+    const first = all[0], last = all[all.length - 1];
+    const [fx, fy] = pt(first).split(','), [lx, ly] = pt(last).split(',');
+    return `<div class="sum-hero"><svg class="sum-svg" viewBox="0 0 ${W0} ${H0}" preserveAspectRatio="xMidYMid meet">
+      ${segs.map((sg) => `<polyline fill="none" stroke="${esc(color)}" stroke-opacity=".22" stroke-width="10" stroke-linecap="round" stroke-linejoin="round" points="${sg.map(pt).join(' ')}"/>`).join('')}
+      ${segs.map((sg) => `<polyline fill="none" stroke="${esc(color)}" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" points="${sg.map(pt).join(' ')}"/>`).join('')}
+      <circle cx="${fx}" cy="${fy}" r="5" fill="#22c55e" stroke="#fff" stroke-width="2"/>
+      <circle cx="${lx}" cy="${ly}" r="5.5" fill="${esc(color)}" stroke="#fff" stroke-width="2"/>
+    </svg></div>`;
+  }
   function showSummary(s) {
     const st = s.st, movMs = PM.movingMs(s), min = movMs / 60000;   // velocidad con el tiempo en movimiento (como Strava)
     const kmh = min > 0 ? (st.walked / 1000) / (min / 60) : 0;
     // (empezar y terminar sin moverse: antes salía «¡Paseo completado!» a pantalla completa, con confeti, para 0 m)
     if ((st.walked || 0) < 20 && !(st.painted > 0) && !st.captures) { toast('🏁 Paseo terminado: no te has movido, así que no se guarda', 'info', 3500); return; }
-    // cuatro cifras grandes (lo que importa) y el resto en una línea
+    const fin = Date.now() + 60000;
+    const caps = Object.entries(S().landmarks || {}).filter(([, r]) => r && r.t >= s.start && r.t <= fin);
+    const lp = G.levelProgress();
+    const B = curBarrio && W.barrios[curBarrio], bPct = B && B.total && W.barrioComplete(curBarrio) ? G.barrioProgress(curBarrio) * 100 : null;
     const extra = [st.captures ? `🏛️ ${st.captures} ${st.captures === 1 ? 'lugar' : 'lugares'}` : '', st.conquests ? `🚩 ${st.conquests} ${st.conquests === 1 ? 'barrio conquistado' : 'barrios conquistados'}` : '',
       st.repassed ? `🔥 ${PM.fmtDist(st.repassed)} repasados` : '', st.bestCombo > 1 ? `✖️ combo x${st.bestCombo}` : '', kmh > 0.5 && kmh < 25 ? `⚡ ${PM.dec(kmh, 1)} km/h` : ''].filter(Boolean);
-    openSheet('🏁 Paseo terminado', `
+    openSheet('🏁 Paseo completado', `
       <p class="muted">${new Date(s.start).toLocaleString(PM.LOCALE, { dateStyle: 'medium', timeStyle: 'short' })}${movMs < s.elapsed - 60000 ? ` · total ${fmtTime(s.elapsed)}` : ''}</p>
+      ${miniTrackSVG(s.track, paintColor())}
       <div class="stats cuatro">
         <div><b>${PM.fmtDist(st.walked)}</b><small>caminados</small></div>
         <div><b>${PM.fmtDist(st.painted)}</b><small>calles nuevas</small></div>
@@ -2642,14 +2712,25 @@
         <div><b>+${PM.fmtNum(st.pts)}</b><small>puntos</small></div>
       </div>
       ${extra.length ? `<p class="sum-extra">${extra.map((x) => `<span>${x}</span>`).join(' · ')}</p>` : ''}
+      ${caps.length ? `<div class="sum-caps">${caps.map(([id, r]) => { const rc = (W.RARITY[r.rarity] || W.RARITY.comun).color; return `<button class="sum-cap" data-cid="${esc(id)}" style="--sc-c:${rc}"><span>${esc(r.emoji || '📍')}</span><b>${esc(r.name)}</b></button>`; }).join('')}</div>` : ''}
+      <div class="sum-barrio">
+        <div class="mt"><span>${lp.tier ? lp.tier.icon : '⭐'} Nivel ${lp.label}</span><span>${lp.max ? 'Máx.' : Math.round(lp.pct * 100) + ' %'}</span></div>
+        <div class="bar"><i style="width:${(lp.pct * 100).toFixed(1)}%"></i></div>
+        ${bPct != null ? `<div class="mt" style="margin-top:8px"><span>📍 ${esc(B.name || 'Tu barrio')}</span><span>${PM.dec(bPct, 1)} %</span></div><div class="bar"><i style="width:${Math.min(100, bPct).toFixed(1)}%"></i></div>` : ''}
+      </div>
       ${informeGPS(st)}
       ${st.repaso ? `<p class="muted">🧩 Repaso: he pintado ${PM.fmtDist(st.repaso)} que se habían quedado sin pintar en tu recorrido.</p>` : ''}
       ${st.unidos ? `<p class="muted">🧩 Repaso: he unido ${st.unidos} ${st.unidos === 1 ? 'corte' : 'cortes'} de lo pintado (esquinas y trozos sueltos).</p>` : ''}
       ${st.painted > 0 ? '' : '<p class="muted">Hoy no pintaste calles nuevas: prueba por calles que aún estén grises.</p>'}
-      ${s.elapsed >= 120000 ? '<button class="btn on" id="sum-detail">📊 Estadísticas, vídeo y exportar</button>' : ''}`);
+      <div class="sum-acts">
+        ${s.elapsed >= 120000 ? '<button class="btn on" id="sum-detail">🎬 Vídeo y estadísticas</button>' : ''}
+        <button class="btn" id="sum-close">🗺️ Al mapa</button>
+      </div>`);
     if ($('#sum-detail')) $('#sum-detail').addEventListener('click', () => openWalk(S().walks.find((w) => w.id === String(s.start))));
+    if ($('#sum-close')) $('#sum-close').addEventListener('click', closeSheet);
+    document.querySelectorAll('.sum-cap[data-cid]').forEach((b) => b.addEventListener('click', () => PM.cards.open(b.dataset.cid)));
     if ($('#gps-bat')) $('#gps-bat').addEventListener('click', async () => { try { await PmSys.requestBattery(); } catch (e) { toast('Ábrelo en Ajustes → Aplicaciones → PintaMapa → Batería → Sin restricciones', 'warn', 6000); } });
-    celebrate('¡Paseo completado!', `${PM.fmtDist(st.walked)} caminados · ${PM.fmtDist(st.painted)} pintados · +${PM.fmtNum(st.pts)} pts`, '🏁');
+    if (st.painted > 0 || st.captures > 0) { confetti({ n: 100 }); PM.sound.capture(); PM.vibrate([60, 40, 120]); }
   }
 
   // Detalle de un paseo (estadísticas tipo Strava, vídeo y exportar GPX/KML/KMZ…)
@@ -2687,7 +2768,7 @@
       <small>⏱ ${fmtTime(PM.movingMs(w))} · 🖌️ ${PM.fmtDist(w.st.painted || 0)} nuevas · +${PM.fmtNum(w.st.pts || 0)} pts${w.imported ? ' · ⌚ importado' : ''}</small></div>`).join('')
       : '<p class="muted">Aún no hay paseos de más de 2 minutos.</p>') +
       `<h4>⌚ Paseo grabado con un reloj</h4><p class="muted">¿Saliste solo con el reloj (Garmin, Apple Watch, Wear OS, Polar, Suunto…)? Exporta la actividad como <b>GPX</b> o <b>TCX</b> desde su app y súbela aquí: se pintan sus calles igual que andando con el móvil.</p>
-      <button class="btn" id="imp-gpx">📂 Importar GPX / TCX</button><p class="muted" id="imp-msg"></p>`);
+      <button class="btn" id="imp-gpx">📂 Importar GPX / TCX</button><p class="muted" id="imp-msg"></p>`, 'nav-walks');
     document.querySelectorAll('.walk-row').forEach((el) => el.addEventListener('click', () => openWalk(ws[+el.dataset.i])));
     document.querySelectorAll('.pf-rec[data-walk]').forEach((r) => r.addEventListener('click', () => openWalk(S().walks.find((w) => w.id === r.dataset.walk))));
     $('#imp-gpx').addEventListener('click', () => {
@@ -2881,7 +2962,19 @@
     const c = G.combo;
     const cb = $('#combo');
     cb.classList.toggle('show', c >= 3);
-    setH(cb, `<b>x${G.comboMult().toFixed(2).replace(/\.?0+$/, '')}</b><span>COMBO ${c}</span>`);
+    if (c >= 3) {
+      if (!cb.querySelector('.cb-fuse')) cb.innerHTML = '<b></b><span></span><i class="cb-fuse"><i></i></i>';
+      const mult = G.comboMult(), tier = mult >= 2.75 ? 'cb-5' : mult >= 2 ? 'cb-4' : mult >= 1.5 ? 'cb-3' : 'cb-2';
+      cb.classList.remove('cb-2', 'cb-3', 'cb-4', 'cb-5'); cb.classList.add(tier);
+      const bEl = cb.querySelector('b'), sEl = cb.querySelector('span'), fEl = cb.querySelector('.cb-fuse i');
+      const mTxt = 'x' + mult.toFixed(2).replace(/\.?0+$/, '');
+      if (bEl.textContent !== mTxt) bEl.textContent = mTxt;
+      const cTxt = 'COMBO ' + c;
+      if (sEl.textContent !== cTxt) { sEl.textContent = cTxt; cb.classList.add('pop'); setTimeout(() => cb.classList.remove('pop'), 160); }
+      const leftPct = G.comboLeftMs ? (G.comboLeftMs() / 12000) * 100 : 100;
+      if (fEl) fEl.style.width = Math.max(0, Math.min(100, leftPct)).toFixed(1) + '%';
+    }
+    if (Object.keys(dwells).length && session && !session.paused) showDwell(Date.now());
   }
   setInterval(updateHUD, 250);
 
@@ -2947,28 +3040,48 @@
       barrios: Object.keys(s.conqueredB || {}).length, colores: colores || [], enPaseo: !!(session && !session.paused) })).catch(() => toast('⭐ ¡' + PM.levelName(h.nivel).label + '!', 'gold'));
   }
   document.addEventListener('visibilitychange', () => { if (!document.hidden && fiestaPend) { const p = fiestaPend; fiestaPend = null; setTimeout(() => fiesta(p.h, p.colores), 600); } });
-  function celebrate(title, sub, emoji) {
+  const celebrateQ = [];
+  let celebrateT = null;
+  function showCelebrateNow(item) {
     const o = $('#celebrate');
-    o.querySelector('.emoji').textContent = emoji;
-    o.querySelector('h2').textContent = title;
-    o.querySelector('p').textContent = sub;
+    o.querySelector('.emoji').textContent = item.emoji;
+    o.querySelector('h2').textContent = item.title;
+    o.querySelector('p').textContent = item.sub;
     o.classList.add('show');
     confetti();
-    PM.sound.fanfare();
+    if (item.sound && PM.sound && PM.sound[item.sound]) PM.sound[item.sound]();
+    else PM.sound.fanfare();
     PM.vibrate([100, 60, 100, 60, 300]);
   }
-  $('#celebrate').addEventListener('click', () => $('#celebrate').classList.remove('show'));
+  function closeCelebrate() {
+    const o = $('#celebrate');
+    o.classList.remove('show');
+    clearTimeout(celebrateT); celebrateT = null;
+    if (celebrateQ.length) celebrateT = setTimeout(() => { celebrateT = null; const nx = celebrateQ.shift(); if (nx) showCelebrateNow(nx); }, 220);
+  }
+  function celebrate(title, sub, emoji, opts) {
+    const o = $('#celebrate');
+    const item = { title, sub, emoji, sound: opts && opts.sound };
+    if (o.classList.contains('show') || celebrateT) { celebrateQ.push(item); return; }
+    showCelebrateNow(item);
+  }
+  $('#celebrate').addEventListener('click', closeCelebrate);
 
   // confeti: estallido desde el centro (logros) o lluvia por toda la pantalla desde arriba (combos)
   let confettiRun = 0;
   function confetti(o = {}) {
-    const cv = $('#confetti'), ctx = cv.getContext('2d'), run = ++confettiRun;
-    cv.width = innerWidth; cv.height = innerHeight;
+    if (fwRaf) { cancelAnimationFrame(fwRaf); fwRaf = 0; }   // (evita solaparse con los fuegos de conquestFX)
+    const run = ++confettiRun;
+    if (reduceMotion) return;
+    const cv = $('#confetti'), ctx = cv.getContext('2d'), dpr = Math.min(2, devicePixelRatio || 1);
+    const W0 = innerWidth, H0 = innerHeight;
+    cv.width = W0 * dpr; cv.height = H0 * dpr; cv.style.width = W0 + 'px'; cv.style.height = H0 + 'px';
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     const cols = [paintColor(), '#22d3ee', '#facc15', '#a3e635', '#ffffff', '#a855f7'];
     const parts = Array.from({ length: o.n || 160 }, () => (o.lluvia
-      ? { x: Math.random() * innerWidth, y: -20 - Math.random() * innerHeight * 0.5, vx: (Math.random() - 0.5) * 3, vy: 2 + Math.random() * 4,
+      ? { x: Math.random() * W0, y: -20 - Math.random() * H0 * 0.5, vx: (Math.random() - 0.5) * 3, vy: 2 + Math.random() * 4,
         s: 5 + Math.random() * 6, c: cols[Math.floor(Math.random() * cols.length)], r: Math.random() * 6, g: 0.12 }
-      : { x: innerWidth / 2, y: innerHeight / 2, vx: (Math.random() - 0.5) * 14, vy: -Math.random() * 14 - 4,
+      : { x: W0 / 2, y: H0 / 2, vx: (Math.random() - 0.5) * 14, vy: -Math.random() * 14 - 4,
         s: 4 + Math.random() * 6, c: cols[Math.floor(Math.random() * cols.length)], r: Math.random() * 6, g: 0.35 }));
     // (en tiempo real: igual de rápido en una pantalla de 60 Hz que en una de 120 Hz)
     const t0 = performance.now(), dur = o.lluvia ? 2600 : 2200;
@@ -2976,13 +3089,13 @@
     (function frame(now = performance.now()) {
       if (run !== confettiRun) return;   // (otro confeti más nuevo toma el relevo)
       const k = Math.min(3, (now - last) / 16.7); last = now; f += k;
-      ctx.clearRect(0, 0, cv.width, cv.height);
+      ctx.clearRect(0, 0, W0, H0);
       parts.forEach((p) => {
         p.vy += p.g * k; p.x += (p.vx + (o.lluvia ? Math.sin((f + p.r * 10) / 12) * 0.8 : 0)) * k; p.y += p.vy * k; p.r += 0.1 * k;
         ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.r); ctx.fillStyle = p.c;
         ctx.fillRect(-p.s / 2, -p.s / 2, p.s, p.s * 0.6); ctx.restore();
       });
-      if (now - t0 < dur) requestAnimationFrame(frame); else ctx.clearRect(0, 0, cv.width, cv.height);
+      if (now - t0 < dur) requestAnimationFrame(frame); else ctx.clearRect(0, 0, W0, H0);
     })();
   }
 
@@ -2997,11 +3110,20 @@
     PM.cards.open(id, { isNew: true, pts });
   }
   setInterval(showNextCard, 600);
+  let heatToastT = 0;
   G.on((ev, d) => {
     if (ev === 'xp' && session) { session.st.pts += d.n; persistSession(); }
     switch (ev) {
       case 'repass': {
-        if ([2, 4, 7].includes(d.n)) paintedDirty = true;   // cambia de intensidad: redibujar
+        if ([2, 4, 7].includes(d.n)) {
+          paintedDirty = true;   // cambia de intensidad: redibujar
+          if (!enRepaso && !document.hidden) {
+            const nv = d.n === 2 ? 1 : d.n === 4 ? 2 : 3;
+            floatText('🔥 Nv.' + nv, 'gold');
+            if (PM.sound && PM.sound.heat) PM.sound.heat();
+            if (Date.now() - heatToastT > 45000) { heatToastT = Date.now(); toast(`🔥 Calle habitual subida a nivel ${nv}`, 'combo', 2400); }
+          }
+        }
         if (session) { session.st.repassed = (session.st.repassed || 0) + d.piece.len; }
         break;
       }
@@ -3030,6 +3152,7 @@
       case 'captured': {
         const lm = d.lm;
         if (session && d.first) session.st.captures++;
+        if (huntTarget && ((huntTarget.id && huntTarget.id === lm.id) || (huntTarget.pos && lm.pos && PM.geo.dist(lm.pos, huntTarget.pos) < 35))) { huntTarget = null; updateRadar(); }
         placeLandmark(lm); flushLandmarks();
         if (d.first) {
           cardQueue.push([lm.id, d.pts]); showNextCard();   // varias capturas a la vez: una carta detrás de otra
@@ -3065,9 +3188,22 @@
       case 'mission':
         toast(`🎯 Misión completada: ${d.m.text} · +${d.m.reward}`, 'gold', 3500);
         PM.sound.capture();
+        updateNavBadges();
+        break;
+      case 'chestReady':
+        toast('🎁 ¡Cofre diario listo! Ábrelo en Misiones para reclamar tu premio', 'gold', 5000);
+        PM.sound.capture();
+        updateNavBadges();
         break;
       case 'chest':
-        celebrate('¡Cofre diario!', 'Has completado las 3 misiones de hoy. +1000. Mañana, más.', '🎁');
+        celebrate('¡Cofre diario abierto!', d && d.shield ? 'Has completado las 3 misiones de hoy. +1.000 pts y +1 🛡️ Escudo de racha.' : 'Has completado las 3 misiones de hoy. +1.000 pts. Mañana, más.', '🎁', { sound: 'chest' });
+        updateNavBadges();
+        break;
+      case 'shieldUsed':
+        toast(`🛡️ ¡Tu escudo salvó tu racha de ${d.streak} días!`, 'gold', 5000);
+        break;
+      case 'shieldGain':
+        toast(`🛡️ ¡Escudo de racha ganado por ${d.streak} días seguidos!`, 'gold', 4500);
         break;
       case 'set':
         toast(`${d.set.icon} ¡Colección «${d.set.name}» ${['', '🥉 Bronce', '🥈 Plata', '🥇 Oro'][d.tier]}!`, 'gold', 4500);
@@ -3137,15 +3273,57 @@
   });
 
   // ---------------- Paneles ----------------
-  function openSheet(title, html) {
-    const sh = $('#sheet'), body = $('#sheet .body');
-    sh.classList.remove('en-ciudad');
+  function closeSheet() {
+    const sh = $('#sheet'), bd = $('#sheet-backdrop');
+    sh.classList.remove('show', 'dragging');
+    sh.style.transform = '';
+    if (bd) bd.classList.remove('show');
+    document.querySelectorAll('#nav button.active').forEach((b) => b.classList.remove('active'));
+  }
+  function openSheet(title, html, navId) {
+    const sh = $('#sheet'), body = $('#sheet .body'), bd = $('#sheet-backdrop');
+    sh.classList.remove('en-ciudad', 'dragging');
+    sh.style.transform = '';
     $('#sheet h3').textContent = title;
     body.innerHTML = html;
     body.scrollTop = 0;
     sh.classList.add('show');
+    if (bd) bd.classList.add('show');
+    document.querySelectorAll('#nav button').forEach((b) => b.classList.toggle('active', !!navId && b.id === navId));
   }
-  $('#sheet .close').addEventListener('click', () => $('#sheet').classList.remove('show'));
+  $('#sheet .close').addEventListener('click', closeSheet);
+  if ($('#sheet-backdrop')) $('#sheet-backdrop').addEventListener('click', closeSheet);
+  // Gesto de deslizar hacia abajo en el tirador o la cabecera de la hoja para cerrarla con naturalidad
+  {
+    const sh = $('#sheet');
+    let sy0 = 0, sdy = 0, dragging = false;
+    const onStart = (e) => {
+      if (!sh.classList.contains('show') || sh.classList.contains('en-ciudad') || !e.touches || e.touches.length !== 1) return;
+      if (e.target.closest('button, a, input, select')) return;
+      sy0 = e.touches[0].clientY; sdy = 0; dragging = true;
+      sh.classList.add('dragging');
+    };
+    const onMove = (e) => {
+      if (!dragging || !e.touches || !e.touches.length) return;
+      sdy = Math.max(0, e.touches[0].clientY - sy0);
+      if (sdy > 0) sh.style.transform = `translateY(${sdy}px)`;
+    };
+    const onEnd = () => {
+      if (!dragging) return;
+      dragging = false;
+      sh.classList.remove('dragging');
+      if (sdy > 90) closeSheet();
+      else sh.style.transform = '';
+    };
+    ['.sheet-grip', '#sheet .head'].forEach((sel) => {
+      const el = $(sel);
+      if (!el) return;
+      el.addEventListener('touchstart', onStart, { passive: true });
+      el.addEventListener('touchmove', onMove, { passive: true });
+      el.addEventListener('touchend', onEnd, { passive: true });
+      el.addEventListener('touchcancel', onEnd, { passive: true });
+    });
+  }
 
   $('#card').addEventListener('click', () => $('#card').classList.remove('show'));
   // Botón «Atrás» de Android: cierra lo que haya abierto encima (lo más alto en pantalla) y dice si cerró algo; si no había nada,
@@ -3158,7 +3336,7 @@
     // (abierta = con su clase «show», aunque aún se esté animando: mientras la hoja sube, su botón está en «visibility: hidden»
     // y un «Atrás» rápido no la cerraba)
     const poner = (el, accion, porClase) => { if (el && (porClase || vis(el))) abiertos.push({ el, accion, z: capa(el) }); };
-    poner(document.querySelector('#celebrate.show'), (el) => el.classList.remove('show'), true);
+    poner(document.querySelector('#celebrate.show'), () => closeCelebrate(), true);
     poner(document.querySelector('#card.show'), (el) => el.classList.remove('show'), true);
     poner(document.querySelector('#tcg-view.show'), () => PM.tcg && PM.tcg.close(), true);
     // (dentro del álbum de una ciudad, Atrás vuelve a la lista de ciudades; en la lista, cierra la ventana)
@@ -3183,20 +3361,32 @@
     if (got) { PM.cards.open(lm.id); return; }   // conquistado: se abre su carta directamente
     const r = W.RARITY[lm.rarity] || W.RARITY.comun;   // (un lugar con una rareza rara o sin ella no rompe la ficha)
     const d = PM.geo.dist(pos, lm.pos);
-    openSheet(lm.emoji + ' ' + (got ? lm.name : '???'), `
+    const esObj = !!(huntTarget && huntTarget.id === lm.id);
+    openSheet(esc(lm.emoji || '📍') + ' Lugar por descubrir', `<div class="lm-myst">
+      <div class="lm-myst-ic" style="--lm-c:${r.color}">${esc(lm.emoji || '📍')}</div>
       ${lm.must ? `<p class="must-pill">⭐ <b>Imprescindible</b> de ${PM.esc(W.cityAt(lm.pos) || 'esta ciudad')} · vale el doble</p>` : ''}
-      <p><span class="pill" style="background:${r.color}">${r.label}</span> ${PM.esc(lm.kind)} · ${lm.points * (lm.must ? 2 : 1)} pts</p>
-      <p>${got ? `Capturado el ${new Date(got.t).toLocaleDateString(PM.LOCALE)} · ${got.visits} visita(s)` :
-        `Está a <b>${PM.fmtDist(d)}</b>. Acércate a menos de ${lm.capR || CAPTURE_RADIUS} m y quédate ${CAPTURE_SECONDS} s para capturarlo.`}</p>
-      ${!got ? '<p class="muted">Pista: ' + PM.esc(lm.name.replace(/[^\s]/g, (ch, i) => (i % 3 === 0 ? ch : '•'))) + '</p>' : ''}`);
+      <p><span class="pill" style="background:${r.color}">${r.label}</span> ${PM.esc(lm.kind)} · <b>${lm.points * (lm.must ? 2 : 1)} pts</b></p>
+      <p class="lm-myst-hint">${PM.esc(lm.name.replace(/[^\s]/g, (ch, i) => (i % 3 === 0 ? ch : '•')))}</p>
+      <p class="muted">Está a <b>${PM.fmtDist(d)}</b>. Acércate a menos de ${lm.capR || CAPTURE_RADIUS} m y quédate ${CAPTURE_SECONDS} s para capturarlo.</p>
+      <button class="btn ${esObj ? '' : 'primary'}" id="lm-hunt" style="width:100%;margin-top:8px">${esObj ? '✕ Quitar objetivo del radar' : '🎯 Ir a por él (activar radar)'}</button>
+    </div>`);
+    if ($('#lm-hunt')) $('#lm-hunt').addEventListener('click', () => {
+      if (huntTarget && huntTarget.id === lm.id) {
+        huntTarget = null; updateRadar(); closeSheet();
+      } else {
+        huntTarget = { id: lm.id, name: lm.name, emoji: lm.emoji, pos: lm.pos, rarity: lm.rarity };
+        updateRadar(); closeSheet();
+        toast('🎯 Objetivo fijado: sigue la flecha del radar', 'gold', 3500);
+      }
+    });
   }
 
   function panelAlbum(ciudad) {
-    openSheet('📖 Mis álbumes', '<div id="album-box"></div>');
+    openSheet('📖 Mis álbumes', '<div id="album-box"></div>', 'nav-album');
     // (pos: tu posición, para «📍 Cerca de ti» —lo que te falta, del más cercano al más lejano—; sin GPS ni posición, no sale)
     const aqui = () => (pos ? W.cityAt(pos) : null);
     PM.cards.album($('#album-box'), { goTo: goToPlace, ciudad: typeof ciudad === 'string' ? ciudad : null,
-      pos: () => (pos && (mode === 'sim' || lastFixT) ? pos : null), ciudadActual: aqui, cerrar: () => $('#sheet').classList.remove('show') });
+      pos: () => (pos && (mode === 'sim' || lastFixT) ? pos : null), ciudadActual: aqui, cerrar: closeSheet });
   }
   // El álbum de una ciudad aparece la primera vez que la pisas. Las ciudades donde ya habías estado lo tienen desde el principio, sin aviso.
   function albumPisado(t) {
@@ -3215,27 +3405,33 @@
   }
   // centra el mapa en un lugar y abre su carta (o su ficha si aún no es tuyo)
   function goToPlace(id) {
-    if (id && Array.isArray(id.pos) && id.pos.length >= 2) {   // hueco del álbum: se va allí, aunque ese lugar aún no esté cargado
-      $('#sheet').classList.remove('show');
+    if (id && Array.isArray(id.pos) && id.pos.length >= 2) {   // hueco del álbum (o barrio en progreso): centra el mapa; si es lugar, fija en radar
+      closeSheet();
+      if (!id.barrio) {
+        huntTarget = { id: id.id || null, name: id.name || '', emoji: id.emoji || '📍', pos: id.pos };
+        updateRadar();
+      }
       follow = false; zoomAround(); $('#btn-center').classList.add('show'); clearTimeout(recenterTimer); recenterTimer = setTimeout(recenter, 25000);
       map.easeTo({ center: ll(id.pos), zoom: Math.max(16.2, map.getZoom()), duration: 900 });
       W.ensureAround(id.pos[0], id.pos[1]);
-      toast(`📍 ${esc(id.name)}: te falta en el álbum`, 'info');
+      toast(id.barrio ? `📍 ${esc(id.name)}` : `🎯 ${esc(id.name)}: fijado en el radar`, 'info');
       return;
     }
     let lm = W.landmarks[id] || (S().landmarks[id] && Object.assign({ id }, S().landmarks[id]));
     if (!lm && /^q:/.test(id)) {   // imprescindible de la lista de su ciudad que aún no se ha cargado: se va allí y aparece al cargar
       const e = [].concat(...Object.values(W.mustLists())).find((x) => x.q === id.slice(2));
       if (!e) return;
-      $('#sheet').classList.remove('show');
+      closeSheet();
+      huntTarget = { id: null, name: e.name || '', emoji: '⭐', pos: e.pos };
+      updateRadar();
       follow = false; zoomAround(); $('#btn-center').classList.add('show'); clearTimeout(recenterTimer); recenterTimer = setTimeout(recenter, 25000);
       map.easeTo({ center: ll(e.pos), zoom: Math.max(16.2, map.getZoom()), duration: 900 });
       W.ensureAround(e.pos[0], e.pos[1]);
-      toast(`⭐ ${esc(e.name)}: imprescindible de esta ciudad`, 'info');
+      toast(`⭐ ${esc(e.name)}: imprescindible fijado en el radar`, 'info');
       return;
     }
     if (!lm || !lm.pos) return;
-    $('#sheet').classList.remove('show');
+    closeSheet();
     follow = false; zoomAround(); $('#btn-center').classList.add('show'); clearTimeout(recenterTimer); recenterTimer = setTimeout(recenter, 25000);
     map.easeTo({ center: ll(lm.pos), zoom: Math.max(16.2, map.getZoom()), duration: 900 });
     setTimeout(() => showLandmarkInfo(lm), 950);
@@ -3607,16 +3803,65 @@
     setTimeout(() => el.remove(), 20000);
   }
 
+  // Tira visual de la semana actual (L M X J V S D): qué días has salido a pintar
+  function weekStripHTML() {
+    const s = S(), st = s.stats || {}, DAY = 86400000;
+    const dk = (t) => { const d = new Date(t); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
+    const activos = new Set((s.walks || []).map((w) => dk(w.start)));
+    const hoy = PM.today();
+    if (st.lastDay === hoy) activos.add(hoy);
+    const t0 = new Date(); t0.setHours(12, 0, 0, 0);
+    const dow = (t0.getDay() + 6) % 7;
+    const mon = t0.getTime() - dow * DAY;
+    const L = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
+    return '<div class="hm-week" aria-label="Días pintados esta semana">' + L.map((lbl, i) => {
+      const k = dk(mon + i * DAY), on = activos.has(k), esHoy = i === dow;
+      return `<div class="hm-day${on ? ' on' : ''}${esHoy ? ' hoy' : ''}"><span>${lbl}</span><i>${on ? '✓' : (esHoy ? '•' : '')}</i></div>`;
+    }).join('') + '</div>';
+  }
+  let seenMissionsDay = null;
+  function updateNavBadges() {
+    document.querySelectorAll('#nav button').forEach((b) => {
+      if (!b.querySelector('.nav-dot')) { const i = document.createElement('i'); i.className = 'nav-dot'; i.setAttribute('aria-hidden', 'true'); b.appendChild(i); }
+    });
+    const bm = $('#nav-missions');
+    if (bm && PM.player) {
+      const d = G.ensureDaily();
+      const casi = !d.chest && d.missions.some((m) => !m.done && m.goal > 0 && m.progress / m.goal >= 0.7);
+      const nuevoDia = !d.chest && seenMissionsDay !== PM.today() && d.missions.some((m) => !m.done);
+      bm.classList.toggle('dot-gold', !!d.chestReady);
+      bm.classList.toggle('has-dot', !!(d.chestReady || casi || nuevoDia));
+    }
+  }
+
   function panelMissions() {
-    const d = G.ensureDaily();
+    seenMissionsDay = PM.today();
+    const d = G.ensureDaily(), st = S().stats || {};
     const fmt = (m, v) => (m.type === 'paint' || m.type === 'walk' ? PM.fmtDist(v) : Math.round(v));
-    let html = `<p class="muted">Se renuevan cada día a medianoche. Racha actual: <b>🔥 ${S().stats.streak} día(s)</b></p>`;
+    const ahora = new Date(), med = new Date(ahora); med.setHours(24, 0, 0, 0);
+    const minLeft = Math.max(1, Math.floor((med - ahora) / 60000));
+    const hLeft = Math.floor(minLeft / 60), mLeft = minLeft % 60;
+    let html = `<div class="mis-head"><span>🔥 Racha: <b>${st.streak || 0} día${st.streak === 1 ? '' : 's'}</b>${st.shields ? `<span class="hm-shields" title="Escudos de racha (salvan 1 día sin salir)">🛡️ ${st.shields}</span>` : ''}</span>
+      <span class="mis-timer">⏳ ${hLeft}h ${String(mLeft).padStart(2, '0')}m</span></div>`;
+    html += weekStripHTML();
     html += d.missions.map((m) => `<div class="mission ${m.done ? 'done' : ''}">
         <div class="mt">${m.done ? '✅' : '🎯'} ${esc(m.text)}<span>+${m.reward}</span></div>
-        <div class="bar"><i style="width:${(m.progress / m.goal * 100).toFixed(0)}%"></i></div>
+        <div class="bar"><i style="width:${Math.min(100, m.progress / Math.max(1, m.goal) * 100).toFixed(0)}%"></i></div>
         <small>${fmt(m, m.progress)} / ${fmt(m, m.goal)}</small></div>`).join('');
-    html += `<div class="mission chest ${d.chest ? 'done' : ''}"><div class="mt">🎁 Cofre diario: completa las 3<span>+1000</span></div></div>`;
-    openSheet('🎯 Misiones de hoy', html);
+    if (d.chest) {
+      html += `<div class="mission chest done"><div class="mt">🎁 Cofre diario abierto<span>✅ +1.000</span></div></div>`;
+    } else if (d.chestReady) {
+      html += `<div class="mission chest ready"><div class="mt">🎁 ¡Cofre diario listo!<span>+1.000 + 🛡️</span></div>
+        <button class="chest-btn" id="open-chest">🎁 Abrir cofre diario</button></div>`;
+    } else {
+      html += `<div class="mission chest"><div class="mt">🎁 Cofre diario: completa las 3<span>+1.000 + 🛡️</span></div>
+        <small>Incluye un escudo de racha si no estás al máximo (máx. 2)</small></div>`;
+    }
+    openSheet('🎯 Misiones de hoy', html, 'nav-missions');
+    updateNavBadges();
+    if ($('#open-chest')) $('#open-chest').addEventListener('click', () => {
+      if (G.openChest()) { updateHUD(); updateNavBadges(); panelMissions(); }
+    });
   }
 
   // Tocar el nivel: por qué tienes ese nivel, cuánto falta, de dónde vienen tus puntos y la escalera de rangos
@@ -3729,13 +3974,13 @@
         <button class="pf-lvl" id="pf-lvl">${lp.tier ? lp.tier.icon + ' ' : '⭐ '}Nivel ${lp.label} ›</button>
         <div class="pf-xp"><i style="width:${(lp.pct * 100).toFixed(1)}%"></i></div>
         <small>${PM.fmtNum(s.xp)} pts · ${lp.max ? '¡nivel máximo!' : `faltan ${PM.fmtNum(lp.need - lp.cur)} para el ${lp.nextLabel}`}</small>
-        ${D.first ? `<small class="pf-since">Pintando desde ${new Date(D.first).toLocaleDateString(PM.LOCALE, { month: 'long', year: 'numeric' })} · 🔥 ${st.streak || 0} día${st.streak === 1 ? '' : 's'} de racha</small>` : ''}</div></div>
+        ${D.first ? `<small class="pf-since">Pintando desde ${new Date(D.first).toLocaleDateString(PM.LOCALE, { month: 'long', year: 'numeric' })} · 🔥 ${st.streak || 0} día${st.streak === 1 ? '' : 's'} de racha${st.shields ? ` · 🛡️ ${st.shields}` : ''}</small>` : ''}</div></div>
       <div class="pf-tabs">${[['res', 'Resumen'], ['cit', 'Ciudades'], ['aj', 'Ajustes']].map(([k, l]) => `<button data-tab="${k}" class="${profTab === k ? 'on' : ''}">${l}</button>`).join('')}</div>`;
 
     // (v0.9: tres pestañas y sin accesos rápidos. Paseos, Álbum y Misiones están en la barra de abajo; Logros y el vídeo de la
     // semana, en el Resumen; el póster, en Ciudades —uno por ciudad—; los récords, en Paseos)
     if (profTab === 'res') {
-      html += card('📅 Esta semana', `<div class="pf-grid">${tile('🚶', PM.fmtDist(D.sum(D.wk, (w) => w.st.walked)), 'andados')}${tile('🖌️', PM.fmtDist(D.sum(D.wk, (w) => w.st.painted)), 'calles nuevas')}${tile('⏱️', dur(D.movWk), 'en movimiento')}</div>`,
+      html += card('📅 Esta semana', `<div class="pf-grid">${tile('🚶', PM.fmtDist(D.sum(D.wk, (w) => w.st.walked)), 'andados')}${tile('🖌️', PM.fmtDist(D.sum(D.wk, (w) => w.st.painted)), 'calles nuevas')}${tile('⏱️', dur(D.movWk), 'en movimiento')}</div>` + weekStripHTML(),
         `${D.wk.length} paseo${D.wk.length === 1 ? '' : 's'}`);
       html += card('📈 En total', `<div class="pf-grid">
         ${tile('🖌️', PM.fmtDist(st.paintedM), 'pintados')}${tile('🚶', PM.fmtDist(st.walkedM), 'caminados')}${tile('🗓️', D.walks.length, 'paseos', 'walks')}
@@ -3745,6 +3990,11 @@
       html += card('🎨 Color de tu pintura', `<div class="colors">` + G.COLORS.map((c) => {
         const locked = lp.level < c.lvl;
         return `<button class="color ${s.color === c.c ? 'sel' : ''}" ${locked ? 'disabled' : ''} data-c="${c.c}" style="background:${c.c}" title="${c.name}" aria-label="${c.name}${locked ? ' (nivel ' + c.lvl + ')' : ''}">${locked ? '🔒' + c.lvl : ''}</button>`;
+      }).join('') + '</div>', 'hasta nivel 100');
+      const curPtr = G.currentPointer();
+      html += card('🧭 Icono en el mapa', `<div class="pointers">` + G.POINTERS.map((p) => {
+        const locked = lp.level < p.lvl;
+        return `<button class="ptr-btn ${curPtr === p.ic ? 'sel' : ''}" ${locked ? 'disabled' : ''} data-p="${p.ic}" title="${p.name}" aria-label="${p.name}${locked ? ' (nivel ' + p.lvl + ')' : ''}">${locked ? '🔒' + p.lvl : p.ic}</button>`;
       }).join('') + '</div>', 'se desbloquean subiendo de nivel');
     }
     if (profTab === 'cit') {
@@ -3789,12 +4039,13 @@
         <div class="seg"><button class="btn on" id="off-dl" data-km="3">⬇️ Mi zona (3 km)</button><button class="btn" id="off-dl2" data-km="6">⬇️ Mi ciudad (6 km)</button></div><p class="muted" id="off-msg">Calculando lo guardado…</p>`);
       html += '<h4 class="pf-grupo">❓ Ayuda</h4>';
       { const E = PM.errores ? PM.errores.lista() : [], ult = E.slice(-4).reverse();
-        html += card('🐞 Informe de errores', `<p class="muted">${E.length ? `La app ha apuntado ${E.length} ${E.length === 1 ? 'fallo' : 'fallos'}. Envíalo para que se pueda arreglar: se le quitan las coordenadas, las zonas del mapa y los nombres de tus sitios. Puedes leerlo antes de enviarlo.` : '👍 No hay ningún fallo apuntado.'}</p>
+        html += `<details class="pf-diag"${E.length ? ' open' : ''}><summary>🔧 Diagnóstico y soporte${E.length ? ` (${E.length})` : ''}</summary>`
+          + card('🐞 Informe de errores', `<p class="muted">${E.length ? `La app ha apuntado ${E.length} ${E.length === 1 ? 'fallo' : 'fallos'}. Envíalo para que se pueda arreglar: se le quitan las coordenadas, las zonas del mapa y los nombres de tus sitios. Puedes leerlo antes de enviarlo.` : '👍 No hay ningún fallo apuntado.'}</p>
           ${ult.map((x) => `<p class="muted err-it"><b>${new Date(x.t).toLocaleString(PM.LOCALE, { dateStyle: 'short', timeStyle: 'short' })}</b> · ${esc(x.m.slice(0, 120))}${x.n > 1 ? ` <b>×${x.n}</b>` : ''}</p>`).join('')}
-          ${E.length ? '<div class="seg"><button class="btn on" id="err-send">📤 Enviar informe</button><button class="btn" id="err-del">🗑️ Borrar</button></div>' : ''}`); }
-      // para comparar dos móviles en el mismo sitio (a petición del usuario, 21-nov-2026: «a Clelia no le aparecen los mismos lugares»)
-      html += card('🔎 ' + PM.t('Comparar lugares con otro móvil'), `<p class="muted">${PM.t('Poned el mapa en el mismo sitio en los dos móviles y pulsad el botón en cada uno: si sale el mismo código, veis los mismos lugares.')}</p>
-        <button class="btn on" id="dg-go" style="width:100%">🔎 ${PM.t('Calcular')}</button><pre class="muted" id="dg-out" style="white-space:pre-wrap;font-size:12px;margin:8px 0 0"></pre>`);
+          ${E.length ? '<div class="seg"><button class="btn on" id="err-send">📤 Enviar informe</button><button class="btn" id="err-del">🗑️ Borrar</button></div>' : ''}`)
+          + card('🔎 ' + PM.t('Comparar lugares con otro móvil'), `<p class="muted">${PM.t('Poned el mapa en el mismo sitio en los dos móviles y pulsad el botón en cada uno: si sale el mismo código, veis los mismos lugares.')}</p>
+          <button class="btn on" id="dg-go" style="width:100%">🔎 ${PM.t('Calcular')}</button><pre class="muted" id="dg-out" style="white-space:pre-wrap;font-size:12px;margin:8px 0 0"></pre>`)
+          + '</details>'; }
       // versión, bienvenida y créditos juntos (las licencias piden tenerlos siempre a mano, con su enlace)
       const lic = (t, url, l) => `<li>${t}: <a href="${url}" target="_blank" rel="noopener">${l}</a></li>`;
       html += card('ℹ️ Acerca de PintaMapa', `<p class="muted">PintaMapa <b>v${PM.VERSION.app}</b> · <span>${(PM.update.status() || {}).msg || 'Se busca actualización al abrir la app.'}</span></p><p class="muted">Perfil: <b>${PM.profile === 'real' ? '📡 Real' : '🕹️ Prueba'}</b></p>
@@ -3808,7 +4059,7 @@
         ${lic(PM.t('Motor del mapa'), 'https://maplibre.org', 'MapLibre GL JS (BSD)')}</ul></details>`);
       html += `<div class="pf-danger"><button class="btn danger" id="opt-reset">🗑️ Borrar partida de este móvil</button></div>`;
     }
-    openSheet('👤 Perfil', html);
+    openSheet('👤 Perfil', html, 'nav-profile');
     // cabecera y navegación
     const avEdit = () => FUN && FUN.changeAvatar().then((ok) => { if (ok) panelProfile(); });
     $('#av-edit') && $('#av-edit').addEventListener('click', avEdit);
@@ -3828,6 +4079,9 @@
     // pestañas
     document.querySelectorAll('.color:not([disabled])').forEach((b) => b.addEventListener('click', () => {
       S().color = b.dataset.c; PM.state.save(); recolorAll(); panelProfile();   // (S(): si la nube guardó con el panel abierto, la partida ya es otro objeto y el cambio se perdía)
+    }));
+    document.querySelectorAll('.ptr-btn:not([disabled])').forEach((b) => b.addEventListener('click', () => {
+      S().pointer = b.dataset.p; PM.state.save(); recolorAll(); panelProfile();
     }));
     if ($('#cl-go')) $('#cl-go').addEventListener('click', async () => {
       const pw = $('#cl-pass').value;
@@ -3944,14 +4198,14 @@
       const p = PRESETS[+e.target.value]; if (!p) return;
       W.setDemo(!!p.demo);
       if (mode !== 'sim') setMode('sim');
-      teleport(p.p); $('#sheet').classList.remove('show');
+      teleport(p.p); closeSheet();
     });
     $('#go').addEventListener('click', () => {
       const m = $('#coords').value.split(',').map((x) => parseFloat(x));
       if (m.length === 2 && m.every(isFinite)) {
         W.setDemo(false);
         if (mode !== 'sim') setMode('sim');
-        teleport(m); $('#sheet').classList.remove('show');
+        teleport(m); closeSheet();
       } else toast('Formato: lat, lon', 'warn');
     });
   }
@@ -4008,16 +4262,33 @@
     if (!PM.player || !players.length) { el.innerHTML = ''; return; }
     const s = S(), lp = G.levelProgress(), st = s.stats || {};
     const nB = Object.keys(s.conqueredB || {}).length, nL = Object.keys(s.landmarks || {}).length;
-    const today = PM.today(), streak = st.streak || 0;
-    const yest = PM.ayer();
-    const msg = st.lastDay === today ? '✅ Hoy ya has salido. ¡Bien!' : streak && st.lastDay === yest ? `🔥 Sal hoy para no perder tu racha de ${streak} día${streak > 1 ? 's' : ''}` : 'Cada calle nueva cuenta. ¡A por ellas!';
+    const today = PM.today(), streak = st.streak || 0, yest = PM.ayer();
+    const d = s.daily && s.daily.date === today ? s.daily : null;
+    // Píldora motivadora «Casi lo tienes»: la señal más cercana a recompensa
+    let nudge = '';
+    if (d && d.chestReady) nudge = '🎁 ¡Tienes el <b>cofre diario</b> listo para abrir (+1.000 pts + 🛡️)!';
+    else if (streak && st.lastDay === yest) nudge = `🔥 Sal hoy para no perder tu racha de <b>${streak} día${streak > 1 ? 's' : ''}</b>${st.shields ? ` (tienes ${st.shields} 🛡️)` : ''}.`;
+    else {
+      let bestAch = null, bestP = 0.65;
+      for (const [id, a] of Object.entries(G.ACHIEVEMENTS || {})) {
+        if ((s.achievements || {})[id] || !a.prog) continue;
+        try { const p = a.prog(s); if (p > bestP && p < 1) { bestP = p; bestAch = a; } } catch (e) {}
+      }
+      if (bestAch) nudge = `🏆 Casi lo tienes: <b>${esc(bestAch.name)}</b> al ${Math.round(bestP * 100)} %.`;
+      else if (lp.pct >= 0.7 && !lp.max) nudge = `⭐ Te faltan solo <b>${PM.fmtNum(lp.need - lp.cur)} pts</b> para el nivel ${lp.nextLabel}.`;
+      else if (st.lastDay === today) nudge = '✅ Hoy ya has salido a pintar. ¡Sigue así!';
+      else nudge = '✨ Cada calle nueva cuenta. ¡A por ellas!';
+    }
     el.innerHTML = `<div class="hm-card">
-      <div class="hm-me">${FUN ? FUN.avatarHTML('hm-av') : ''}<div class="hm-who"><b>${esc(PM.player.name)}</b><span class="hm-lvl">${lp.tier ? lp.tier.icon + ' ' : '⭐ '}Nivel ${lp.label}</span>
+      <div class="hm-me">${FUN ? FUN.avatarHTML('hm-av') : ''}<div class="hm-who"><b>${esc(PM.player.name)}</b><span class="hm-lvl">${lp.tier ? lp.tier.icon + ' ' : '⭐ '}Nivel ${lp.label}${st.shields ? `<span class="hm-shields">🛡️ ${st.shields}</span>` : ''}</span>
         <div class="pf-xp"><i style="width:${(lp.pct * 100).toFixed(1)}%"></i></div></div></div>
       <div class="hm-stats"><div><b>🔥 ${streak}</b><small>racha</small></div><div><b>${PM.fmtDist(st.paintedM || 0)}</b><small>pintados</small></div><div><b>${nL}</b><small>${nL === 1 ? 'lugar' : 'lugares'}</small></div><div><b>${nB}</b><small>${nB === 1 ? 'barrio' : 'barrios'}</small></div></div>
-      <button class="btn primary hm-go" id="hm-go">${s.session ? '▶ Seguir con tu paseo' : '▶ Salir a pintar'}</button>
-      <p class="hm-msg">${msg}</p></div>`;
-    $('#hm-go').addEventListener('click', () => begin());
+      ${weekStripHTML()}
+      <div class="hm-nudge">${nudge}</div>
+      <button class="btn primary hm-go" id="hm-go">${s.session ? '▶ Seguir con tu paseo' : '▶ Empezar a pintar'}</button>
+      ${s.session ? '' : '<button class="hm-sec" id="hm-map">🗺️ Solo ver el mapa</button>'}</div>`;
+    $('#hm-go').addEventListener('click', () => begin(false, !s.session));
+    if ($('#hm-map')) $('#hm-map').addEventListener('click', () => begin(false, false));
     // (tu pintor ya está en la tarjeta grande: en la lista solo los demás, y el título solo si hay otros)
     document.querySelectorAll('#players .pcard.cur').forEach((b) => { b.hidden = true; });
     const otros = document.querySelectorAll('#players .pcard:not(.cur)').length;
@@ -4061,7 +4332,7 @@
     if (before) console.log(`Paseos antiguos simplificados: ${before} → ${after} puntos`);
   }
   let begun = false;
-  function begin(fromNew) {
+  function begin(fromNew, autoStart) {
     if (fromNew === true) {
       const name = $('#player-name').value.trim();
       if (!nameValid()) { $('#player-name').focus(); return; }
@@ -4071,7 +4342,7 @@
     if (begun) return;   // (dos entradas a la vez —paseo que sigue y pintor recién elegido— eran dos bucles de dibujo para siempre)
     // pintor nuevo: primero la bienvenida (y en el móvil, el aviso de la ubicación ANTES de que Android pida el permiso, que se pide más abajo)
     if (!S().bienvenida && !S().xp && !(S().walks || []).length && !session) {
-      const sigue = (guiar) => { S().bienvenida = Date.now(); if (guiar) S().guia = 1; PM.state.save(); begin(); };
+      const sigue = (guiar) => { S().bienvenida = Date.now(); if (guiar) S().guia = 1; PM.state.save(); begin(false, autoStart); };
       PM.need('js/bienvenida.js').then(() => PM.bienvenida.abrir(() => sigue(true))).catch(() => sigue(false));
       return;
     }
@@ -4103,6 +4374,9 @@
     setOrient(orient);
     if (autoResumed) setTimeout(() => recuperarDiarioGps(), 1500);   // (si el GPS siguió apuntando mientras tanto; tras mucho rato, desde que se cerró)
     renderSession();
+    updateNavBadges();
+    const arrancado = autoStart === true && !session && !S().guia;
+    if (arrancado) startSession();
     requestAnimationFrame(loop);
     PM.sync.auto(null, true);   // al abrir: se mira la nube aunque aquí no haya cambios
     PM.update.watch(toast);
@@ -4134,7 +4408,7 @@
     if (autoResumed && session && !session.paused) PM.update.hold();
     if (S().guia) PM.need('js/bienvenida.js').then(() => PM.bienvenida.guia({ S, G, W, toast, pos: () => pos, enPaseo: () => !!(session && !session.paused),
       marcar: (id) => { guiaObj = id; fxSync(); }, irA: goToPlace })).catch(() => {});
-    else setTimeout(() => toast(autoResumed && session && !session.paused ? '▶ Tu paseo sigue: la app se había cerrado, seguimos pintando' : session ? '⏸ Tienes un paseo en pausa: pulsa ▶ para reanudar' :
+    else if (!arrancado) setTimeout(() => toast(autoResumed && session && !session.paused ? '▶ Tu paseo sigue: la app se había cerrado, seguimos pintando' : session ? '⏸ Tienes un paseo en pausa: pulsa ▶ para reanudar' :
       isNative ? '📡 Pulsa «Empezar a pintar» y sal a la calle' : '🕹️ Pulsa «Empezar a pintar» y muévete con WASD o clic', 'info', 4500), 600);
   }
   $('#start').addEventListener('click', () => begin(true));

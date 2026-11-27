@@ -359,7 +359,8 @@ PM.cards = (function () {
       const rec = recOf(id);
       fetchInfo(id, PM.world.landmarks[id] || Object.assign({ id, pos: rec.pos }, rec)).then((inf) => {
         const ov = document.getElementById('tcg-view');
-        if (inf && !inf.none && ov && ov.classList.contains('show') && ov.querySelector(`.tcg[data-id="${id}"]`)) show();
+        const qId = typeof CSS !== 'undefined' && CSS.escape ? CSS.escape(String(id)) : String(id).replace(/["\\]/g, '\\$&');
+        if (inf && !inf.none && ov && ov.classList.contains('show') && ov.querySelector(`.tcg[data-id="${qId}"]`)) show();
       });
     }
   }
@@ -394,7 +395,7 @@ PM.cards = (function () {
       S().cardPhotos[id] = { filter: cur, t: Date.now() };
       PM.state.save();
       ov.remove();
-      if (first && PM.game.photoTaken) PM.game.photoTaken(id);
+      if (PM.game.photoTaken) PM.game.photoTaken(id, first);
       if (PM.cloud && PM.cloud.auto) PM.cloud.auto();   // sube la foto (cifrada) para verla también en «Mi progreso»
       if (after) after();
     });
@@ -483,7 +484,7 @@ PM.cards = (function () {
       container.querySelectorAll('[data-go]').forEach((b) => b.addEventListener('click', () => { const id = b.dataset.go; if (s.landmarks[id]) open(id); else if (opts.goTo) opts.goTo(id); }));
       container.querySelectorAll('[data-bpos]').forEach((b) => b.addEventListener('click', () => {
         const p = (b.dataset.bpos || '').split(',').map(Number);
-        if (p.length === 2 && isFinite(p[0]) && isFinite(p[1]) && opts.goTo) opts.goTo({ pos: p, name: b.dataset.bname || '' });
+        if (p.length === 2 && isFinite(p[0]) && isFinite(p[1]) && opts.goTo) opts.goTo({ pos: p, name: b.dataset.bname || '', barrio: true });
       }));
       container.querySelectorAll('.cromo[data-id], .tcg[data-id]').forEach((el) => el.addEventListener('click', () => open(el.dataset.id)));
     };

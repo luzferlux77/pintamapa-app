@@ -224,7 +224,7 @@ PM.wrapped = (function () {
   }
 
   // ---------- vídeo MP4 ----------
-  async function encode(D, A, progress) {
+  async function encode(D, A, progress, cancelled) {
     if (!window.VideoEncoder || !window.Mp4Muxer) return null;
     let codec = null;
     for (const cd of ['avc1.4d0028', 'avc1.42e028', 'avc1.640028', 'avc1.42001f']) {
@@ -239,13 +239,15 @@ PM.wrapped = (function () {
       const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
       const c = cv.getContext('2d'), total = DUR * FPS, us = 1e6 / FPS;
       for (let i = 0; i < total; i++) {
+        if (cancelled && cancelled()) return null;
         if (err) throw err;
         draw(c, i / FPS, D, A);
         const fr = new VideoFrame(cv, { timestamp: Math.round(i * us), duration: Math.round(us) });
         enc.encode(fr, { keyFrame: i % (FPS * 2) === 0 }); fr.close();
-        while (enc.encodeQueueSize > 6) await new Promise((r) => setTimeout(r, 5));
+        while (enc.encodeQueueSize > 6) { if (cancelled && cancelled()) return null; await new Promise((r) => setTimeout(r, 5)); }
         if (i % 10 === 0) { progress(i / total); await new Promise((r) => setTimeout(r, 0)); }
       }
+      if (cancelled && cancelled()) return null;
       await enc.flush();
       if (err) throw err;
     } finally { try { enc.close(); } catch (e) {} }
@@ -274,12 +276,13 @@ PM.wrapped = (function () {
       const b = e.currentTarget, msg = ov.querySelector('.wr-msg');
       b.disabled = true;
       try {
-        const blob = await encode(D, A, (p) => { msg.textContent = `🎬 Creando vídeo… ${Math.round(p * 100)} %`; });
+        const blob = await encode(D, A, (p) => { if (ov.isConnected) msg.textContent = `🎬 Creando vídeo… ${Math.round(p * 100)} %`; }, () => !ov.isConnected);
+        if (!ov.isConnected) return;
         if (!blob) { msg.textContent = 'Este móvil no puede crear el vídeo MP4.'; return; }
         msg.textContent = '✅ Vídeo listo';
         const name = 'PintaMapa-mi-semana-' + new Date().toISOString().slice(0, 10) + '.mp4';
         if (PM.replay && PM.replay.save) await PM.replay.save(blob, name, 'Mi semana pintando');
-      } catch (er) { msg.textContent = '❌ ' + (er.message || er); } finally { b.disabled = false; }
+      } catch (er) { if (ov.isConnected) msg.textContent = '❌ ' + (er.message || er); } finally { b.disabled = false; }
     };
   }
   function close() { cancelAnimationFrame(raf); const ov = document.getElementById('wrapped-view'); if (ov) ov.remove(); }

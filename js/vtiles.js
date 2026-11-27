@@ -187,10 +187,13 @@ PM.vtiles = (function () {
       const p = props(PL, F), kind = p.class || p.kind;
       if (!p.name || !/^(suburb|quarter|neighbourhood)$/.test(kind)) return;
       const g = lines(F)[0];
-      // mismo id que en OpenStreetMap si se puede (OpenFreeMap: id × 10 + 1): así tus barrios conquistados se reconocen
-      const osmId = schema === 'omt' && F.id != null && F.id % 10 === 1 ? Math.floor(F.id / 10) : 'pl' + plClave(p.name);
+      if (!g || !g.length) return;
+      const pt = toLL(g[0][0], g[0][1], X, Y, PL.extent);
+      // mismo id que en OpenStreetMap si se puede (OpenFreeMap: id × 10 + 1); si no, id único geográfico (evita colisión global «plcentre»)
+      const osmId = schema === 'omt' && F.id != null && F.id % 10 === 1 ? Math.floor(F.id / 10)
+        : (schema === 'omt' && F.id != null ? 'vt' + F.id : 'pl' + plClave(p.name) + '_' + Math.round(pt.lat * 20) + '_' + Math.round(pt.lon * 20));
       const nom = limpiarBarrio(LATINO.test(p.name) ? p.name : (p['name:es'] || p['name:latin'] || p.name)) || p.name;
-      if (g && g.length) { const pt = toLL(g[0][0], g[0][1], X, Y, PL.extent); els.push({ type: 'node', id: osmId, lat: pt.lat, lon: pt.lon, tags: { place: kind, name: nom }, src: 'vt' }); }
+      els.push({ type: 'node', id: osmId, lat: pt.lat, lon: pt.lon, tags: { place: kind, name: nom }, src: 'vt' });
     });
     return els;
   }

@@ -222,7 +222,25 @@ PM.game = (function () {
     { c: '#ef4444', name: 'Rojo tomate', lvl: 7 },
     { c: '#facc15', name: 'Oro puro', lvl: 10 },
     { c: '#f5f5f5', name: 'Blanco fantasma', lvl: 15 },
+    { c: '#06b6d4', name: 'Turquesa océano', lvl: 20 },
+    { c: '#fb7185', name: 'Coral atardecer', lvl: 30 },
+    { c: '#10b981', name: 'Esmeralda neón', lvl: 45 },
+    { c: '#6366f1', name: 'Índigo real', lvl: 60 },
+    { c: '#f59e0b', name: 'Ámbar solar', lvl: 80 },
+    { c: '#e11d48', name: 'Rubí Master', lvl: 100 },
   ];
+  const POINTERS = [
+    { ic: '🖌️', name: 'Pincel clásico', lvl: 1 },
+    { ic: '🧭', name: 'Brújula', lvl: 10 },
+    { ic: '⚡', name: 'Rayo', lvl: 25 },
+    { ic: '🚀', name: 'Cohete', lvl: 40 },
+    { ic: '🌟', name: 'Estrella', lvl: 60 },
+    { ic: '👑', name: 'Corona', lvl: 100 },
+  ];
+  function currentPointer() {
+    const p = S().pointer, ok = POINTERS.find((x) => x.ic === p && level() >= x.lvl);
+    return ok ? ok.ic : '🖌️';
+  }
 
   function addXP(n, reason) {
     const before = level();
@@ -246,6 +264,9 @@ PM.game = (function () {
   function comboMult() { return Math.min(3, 1 + Math.floor(combo / 10) * 0.25); }
   function tickCombo(now) {
     if (combo && now - lastPaintT > 12000) { combo = 0; emit('combo', { combo }); }
+  }
+  function comboLeftMs(now = Date.now()) {
+    return combo && lastPaintT ? Math.max(0, 12000 - (now - lastPaintT)) : 0;
   }
 
   // ---------------- Pintar ----------------
@@ -305,6 +326,7 @@ PM.game = (function () {
     if (!s.heat) s.heat = {};
     const n = Math.min(20, (s.heat[piece.id] || 1) + 1);
     s.heat[piece.id] = n;
+    if (!calma) progressMission('repass', 1);
     PM.state.save();
     emit('repass', { piece, n });
   }
@@ -459,7 +481,9 @@ PM.game = (function () {
     }
     PM.state.save();
   }
-  function photoTaken(id) {
+  function photoTaken(id, isFirst = true) {
+    progressMission('photo', 1);
+    if (!isFirst) return;
     const s = S(), r = s.landmarks[id];
     const bonus = r ? Math.round(100 * (PM.world.RARITY[r.rarity] || { mult: 1 }).mult * 0.5) : 50;
     addXP(bonus, 'photo');
@@ -472,10 +496,12 @@ PM.game = (function () {
 
   // ---------------- Misiones diarias ----------------
   const MISSION_TEMPLATES = [
-    { type: 'paint', goals: [300, 600, 1000, 2000], text: (g) => `Pinta ${PM.fmtDist(g)} de calles nuevas` },
-    { type: 'landmark', goals: [1, 2, 3], text: (g) => `Captura ${g} lugar${g > 1 ? 'es' : ''}` },
-    { type: 'combo', goals: [15, 25, 40], text: (g) => `Consigue un combo x${g}` },
-    { type: 'walk', goals: [1000, 2000, 4000], text: (g) => `Camina ${PM.fmtDist(g)}` },
+    { type: 'paint', goals: [300, 600, 1000, 2000], rewards: [300, 400, 500, 700], text: (g) => `Pinta ${PM.fmtDist(g)} de calles nuevas` },
+    { type: 'landmark', goals: [1, 2, 3], rewards: [300, 450, 600], text: (g) => `Captura ${g} lugar${g > 1 ? 'es' : ''}` },
+    { type: 'combo', goals: [15, 25, 40], rewards: [300, 450, 600], text: (g) => `Consigue un combo x${g}` },
+    { type: 'walk', goals: [1000, 2000, 4000], rewards: [300, 450, 650], text: (g) => `Camina ${PM.fmtDist(g)}` },
+    { type: 'repass', goals: [3, 6], rewards: [300, 450], text: (g) => `Repasa ${g} calles habituales` },
+    { type: 'photo', goals: [1], rewards: [350], text: () => 'Hazle tu foto a un cromo' },
   ];
 
   function ensureDaily() {
@@ -487,10 +513,11 @@ PM.game = (function () {
     const missions = [];
     for (let i = 0; i < 3; i++) {
       const tpl = pool.splice(Math.floor(rnd() * pool.length), 1)[0];
-      const goal = tpl.goals[Math.floor(rnd() * tpl.goals.length)];
-      missions.push({ type: tpl.type, goal, text: tpl.text(goal), progress: 0, done: false, reward: 300 });
+      const gi = Math.floor(rnd() * tpl.goals.length), goal = tpl.goals[gi];
+      const reward = (tpl.rewards && tpl.rewards[gi]) || 300;
+      missions.push({ type: tpl.type, goal, text: tpl.text(goal), progress: 0, done: false, reward });
     }
-    s.daily = { date: today, missions, chest: false };
+    s.daily = { date: today, missions, chest: false, chestReady: false };
     PM.state.save();
     return s.daily;
   }
@@ -498,9 +525,25 @@ PM.game = (function () {
   function markActiveDay() {
     const s = S(), today = PM.today();
     if (s.stats.lastDay === today) return;
-    s.stats.streak = s.stats.lastDay === PM.ayer() ? s.stats.streak + 1 : 1;
+    const ayer = PM.ayer();
+    // Si falló exactamente 1 día (hace 2 días) y tiene un Escudo de racha, se consume automáticamente y salva la racha
+    const d2 = new Date(); d2.setDate(d2.getDate() - 2);
+    const anteayer = d2.getFullYear() + '-' + String(d2.getMonth() + 1).padStart(2, '0') + '-' + String(d2.getDate()).padStart(2, '0');
+    if (s.stats.lastDay === ayer) {
+      s.stats.streak = (s.stats.streak || 0) + 1;
+    } else if (s.stats.lastDay === anteayer && (s.stats.streak || 0) > 0 && (s.stats.shields || 0) > 0) {
+      s.stats.shields--;
+      s.stats.streak = (s.stats.streak || 0) + 1;
+      emit('shieldUsed', { streak: s.stats.streak, left: s.stats.shields });
+    } else {
+      s.stats.streak = 1;
+    }
     s.stats.lastDay = today;
     s.stats.days++;
+    if (s.stats.streak > 0 && s.stats.streak % 7 === 0 && (s.stats.shields || 0) < 2) {
+      s.stats.shields = Math.min(2, (s.stats.shields || 0) + 1);
+      emit('shieldGain', { shields: s.stats.shields, streak: s.stats.streak });
+    }
     if (s.stats.streak >= 3) unlock('racha3');
     if (s.stats.streak >= 7) unlock('racha7');
     PM.state.save();
@@ -517,12 +560,23 @@ PM.game = (function () {
         emit('mission', { m });
       }
     }
-    if (!d.chest && d.missions.every((m) => m.done)) {
-      d.chest = true;
-      addXP(1000, 'chest');
-      emit('chest', {});
+    if (!d.chest && !d.chestReady && d.missions.length && d.missions.every((m) => m.done)) {
+      d.chestReady = true;
+      emit('chestReady', {});
     }
     PM.state.save();
+  }
+  function openChest() {
+    const d = ensureDaily();
+    if (d.chest || !(d.chestReady || (d.missions.length && d.missions.every((m) => m.done)))) return null;
+    d.chest = true; d.chestReady = false;
+    addXP(1000, 'chest');
+    let shield = false;
+    const s = S();
+    if ((s.stats.shields || 0) < 2) { s.stats.shields = (s.stats.shields || 0) + 1; shield = true; }
+    PM.state.save();
+    emit('chest', { xp: 1000, shield });
+    return { xp: 1000, shield };
   }
 
   function addWalk(m) {
@@ -655,8 +709,8 @@ PM.game = (function () {
 
   return {
     on: (fn) => { listeners.push(fn); return () => { const i = listeners.indexOf(fn); if (i >= 0) listeners.splice(i, 1); }; },
-    level, levelProgress, COLORS, ACHIEVEMENTS, checkAchievements: checkAll, REVISIT_MS, addXP,
-    paintPiece, pintarGemela, enCalma, repass, tileProgress, cityProgress, barrioProgress, checkBarrio, checkSets, photoTaken, visitLandmark, ensureDaily, addWalk, tickCombo,
+    level, levelProgress, COLORS, POINTERS, currentPointer, ACHIEVEMENTS, checkAchievements: checkAll, REVISIT_MS, addXP,
+    paintPiece, pintarGemela, enCalma, repass, tileProgress, cityProgress, barrioProgress, checkBarrio, checkSets, photoTaken, visitLandmark, ensureDaily, openChest, addWalk, tickCombo, comboLeftMs,
     get combo() { return combo; },
     comboMult,
   };

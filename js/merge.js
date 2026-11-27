@@ -126,8 +126,20 @@
     for (const [k, v] of Object.entries(b.stats || {})) out.stats[k] = typeof v === 'number' ? Math.max(out.stats[k] || 0, v) : v;
     // (el último día jugado es el más reciente de los dos, no el de la segunda partida: si no, ese día contaba dos veces)
     if (a.stats && b.stats && a.stats.lastDay && (!b.stats.lastDay || a.stats.lastDay > b.stats.lastDay)) out.stats.lastDay = a.stats.lastDay;
-    // (la racha es la del último día jugado, no la mayor: con el máximo, una racha rota volvía sola al fusionar con la nube y ya nunca se perdía)
-    if (a.stats && b.stats && (a.stats.lastDay || '') !== (b.stats.lastDay || '')) out.stats.streak = ((a.stats.lastDay || '') > (b.stats.lastDay || '') ? a : b).stats.streak || 0;
+    // (la racha y los escudos son los del último día jugado, no el máximo: si no, una racha rota o un escudo gastado resucitan al sincronizar)
+    if (a.stats && b.stats) {
+      const da = a.stats.lastDay || '', db = b.stats.lastDay || '';
+      if (da !== db) {
+        const win = da > db ? a : b;
+        out.stats.streak = win.stats.streak || 0;
+        if (win.stats.shields != null) out.stats.shields = win.stats.shields;
+        else delete out.stats.shields;
+      } else if (a.stats.shields != null && b.stats.shields != null) {
+        const ca = !!(a.daily && a.daily.date === da && a.daily.chest), cb = !!(b.daily && b.daily.date === db && b.daily.chest);
+        out.stats.shields = ca !== cb ? (ca ? a.stats.shields : b.stats.shields) : Math.min(a.stats.shields, b.stats.shields);
+      }
+    }
+    if (out.stats && out.stats.shields != null) out.stats.shields = Math.max(0, Math.min(2, Math.floor(out.stats.shields)));
     const walks = {};
     // el mismo paseo en dos versiones: la más completa (más tiempo; a igualdad, la más reciente)
     // (con el mismo tiempo: el de recorrido detallado antes que el simplificado, y repasado si lo está en cualquiera —Gemini—)
@@ -151,8 +163,9 @@
       // el mismo día (las misiones del día son las mismas en todos los dispositivos): misión a misión, el mayor
       // progreso y hecha si lo está en cualquiera; el cofre, abierto si se abrió en alguno (sin premios dobles)
       const ma = a.daily.missions || [], mb = b.daily.missions || [];
-      out.daily = Object.assign({}, b.daily, { chest: !!(a.daily.chest || b.daily.chest),
-        missions: mb.map((m, i) => { const o = ma[i]; return o && o.type === m.type && o.goal === m.goal ? Object.assign({}, m, { progress: Math.max(o.progress || 0, m.progress || 0), done: !!(o.done || m.done) }) : m; }) });
+      const chest = !!(a.daily.chest || b.daily.chest);
+      const missions = mb.map((m, i) => { const o = ma[i]; return o && o.type === m.type && o.goal === m.goal ? Object.assign({}, m, { progress: Math.max(o.progress || 0, m.progress || 0), done: !!(o.done || m.done) }) : m; });
+      out.daily = Object.assign({}, b.daily, { chest, chestReady: !chest && !!(a.daily.chestReady || b.daily.chestReady || (missions.length && missions.every((m) => m.done))), missions });
     }
     // foto de perfil: la más reciente (también si la quitaste)
     const newer = (a.avatarT || 0) > (b.avatarT || 0) ? a : b;

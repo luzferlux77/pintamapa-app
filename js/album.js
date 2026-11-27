@@ -65,9 +65,9 @@ PM.album = (function () {
     }
     const claveBarrio = (t) => norm(t)
       .replace(/\s*\([^)]*\)\s*$/g, '')
-      .replace(/^distrito\s+(?:de|del)\s+/i, '')
-      .replace(/^barri(?:o)?\s+(?:de\s+l'|de\s+l[ao]s?\s+|del\s+|de\s+)/i, '')
-      .replace(/^(el|la|els|les|l'|los|las)\s*/, '')
+      .replace(/^(?:districte|distrito)\s+(?:de\s+l['’]|de\s+l[ao]s?\s+|del\s+|de\s+|d['’])?/i, '')
+      .replace(/^(?:barri(?:o)?|quartier)\s+(?:de\s+l['’]|de\s+l[ao]s?\s+|du\s+|del\s+|de\s+|d['’])?/i, '')
+      .replace(/^(el|la|els|les|l['’]|los|las)\s*/i, '')
       .trim();
     const porNombre = new Map();
     A.b.forEach((n, i) => { const k = claveBarrio(n); if (!k) return; (porNombre.get(k) || porNombre.set(k, []).get(k)).push(i); });

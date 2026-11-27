@@ -507,11 +507,13 @@ ${segs.map((s) => `<LineString><tessellate>1</tessellate><altitudeMode>clampToGr
       if (window.VideoEncoder && window.Mp4Muxer) {
         recording = true;
         try {
-          const blob = await encodeMp4(sc, walk, opts, A, (f) => { msg.textContent = `🎬 Creando vídeo… ${Math.round(f * 100)} %`; });
+          const blob = await encodeMp4(sc, walk, opts, A, (f) => { if (document.body.contains(cv)) msg.textContent = `🎬 Creando vídeo… ${Math.round(f * 100)} %`; }, () => !document.body.contains(cv));
+          if (!document.body.contains(cv)) { recording = false; return; }
           if (blob) { recording = false; msg.textContent = '✅ Vídeo listo (MP4)'; await save(blob, `${fileBase(walk)}.mp4`, 'Mi paseo en PintaMapa'); play(); return; }
         } catch (e) { console.warn('MP4 no disponible, grabo en tiempo real', e); }
         recording = false;
       }
+      if (!document.body.contains(cv)) return;
       // 2) Respaldo: grabación en tiempo real (puede salir en WebM)
       if (!cv.captureStream || !window.MediaRecorder) { msg.textContent = 'Este navegador no puede grabar vídeo.'; return; }
       // (si no admite ninguno de la lista, el formato que elija el navegador: antes se rompía al poner el nombre del archivo)
@@ -522,9 +524,11 @@ ${segs.map((s) => `<LineString><tessellate>1</tessellate><altitudeMode>clampToGr
       rec.ondataavailable = (e) => e.data.size && chunks.push(e.data);
       recording = true; msg.textContent = '⏺ Grabando… (' + Math.round(DRAW_S + HOLD_S) + ' s)';
       rec.start(250); play();
-      await new Promise((r) => setTimeout(r, (DRAW_S + HOLD_S) * 1000));
-      rec.stop(); await new Promise((r) => (rec.onstop = r));
+      const finGrab = Date.now() + (DRAW_S + HOLD_S) * 1000;
+      while (Date.now() < finGrab && document.body.contains(cv)) await new Promise((r) => setTimeout(r, 250));
+      if (rec.state !== 'inactive') { rec.stop(); await new Promise((r) => (rec.onstop = r)); }
       recording = false;
+      if (!document.body.contains(cv)) return;
       const ext = /mp4/.test(type) ? 'mp4' : 'webm';
       msg.textContent = '✅ Vídeo listo';
       await save(new Blob(chunks, { type: type.split(';')[0] }), `${fileBase(walk)}.${ext}`, 'Mi paseo en PintaMapa');
@@ -541,7 +545,7 @@ ${segs.map((s) => `<LineString><tessellate>1</tessellate><altitudeMode>clampToGr
     }));
   }
   // Codifica el vídeo fotograma a fotograma en MP4 (H.264, 30 fps constantes, "faststart"): el formato más compatible
-  async function encodeMp4(sc, walk, opts, A, progress) {
+  async function encodeMp4(sc, walk, opts, A, progress, cancelled) {
     let codec = null;
     for (const c of ['avc1.4d0028', 'avc1.42e028', 'avc1.640028', 'avc1.42001f']) {
       try { const r = await VideoEncoder.isConfigSupported({ codec: c, width: W, height: H, bitrate: 5e6, framerate: FPS }); if (r.supported) { codec = c; break; } } catch (e) {}
@@ -556,14 +560,16 @@ ${segs.map((s) => `<LineString><tessellate>1</tessellate><altitudeMode>clampToGr
       const ctx = cvs.getContext('2d');
       const total = Math.round((DRAW_S + HOLD_S) * FPS), us = 1e6 / FPS;
       for (let i = 0; i < total; i++) {
+        if (cancelled && cancelled()) return null;
         if (err) throw err;
         draw(ctx, sc, i / FPS / DRAW_S, walk, opts, A);
         const frame = new VideoFrame(cvs, { timestamp: Math.round(i * us), duration: Math.round(us) });
         enc.encode(frame, { keyFrame: i % (FPS * 2) === 0 });
         frame.close();
-        while (enc.encodeQueueSize > 6) await new Promise((r) => setTimeout(r, 5));
+        while (enc.encodeQueueSize > 6) { if (cancelled && cancelled()) return null; await new Promise((r) => setTimeout(r, 5)); }
         if (i % 10 === 0) { progress(i / total); await new Promise((r) => setTimeout(r, 0)); }
       }
+      if (cancelled && cancelled()) return null;
       await enc.flush();
       if (err) throw err;
     } finally { try { enc.close(); } catch (e) {} }
@@ -588,32 +594,32 @@ ${segs.map((s) => `<LineString><tessellate>1</tessellate><altitudeMode>clampToGr
 
   const st = document.createElement('style');
   st.textContent = `
-  #replay-view { position: fixed; inset: 0; z-index: 3100; background: rgba(15,23,42,.55); display: flex; justify-content: center; align-items: flex-end; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
-  #replay-view .rp-box { background: #fff; color: #111827; width: min(760px, 100%); max-height: 94vh; border-radius: 18px 18px 0 0; display: flex; flex-direction: column; box-shadow: 0 -10px 40px rgba(0,0,0,.25); }
-  @media (min-width: 800px) { #replay-view { align-items: center; } #replay-view .rp-box { border-radius: 18px; } }
-  #replay-view .rp-head { display: flex; justify-content: space-between; align-items: center; padding: 16px 18px 10px; border-bottom: 1px solid #e5e7eb; }
-  #replay-view .rp-head small { color: #6b7280; font-size: 13px; display: block; } #replay-view .rp-head small::first-letter { text-transform: uppercase; } #replay-view h2 { margin: 2px 0 0; font-size: 20px; }
-  #replay-view .rp-x { border: 0; background: #f3f4f6; width: 40px; height: 40px; border-radius: 50%; font-size: 18px; cursor: pointer; }
+  #replay-view { position: fixed; inset: 0; z-index: 3100; background: rgba(10,14,26,.65); display: flex; justify-content: center; align-items: flex-end; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
+  #replay-view .rp-box { background: var(--sheet, #fff); color: var(--text, #111827); width: min(760px, 100%); max-height: 94vh; border-radius: 20px 20px 0 0; display: flex; flex-direction: column; box-shadow: 0 -10px 40px rgba(0,0,0,.35); padding-bottom: env(safe-area-inset-bottom, 0px); }
+  @media (min-width: 800px) { #replay-view { align-items: center; } #replay-view .rp-box { border-radius: 20px; } }
+  #replay-view .rp-head { display: flex; justify-content: space-between; align-items: center; padding: 16px 18px 10px; border-bottom: 1px solid var(--line, #e5e7eb); }
+  #replay-view .rp-head small { color: var(--muted, #6b7280); font-size: 13px; display: block; } #replay-view .rp-head small::first-letter { text-transform: uppercase; } #replay-view h2 { margin: 2px 0 0; font-size: 20px; color: var(--text, #111827); }
+  #replay-view .rp-x { border: 0; background: var(--btn, #f3f4f6); color: var(--text, #111827); width: 40px; height: 40px; border-radius: 50%; font-size: 18px; cursor: pointer; }
   #replay-view .rp-body { overflow-y: auto; padding: 14px 18px 26px; }
-  #replay-view h3 { font-size: 15px; margin: 22px 0 8px; color: #374151; }
+  #replay-view h3 { font-size: 15px; margin: 22px 0 8px; color: var(--text, #374151); }
   #replay-view .rp-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
-  #replay-view .rp-k { background: #f9fafb; border: 1px solid #eef0f3; border-radius: 12px; padding: 10px 12px; }
-  #replay-view .rp-k small { display: block; color: #6b7280; font-size: 12px; } #replay-view .rp-k b { display: block; font-size: 20px; margin-top: 2px; }
-  #replay-view .rp-k em { display: block; font-style: normal; color: #9ca3af; font-size: 12px; }
-  #replay-view .rp-chart { width: 100%; height: auto; display: block; background: #f9fafb; border-radius: 12px; }
-  #replay-view .rp-chart .ax text, #replay-view .rp-chart .lab { font-size: 11px; fill: #6b7280; } #replay-view .rp-chart .ax line { stroke: #e5e7eb; }
-  #replay-view .rp-empty, #replay-view .rp-loading, #replay-view .rp-note { color: #6b7280; font-size: 14px; }
+  #replay-view .rp-k { background: var(--card, #f9fafb); border: 1px solid var(--line, #eef0f3); border-radius: 12px; padding: 10px 12px; }
+  #replay-view .rp-k small { display: block; color: var(--muted, #6b7280); font-size: 12px; } #replay-view .rp-k b { display: block; font-size: 20px; margin-top: 2px; }
+  #replay-view .rp-k em { display: block; font-style: normal; color: var(--muted, #9ca3af); font-size: 12px; }
+  #replay-view .rp-chart { width: 100%; height: auto; display: block; background: var(--card, #f9fafb); border-radius: 12px; }
+  #replay-view .rp-chart .ax text, #replay-view .rp-chart .lab { font-size: 11px; fill: var(--muted, #6b7280); } #replay-view .rp-chart .ax line { stroke: var(--line, #e5e7eb); }
+  #replay-view .rp-empty, #replay-view .rp-loading, #replay-view .rp-note { color: var(--muted, #6b7280); font-size: 14px; }
   #replay-view .rp-splits { width: 100%; border-collapse: collapse; font-size: 14px; }
-  #replay-view .rp-splits th { text-align: left; color: #6b7280; font-weight: 600; padding: 4px 6px; } #replay-view .rp-splits td { padding: 6px; border-top: 1px solid #f1f5f9; }
+  #replay-view .rp-splits th { text-align: left; color: var(--muted, #6b7280); font-weight: 600; padding: 4px 6px; } #replay-view .rp-splits td { padding: 6px; border-top: 1px solid var(--line, #f1f5f9); }
   #replay-view .rp-splits td:last-child { width: 40%; } #replay-view .rp-splits i { display: block; height: 10px; border-radius: 5px; background: #93c5fd; }
-  #replay-view .rp-splits tr.best i { background: #2563eb; } #replay-view .rp-splits tr.best td:nth-child(2) { font-weight: 700; color: #2563eb; }
+  #replay-view .rp-splits tr.best i { background: var(--accent, #2563eb); } #replay-view .rp-splits tr.best td:nth-child(2) { font-weight: 700; color: var(--accent, #2563eb); }
   #replay-view .rp-video { display: flex; flex-direction: column; align-items: center; gap: 10px; }
   #replay-view canvas { height: min(60vh, 520px); width: auto; border-radius: 12px; }
   #replay-view .rp-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
   #replay-view .rp-exp { justify-content: flex-start; }
-  #replay-view button[data-a], #replay-view button[data-x] { border: 1px solid #d1d5db; border-radius: 10px; padding: 10px 16px; font: 600 15px system-ui, sans-serif; background: #fff; color: #111827; cursor: pointer; }
-  #replay-view button.pri { background: #2563eb; border-color: #2563eb; color: #fff; }
-  #replay-view .rp-msg { color: #374151; font-size: 14px; margin: 0; min-height: 1.2em; }`;
+  #replay-view button[data-a], #replay-view button[data-x] { border: 1px solid var(--line, #d1d5db); border-radius: 10px; padding: 10px 16px; font: 600 15px system-ui, sans-serif; background: var(--card, #fff); color: var(--text, #111827); cursor: pointer; }
+  #replay-view button.pri { background: var(--accent, #2563eb); border-color: var(--accent, #2563eb); color: #fff; }
+  #replay-view .rp-msg { color: var(--muted, #374151); font-size: 14px; margin: 0; min-height: 1.2em; }`;
   document.head.appendChild(st);
 
   // (pruebas) un fotograma del vídeo en el instante t (0 = inicio, 1 = recorrido completo), como imagen

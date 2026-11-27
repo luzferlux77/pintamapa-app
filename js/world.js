@@ -977,7 +977,9 @@ PM.world = (function () {
     barriosHechos.add(q);
     for (const r of d.d.r) {
       if (!(r.id > 0) || !r.n || !Array.isArray(r.s) || !Array.isArray(r.b)) continue;
-      barrioRels[r.id] = { id: r.id, name: r.n, lvl: r.l, bounds: r.b, segs: r.s, fijo: true };
+      // r.dist === 1 indica macro-distrito (p. ej. Municipio/Quartiere en Italia): actúa como contenedor (lvl 9)
+      // para que los nodos de barrio reales (Trastevere, Brera, Oltrarno...) no queden bloqueados
+      barrioRels[r.id] = { id: r.id, name: r.n, lvl: r.dist ? 9 : r.l, bounds: r.b, segs: r.s, fijo: true, area: (r.b[2] - r.b[0]) * (r.b[3] - r.b[1]) };
     }
     scheduleReassign();
   }
@@ -993,7 +995,7 @@ PM.world = (function () {
       if (!barrioNodes[el.id]) { barrioNodes[el.id] = { id: el.id, name: t.name, pos: [el.lat, el.lon], lvl: NODE_LVL[t.place] }; scheduleReassign(); }
       return true;
     }
-    if (el.type === 'relation' && t.boundary === 'administrative' && /^(9|10)$/.test(t.admin_level || '') && t.name && el.bounds) {
+    if (el.type === 'relation' && t.boundary === 'administrative' && /^(9|10)$/.test(t.admin_level || '') && t.name && !/community (board|district)|^categor[ií]a:/i.test(t.name) && el.bounds) {
       if (!barrioRels[el.id]) {   // (uno oficial preparado ya está: no se toca)
         const b = el.bounds;
         barrioRels[el.id] = { id: el.id, name: t.name, lvl: +t.admin_level, bounds: [b.minlat, b.minlon, b.maxlat, b.maxlon], segs: null };
@@ -1069,33 +1071,36 @@ PM.world = (function () {
     return nodos.filter((n) => n.lvl !== 3 || !mayores.some((q) => PM.geo.dist(n.pos, q.pos) < 350));
   }
   function barrioOf(p, cacheNodos) {
-    let poly10 = null, poly9 = null;
+    let poly10 = null, poly10A = Infinity, poly9 = null, poly9A = Infinity;
     for (const r of Object.values(barrioRels)) {
       if (!r.segs || !inBox(p, r.bounds) || !pip(p, r.segs)) continue;
-      if (r.lvl === 10) poly10 = r; else if (r.lvl === 9) poly9 = r;
+      const a = r.area || ((r.bounds[2] - r.bounds[0]) * (r.bounds[3] - r.bounds[1])) || Infinity;
+      if (r.lvl === 10) { if (a < poly10A) { poly10 = r; poly10A = a; } }
+      else if (r.lvl === 9) { if (a < poly9A) { poly9 = r; poly9A = a; } }
     }
     if (poly10) return { id: 'r' + poly10.id, name: poly10.name, kind: 'poly', rel: poly10, fiable: true };
-    // Aislamiento municipal: si conocemos el contorno del municipio de p, ignoramos nodos de barrio de municipios vecinos
-    // (evita que fronteras de Cornellà caigan en «les Planes» de Esplugues o «Centre» de Sant Joan Despí).
+    // Aislamiento municipal inmediato: primero contorno Nominatim (shapeCity), y si aún no llegó, contorno oficial del catálogo (catalogoDe)
     const miCiudad = shapeCity(p), ci = miCiudad && cityInfo[miCiudad], usarCi = !!(ci && ci.polys);
-    const ck = (usarCi ? miCiudad : '') + '|' + (poly9 ? poly9.id : '');
+    const cat = !usarCi ? catalogoDe(p) : null, usarCat = !!(cat && cat.ct);
+    const ck = (usarCi ? 'ci:' + miCiudad : usarCat ? 'ct:' + cat.q : '') + '|' + (poly9 ? poly9.id : '');
     let nodosValidos = cacheNodos && cacheNodos.get(ck);
     if (!nodosValidos) {
       const crudos = [];
       for (const n of Object.values(barrioNodes)) {
         if (poly9 && !pip(n.pos, poly9.segs)) continue;
         if (usarCi && !inCity(n.pos, ci)) continue;
+        if (usarCat && !(inBox(n.pos, cat.bbox) && pip(n.pos, cat.ct))) continue;
         crudos.push(n);
       }
       nodosValidos = filtrarNodosBarrio(crudos);
       if (cacheNodos) cacheNodos.set(ck, nodosValidos);
     }
-    // punto de barrio más cercano (quarter y neighbourhood compiten por distancia real —en Cornellà Almeda es quarter y la Gavarra
-    // es neighbourhood—; suburb solo si no hay un barrio más fino dentro de 1,5 km), dentro del distrito si se conoce
-    let best = null, bd = 1500, bestSub = null, bdSub = 1500;
+    // punto de barrio más cercano (con contorno municipal ampliamos el radio a 2,5 km para evitar esquinas huérfanas)
+    const maxD = (usarCi || usarCat) ? 2500 : 1500;
+    let best = null, bd = maxD, bestSub = null, bdSub = maxD;
     for (const n of nodosValidos) {
       const d = PM.geo.dist(p, n.pos);
-      if (d > 1500) continue;
+      if (d > maxD) continue;
       if (n.lvl >= 2) { if (d < bd) { bd = d; best = n; } }
       else if (d < bdSub) { bdSub = d; bestSub = n; }
     }
@@ -1111,12 +1116,10 @@ PM.world = (function () {
   function scheduleReassign() { clearTimeout(reassignTimer); reassignTimer = setTimeout(reassignAll, 250); }
   function reassignAll() {
     for (const k in barrios) delete barrios[k];
-    const memo = new Map(), cacheNodos = new Map();
+    const cacheNodos = new Map();
     for (const id in pieces) {
       const pc = pieces[id];
-      const ck = cellKey(pc.mid[0], pc.mid[1]);
-      let b = memo.get(ck);
-      if (!b) { b = barrioOf(pc.mid, cacheNodos); memo.set(ck, b); }
+      const b = barrioOf(pc.mid, cacheNodos);
       pc.barrio = b.id;
       let B = barrios[b.id];
       if (!B) {
@@ -1152,7 +1155,11 @@ PM.world = (function () {
     if (!B) return false;
     const [i0, j0] = tileIJ(tileKeyOf(B.bbox[0], B.bbox[1])), [i1, j1] = tileIJ(tileKeyOf(B.bbox[2], B.bbox[3]));
     if ((i1 - i0 + 1) * (j1 - j0 + 1) > 30) return false;     // barrio enorme (distrito): demasiado para cargarlo entero
-    for (let i = i0; i <= i1; i++) for (let j = j0; j <= j1; j++) { const t = tiles[i + '_' + j]; if (!t || !t.loaded) return false; }
+    for (let i = i0; i <= i1; i++) for (let j = j0; j <= j1; j++) {
+      const k = i + '_' + j, t = tiles[k];
+      if (!t || !t.loaded) return false;
+      if (B.kind === 'node' && !demoMode && !zonaVt.has(k)) return false;
+    }
     return true;
   }
 
@@ -1719,9 +1726,10 @@ PM.world = (function () {
       // si alguna carta tuya de esa ciudad cae dentro de su radio (dos ciudades con el mismo nombre no se confunden)
       const mias = Object.values((PM.state && PM.state.data.landmarks) || {}).filter((r) => r.pos && r.city === city)
         .concat(Object.values(landmarks).filter((lm) => lm.pos && api.cityAt(lm.pos) === city));
-      // (con su Q apuntado, ese archivo y no otro; si no, por el nombre —sin la región que distingue a las homónimas—)
-      const rq = (regCiudad()[city] || {}).q, nom = baseDe(city);
-      const c = (await preIdx()).find((x) => rq ? x.q === rq : x.name === nom && mias.some((lm) => PM.geo.dist(lm.pos, x.c) <= x.r * 1000));
+      // (con su Q apuntado, ese archivo y no otro; si no, por el nombre normalizado —Cornellá = Cornellà, L'Hospitalet = Hospitalet—)
+      const normNom = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/^(l['’]|el |la |els |les )/, '').trim();
+      const rq = (regCiudad()[city] || {}).q, nom = normNom(baseDe(city));
+      const c = (await preIdx()).find((x) => rq ? x.q === rq : normNom(x.name) === nom && mias.some((lm) => PM.geo.dist(lm.pos, x.c) <= x.r * 1000));
       const d = c && await albumArchivo(c.q, c.t);
       if (d) {
         out.portada = d.portada; out.parcial = false; if (d.oficial) out.oficial = true;

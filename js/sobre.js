@@ -296,7 +296,7 @@ PM.sobre = (function () {
       if (p >= 0.6) abrirYa(); else { ultimoTick = 0; pon(0); }   // (poco rasgado: se vuelve a cerrar)
     };
     pack.addEventListener('pointerup', suelta); pack.addEventListener('pointercancel', suelta);
-    if (reduce) setTimeout(abrirYa, 600);
+    if (reduce) tras(abrirYa, 600);
   }
 
   // ---------- estilos ----------

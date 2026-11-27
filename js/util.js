@@ -152,7 +152,7 @@ PM.limpiarPartida = function (d) {
     else d.daily.missions = d.daily.missions.filter((m) => m && typeof m === 'object').map((m) => Object.assign(m, { text: L(m.text), goal: +m.goal || 1, progress: +m.progress || 0, reward: +m.reward || 0 }));
   }
   { const o = obj(d.xpBy); if (o) for (const id of Object.keys(o)) if (!/^[a-z_]{1,24}$/.test(id) || typeof o[id] !== 'number') delete o[id]; }
-  { const o = obj(d.stats); if (o) { for (const k of Object.keys(o)) if (k !== 'lastDay' && typeof o[k] !== 'number') o[k] = +o[k] || 0; if (o.lastDay != null && !/^\d{4}-\d{2}-\d{2}$/.test(String(o.lastDay))) o.lastDay = null; } }
+  { const o = obj(d.stats); if (o) { for (const k of Object.keys(o)) if (k !== 'lastDay' && typeof o[k] !== 'number') o[k] = +o[k] || 0; if (o.lastDay != null && !/^\d{4}-\d{2}-\d{2}$/.test(String(o.lastDay))) o.lastDay = null; if (o.shields != null) o.shields = Math.max(0, Math.min(2, Math.floor(o.shields))); } }
   if (Array.isArray(d.walks)) {
     d.walks = d.walks.filter((w) => w && typeof w === 'object' && !Array.isArray(w));
     for (const w of d.walks) {
@@ -182,6 +182,7 @@ PM.limpiarPartida = function (d) {
   delete d.avoid; delete d.avoidRemoved;   // (las «zonas a evitar» se quitaron del todo, 21-nov-2026: las guardadas se borran)
   // (el color y la foto de perfil van dentro de un style="…": solo un color y una imagen de verdad)
   if (d.color != null && !/^#[0-9a-f]{3,8}$/i.test(String(d.color))) d.color = '#2563eb';
+  if (d.pointer != null && !/^(🖌️|🧭|⚡|🚀|🌟|👑)$/.test(String(d.pointer))) delete d.pointer;
   // (solo fotos: jpeg, png, webp o gif; un SVG puede llevar código dentro —informe de Gemini, 20-nov-2026—)
   if (d.avatar != null && !/^data:image\/(jpeg|jpg|png|webp|gif);base64,[A-Za-z0-9+/=]+$/.test(String(d.avatar))) delete d.avatar;
   return d;
@@ -240,6 +241,15 @@ PM.sound = {
     for (let i = 0; i < steps; i++) this.tone(base * Math.pow(2, [0, 4, 7, 12, 16, 19, 24, 28][i] / 12), 0.16, 'triangle', 0.06, i * 0.07);
     this.tone(base * 4, 0.35, 'sine', 0.035, steps * 0.07);   // brillo final
   },
+  // cuenta atrás de captura (3-2-1): tick limpio y ascendente que crea tensión antes de abrir el sobre
+  tick(left) {
+    const f = left <= 1 ? 880 : left === 2 ? 660 : 523;
+    this.tone(f, 0.08, 'triangle', 0.055, 0, f * 1.08);
+  },
+  // calle habitual sube de calor (nv. 2/3)
+  heat() { [440, 587, 740].forEach((f, i) => this.tone(f, 0.14, 'sine', 0.045, i * 0.06)); },
+  // apertura del cofre diario
+  chest() { [392, 523, 659, 784, 1046, 1318].forEach((f, i) => this.tone(f, 0.22, 'triangle', 0.06, i * 0.07)); },
   warn() { this.tone(180, 0.3, 'sawtooth', 0.05); },
 };
 

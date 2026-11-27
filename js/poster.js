@@ -117,6 +117,7 @@ PM.poster = (function () {
   // ---------- ventana ----------
   // (inicial: la ciudad con la que se abre —desde «Tus ciudades» en el perfil—; si no, la que más has pintado)
   async function open(ctx, inicial) {
+    const prev = document.getElementById('poster-view'); if (prev) prev.remove();
     const { S, W } = ctx, s = S();
     const cities = {}; for (const k in s.tileNames || {}) { const ci = s.tileNames[k].city; if (ci && (s.paintedByTile || {})[k]) cities[ci] = (cities[ci] || 0) + s.paintedByTile[k]; }
     const cityList = Object.entries(cities).sort((a, b) => b[1] - a[1]).map(([c]) => c);
@@ -138,6 +139,7 @@ PM.poster = (function () {
     (s.walks || []).forEach((w) => (w.track || []).forEach((q, i) => { if (q && i % 5 === 0) keys.add(W.tileKeyOf(q[0], q[1])); }));
     const need = [...keys].filter((k) => !(W.tiles[k] && W.tiles[k].loaded)).slice(0, 60);
     if (need.length) { load.textContent = `Cargando las calles de ${need.length} zonas…`; try { await W.ensureKeys(need); } catch (e) {} }
+    if (!ov.isConnected) return;
     let D = null;
     const draw = () => {
       D = gather(ctx, area);
@@ -152,15 +154,17 @@ PM.poster = (function () {
       if (!D) return;
       const b = e.currentTarget; b.disabled = true; msg.textContent = '⏳ Creando el póster en alta resolución…';
       await new Promise((r) => setTimeout(r, 50));
+      if (!ov.isConnected) { b.disabled = false; return; }
       try {
         const big = document.createElement('canvas'); render(big, D, theme, 1);
         const blob = await new Promise((r) => big.toBlob(r, 'image/png'));
         big.width = big.height = 0;   // (suelta los ~35 MB del lienzo grande)
+        if (!ov.isConnected) return;
         if (!blob) throw new Error(PM.t('No hay memoria suficiente para crear el póster en alta resolución.'));
         const name = `PintaMapa-${D.title.replace(/[^\wÀ-ÿ]+/g, '-')}-${theme}.png`;
         await PM.replay.save(blob, name, 'Mi mapa pintado');
-        msg.textContent = `✅ Póster listo (${(blob.size / 1048576).toFixed(1)} MB).`;
-      } catch (er) { msg.textContent = '❌ ' + (er.message || er); } finally { b.disabled = false; }
+        if (ov.isConnected) msg.textContent = `✅ Póster listo (${(blob.size / 1048576).toFixed(1)} MB).`;
+      } catch (er) { if (ov.isConnected) msg.textContent = '❌ ' + (er.message || er); } finally { b.disabled = false; }
     });
   }
 

@@ -31,9 +31,9 @@
     <div id="speed" class="badge">🧍 0.0 km/h</div>
     <div id="aura" class="badge aura"></div>
     <div id="radar" class="badge"></div>
-    <div id="capture" class="badge capture"></div>
     <div id="loading" class="badge">🗺️ Descargando calles del barrio…</div>
   </div>
+  <div id="capture" class="capture-card"></div>
   <div id="combo"></div>
   <div id="toasts"></div>
 
@@ -53,7 +53,8 @@
     <button id="nav-profile"><span><svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="8" r="4.2"/><path d="M3.5 21c0-4.6 3.8-7.6 8.5-7.6s8.5 3 8.5 7.6z"/></svg></span>Perfil</button>
   </nav>
 
-  <section id="sheet"><div class="head"><h3></h3><button class="close" aria-label="Cerrar">✕</button></div><div class="body"></div></section>
+  <div id="sheet-backdrop" aria-hidden="true"></div>
+  <section id="sheet"><div class="sheet-grip" aria-hidden="true"><i></i></div><div class="head"><h3></h3><button class="close" aria-label="Cerrar">✕</button></div><div class="body"></div></section>
   <div id="card"></div>
   <div id="celebrate"><div class="in"><div class="emoji">🚩</div><h2></h2><p></p><small>toca para continuar</small></div></div>
 
