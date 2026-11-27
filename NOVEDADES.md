@@ -1,5 +1,8 @@
 # Novedades de PintaMapa
 
+## v0.9.38 · 27 de noviembre de 2026
+- Corrección de arranque en main.js (declaración temprana de esc antes de inicializar el marcador del jugador)
+
 ## v0.9.37 · 27 de noviembre de 2026
 - Rediseño UI y dopamina v0.9.37: captura con anillo radial y ticks 3-2-1, combo con mecha de 12s, radar con objetivo fijado, portada 1-toque con racha semanal, resumen visual con mini-mapa, cofre interactivo con escudo de racha, modo oscuro en replay + 6 barrios oficiales de Cornellà con polígonos reales y limpieza global de 1.049 barrios y álbumes
 
