@@ -2,6 +2,7 @@
 (function () {
   const W = PM.world, G = PM.game, S = () => PM.state.data;
   const $ = (s) => document.querySelector(s);
+  const esc = (t) => String(t == null ? '' : t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const isNative = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
 
   const PAINT_RADIUS = 12;      // m: margen para el error del GPS (calle por la que vas). Ajustado con pruebas de GPS realista (tests/pruebas-navegador.js)
@@ -3935,7 +3936,6 @@
 
   // ---------------- Perfil: cabecera + accesos rápidos + pestañas (Resumen · Récords · Ciudades · Ajustes) ----------------
   let profTab = 'res';
-  const esc = (t) => String(t == null ? '' : t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   function profileData() {
     const s = S(), st = s.stats, walks = (s.walks || []).slice();
     const DAY = 86400000, dk = (t) => { const d = new Date(t); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };

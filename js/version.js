@@ -1,3 +1,3 @@
 // Generado por scripts/release.mjs — no editar a mano
 window.PM = window.PM || {};
-PM.VERSION = { app: '0.9.37', native: 13, apkMin: '0.9.30', date: '2026-11-27' };
+PM.VERSION = { app: '0.9.38', native: 13, apkMin: '0.9.30', date: '2026-11-27' };
